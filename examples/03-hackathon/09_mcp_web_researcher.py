@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 
 from flock import Flock
 from flock.mcp import StdioServerParameters
+from flock.mcp.types.types import StreamableHttpServerParameters
 from flock.registry import flock_tool, flock_type
 
 
@@ -103,6 +104,10 @@ class ResearchReport(BaseModel):
 # Both are key-free: no API keys or signup required. If the tools are not
 # installed, we just print a warning and continue; the agent will then rely
 # more on the base LLM.
+#
+# We also register an optional **remote** You.com search MCP (keyless free
+# profile). The agent below stays on DuckDuckGo; swap `search_web` for
+# `youcom_search_web` in `.with_mcps(...)` to use You.com instead.
 # ============================================================================
 
 flock = Flock()
@@ -137,6 +142,20 @@ except Exception as e:  # pragma: no cover - environment dependent
         f"⚠️  Could not add website reader MCP "
         f"(is npm + @just-every/mcp-read-website-fast installed?): {e}"
     )
+
+try:
+    flock.add_mcp(
+        name="youcom_search_web",
+        enable_tools_feature=True,
+        connection_params=StreamableHttpServerParameters(
+            # Keyless free profile: remote search MCP with no API key,
+            # no signup, and no local uvx/npm dependency.
+            url="https://api.you.com/mcp?profile=free",
+        ),
+    )
+    print("✅ Added You.com search MCP (youcom_search_web)")
+except Exception as e:  # pragma: no cover - environment dependent
+    print(f"⚠️  Could not add You.com search MCP: {e}")
 
 
 # ============================================================================

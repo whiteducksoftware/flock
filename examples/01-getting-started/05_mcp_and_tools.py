@@ -90,6 +90,21 @@ except Exception as e:
 
 try:
     flock.add_mcp(
+        name="youcom_search_web",
+        enable_tools_feature=True,
+        connection_params=StreamableHttpServerParameters(
+            # Keyless free profile: no API key or signup required.
+            # Set YDC_API_KEY as a Bearer token on the /mcp endpoint instead
+            # for the full authenticated tools.
+            url="https://api.you.com/mcp?profile=free",
+        ),
+    )
+    print("✅ Added You.com search MCP (keyless free profile)")
+except Exception as e:
+    print(f"⚠️  Could not add You.com search MCP: {e}")
+
+try:
+    flock.add_mcp(
         name="read_website",
         enable_tools_feature=True,
         connection_params=StdioServerParameters(
