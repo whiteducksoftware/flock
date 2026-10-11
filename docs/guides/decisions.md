@@ -422,7 +422,11 @@ Use sections for documents that do not fit, or when the evidence has to be locat
 | whole manual | 12 | 0.87 | 0.98 |
 | sections of at most 800 characters | 51 | 0.74 | 1.00 |
 
-In the dashboard, a decision names the number of sections and, for a single question, the section that answered; a checklist cell names the section of its item.
+In the dashboard, a decision names the number of sections and, for a single question, the section that answered; a checklist cell names the section of its item in its tooltip:
+
+<p align="center">
+  <img alt="A checklist decision about a manual in 7 sections: 28 controls yes, 63 no, 9 unsure" src="../../assets/images/decisions/decision-sections-card.png" width="560">
+</p>
 
 ## Thresholds and the UNSURE branch
 
