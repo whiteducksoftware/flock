@@ -58,6 +58,15 @@ class FilterConfig:
     end: datetime | None = None
 
 
+def _check_histogram_range(filters: FilterConfig, buckets: int) -> None:
+    if filters.start is None or filters.end is None:
+        raise ValueError("A histogram needs filters.start and filters.end.")
+    if as_utc(filters.end) <= as_utc(filters.start):
+        raise ValueError("A histogram's end must be after its start.")
+    if buckets < 1:
+        raise ValueError("A histogram needs at least one bucket.")
+
+
 @dataclass(slots=True)
 class ArtifactEnvelope:
     """Wrapper returned when ``embed_meta`` is requested."""
@@ -161,6 +170,21 @@ class BlackboardStore:
     ) -> dict[str, Any]:
         """Return aggregate artifact statistics for the given filters."""
         raise NotImplementedError
+
+    async def artifact_histogram(
+        self, filters: FilterConfig, *, buckets: int
+    ) -> tuple[list[int], list[int]]:
+        """Artifacts and workflow errors per time bucket, from ``filters.start``
+        to ``filters.end`` in ``buckets`` equal steps."""
+        from flock.storage.histogram import bucket_artifacts
+
+        _check_histogram_range(filters, buckets)
+        items, _ = await self.query_artifacts(filters, limit=0)
+        artifacts = [
+            item.artifact if isinstance(item, ArtifactEnvelope) else item
+            for item in items
+        ]
+        return bucket_artifacts(artifacts, filters.start, filters.end, buckets)
 
     async def agent_history_summary(
         self,
@@ -683,6 +707,42 @@ class SQLiteBlackboardStore(BlackboardStore):
             for artifact in artifacts
         ]
         return envelopes, total
+
+    async def artifact_histogram(  # type: ignore[override]
+        self, filters: FilterConfig, *, buckets: int
+    ) -> tuple[list[int], list[int]]:
+        """Artifacts and workflow errors per time bucket, grouped in SQL."""
+        from flock.storage.histogram import workflow_error_type
+
+        _check_histogram_range(filters, buckets)
+        start = as_utc(filters.start)
+        width = (as_utc(filters.end) - start).total_seconds() / buckets
+        conn = await self._get_connection()
+        where_clause, params = self._build_filters(filters)
+        query = f"""
+            SELECT
+                CAST((julianday(created_at) - julianday(?)) * 86400.0 / ? AS INTEGER)
+                    AS bucket,
+                COUNT(*) AS artifacts,
+                SUM(CASE WHEN COALESCE(canonical_type, type) = ? THEN 1 ELSE 0 END)
+                    AS errors
+            FROM artifacts
+            {where_clause}
+            GROUP BY bucket
+        """  # nosec B608 - the WHERE clause is built from bound parameters
+        cursor = await conn.execute(
+            query, (start.isoformat(), width, workflow_error_type(), *params)
+        )
+        rows = await cursor.fetchall()
+        await cursor.close()
+        counts = [0] * buckets
+        errors = [0] * buckets
+        for row in rows:
+            # An artifact at the very end of the range counts in the last bucket
+            index = min(max(int(row["bucket"]), 0), buckets - 1)
+            counts[index] += row["artifacts"]
+            errors[index] += row["errors"]
+        return counts, errors
 
     async def summarize_artifacts(
         self,

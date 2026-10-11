@@ -3,7 +3,7 @@
 import asyncio
 import json
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
@@ -15,6 +15,7 @@ from starlette.requests import Request
 from flock.api import image_uploads
 from flock.api.thumbnails import compact, image_summaries
 from flock.components.server.artifacts.models import (
+    ArtifactHistogramResponse,
     ArtifactListResponse,
     ArtifactPublishRequest,
     ArtifactPublishResponse,
@@ -31,6 +32,7 @@ from flock.core.visibility import (
 )
 from flock.registry import type_registry
 from flock.storage.artifact_aggregator import ArtifactAggregator
+from flock.storage.histogram import bucket_artifacts
 from flock.utils.time_utils import as_utc, format_time_span
 from flock.utils.type_resolution import TypeResolutionHelper
 from flock.utils.visibility_utils import deserialize_visibility
@@ -611,6 +613,85 @@ class ArtifactsComponent(ServerComponent):
                 is_full_window=is_full_window,
             )
             return ArtifactSummaryResponse(summary=summary)
+
+        @app.get(
+            self._join_path(self.config.prefix, "artifacts/histogram"),
+            response_model=ArtifactHistogramResponse,
+            tags=self.config.tags,
+        )
+        async def artifact_histogram(
+            request: Request,
+            type_names: list[str] | None = Query(None, alias="type"),
+            produced_by: list[str] | None = Query(None),
+            correlation_id: str | None = None,
+            tag: list[str] | None = Query(None),
+            start: str | None = Query(None, alias="from"),
+            end: str | None = Query(None, alias="to"),
+            visibility: list[str] | None = Query(None),
+            buckets: int = Query(60, ge=1, le=500),
+        ) -> ArtifactHistogramResponse:
+            """Artifacts and workflow errors per time bucket (the last hour
+            unless ``from`` and ``to`` are given), counting only what the
+            caller may see."""
+            filters = self._make_filter_config(
+                type_names=type_names,
+                produced_by=produced_by,
+                correlation_id=correlation_id,
+                tags=tag,
+                visibility=visibility,
+                start=start,
+                end=end,
+            )
+            end_at = as_utc(filters.end) if filters.end else datetime.now(UTC)
+            start_at = (
+                as_utc(filters.start) if filters.start else end_at - timedelta(hours=1)
+            )
+            if end_at <= start_at:
+                raise HTTPException(status_code=422, detail="'to' must be after 'from'")
+            filters = replace(filters, start=start_at, end=end_at)
+            store = orchestrator.store
+
+            if not self.config.enforce_visibility:
+                counts, errors = await store.artifact_histogram(
+                    filters, buckets=buckets
+                )
+            elif self._is_anonymous(identity := self._resolve_identity(request)):
+                # Public artifacts from the store, expired embargoes counted here
+                requested = filters.visibility
+                counts, errors = [0] * buckets, [0] * buckets
+                if requested is None or "Public" in requested:
+                    counts, errors = await store.artifact_histogram(
+                        replace(filters, visibility={"Public"}), buckets=buckets
+                    )
+                if requested is None or "After" in requested:
+                    after = [
+                        self._artifact(item)
+                        for item in await self._visible_after_artifacts(
+                            orchestrator, filters
+                        )
+                    ]
+                    more, more_errors = bucket_artifacts(
+                        after, start_at, end_at, buckets
+                    )
+                    counts = [a + b for a, b in zip(counts, more, strict=True)]
+                    errors = [a + b for a, b in zip(errors, more_errors, strict=True)]
+            else:
+                items, _ = await store.query_artifacts(filters, limit=0)
+                allowed = [
+                    artifact
+                    for artifact in map(self._artifact, items)
+                    if artifact.visibility.allows(identity)
+                ]
+                counts, errors = bucket_artifacts(allowed, start_at, end_at, buckets)
+
+            return ArtifactHistogramResponse(
+                start=start_at,
+                end=end_at,
+                bucket_seconds=(end_at - start_at).total_seconds() / buckets,
+                counts=counts,
+                errors=errors,
+                total=sum(counts),
+            )
 
         @app.get(
             self._join_path(self.config.prefix, "artifacts/{artifact_id}"),
