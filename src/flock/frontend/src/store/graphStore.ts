@@ -149,6 +149,8 @@ export const useGraphStore = create<GraphState>()(
 
           const request = buildGraphRequest('agent');
           const snapshot: GraphSnapshot = await fetchGraphSnapshot(request);
+          // The snapshot's countdowns (joins, batches) go on from here, on the monotonic clock
+          const snapshotAt = performance.now();
 
           const { savedPositions, nodes: currentNodes, agentStatus, streamingTokens, agentLogicOperations } = get();
 
@@ -156,7 +158,9 @@ export const useGraphStore = create<GraphState>()(
           const mergedNodes = mergeNodePositions(snapshot.nodes, savedPositions, currentNodes);
 
           // Overlay real-time WebSocket state
-          const finalNodes = overlayWebSocketState(mergedNodes, agentStatus, streamingTokens, agentLogicOperations);
+          const finalNodes = overlayWebSocketState(mergedNodes, agentStatus, streamingTokens, agentLogicOperations).map(
+            (node) => (node.type === 'agent' ? { ...node, data: { ...node.data, snapshotAt } } : node),
+          );
 
           set({
             nodes: finalNodes,

@@ -30,6 +30,8 @@ export interface AgentData {
   engineTag?: string | null;
   isOpenClawAgent?: boolean;
   streamingTokens?: string[];
+  /** When the snapshot arrived, on the monotonic clock (`performance.now()`) */
+  snapshotAt?: number;
   lastError?: { type?: string | null; message?: string | null; at?: string | null; correlationId?: string | null } | null;
 }
 
@@ -40,19 +42,24 @@ export interface LogicOperation {
   batch?: { strategy?: string; size?: number; timeout_seconds?: number };
   waiting_state?: {
     is_waiting: boolean;
+    // Countdowns as the server counted them when it took the snapshot
     correlation_groups?: {
       correlation_key: string;
-      created_at: string;
+      created_at?: string | null;
+      elapsed_seconds?: number;
+      /** null for a window counted in artifacts */
+      expires_in_seconds?: number | null;
       collected_types: Record<string, number>;
       required_types: Record<string, number>;
       is_complete: boolean;
       is_expired: boolean;
     }[];
     batch_state?: {
-      created_at: string;
+      created_at?: string;
       items_collected: number;
       items_target: number | null;
       timeout_seconds?: number;
+      timeout_remaining_seconds?: number;
     };
   };
 }
@@ -199,28 +206,27 @@ export interface JoinWait {
   more: number;
 }
 
-/** The oldest open join group of the agent, if any. */
-export function joinWait(operations: LogicOperation[], now: number): JoinWait | null {
-  for (const operation of operations) {
-    const groups = (operation.waiting_state?.correlation_groups ?? []).filter(
-      (group) => !group.is_complete && !group.is_expired,
-    );
-    if (!operation.waiting_state?.is_waiting || groups.length === 0) continue;
-    const [first] = [...groups].sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
-    const window = operation.join;
-    const secondsLeft =
-      window?.window_type === 'time' && window.window_value !== undefined
-        ? (Date.parse(first!.created_at) + window.window_value * 1000 - now) / 1000
-        : null;
-    return {
-      key: keyText(first!.correlation_key),
-      collected: sum(first!.collected_types),
-      required: sum(first!.required_types),
-      secondsLeft,
-      more: groups.length - 1,
-    };
-  }
-  return null;
+/**
+ * The oldest open join group of all the agent's joins, if any. `age` is the
+ * time in seconds since the snapshot arrived: the countdown goes on from the
+ * server's, so the browser's clock never has to agree with the server's.
+ */
+export function joinWait(operations: LogicOperation[], age: number): JoinWait | null {
+  const groups = operations.flatMap((operation) =>
+    operation.waiting_state?.is_waiting
+      ? (operation.waiting_state.correlation_groups ?? []).filter((group) => !group.is_complete && !group.is_expired)
+      : [],
+  );
+  if (groups.length === 0) return null;
+  const oldest = groups.reduce((a, b) => ((b.elapsed_seconds ?? 0) > (a.elapsed_seconds ?? 0) ? b : a));
+  const expiresIn = oldest.expires_in_seconds;
+  return {
+    key: keyText(oldest.correlation_key),
+    collected: sum(oldest.collected_types),
+    required: sum(oldest.required_types),
+    secondsLeft: expiresIn === null || expiresIn === undefined ? null : expiresIn - age,
+    more: groups.length - 1,
+  };
 }
 
 export interface BatchWait {
@@ -230,16 +236,16 @@ export interface BatchWait {
   secondsLeft: number | null;
 }
 
-/** The agent's batch being collected, if any. */
-export function batchWait(operations: LogicOperation[], now: number): BatchWait | null {
+/** The agent's batch being collected, if any; `age` as for `joinWait`. */
+export function batchWait(operations: LogicOperation[], age: number): BatchWait | null {
   for (const operation of operations) {
     const batch = operation.waiting_state?.batch_state;
     if (!operation.waiting_state?.is_waiting || !batch) continue;
-    const timeout = batch.timeout_seconds ?? operation.batch?.timeout_seconds;
+    const remaining = batch.timeout_remaining_seconds;
     return {
       collected: batch.items_collected,
       target: batch.items_target,
-      secondsLeft: timeout !== undefined ? (Date.parse(batch.created_at) + timeout * 1000 - now) / 1000 : null,
+      secondsLeft: remaining === undefined ? null : remaining - age,
     };
   }
   return null;

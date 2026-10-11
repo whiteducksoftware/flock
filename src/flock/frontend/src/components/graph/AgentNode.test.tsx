@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { ReactFlowProvider, useStoreApi } from '@xyflow/react';
 import { useLayoutEffect } from 'react';
 import AgentNode from './AgentNode';
@@ -573,9 +573,8 @@ describe('AgentNode', () => {
     });
 
     it('labels an AND gate and a join, and shows the open join', () => {
-      vi.useFakeTimers();
-      vi.setSystemTime(new Date('2026-10-11T12:00:36Z'));
       renderCard({
+        snapshotAt: performance.now(),
         subscriptionGroups: [['app.TeamReply', 'app.CustomerScore']],
         receivedByType: { 'app.TeamReply': 1 },
         logicOperations: [
@@ -588,7 +587,8 @@ describe('AgentNode', () => {
               correlation_groups: [
                 {
                   correlation_key: "('9c34',)",
-                  created_at: '2026-10-11T12:00:00Z',
+                  elapsed_seconds: 36,
+                  expires_in_seconds: 24,
                   collected_types: { 'app.TeamReply': 1 },
                   required_types: { 'app.TeamReply': 1, 'app.CustomerScore': 1 },
                   is_complete: false,
@@ -605,9 +605,8 @@ describe('AgentNode', () => {
     });
 
     it('shows a batch being collected, one cell per item', () => {
-      vi.useFakeTimers();
-      vi.setSystemTime(new Date('2026-10-11T12:00:19Z'));
       renderCard({
+        snapshotAt: performance.now(),
         logicOperations: [
           {
             subscription_index: 0,
@@ -615,7 +614,7 @@ describe('AgentNode', () => {
             batch: { strategy: 'hybrid', size: 5, timeout_seconds: 60 },
             waiting_state: {
               is_waiting: true,
-              batch_state: { created_at: '2026-10-11T12:00:00Z', items_collected: 3, items_target: 5, timeout_seconds: 60 },
+              batch_state: { items_collected: 3, items_target: 5, timeout_seconds: 60, timeout_remaining_seconds: 41 },
             },
           },
         ],
@@ -624,6 +623,31 @@ describe('AgentNode', () => {
       const batch = screen.getByTestId('batch-wait');
       expect(batch.textContent).toBe('batch 3 / 5or in 0:41');
       expect(batch.querySelectorAll('.hatch')).toHaveLength(2);
+      expect(batch.querySelector('[class*="urgent"]')).toBeNull();
+    });
+
+    it('counts a batch down on the local clock from the snapshot, amber under 30 s', () => {
+      vi.useFakeTimers();
+      renderCard({
+        snapshotAt: performance.now(),
+        logicOperations: [
+          {
+            subscription_index: 0,
+            subscription_types: ['app.TeamReply'],
+            batch: { strategy: 'timeout', timeout_seconds: 60 },
+            waiting_state: {
+              is_waiting: true,
+              batch_state: { items_collected: 2, items_target: null, timeout_seconds: 60, timeout_remaining_seconds: 35 },
+            },
+          },
+        ],
+      });
+
+      act(() => vi.advanceTimersByTime(6000));
+
+      const batch = screen.getByTestId('batch-wait');
+      expect(batch.textContent).toBe('batch 2 / ∞or in 0:29');
+      expect(batch.querySelector('[class*="urgent"]')?.textContent).toBe('0:29');
     });
   });
 
@@ -646,5 +670,7 @@ describe('AgentNode', () => {
 
     expect(container.textContent).toBe('tech_support1');
     expect(screen.queryByTitle('app.Ticket')).toBeNull();
+    // The dot's color is not the only way to learn the status
+    expect(screen.getByRole('img', { name: 'idle' })).toBeTruthy();
   });
 });

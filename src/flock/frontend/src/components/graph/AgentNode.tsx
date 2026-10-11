@@ -173,6 +173,7 @@ const MAX_CELLS = 24;
 
 const BatchBox: React.FC<{ wait: NonNullable<ReturnType<typeof batchWait>> }> = ({ wait }) => {
   const target = wait.target;
+  const urgent = wait.secondsLeft !== null && wait.secondsLeft < URGENT_SECONDS;
   return (
     <div className={styles.wait} data-testid="batch-wait">
       <div className={styles.waitHead}>
@@ -181,7 +182,8 @@ const BatchBox: React.FC<{ wait: NonNullable<ReturnType<typeof batchWait>> }> = 
         </span>
         {wait.secondsLeft !== null && (
           <span className={`${styles.end} ${styles.quiet}`}>
-            or in <span className={`mono num ${styles.quietStrong}`}>{formatClock(wait.secondsLeft)}</span>
+            or in{' '}
+            <span className={`mono num ${urgent ? styles.urgent : styles.quietStrong}`}>{formatClock(wait.secondsLeft)}</span>
           </span>
         )}
       </div>
@@ -212,7 +214,14 @@ const AgentNode = memo(({ data, selected }: NodeProps) => {
   const waits = operations.some((operation) => operation.waiting_state?.is_waiting);
   const now = useNow(!chip && (Boolean(timer) || waits));
 
-  const dot = <span className={`sdot ${status === 'running' ? 'run' : status === 'error' ? 'err' : ''}`} aria-hidden />;
+  // Labelled: the color is not the only way to learn the status
+  const dot = (
+    <span
+      className={`sdot ${status === 'running' ? 'run' : status === 'error' ? 'err' : ''}`}
+      role="img"
+      aria-label={status === 'error' ? 'failed' : status}
+    />
+  );
   const handles = (
     <>
       <Handle type="target" position={Position.Left} className={styles.handle} />
@@ -236,8 +245,10 @@ const AgentNode = memo(({ data, selected }: NodeProps) => {
   const decider = agent.decision as DeciderInfo | undefined;
   const aggregator = (data as Record<string, unknown>).coverage as AggregatorInfo | undefined;
   const tokens = agent.streamingTokens ?? [];
-  const join = waits ? joinWait(operations, now) : null;
-  const batch = waits ? batchWait(operations, now) : null;
+  // Seconds since the snapshot came, on the monotonic clock (`now` re-renders every second)
+  const age = agent.snapshotAt !== undefined ? (performance.now() - agent.snapshotAt) / 1000 : 0;
+  const join = waits ? joinWait(operations, age) : null;
+  const batch = waits ? batchWait(operations, age) : null;
 
   return (
     <div className={styles.card} data-status={status} data-selected={selected || undefined}>

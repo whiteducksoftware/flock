@@ -120,42 +120,52 @@ describe('portRows', () => {
 });
 
 describe('waits', () => {
-  const now = Date.parse('2026-10-11T12:00:30Z');
+  // Seconds since the snapshot arrived; the server counted down to then
+  const age = 6;
+
+  const joinOf = (index: number, groups: { key: string; elapsed: number; expiresIn: number | null }[]) => ({
+    subscription_index: index,
+    subscription_types: [],
+    join: { window_type: 'time', window_value: 60, window_unit: 'seconds' },
+    waiting_state: {
+      is_waiting: true,
+      correlation_groups: groups.map((group) => ({
+        correlation_key: `('${group.key}',)`,
+        elapsed_seconds: group.elapsed,
+        expires_in_seconds: group.expiresIn,
+        collected_types: { 'app.TeamReply': 1 },
+        required_types: { 'app.TeamReply': 1, 'app.CustomerScore': 1 },
+        is_complete: false,
+        is_expired: false,
+      })),
+    },
+  });
 
   it('reads the open join: its key, how much is there and when it expires', () => {
     const wait = joinWait(
       [
-        {
-          subscription_index: 0,
-          subscription_types: [],
-          join: { window_type: 'time', window_value: 60, window_unit: 'seconds' },
-          waiting_state: {
-            is_waiting: true,
-            correlation_groups: [
-              {
-                correlation_key: "('T-0001',)",
-                created_at: '2026-10-11T12:00:00Z',
-                collected_types: { 'app.TeamReply': 1 },
-                required_types: { 'app.TeamReply': 1, 'app.CustomerScore': 1 },
-                is_complete: false,
-                is_expired: false,
-              },
-              {
-                correlation_key: "('T-0002',)",
-                created_at: '2026-10-11T12:00:10Z',
-                collected_types: {},
-                required_types: { 'app.TeamReply': 1, 'app.CustomerScore': 1 },
-                is_complete: false,
-                is_expired: false,
-              },
-            ],
-          },
-        },
+        joinOf(0, [
+          { key: 'T-0002', elapsed: 20, expiresIn: 40 },
+          { key: 'T-0001', elapsed: 30, expiresIn: 30 },
+        ]),
       ],
-      now,
+      age,
     );
 
-    expect(wait).toEqual({ key: 'T-0001', collected: 1, required: 2, secondsLeft: 30, more: 1 });
+    expect(wait).toEqual({ key: 'T-0001', collected: 1, required: 2, secondsLeft: 24, more: 1 });
+  });
+
+  it('takes the oldest open join of all the agent\'s joins', () => {
+    const wait = joinWait(
+      [joinOf(0, [{ key: 'T-0003', elapsed: 5, expiresIn: 55 }]), joinOf(1, [{ key: 'T-0001', elapsed: 40, expiresIn: 20 }])],
+      age,
+    );
+
+    expect(wait).toMatchObject({ key: 'T-0001', secondsLeft: 14, more: 1 });
+  });
+
+  it('has no countdown for a join window counted in artifacts', () => {
+    expect(joinWait([joinOf(0, [{ key: 'T-0001', elapsed: 40, expiresIn: null }])], age)?.secondsLeft).toBeNull();
   });
 
   it('reads the batch: items so far, the target and the timeout', () => {
@@ -167,18 +177,18 @@ describe('waits', () => {
           batch: { strategy: 'hybrid', size: 5, timeout_seconds: 60 },
           waiting_state: {
             is_waiting: true,
-            batch_state: { created_at: '2026-10-11T12:00:00Z', items_collected: 3, items_target: 5, timeout_seconds: 60 },
+            batch_state: { items_collected: 3, items_target: 5, timeout_seconds: 60, timeout_remaining_seconds: 30 },
           },
         },
       ],
-      now,
+      age,
     );
 
-    expect(wait).toEqual({ collected: 3, target: 5, secondsLeft: 30 });
+    expect(wait).toEqual({ collected: 3, target: 5, secondsLeft: 24 });
   });
 
   it('has nothing to show when nothing waits', () => {
-    expect(joinWait([], now)).toBeNull();
-    expect(batchWait([{ subscription_index: 0, subscription_types: [], waiting_state: { is_waiting: false } }], now)).toBeNull();
+    expect(joinWait([], age)).toBeNull();
+    expect(batchWait([{ subscription_index: 0, subscription_types: [], waiting_state: { is_waiting: false } }], age)).toBeNull();
   });
 });
