@@ -127,6 +127,11 @@ def outcome(results: dict[str, str]) -> str:
     return PASSED
 
 
+def _subjects_known(payload: dict[str, Any], known: dict[str, Artifact]) -> bool:
+    subject_ids = payload.get("subject_ids") or []
+    return bool(subject_ids) and all(sid in known for sid in subject_ids)
+
+
 class _Entry(BaseModel):
     """One decision in a group."""
 
@@ -179,7 +184,12 @@ class AggregateEngine(EngineComponent):
         async with self._lock:
             # History, e.g. after a restart: only decisions that reach this agent
             for artifact in ctx.artifacts:
-                if artifact.type == decision_type and self._reaches(agent, artifact):
+                if (
+                    artifact.type == decision_type
+                    and self._reaches(agent, artifact)
+                    # A narrower context may leave out a decision's subject
+                    and _subjects_known(artifact.payload, known)
+                ):
                     self._add(str(artifact.id), artifact.payload, known)
             groups = [
                 self._add(item["id"], item["payload"], known) for item in triggering
