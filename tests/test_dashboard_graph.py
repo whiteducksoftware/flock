@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import httpx
@@ -85,6 +86,27 @@ async def test_graph_assembler_agent_and_blackboard(orchestrator):
     transformation_edge = blackboard_snapshot.edges[0]
     assert transformation_edge.source != transformation_edge.target
     assert transformation_edge.label == "consumer_agent"
+
+
+@pytest.mark.asyncio
+async def test_recent_presets_show_artifacts_stamped_after_the_request(orchestrator):
+    """A preset like "last 10 minutes" bounds the start only: an artifact stamped
+    after the request read the clock (the clock stepped back, or the publish raced
+    the request) still shows."""
+    ahead = Artifact(
+        type="Idea",
+        payload={"topic": "pizza"},
+        produced_by="producer_agent",
+        created_at=datetime.now(UTC) + timedelta(seconds=2),
+    )
+    await orchestrator.store.publish(ahead)
+    collector = DashboardEventCollector(store=orchestrator.store)
+    assembler = GraphAssembler(orchestrator.store, collector, orchestrator)
+
+    snapshot = await assembler.build_snapshot(GraphRequest(view_mode="blackboard"))
+
+    assert snapshot.filters.time_range.preset == "last10min"
+    assert [node.id for node in snapshot.nodes] == [str(ahead.id)]
 
 
 @pytest.mark.asyncio

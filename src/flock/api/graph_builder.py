@@ -982,7 +982,10 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         else:
             delta = timedelta(minutes=10)
 
-        return now - delta, now
+        # "The last N minutes" bounds the start only: an artifact stamped after
+        # this clock reading (a clock that stepped back, a publish racing the
+        # request) is still recent
+        return now - delta, None
 
     @staticmethod
     def _ensure_timezone(value: datetime | None) -> datetime | None:
