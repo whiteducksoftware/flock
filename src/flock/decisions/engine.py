@@ -89,6 +89,29 @@ def _trivial_answer(candidates: dict[str, str]) -> DecisionAnswer:
     return DecisionAnswer(only, {only: 1.0}, confidence=1.0)
 
 
+class _Trail:
+    """Which tier answered each wire question, and the answers before it."""
+
+    def __init__(self) -> None:
+        self.tiers: dict[str, int] = {}
+        self.labels: dict[str, str] = {}
+        self.attempts: dict[str, list[tuple[str, DecisionAnswer]]] = {}
+
+    def label(self, name: str, default: str) -> str:
+        return self.labels.get(name, default)
+
+
+def _attempt(label: str, answer: DecisionAnswer) -> dict[str, Any]:
+    """An earlier tier's answer, as a decision records it."""
+    return {
+        "model": label,
+        "choice": answer.choice,
+        "probabilities": dict(answer.probabilities),
+        "confidence": answer.confidence,
+        "refused": answer.refused,
+    }
+
+
 class DecisionEngine(EngineComponent):
     """Answers :class:`Choice`, :class:`YesNo`, :class:`Scale` and
     :class:`Checklist` questions about the agent's inputs.
@@ -102,7 +125,9 @@ class DecisionEngine(EngineComponent):
     inputs' visibility unless ``visibility`` is set. ``instructions`` replaces
     the docstring of a single question. With ``tournament`` set, the single
     Choice question is asked in rounds of groups (see :class:`Tournament`);
-    the decision's ``rounds`` records them.
+    the decision's ``rounds`` records them. With ``escalation``, questions (and
+    checklist items) that are not firm are asked again by the next provider;
+    a decision records the ``tier`` that answered and the earlier ``attempts``.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -118,6 +143,11 @@ class DecisionEngine(EngineComponent):
         default=None,
         description="Restricts the single Choice or Checklist to these options "
         "for each execution",
+    )
+    escalation: list[DecisionProvider] = Field(
+        default_factory=list,
+        description="Providers asked in order about what the previous one was "
+        "not sure about",
     )
     enable_context: bool = Field(
         default=False, description="Decisions are made on the inputs only"
@@ -140,15 +170,19 @@ class DecisionEngine(EngineComponent):
         wire = self._wire_questions(candidates)
 
         state, images = prepare_state(inputs.artifacts)
-        if images and not self.provider.supports_images:
-            raise ValueError(
-                f"Decision model '{self.provider.label}' does not accept images; "
-                "use a provider with image support (openai/, local/ with a vision "
-                "model) for inputs with Image fields."
-            )
+        if images:
+            for provider in (self.provider, *self.escalation):
+                if not provider.supports_images:
+                    raise ValueError(
+                        f"Decision model '{provider.label}' does not accept images; "
+                        "use providers with image support (openai/, local/ with a "
+                        "vision model) for inputs with Image fields, also in "
+                        "escalate=."
+                    )
 
         started = time.perf_counter()
         rounds: list[dict[str, Any]] = []
+        trail = _Trail()
         if (
             candidates is not None
             and self.questions[0].__kind__ == "choice"
@@ -161,6 +195,7 @@ class DecisionEngine(EngineComponent):
             answers = {self.questions[0].__name__: answer}
         elif wire:
             answers = await self._ask(state, wire, images)
+            trail = await self._escalate(state, wire, answers, images)
         else:
             answers = {}
         latency_ms = round((time.perf_counter() - started) * 1000, 3)
@@ -171,7 +206,7 @@ class DecisionEngine(EngineComponent):
             model = Decision.of(question)
             if question.__kind__ == "checklist":
                 decision = self._checklist_decision(
-                    question, wire, answers, subject_ids, latency_ms
+                    question, wire, answers, subject_ids, latency_ms, trail
                 )
                 if candidates is not None:
                     decision.candidates = list(candidates)
@@ -185,6 +220,7 @@ class DecisionEngine(EngineComponent):
                 )
                 continue
             answer = answers[question.__name__]
+            name = question.__name__
             decision = model(
                 choice=answer.choice if self._firm(answer) else UNSURE,
                 best_guess=answer.choice,
@@ -196,7 +232,12 @@ class DecisionEngine(EngineComponent):
                 subject_ids=subject_ids,
                 candidates=None if candidates is None else list(candidates),
                 rounds=rounds,
-                model=answer.model or self.provider.label,
+                model=answer.model or trail.label(name, self.provider.label),
+                tier=trail.tiers.get(name, 0),
+                attempts=[
+                    _attempt(label, earlier)
+                    for label, earlier in trail.attempts.get(name, [])
+                ],
                 latency_ms=latency_ms,
             )
             artifacts.append(
@@ -210,15 +251,51 @@ class DecisionEngine(EngineComponent):
         return EvalResult(artifacts=artifacts)
 
     async def _ask(
-        self, state: str, wire: list[DecisionQuestion], images: list[Image]
+        self,
+        state: str,
+        wire: list[DecisionQuestion],
+        images: list[Image],
+        provider: DecisionProvider | None = None,
     ) -> dict[str, DecisionAnswer]:
         """Ask ``wire`` in concurrent requests of at most ``questions_per_request``."""
+        provider = provider or self.provider
         size = self.questions_per_request
         chunks = [wire[i : i + size] for i in range(0, len(wire), size)]
         replies = await asyncio.gather(
-            *(self.provider.decide_many(state, chunk, images) for chunk in chunks)
+            *(provider.decide_many(state, chunk, images) for chunk in chunks)
         )
         return {name: answer for reply in replies for name, answer in reply.items()}
+
+    async def _escalate(
+        self,
+        state: str,
+        wire: list[DecisionQuestion],
+        answers: dict[str, DecisionAnswer],
+        images: list[Image],
+    ) -> _Trail:
+        """Ask what is not firm again, one tier up; ``answers`` is updated."""
+        trail = _Trail()
+        for tier, provider in enumerate(self.escalation, start=1):
+            unsure = [q for q in wire if not self._settled(q, answers[q.name])]
+            if not unsure:
+                break
+            replies = await self._ask(state, unsure, images, provider=provider)
+            for question in unsure:
+                earlier = answers[question.name]
+                label = earlier.model or trail.label(question.name, self.provider.label)
+                trail.attempts.setdefault(question.name, []).append((label, earlier))
+                answers[question.name] = replies[question.name]
+                trail.tiers[question.name] = tier
+                trail.labels[question.name] = provider.label
+        return trail
+
+    def _settled(self, question: DecisionQuestion, answer: DecisionAnswer) -> bool:
+        """A firm answer: a checklist item's result, else the threshold."""
+        if question.item is None:
+            return self._firm(answer)
+        if answer.refused or answer.choice is None:
+            return False
+        return self._item_result(answer.probabilities.get("yes", 0.0)) != UNSURE
 
     def _candidates(self, ctx: Context) -> dict[str, str] | None:
         """The options of the single question for this execution (options=)."""
@@ -382,7 +459,9 @@ class DecisionEngine(EngineComponent):
         answers: dict[str, DecisionAnswer],
         subject_ids: list[str],
         latency_ms: float,
+        trail: _Trail | None = None,
     ) -> Decision:
+        trail = trail or _Trail()
         results: dict[str, str] = {}
         probabilities: dict[str, float] = {}
         refused: list[str] = []
@@ -414,6 +493,30 @@ class DecisionEngine(EngineComponent):
             best_guess = (
                 FAILED if any(p < 0.5 for p in probabilities.values()) else PASSED
             )
+        # Escalated items: the highest tier answered, earlier tiers per round
+        items = [q for q in wire if q.group == question.__name__]
+        tier = max((trail.tiers.get(q.name, 0) for q in items), default=0)
+        attempts: list[dict[str, Any]] = []
+        for item_question in items:
+            for index, (label, earlier) in enumerate(
+                trail.attempts.get(item_question.name, [])
+            ):
+                while len(attempts) <= index:
+                    attempts.append({"model": label, "results": {}})
+                attempts[index]["results"][item_question.item] = (
+                    UNSURE
+                    if earlier.refused or earlier.choice is None
+                    else self._item_result(earlier.probabilities.get("yes", 0.0))
+                )
+        # The model the top tier reported, else its configured label
+        top_label = next(
+            (
+                answers[q.name].model or trail.labels[q.name]
+                for q in items
+                if trail.tiers.get(q.name, 0) == tier and q.name in trail.labels
+            ),
+            None,
+        )
         return Decision.of(question)(
             choice=outcome,
             best_guess=best_guess,
@@ -423,7 +526,9 @@ class DecisionEngine(EngineComponent):
             refused=bool(results) and len(refused) == len(results),
             threshold=self.threshold,
             subject_ids=subject_ids,
-            model=models[0] if models else self.provider.label,
+            model=top_label or (models[0] if models else self.provider.label),
+            tier=tier,
+            attempts=attempts,
             latency_ms=latency_ms,
         )
 

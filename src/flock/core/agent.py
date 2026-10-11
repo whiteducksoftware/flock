@@ -752,6 +752,7 @@ class AgentBuilder:
         questions_per_request: int = 100,
         tournament: Any | None = None,
         options: Callable[[Context], Iterable[str]] | None = None,
+        escalate: str | Sequence[str | Any] | None = None,
     ) -> AgentBuilder:
         """Answer questions about each input with a decision model.
 
@@ -779,6 +780,12 @@ class AgentBuilder:
             questions_per_request: Most questions sent in one provider request.
             tournament: A ``Tournament`` to ask one large Choice in rounds of
                 groups; required for choices with more than 255 options.
+            escalate: Decision models (or a single one) to ask, in order, when
+                a decision is not firm (below ``threshold`` or refused): each
+                tier gets only the questions (and checklist items) the previous
+                tier was unsure about. A decision records the ``tier`` that answered and the
+                earlier ``attempts``; still unsure after the last tier, it routes
+                to ``UNSURE`` as usual.
             options: Restricts the single Choice or Checklist to a subset of its
                 options for each execution: a callable that receives the
                 context (``ctx.decisions`` holds the decisions that triggered
@@ -822,6 +829,13 @@ class AgentBuilder:
             )
         from flock.decisions.choice import MAX_OPTIONS
 
+        if isinstance(escalate, str):
+            escalate = [escalate]  # one tier, not a sequence of characters
+        if escalate and tournament is not None:
+            raise ValueError(
+                f"Agent '{self._agent.name}': escalate= is not supported together "
+                "with tournament= yet."
+            )
         if tournament is not None:
             if len(questions) != 1 or questions[0].__kind__ != "choice":
                 raise ValueError(
@@ -894,12 +908,16 @@ class AgentBuilder:
                 "Flock(decision_model=...) or set DEFAULT_DECISION_MODEL."
             )
 
-        provider = resolve_provider(model)
-        budget = self._orchestrator._decision_budget(provider.label)
-        if budget is not None:
-            # A copy: a provider instance may be shared by several flocks
-            provider = copy.copy(provider)
-            provider.budget = budget
+        def with_budget(model: str | Any) -> Any:
+            provider = resolve_provider(model)
+            budget = self._orchestrator._decision_budget(provider.label)
+            if budget is not None:
+                # A copy: a provider instance may be shared by several flocks
+                provider = copy.copy(provider)
+                provider.budget = budget
+            return provider
+
+        provider = with_budget(model)
         engine = DecisionEngine(
             questions=list(questions),
             provider=provider,
@@ -909,6 +927,7 @@ class AgentBuilder:
             questions_per_request=questions_per_request,
             tournament=tournament,
             options=options,
+            escalation=[with_budget(tier) for tier in escalate or ()],
         )
         self.publishes(*(Decision.of(question) for question in questions))
         for output in self._agent.output_groups[-1].outputs:
