@@ -314,6 +314,32 @@ describe('graphStore - NEW Simplified Architecture', () => {
       expect(state.edges).toHaveLength(1);
       expect(state.viewMode).toBe('blackboard');
     });
+
+    it('keeps an artifact that still streams, and says when the view is cut off', async () => {
+      const streaming = {
+        id: 'live',
+        type: 'message',
+        position: { x: 0, y: 0 },
+        data: { artifactType: 'TeamReply', isStreaming: true, streamingText: 'Hi, ' },
+      } as Node;
+      useGraphStore.setState({ nodes: [streaming] });
+      vi.mocked(fetchGraphSnapshot).mockResolvedValue({
+        nodes: [{ id: 'msg1', type: 'message', data: { artifactType: 'Pizza' }, position: { x: 0, y: 0 }, hidden: false }],
+        edges: [],
+        statistics: null,
+        viewMode: 'blackboard',
+        filters: { correlation_id: null, time_range: { preset: 'last10min' }, artifactTypes: [], producers: [], tags: [], visibility: [] },
+        generatedAt: '2026-10-11T00:00:00Z',
+        totalArtifacts: 900,
+        truncated: true,
+      });
+
+      await useGraphStore.getState().generateBlackboardViewGraph();
+
+      const state = useGraphStore.getState();
+      expect(state.nodes.map((node) => node.id)).toEqual(['msg1', 'live']);
+      expect(state.truncated).toBe(true);
+    });
   });
 
   describe('updateAgentStatus() - Real-time WebSocket updates', () => {

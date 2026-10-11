@@ -177,7 +177,9 @@ export class WebSocketClient {
       // Update real-time status (fast, local)
       useGraphStore.getState().updateAgentStatus(data.agent_name, 'running');
       // What this run works on: the edges carrying these types are in flight
-      useGraphStore.getState().setInFlight(data.run_id, data.agent_name, data.consumed_types ?? [], data.consumed_artifacts ?? []);
+      useGraphStore
+        .getState()
+        .setInFlight(data.run_id, data.agent_name, data.consumed_types ?? [], data.consumed_artifacts ?? [], data.correlation_id ?? null);
 
       // Schedule debounced refresh (batches within 500ms, then fetches backend snapshot)
       this.scheduleGraphRefresh();

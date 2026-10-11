@@ -32,8 +32,8 @@ const RUN_TAIL_CHARS = 160;
 interface GraphState {
   // Real-time WebSocket state (overlaid on backend snapshot)
   agentStatus: Map<string, string>;
-  /** Per running run, its agent and what it consumed: the types (edges in flight) and artifact IDs */
-  inFlight: Map<string, { agent: string; types: string[]; artifacts: string[] }>;
+  /** Per running run, its agent and what it consumed: the types (edges in flight) and artifact IDs; its run (correlation) */
+  inFlight: Map<string, { agent: string; types: string[]; artifacts: string[]; correlationId?: string | null }>;
   /** Per running run, the end of its streamed output (an agent's ticker mixes its runs) */
   runTails: Map<string, string>;
   streamingTokens: Map<string, string[]>;
@@ -43,6 +43,8 @@ interface GraphState {
   nodes: Node[];
   edges: Edge[];
   statistics: GraphStatistics | null;
+  /** The blackboard view holds the newest artifacts only (the server's limit) */
+  truncated: boolean;
 
   // UI state
   events: Message[];
@@ -65,7 +67,7 @@ interface GraphState {
 
   // Actions - Real-time WebSocket updates
   updateAgentStatus: (agentId: string, status: string) => void;
-  setInFlight: (runId: string, agentId: string, types: string[] | null, artifacts?: string[]) => void;
+  setInFlight: (runId: string, agentId: string, types: string[] | null, artifacts?: string[], correlationId?: string | null) => void;
   appendRunTail: (runId: string, text: string) => void;
   updateStreamingTokens: (agentId: string, tokens: string[]) => void;
   updateAgentLogicOperations: (agentId: string, logicOps: AgentLogicOperations[]) => void; // Phase 1.3
@@ -152,6 +154,7 @@ export const useGraphStore = create<GraphState>()(
       nodes: [],
       edges: [],
       statistics: null,
+      truncated: false,
       events: [],
       viewMode: 'agent',
       savedPositions: new Map(),
@@ -227,24 +230,19 @@ export const useGraphStore = create<GraphState>()(
         set({ isLoading: true, error: null, viewMode: 'blackboard' });
 
         try {
-          // Load saved positions from IndexedDB first
-          await get().loadSavedPositions();
-
           const request = buildGraphRequest('blackboard');
           const snapshot: GraphSnapshot = await fetchGraphSnapshot(request);
 
-          const { savedPositions, nodes: currentNodes, agentStatus, streamingTokens, agentLogicOperations } = get();
-
-          // Merge positions: saved > current > backend > random
-          const mergedNodes = mergeNodePositions(snapshot.nodes, savedPositions, currentNodes);
-
-          // Overlay real-time WebSocket state (primarily for message streaming)
-          const finalNodes = overlayWebSocketState(mergedNodes, agentStatus, streamingTokens, agentLogicOperations);
+          // The lanes place artifacts themselves (no positions); an artifact
+          // that still streams is not on the record yet and stays
+          const known = new Set(snapshot.nodes.map((node) => node.id));
+          const streaming = get().nodes.filter((node) => node.type === 'message' && node.data.isStreaming && !known.has(node.id));
 
           set({
-            nodes: finalNodes,
+            nodes: [...(snapshot.nodes as Node[]), ...streaming],
             edges: snapshot.edges as Edge[],
             statistics: snapshot.statistics,
+            truncated: snapshot.truncated,
             isLoading: false,
           });
 
@@ -303,10 +301,10 @@ export const useGraphStore = create<GraphState>()(
       },
 
       // Real-time WebSocket update actions
-      setInFlight: (runId, agentId, types, artifacts = []) => {
+      setInFlight: (runId, agentId, types, artifacts = [], correlationId = null) => {
         set((state) => {
           const inFlight = new Map(state.inFlight);
-          if (types && types.length > 0) inFlight.set(runId, { agent: agentId, types, artifacts });
+          if (types && types.length > 0) inFlight.set(runId, { agent: agentId, types, artifacts, correlationId });
           else inFlight.delete(runId);
           // A run that ends takes its output's tail along
           if (types !== null || !state.runTails.has(runId)) return { inFlight };

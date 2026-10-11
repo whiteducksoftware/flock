@@ -42,7 +42,7 @@ describe('WebSocketClient agent status', () => {
     expect(useGraphStore.getState().streamingTokens.get('billing')).toEqual([]);
   });
 
-  it('remembers what a starting run consumed', () => {
+  it('remembers what a starting run consumed, and its run', () => {
     vi.useFakeTimers();
     const client = new WebSocketClient('ws://test/ws');
 
@@ -51,11 +51,13 @@ describe('WebSocketClient agent status', () => {
       run_id: 'r-1',
       consumed_types: ['Decision[app.Route]'],
       consumed_artifacts: ['d-1'],
+      correlation_id: 'c-1',
     });
     expect(useGraphStore.getState().inFlight.get('r-1')).toEqual({
       agent: 'billing',
       types: ['Decision[app.Route]'],
       artifacts: ['d-1'],
+      correlationId: 'c-1',
     });
   });
 
