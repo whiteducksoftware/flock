@@ -78,6 +78,27 @@ describe('useRunInput', () => {
     expect(result.current).toMatchObject({ runId: 'r-1', more: 2 });
   });
 
+  it('keeps the inputs it may read when others are private to the agent', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        const id = /artifacts\/([^?]+)/.exec(url)![1]!;
+        if (id === 'd-3') return new Response(JSON.stringify({ ...decision, id, payload: { subject_ids: ['t-5', 'private-2'] } }));
+        if (id.startsWith('private')) return new Response('', { status: 404 });
+        return new Response(JSON.stringify({ ...ticket, id }));
+      }),
+    );
+    useGraphStore.setState({
+      nodes: [agent('ranker', { 'Decision[app.Route]': '◆ Route.billing' })],
+      inFlight: new Map([['r-1', { agent: 'ranker', types: ['app.Item'], artifacts: ['a-1', 'private-1', 'd-3'] }]]),
+    });
+    const { result } = renderHook(() => useRunInput('ranker'));
+
+    // Private ones are counted with the rest the stage does not show
+    await waitFor(() => expect(result.current.inputs?.map((input) => input.id)).toEqual(['a-1', 't-5']));
+    expect(result.current.more).toBe(2);
+  });
+
   it('gives a consumer of the decision itself the decision', async () => {
     running(agent('audit'));
     const { result } = renderHook(() => useRunInput('audit'));
