@@ -201,7 +201,10 @@ def check_inline_images(value: Any) -> None:
     checked; other values are left alone.
     """
     if isinstance(value, BaseModel):  # a model object in a raw payload, maybe changed
-        check_inline_images(value.model_dump())
+        # The actual field values, not model_dump(): excluded fields and custom
+        # serializers could hide an image from the serialized form
+        fields = {name: getattr(value, name, None) for name in type(value).model_fields}
+        check_inline_images({**(value.__pydantic_extra__ or {}), **fields})
     elif isinstance(value, dict):
         url = value.get("url")
         if isinstance(url, str):

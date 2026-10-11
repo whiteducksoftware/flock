@@ -11,7 +11,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from PIL import Image as PILImage
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from flock import Flock
 from flock.components.server.artifacts.artifacts_component import (
@@ -212,14 +212,20 @@ async def test_a_mutated_model_is_checked_when_published(tiny_bound):
         pytest.param(lambda url: {"url": {"url": url}}, id="container-under-url"),
         pytest.param(lambda url: {"shot": _mutated_image(url)}, id="embedded-image"),
         pytest.param(
-            lambda url: {"photo": BoundPhoto.model_construct(caption="x", picture=_mutated_image(url))},
+            lambda url: {
+                "photo": BoundPhoto.model_construct(
+                    caption="x", picture=_mutated_image(url)
+                )
+            },
             id="embedded-model",
         ),
     ],
 )
 async def test_raw_payload_shapes_cannot_hide_an_oversized_image(tiny_bound, payload):
     flock = Flock()
-    artifact = Artifact(type="Odd", payload=payload(_noisy_url()), produced_by="external")
+    artifact = Artifact(
+        type="Odd", payload=payload(_noisy_url()), produced_by="external"
+    )
 
     with pytest.raises(ValueError, match="larger than"):
         await flock.publish(artifact)
@@ -235,7 +241,24 @@ async def test_extra_padding_does_not_shrink_the_size_estimate(tiny_bound):
     """Non-canonical '=' padding must not make an oversized image look small."""
     flock = Flock()
     url = _noisy_url().rstrip("=") + "=" * 100_000
-    artifact = Artifact(type="Padded", payload={"shot": {"url": url}}, produced_by="external")
+    artifact = Artifact(
+        type="Padded", payload={"shot": {"url": url}}, produced_by="external"
+    )
+
+    with pytest.raises(ValueError, match="larger than"):
+        await flock.publish(artifact)
+
+
+class HiddenPicture(BaseModel):
+    note: str
+    picture: Image = Field(exclude=True)  # not part of model_dump()
+
+
+async def test_excluded_fields_of_embedded_models_are_checked(tiny_bound):
+    flock = Flock()
+    hidden = HiddenPicture(note="x", picture=Image(url=_png_url((8, 8))))
+    hidden.picture.url = _noisy_url()  # bypasses validation
+    artifact = Artifact(type="Hidden", payload={"item": hidden}, produced_by="external")
 
     with pytest.raises(ValueError, match="larger than"):
         await flock.publish(artifact)
