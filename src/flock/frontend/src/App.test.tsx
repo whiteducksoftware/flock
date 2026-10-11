@@ -92,6 +92,21 @@ describe('App keyboard shortcuts', () => {
     );
   });
 
+  it('closes one panel per Esc', async () => {
+    render(<App />);
+    // The bootstrap connects last; nothing of it may outlive the test
+    await waitFor(() => expect(client.connect).toHaveBeenCalled());
+    act(() => {
+      useSettingsStore.getState().setShowSettings(true);
+      useSettingsStore.getState().setShowControls(true);
+    });
+
+    press('Escape');
+
+    // Settings close first; the publish panel stays for the next Esc
+    expect(useSettingsStore.getState().ui).toMatchObject({ showSettings: false, showControls: true });
+  });
+
   it('switches between Flow and Blackboard with Ctrl+M', async () => {
     render(<App />);
     // The bootstrap connects last; nothing of it may outlive the test
