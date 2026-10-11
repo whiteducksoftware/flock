@@ -53,16 +53,36 @@ describe('useRunInput', () => {
     running(agent('billing_team', { 'flock.decisions.Decision[app.Route]': '◆ Route.billing' }));
     const { result } = renderHook(() => useRunInput('billing_team'));
 
-    await waitFor(() => expect(result.current?.id).toBe('t-2'));
-    expect(result.current?.payload).toEqual({ subject: 'Charged twice', photo: 'A photo, 1200 × 800 PNG' });
-    expect(result.current?.images).toEqual([{ path: 'photo', mime_type: 'image/png' }]);
+    await waitFor(() => expect(result.current.inputs?.[0]?.id).toBe('t-2'));
+    expect(result.current.inputs?.[0]?.payload).toEqual({ subject: 'Charged twice', photo: 'A photo, 1200 × 800 PNG' });
+    expect(result.current.inputs?.[0]?.images).toEqual([{ path: 'photo', mime_type: 'image/png' }]);
+  });
+
+  it('gives every input of an AND gate or batch, and every subject of a decision, up to five', async () => {
+    const artifact = (id: string, payload: unknown = { id }) => ({ id, type: 'app.Item', payload, created_at: '2026-10-11T12:00:00Z' });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        const id = /artifacts\/([^?]+)/.exec(url)![1]!;
+        if (id === 'd-2') return new Response(JSON.stringify({ ...decision, id, payload: { subject_ids: ['t-3', 't-4'] } }));
+        return new Response(JSON.stringify(artifact(id)));
+      }),
+    );
+    useGraphStore.setState({
+      nodes: [agent('ranker', { 'Decision[app.Route]': '◆ Route.billing' })],
+      inFlight: new Map([['r-1', { agent: 'ranker', types: ['app.Item'], artifacts: ['d-2', 'a-1', 'a-2', 'a-3', 'a-4', 'a-5', 'a-6'] }]]),
+    });
+    const { result } = renderHook(() => useRunInput('ranker'));
+
+    await waitFor(() => expect(result.current.inputs?.map((input) => input.id)).toEqual(['t-3', 't-4', 'a-1', 'a-2', 'a-3', 'a-4']));
+    expect(result.current).toMatchObject({ runId: 'r-1', more: 2 });
   });
 
   it('gives a consumer of the decision itself the decision', async () => {
     running(agent('audit'));
     const { result } = renderHook(() => useRunInput('audit'));
 
-    await waitFor(() => expect(result.current?.id).toBe('d-1'));
+    await waitFor(() => expect(result.current.inputs?.map((input) => input.id)).toEqual(['d-1']));
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 });
