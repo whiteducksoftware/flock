@@ -262,25 +262,26 @@ class DecisionEngine(EngineComponent):
         if self.shadow is not None and wire and self.tournament is None:
             # Concurrently with the decision; it never fails the decision
             shadowed = asyncio.create_task(self._shadow_answers(state, wire, images))
+        shadow = None
         try:
             answers, rounds = await self._answers(
                 state, wire, images, candidates, trail
             )
-        except BaseException:
+            latency_ms = round((time.perf_counter() - started) * 1000, 3)
             if shadowed is not None:
                 assert self.shadow is not None
-                await _stop_shadow(shadowed, self.shadow.label)
-            raise
-        latency_ms = round((time.perf_counter() - started) * 1000, 3)
-        shadow = None
-        if shadowed is not None:
-            assert self.shadow is not None
-            done, _ = await asyncio.wait({shadowed}, timeout=self.shadow_timeout)
-            if done:
-                shadow = shadowed.result()
-            else:
-                shadow = f"TimeoutError: no answer within {self.shadow_timeout:g} s"
-                logger.warning(f"Shadow decision model '{self.shadow.label}': {shadow}")
+                done, _ = await asyncio.wait({shadowed}, timeout=self.shadow_timeout)
+                if done:
+                    shadow = shadowed.result()
+                else:
+                    shadow = f"TimeoutError: no answer within {self.shadow_timeout:g} s"
+                    logger.warning(
+                        f"Shadow decision model '{self.shadow.label}': {shadow}"
+                    )
+        finally:
+            # A failed, cancelled or timed-out decision stops its shadow
+            if shadowed is not None and not shadowed.done():
+                assert self.shadow is not None
                 await _stop_shadow(shadowed, self.shadow.label)
 
         subject_ids = [str(a.id) for a in inputs.artifacts]
@@ -438,9 +439,18 @@ class DecisionEngine(EngineComponent):
         provider = provider or self.provider
         size = self.questions_per_request
         chunks = [wire[i : i + size] for i in range(0, len(wire), size)]
-        replies = await asyncio.gather(
-            *(provider.decide_many(state, chunk, images) for chunk in chunks)
-        )
+        requests = [
+            asyncio.ensure_future(provider.decide_many(state, chunk, images))
+            for chunk in chunks
+        ]
+        try:
+            replies = await asyncio.gather(*requests)
+        except BaseException:
+            # One request failed: stop the others instead of leaving them running
+            for request in requests:
+                request.cancel()
+            await asyncio.gather(*requests, return_exceptions=True)
+            raise
         return {name: answer for reply in replies for name, answer in reply.items()}
 
     async def _escalate(

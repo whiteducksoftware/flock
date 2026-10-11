@@ -11,13 +11,15 @@ from pydantic import BaseModel
 
 from flock.components.agent import AgentComponent, EngineComponent
 from flock.core import Flock
+from flock.core.artifacts import Artifact
 from flock.core.image import Image
 from flock.decisions import UNSURE, Checklist, Choice, Decision
-from flock.decisions.providers import FakeDecider
+from flock.decisions.engine import DecisionEngine
+from flock.decisions.providers import DecisionProviderError, FakeDecider
 from flock.decisions.tournament import Tournament
 from flock.models.system_artifacts import WorkflowError
 from flock.registry import flock_type, type_registry
-from flock.utils.runtime import EvalResult
+from flock.utils.runtime import Context, EvalInputs, EvalResult
 
 
 @flock_type
@@ -249,6 +251,75 @@ async def test_a_shadow_that_ignores_cancellation_cannot_hold_the_decision(
     assert decision["choice"] == "billing"
     assert "no answer within 0.05 s" in decision["shadow"]["error"]
     release.set()  # let the abandoned shadow end
+
+
+async def test_cancelling_a_decision_stops_its_shadow():
+    events: list[str] = []
+    engine = DecisionEngine(
+        questions=[ShadowRoute],
+        provider=_route(0.95, "live"),
+        shadow=_SlowShadow(events),
+        shadow_timeout=10,
+    )
+    agent = Flock().agent("triage").agent
+    ticket = Artifact(
+        type=type_registry.name_for(ShadowTicket),
+        payload={"text": "charged twice"},
+        produced_by="external",
+    )
+    task = asyncio.create_task(
+        engine.evaluate(
+            agent, Context(task_id="t"), EvalInputs(artifacts=[ticket]), None
+        )
+    )
+    for _ in range(10):  # the live answer is in; the decision waits for the shadow
+        await asyncio.sleep(0)
+
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert events == ["shadow stopped"]
+
+
+class _HalfBrokenShadow(FakeDecider):
+    """One request fails, the other never answers."""
+
+    def __init__(self, events: list[str]):
+        super().__init__(
+            {"ShadowControls": {"mfa": 0.9, "backup": 0.9}}, label="candidate"
+        )
+        self.events = events
+        self.never = asyncio.Event()  # held here, so the waiting request stays alive
+
+    async def decide_many(self, state, questions, images=()):
+        if questions[0].item == "mfa":
+            await asyncio.sleep(0)
+            raise DecisionProviderError("mfa request failed")
+        try:
+            await self.never.wait()
+        finally:
+            self.events.append("backup request stopped")
+
+
+async def test_a_failing_shadow_request_stops_its_siblings():
+    events: list[str] = []
+    flock = Flock()
+    flock.agent("audit").consumes(ShadowTicket).decides(
+        ShadowControls,
+        model=FakeDecider(
+            {"ShadowControls": {"mfa": 0.97, "backup": 0.95}}, label="live"
+        ),
+        shadow=_HalfBrokenShadow(events),
+        questions_per_request=1,  # one request per item
+    )
+
+    await flock.publish(ShadowTicket(text="policy"))
+    await asyncio.wait_for(flock.run_until_idle(), timeout=5)
+
+    (decision,) = await _decisions(flock, ShadowControls)
+    assert "mfa request failed" in decision["shadow"]["error"]
+    assert events == ["backup request stopped"]
 
 
 def test_the_shadow_timeout_must_be_positive():
