@@ -22,6 +22,8 @@ const ReviewQueue: React.FC<{ decider: DeciderInfo }> = ({ decider }) => {
   if (total === 0) return null;
   const questions = decider.questions.map((question) => question.name);
   const route = questions.length === 1 ? `${questions[0]}.UNSURE` : 'their UNSURE handles';
+  // Several questions about one artifact would read alike: each row names its question
+  const several = questions.length > 1;
 
   return (
     <section className={styles.section} aria-label="Needs review">
@@ -35,7 +37,10 @@ const ReviewQueue: React.FC<{ decider: DeciderInfo }> = ({ decider }) => {
         {items.map((item) => (
           <li key={item.id} className={styles.queueItem}>
             <div className={styles.queueHead}>
-              <span className={styles.queueTitle}>{item.subjectTitle ?? item.question}</span>
+              <span className={styles.queueTitle}>
+                {several && <span className="mono">◆ {item.question} · </span>}
+                {item.subjectTitle ?? item.question}
+              </span>
               <span className={`mono ${styles.faint}`} title={item.correlationId ?? ''}>
                 {shortId(item.correlationId, 4)}
               </span>

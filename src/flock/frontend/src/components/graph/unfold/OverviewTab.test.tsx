@@ -60,6 +60,27 @@ describe('OverviewTab', () => {
     await waitFor(() => expect(first!.textContent).toContain('after review'));
   });
 
+  it('names the question when the decider asks several about one artifact', () => {
+    const urgent = { ...entry('d-3', 'Change plan and address', '4e7b1c2d-0000-4000-8000-000000000000', 'no', 'yes'), question: 'Urgent' };
+    render(
+      <OverviewTab
+        runs={[]}
+        states={null}
+        decider={{
+          ...decider,
+          questions: [...decider.questions, { name: 'Urgent', kind: 'yesno', options: ['yes', 'no'], counts: { yes: 1, no: 1, UNSURE: 1 } }],
+          needsReview: [decider.needsReview![0]!, urgent],
+          needsReviewCount: 2,
+        }}
+      />,
+    );
+
+    const [route, urgentRow] = within(screen.getByRole('region', { name: 'Needs review' })).getAllByRole('listitem');
+    expect(route!.textContent).toContain('◆ Route');
+    expect(urgentRow!.textContent).toContain('◆ Urgent');
+    expect(screen.getByRole('region', { name: 'Needs review' }).textContent).toContain('route to their UNSURE handles');
+  });
+
   it('shows no queue when nothing waits', () => {
     render(<OverviewTab runs={[]} states={null} decider={{ ...decider, needsReview: [], needsReviewCount: 0 }} />);
 
