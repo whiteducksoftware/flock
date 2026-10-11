@@ -189,3 +189,35 @@ The default Microsoft-Decision-1 deployment allows 100 requests per minute; this
 <p align="center">
   <img alt="A screening network: four screens and a ranker" src="../../docs/assets/images/decisions/decision-network-agent-view.png" width="800">
 </p>
+
+## 07_escalation.py
+
+Sorts the 100 arXiv abstracts with a cascade: Microsoft-Decision-1 answers first, and papers it is not sure about (below 0.9 or refused) go to OpenAI's `gpt-6-luna`. Papers still unsure after the last tier park in an `inbox` (`ResearchField.UNSURE`). The report lists how many papers each tier answered and how often it agrees with arXiv, then every escalated paper with its trail.
+
+**Key Concepts:**
+- `.decides(ResearchField, model=TIERS[0], escalate=TIERS[1:], threshold=0.9)`
+- `decision.tier` (0 is `model=`) and `decision.attempts` (the earlier tiers' answers)
+- Only unsure questions, or unsure checklist items, go up
+
+**Run:**
+```bash
+# AZURE_API_BASE, AZURE_API_KEY and OPENAI_API_KEY set
+uv run examples/15-decisions/07_escalation.py
+```
+
+Set `USE_DASHBOARD = True` to watch the decisions arrive; escalated ones show their trail.
+
+**What You'll See (2026-10-11):**
+```
+tier  model                  answered   agree
+0     azure/decision-1             82      76
+1     openai/gpt-6-luna            12      10
+      UNSURE (inbox)                6
+
+118 requests for 100 papers; the last tier was asked 18 times.
+
+Escalated papers:
+  One Block, Multiple Depths: Recurrent Vision Transformers   arXiv computer_vision
+      microsoft-decision-1: machine_learning 0.56 → gpt-6-luna: computer_vision 1.00
+  ...
+```

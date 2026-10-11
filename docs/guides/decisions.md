@@ -208,6 +208,7 @@ Each decision is a `Decision.of(<question>)` artifact, for example `Decision.of(
 | `threshold` | The threshold that applied |
 | `subject_ids` | Ids of the artifacts the decision is about |
 | `model` | The model that answered (as reported by the provider) |
+| `tier`, `attempts` | [Escalation](#escalation-cascades): the tier that answered (0 is the decider's model) and the earlier tiers' answers |
 | `latency_ms` | Round trip of the decision request (shared by all questions of the request) |
 
 ### Tournaments for large choices
@@ -362,6 +363,42 @@ With `threshold=0.8` the decision is firm only when the chosen option's probabil
 A **refused** question (OpenAI's Decisions API can refuse a question and still answer the others) becomes a decision with `choice=UNSURE`, `refused=True`, `best_guess=None` and no probabilities, so it lands in the `UNSURE` branch instead of failing the execution.
 
 Calibration is per task, not global. Pick each decider's threshold on that decider's own data. Recorded decisions (persistent store, traces) make it cheap to replay inputs against another model before switching.
+
+### Escalation cascades
+
+`escalate=` asks another decision model about what the first one was not sure about, before anything routes to `UNSURE`:
+
+```python
+flock.agent("sorter").consumes(Paper).decides(
+    ResearchField,
+    model="azure/decision-1",
+    escalate=["openai/gpt-6-luna"],
+    threshold=0.9,
+)
+flock.agent("inbox").consumes(ResearchField.UNSURE).publishes(Parked)
+```
+
+1. The decider's own model answers every question.
+2. A question whose answer is not firm (below `threshold` or refused) is asked again by the first model in `escalate=`, then by the next one, and so on. A tier gets only the questions the tier below was unsure about: of `.decides(Route, Urgent)` only `Urgent` may go up, and of a Checklist only its unsure items.
+3. The last tier's answer is the decision. Still unsure after the last tier, it routes to `UNSURE` as usual.
+
+The decision's `tier` says which tier answered (0 for `model=`, 1 for the first model in `escalate=`) and `model` names that tier's model. `attempts` lists the earlier answers, oldest first: each tier's `model`, `choice`, `probabilities`, `confidence` and `refused`; for a Checklist, the `model` and the `results` of the items that went up. Subscriptions and handles do not change: `ResearchField.computer_vision` runs whichever tier answered.
+
+Each tier is a provider string or instance like `model=`, with its own share of `decision_rate_limit`. Every tier must accept images when the inputs hold an `Image`. `escalate=` cannot be combined with `tournament=` yet.
+
+On 100 arXiv abstracts (nine fields, threshold 0.9), Microsoft-Decision-1 answered 82 papers firmly; `gpt-6-luna` answered 12 of the other 18, and 6 went to `UNSURE`. That took 118 requests, against 100 for each model alone; the stronger model saw 18 papers instead of 100 ([`07_escalation.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/07_escalation.py)).
+
+In the dashboard, a decider lists its cascade after its model (`azure/decision-1 › openai/gpt-6-luna`). An escalated decision shows its trail above the model line: every earlier tier's best guess and probability (amber), then the tier that answered:
+
+<p align="center">
+  <img alt="A decider with an escalation cascade and the inbox for papers no tier was sure about" src="../../assets/images/decisions/decision-escalation-agent-view.png" width="900">
+</p>
+
+<p align="center">
+  <img alt="An escalated decision: Microsoft-Decision-1 guessed machine_learning at 0.56, gpt-6-luna answered computer_vision at tier 1" src="../../assets/images/decisions/decision-escalation-card.png" width="360">
+  &nbsp;&nbsp;
+  <img alt="Still unsure after the last tier: UNSURE with best guess biology" src="../../assets/images/decisions/decision-escalation-card-unsure.png" width="340">
+</p>
 
 ## Visibility
 
@@ -554,4 +591,4 @@ They judge well when the answer can be read off the supplied state: routing, int
 
 ## Example
 
-[`examples/15-decisions/01_ticket_triage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/01_ticket_triage.py) routes support tickets with Microsoft-Decision-1 (or any other provider) and sends ambiguous tickets to a supervisor. [`02_arxiv_race.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/02_arxiv_race.py) races an LLM against the available decision models on 100 arXiv abstracts. [`03_color_sorter.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/03_color_sorter.py) sorts generated shapes into color bins from their images. [`04_question_types.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/04_question_types.py) asks a choice, a yes/no and a scale question about every ticket in one request. [`05_compliance_checklist.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/05_compliance_checklist.py) checks 24 fictional security documents against 100 controls and compares the answers with ground truth. [`06_control_mapping_tournament.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/06_control_mapping_tournament.py) maps evidence sentences to one of the 100 controls in three ways: a single choice, a tournament and a screening network.
+[`examples/15-decisions/01_ticket_triage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/01_ticket_triage.py) routes support tickets with Microsoft-Decision-1 (or any other provider) and sends ambiguous tickets to a supervisor. [`02_arxiv_race.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/02_arxiv_race.py) races an LLM against the available decision models on 100 arXiv abstracts. [`03_color_sorter.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/03_color_sorter.py) sorts generated shapes into color bins from their images. [`04_question_types.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/04_question_types.py) asks a choice, a yes/no and a scale question about every ticket in one request. [`05_compliance_checklist.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/05_compliance_checklist.py) checks 24 fictional security documents against 100 controls and compares the answers with ground truth. [`06_control_mapping_tournament.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/06_control_mapping_tournament.py) maps evidence sentences to one of the 100 controls in three ways: a single choice, a tournament and a screening network. [`07_escalation.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/07_escalation.py) sorts the arXiv abstracts with a cascade of two decision models and shows which tier answered each paper.

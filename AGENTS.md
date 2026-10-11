@@ -169,6 +169,7 @@ flock.agent("audit").consumes(Decision.of(Route)).publishes(Entry)    # the deci
 - **Providers** (`flock.decisions.providers`): `azure/<deployment>`, `openai/<model>`, `jev/<model>`, `local/<name>` (`DECISION_API_BASE`).
   - Model precedence: `model=` on `.decides()`, then `Flock(decision_model=)`, then `DEFAULT_DECISION_MODEL`.
   - HTTP 429/503 are retried after the server's advice plus a jittered backoff.
+  - `escalate=["openai/gpt-6-luna"]` asks the next model about questions (or checklist items) that are not firm; the decision records `tier` and `attempts`.
 - **Rules:**
   - A decision agent publishes only its decisions: no `.with_engines()` or `.publishes()` with `.decides()`.
   - Handles and `Decision.of(X)` cannot share an agent.
