@@ -210,6 +210,7 @@ Each decision is a `Decision.of(<question>)` artifact, for example `Decision.of(
 | `model` | The model that answered (as reported by the provider) |
 | `tier`, `attempts` | [Escalation](#escalation-cascades): the tier that answered (0 is the decider's model) and the earlier tiers' answers |
 | `votes` | [Ensembles](#ensembles-and-voting): every model's answer |
+| `shadow` | [Shadow mode](#shadow-mode): the shadow model's answer, recorded but not routed |
 | `latency_ms` | Round trip of the decision request (shared by all questions of the request) |
 
 ### Tournaments for large choices
@@ -456,6 +457,31 @@ In the dashboard, a decider names its vote and models (`majority of azure/decisi
 
 The mean bar of the chosen option can sit below the threshold marker on a majority decision: the threshold applies to each model's vote, not to the mean.
 
+### Shadow mode
+
+`shadow=` lets a candidate model answer along with the live one, before switching to it:
+
+```python
+flock.agent("sorter").consumes(Paper).decides(
+    ResearchField, model="azure/decision-1", shadow="openai/gpt-6-luna", threshold=0.8
+)
+```
+
+The shadow answers every question too, concurrently with the live model. Its answer is recorded in the decision's `shadow` and never routes: handles such as `ResearchField.UNSURE` see only the live choice. `shadow` holds the shadow's `model`, its `choice` under the same `threshold` (so it shows where the shadow would have routed), `best_guess`, `probabilities`, `confidence`, `refused` and `latency_ms`; for a Checklist, its `choice` (the outcome), `best_guess`, `results` and `refused_items`.
+
+A failing shadow never fails the decision: a provider error, or images sent to a shadow without image support, is recorded as `{"model": ..., "error": ...}` and logged. A failing live model still fails the execution as before. The decision is published once both have answered, so a slow shadow delays it; `latency_ms` of the decision stays the live model's. `shadow=` combines with `escalate=`, `models=` and `options=`, and it cannot be combined with `tournament=` yet.
+
+On the 100 arXiv abstracts (threshold 0.8, [`09_shadow.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/09_shadow.py)), with Microsoft-Decision-1 live and `gpt-6-luna` in the shadow:
+
+| | Firm | Agree with arXiv | Median latency |
+|---|---|---|---|
+| live: Microsoft-Decision-1 | 88 | 82 | 166 ms |
+| shadow: `gpt-6-luna` | 95 | 91 | 140 ms |
+
+The shadow would have routed 86 of the 100 papers the same way. Most of the other 14 are papers the live model was unsure about and the shadow sorted firmly; they are the papers to look at before the switch.
+
+In the dashboard, the decider shows how often the shadow agreed (`shadow openai/gpt-6-luna · agrees 86/100`), and a decision shows the shadow's answer in a dashed pill: violet if it would have routed the same way, amber if not, grey if the shadow failed.
+
 ## Visibility
 
 A decision inherits the visibility of its subject, so routing never widens who can read data. Agents that may not see the ticket do not see its decision either and are not triggered. If a decider consumes several inputs with different visibilities, it fails instead of guessing; pass `visibility=` to `.decides()` to choose the decision's readership explicitly.
@@ -647,4 +673,4 @@ They judge well when the answer can be read off the supplied state: routing, int
 
 ## Example
 
-[`examples/15-decisions/01_ticket_triage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/01_ticket_triage.py) routes support tickets with Microsoft-Decision-1 (or any other provider) and sends ambiguous tickets to a supervisor. [`02_arxiv_race.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/02_arxiv_race.py) races an LLM against the available decision models on 100 arXiv abstracts. [`03_color_sorter.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/03_color_sorter.py) sorts generated shapes into color bins from their images. [`04_question_types.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/04_question_types.py) asks a choice, a yes/no and a scale question about every ticket in one request. [`05_compliance_checklist.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/05_compliance_checklist.py) checks 24 fictional security documents against 100 controls and compares the answers with ground truth. [`06_control_mapping_tournament.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/06_control_mapping_tournament.py) maps evidence sentences to one of the 100 controls in three ways: a single choice, a tournament and a screening network. [`07_escalation.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/07_escalation.py) sorts the arXiv abstracts with a cascade of two decision models and shows which tier answered each paper. [`08_voting.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/08_voting.py) lets three decision models vote on them and compares each model with the ensemble.
+[`examples/15-decisions/01_ticket_triage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/01_ticket_triage.py) routes support tickets with Microsoft-Decision-1 (or any other provider) and sends ambiguous tickets to a supervisor. [`02_arxiv_race.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/02_arxiv_race.py) races an LLM against the available decision models on 100 arXiv abstracts. [`03_color_sorter.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/03_color_sorter.py) sorts generated shapes into color bins from their images. [`04_question_types.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/04_question_types.py) asks a choice, a yes/no and a scale question about every ticket in one request. [`05_compliance_checklist.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/05_compliance_checklist.py) checks 24 fictional security documents against 100 controls and compares the answers with ground truth. [`06_control_mapping_tournament.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/06_control_mapping_tournament.py) maps evidence sentences to one of the 100 controls in three ways: a single choice, a tournament and a screening network. [`07_escalation.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/07_escalation.py) sorts the arXiv abstracts with a cascade of two decision models and shows which tier answered each paper. [`08_voting.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/08_voting.py) lets three decision models vote on them and compares each model with the ensemble. [`09_shadow.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/09_shadow.py) runs a candidate model in the shadow of the live one and lists where it would have routed differently.

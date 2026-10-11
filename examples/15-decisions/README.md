@@ -258,3 +258,36 @@ Papers the models disagree about:
 ```
 
 With `VOTE=unanimous`, 80 papers are firm and 78 of them agree with arXiv; with `VOTE=mean`, 84 and 81.
+
+## 09_shadow.py
+
+Microsoft-Decision-1 sorts the 100 arXiv abstracts live while OpenAI's `gpt-6-luna` runs in the shadow: it answers every paper too, its answer is recorded in the decision, and it routes nothing. The report compares both on the same papers and lists the papers the shadow would have routed differently.
+
+**Key Concepts:**
+- `.decides(ResearchField, model=LIVE, shadow=SHADOW, threshold=0.8)`
+- `decision.shadow`: the shadow's choice under the same threshold, probabilities and latency, or its error
+- A failing shadow never fails the live decision
+
+**Run:**
+```bash
+# AZURE_API_BASE, AZURE_API_KEY and OPENAI_API_KEY set
+uv run examples/15-decisions/09_shadow.py
+```
+
+Set `USE_DASHBOARD = True` to watch the decider count how often the shadow agrees.
+
+**What You'll See (2026-10-11):**
+```
+                            firm   agree       median
+live   azure/decision-1       88      82       166 ms
+shadow openai/gpt-6-luna      95      91       140 ms
+
+The shadow would have routed 86 of 100 papers the same way.
+
+Papers the shadow would have routed differently:
+  Prediction-Powered Data Fusion for Treatment Effect Estima  arXiv machine_learning
+      live: economics · shadow: machine_learning
+  What 30,000 Hours of Ego-centric Video Does Not Teach       arXiv computer_vision
+      live: UNSURE · shadow: computer_vision
+  ...
+```
