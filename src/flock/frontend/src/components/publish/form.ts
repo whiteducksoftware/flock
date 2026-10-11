@@ -181,12 +181,18 @@ const canonical = (value: unknown): string | undefined =>
 
 /**
  * The fields a payload would not keep through the form (JSON mode back to the
- * form, then published): values the form changes or drops, fields the type
- * does not have, and fields the form adds that the payload leaves out.
+ * form, then published): values the form cannot show (objects, lists of
+ * objects), values it changes or drops, fields the type does not have, and
+ * fields the form adds that the payload leaves out.
  */
 export function formLosses(payload: Record<string, any>, schema: Schema): string[] {
-  const roundTrip = formToPayload(payloadToForm(payload, schema), schema);
+  const form = payloadToForm(payload, schema);
+  const roundTrip = formToPayload(form, schema);
+  const properties = schema.properties ?? {};
+  // Apart from pictures, the form's inputs hold text, numbers and booleans only
+  const unshowable = (key: string) =>
+    key in properties && !imageFieldKind(properties[key], schema) && form[key] !== null && typeof form[key] === 'object';
   // The type's fields in their order, then the ones it does not have
-  const keys = new Set([...Object.keys(schema.properties ?? {}), ...Object.keys(payload)]);
-  return [...keys].filter((key) => canonical(payload[key]) !== canonical(roundTrip[key]));
+  const keys = new Set([...Object.keys(properties), ...Object.keys(payload)]);
+  return [...keys].filter((key) => unshowable(key) || canonical(payload[key]) !== canonical(roundTrip[key]));
 }

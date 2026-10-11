@@ -146,6 +146,22 @@ describe('formLosses', () => {
     ).toEqual(['tags', 'note', 'pages', 'extra']);
   });
 
+  it('names fields whose values the form cannot show: lists of objects, objects', () => {
+    const nested = {
+      type: 'object',
+      properties: {
+        name: { type: 'string' },
+        items: { type: 'array', items: { type: 'object' } },
+        meta: { type: 'object' },
+        grid: { type: 'array', items: { type: 'string' } },
+      },
+    };
+
+    expect(
+      formLosses({ name: 'x', items: [{ name: 'one' }], meta: { a: 1 }, grid: [['a']] }, nested)
+    ).toEqual(['items', 'meta', 'grid']);
+  });
+
   it('names fields the form would add that the JSON leaves out', () => {
     expect(formLosses({ subject: 'x', count: 1, picture: { url: 'data:a' } }, schema)).toEqual([
       'urgent',
