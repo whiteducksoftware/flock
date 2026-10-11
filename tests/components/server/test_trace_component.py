@@ -212,6 +212,31 @@ class TestTracingComponent:
 
         assert component._db_path_exists is True
 
+    async def test_reads_the_trace_file_of_the_working_directory(
+        self, app, orchestrator, temp_db, tmp_path, monkeypatch
+    ):
+        """The tracer writes .flock/traces.duckdb in the working directory, maybe
+        after the server started; the endpoints read that file once it is there."""
+        import shutil
+
+        monkeypatch.chdir(tmp_path)
+        component = TracingComponent()
+        component.configure(app, orchestrator)
+        component.register_routes(app, orchestrator)
+        assert component._db_path_exists is False
+
+        (tmp_path / ".flock").mkdir()
+        shutil.copy(temp_db, tmp_path / ".flock" / "traces.duckdb")
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(
+            transport=transport, base_url="http://testserver"
+        ) as client:
+            response = await client.get("/api/plugin/traces")
+
+        assert response.status_code == 200
+        assert len(response.json()) == 3
+
     def test_configure_with_nonexistent_db_path(self, app, orchestrator):
         """Test configure with non-existent db_path."""
         from pathlib import Path
@@ -267,7 +292,6 @@ class TestTracingComponent:
     async def test_get_traces_db_not_found(self, app, orchestrator):
         """Test get_traces when database doesn't exist."""
         component = TracingComponent()
-        component._db_path_exists = False
         component.register_routes(app, orchestrator)
 
         transport = ASGITransport(app=app)
@@ -326,7 +350,6 @@ class TestTracingComponent:
     async def test_get_traces_services_db_not_found(self, app, orchestrator):
         """Test get_traces_services when database doesn't exist."""
         component = TracingComponent()
-        component._db_path_exists = False
         component.register_routes(app, orchestrator)
 
         transport = ASGITransport(app=app)
@@ -370,7 +393,6 @@ class TestTracingComponent:
     async def test_clear_traces_db_not_found(self, app, orchestrator):
         """Test clear_traces when database doesn't exist."""
         component = TracingComponent()
-        component._db_path_exists = False
         component.register_routes(app, orchestrator)
 
         transport = ASGITransport(app=app)
@@ -447,7 +469,6 @@ class TestTracingComponent:
     async def test_get_trace_stats_db_not_found(self, app, orchestrator):
         """Test get_trace_stats when database doesn't exist."""
         component = TracingComponent()
-        component._db_path_exists = False
         component.register_routes(app, orchestrator)
 
         transport = ASGITransport(app=app)
