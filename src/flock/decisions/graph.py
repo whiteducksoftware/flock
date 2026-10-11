@@ -249,13 +249,76 @@ def explanations_by_decision(
     return by_decision
 
 
+def _coverage_checklist(type_name: str) -> type[Question] | None:
+    try:
+        model = type_registry.resolve(type_name)
+    except (KeyError, RegistryError):
+        return None
+    return getattr(model, "__flock_checklist__", None)
+
+
+def is_coverage_type(type_name: str) -> bool:
+    """True for the type name of a ``Coverage.of(checklist)`` model."""
+    return _coverage_checklist(type_name) is not None
+
+
+def coverage_view(type_name: str, payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Coverage fields for the dashboard, shaped like a checklist decision."""
+    checklist = _coverage_checklist(type_name)
+    items = list(checklist.__options__) if checklist is not None else []
+    return {
+        "question": payload.get("question"),
+        "kind": "checklist",
+        "group": payload.get("group"),
+        "combine": payload.get("combine"),
+        "documents": len(payload.get("subject_ids") or []),
+        "choice": payload.get("choice"),
+        "results": dict(payload.get("results") or {}),
+        "items": items or list(payload.get("results") or {}),
+        "probabilities": {},
+        "refusedItems": [],
+    }
+
+
+def aggregator_info(
+    agent: Agent, produced: Iterable[tuple[str, Mapping[str, Any]]]
+) -> dict[str, Any] | None:
+    """Checklist, grouping and outcome counts of an aggregating agent, else None.
+
+    ``produced`` yields ``(type_name, payload)`` oldest first; the latest
+    coverage of each group counts.
+    """
+    from flock.decisions.coverage import AggregateEngine, Coverage
+
+    engine = next((e for e in agent.engines if isinstance(e, AggregateEngine)), None)
+    if engine is None:
+        return None
+    coverage_type = type_registry.name_for(Coverage.of(engine.question))
+    latest: dict[str, str] = {}
+    for type_name, payload in produced:
+        if type_name == coverage_type:
+            latest[str(payload.get("group"))] = str(payload.get("choice"))
+    groups = {PASSED: 0, FAILED: 0, UNSURE: 0}
+    for choice in latest.values():
+        groups[choice] = groups.get(choice, 0) + 1
+    return {
+        "question": engine.question.__name__,
+        "by": engine.by if isinstance(engine.by, str) else "custom",
+        "combine": engine.combine,
+        "groups": groups,
+    }
+
+
 __all__ = [
+    "aggregator_info",
     "choice_type_labels",
+    "coverage_view",
     "decider_info",
     "decision_label",
     "decision_view",
     "explanation_view",
     "explanations_by_decision",
+    "is_coverage_type",
     "is_decision_type",
     "is_explanation_type",
 ]

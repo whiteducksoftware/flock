@@ -711,6 +711,11 @@ class AgentBuilder:
                 f"Agent '{self._agent.name}': .explains() explains one subject's "
                 "decisions at a time; batch subscriptions are not supported."
             )
+        if batch is not None and self._is_aggregator():
+            raise ValueError(
+                f"Agent '{self._agent.name}': .aggregates() adds one decision at "
+                "a time; batch subscriptions are not supported."
+            )
         # Semantic matching: pass semantic_match parameter to Subscription
         # which will parse it into TextPredicate objects
         subscription = Subscription(
@@ -1068,6 +1073,86 @@ class AgentBuilder:
         self._agent.engines.append(engine)
         return self
 
+    def aggregates(
+        self,
+        by: str | Callable[[BaseModel], Any],
+        combine: str = "any",
+        visibility: Visibility | None = None,
+    ) -> AgentBuilder:
+        """Combine a checklist's decisions per group into ``Coverage``.
+
+        The agent subscribes to a handle of one Checklist, usually
+        ``.consumes(Controls.ANY)``. Every decision is added to the group of
+        its decided artifact, and the agent publishes the group's
+        ``Coverage.of(Controls)`` with the combined result per item, updated
+        as decisions arrive.
+
+        Args:
+            by: Field of the decided artifact that names its group
+                (``"organisation"``), or a function of the artifact.
+            combine: ``"any"`` (default): an item is yes if any artifact of the
+                group shows it, no if all say no. ``"all"``: yes only if every
+                artifact shows it, no if any says no. Otherwise ``UNSURE``.
+            visibility: Readership of the coverage. By default it keeps the
+                group's common visibility, and groups whose artifacts carry
+                different visibilities fail.
+
+        Returns:
+            self for method chaining
+
+        Examples:
+            >>> flock.agent("coverage").consumes(Controls.ANY).aggregates(
+            ...     by="organisation"
+            ... )
+        """
+        from flock.decisions.coverage import COMBINES, AggregateEngine, Coverage
+
+        questions = {
+            ref.choice
+            for subscription in self._agent.subscriptions
+            for ref in subscription.choices.values()
+        }
+        plain = any(not s.choices for s in self._agent.subscriptions)
+        if (
+            plain
+            or len(questions) != 1
+            or next(iter(questions)).__kind__ != "checklist"
+        ):
+            raise ValueError(
+                f"Agent '{self._agent.name}': .aggregates() combines one "
+                "checklist's decisions; subscribe only to handles of one "
+                "Checklist, e.g. .consumes(Controls.ANY)."
+            )
+        if any(s.batch is not None for s in self._agent.subscriptions):
+            raise ValueError(
+                f"Agent '{self._agent.name}': .aggregates() adds one decision at "
+                "a time; batch subscriptions are not supported."
+            )
+        if combine not in COMBINES:
+            raise ValueError(
+                f"Agent '{self._agent.name}': combine= must be one of "
+                f"{', '.join(repr(c) for c in COMBINES)}, got {combine!r}."
+            )
+        if self._agent.engines:
+            raise ValueError(
+                f"Agent '{self._agent.name}': .aggregates() sets the agent's "
+                "engine; it cannot be combined with .with_engines()."
+            )
+        if self._agent.output_groups:
+            raise ValueError(
+                f"Agent '{self._agent.name}': an aggregating agent publishes only "
+                "coverage; .aggregates() cannot be combined with .publishes()."
+            )
+        (question,) = questions
+        engine = AggregateEngine(
+            question=question, by=by, combine=combine, visibility=visibility
+        )
+        self.publishes(Coverage.of(question))
+        for output in self._agent.output_groups[-1].outputs:
+            output.inherit_visibility = True
+        self._agent.engines.append(engine)
+        return self
+
     def _is_decider(self) -> bool:
         from flock.decisions.engine import DecisionEngine
 
@@ -1077,6 +1162,11 @@ class AgentBuilder:
         from flock.decisions.explain import ExplainEngine
 
         return any(isinstance(e, ExplainEngine) for e in self._agent.engines)
+
+    def _is_aggregator(self) -> bool:
+        from flock.decisions.coverage import AggregateEngine
+
+        return any(isinstance(e, AggregateEngine) for e in self._agent.engines)
 
     def schedule(
         self,
@@ -1221,6 +1311,11 @@ class AgentBuilder:
                 f"Agent '{self._agent.name}': an explaining agent publishes only "
                 "explanations; .explains() cannot be combined with .publishes()."
             )
+        if self._is_aggregator():
+            raise ValueError(
+                f"Agent '{self._agent.name}': an aggregating agent publishes only "
+                "coverage; .aggregates() cannot be combined with .publishes()."
+            )
         # Normalize fan_out specification to FanOutRange (or None)
         fan_out_range = normalize_fan_out(fan_out) if fan_out is not None else None
 
@@ -1351,6 +1446,11 @@ class AgentBuilder:
             raise ValueError(
                 f"Agent '{self._agent.name}': .explains() sets the agent's engine; "
                 "it cannot be combined with .with_engines()."
+            )
+        if self._is_aggregator():
+            raise ValueError(
+                f"Agent '{self._agent.name}': .aggregates() sets the agent's "
+                "engine; it cannot be combined with .with_engines()."
             )
         self._agent.engines.extend(engines)
         return self
