@@ -320,7 +320,7 @@ describe('graphStore - NEW Simplified Architecture', () => {
         id: 'live',
         type: 'message',
         position: { x: 0, y: 0 },
-        data: { artifactType: 'TeamReply', isStreaming: true, streamingText: 'Hi, ' },
+        data: { artifactType: 'TeamReply', timestamp: Date.now(), isStreaming: true, streamingText: 'Hi, ' },
       } as Node;
       useGraphStore.setState({ nodes: [streaming] });
       vi.mocked(fetchGraphSnapshot).mockResolvedValue({
@@ -339,6 +339,35 @@ describe('graphStore - NEW Simplified Architecture', () => {
       const state = useGraphStore.getState();
       expect(state.nodes.map((node) => node.id)).toEqual(['msg1', 'live']);
       expect(state.truncated).toBe(true);
+    });
+
+    it('keeps no preview older than the last minutes the board shows', async () => {
+      useGraphStore.setState({
+        nodes: [{ id: 'old', type: 'message', position: { x: 0, y: 0 }, data: { artifactType: 'TeamReply', timestamp: Date.now() - 6 * 60_000, isStreaming: true } } as Node],
+      });
+      vi.mocked(useFilterStore.getState).mockReturnValue({
+        correlationId: null,
+        timeRange: { preset: 'last5min' },
+        selectedArtifactTypes: [],
+        selectedProducers: [],
+        selectedTags: [],
+        selectedVisibility: [],
+        updateFacets: vi.fn(),
+      } as any);
+      vi.mocked(fetchGraphSnapshot).mockResolvedValue({
+        nodes: [],
+        edges: [],
+        statistics: null,
+        viewMode: 'blackboard',
+        filters: { correlation_id: null, time_range: { preset: 'last5min' }, artifactTypes: [], producers: [], tags: [], visibility: [] },
+        generatedAt: '2026-10-11T00:00:00Z',
+        totalArtifacts: 0,
+        truncated: false,
+      });
+
+      await useGraphStore.getState().generateBlackboardViewGraph();
+
+      expect(useGraphStore.getState().nodes).toEqual([]);
     });
 
     it('keeps no live preview in a time range that ended', async () => {
@@ -372,7 +401,7 @@ describe('graphStore - NEW Simplified Architecture', () => {
 
     it('keeps only the streaming artifacts the board\'s filters let through', async () => {
       const preview = (id: string, correlationId: string) =>
-        ({ id, type: 'message', position: { x: 0, y: 0 }, data: { artifactType: 'TeamReply', producedBy: 'billing', correlationId, isStreaming: true } }) as Node;
+        ({ id, type: 'message', position: { x: 0, y: 0 }, data: { artifactType: 'TeamReply', producedBy: 'billing', correlationId, timestamp: Date.now(), isStreaming: true } }) as Node;
       useGraphStore.setState({ nodes: [preview('in-c2', 'c2'), preview('in-c1', 'c1')] });
       vi.mocked(useFilterStore.getState).mockReturnValue({
         correlationId: 'c2',

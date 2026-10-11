@@ -77,7 +77,11 @@ async def test_decider_node_describes_its_question_and_counts(routed):
     graph = await snapshot(routed, "agent")
 
     triage = next(node for node in graph.nodes if node.id == "triage")
-    assert triage.data["decision"] == {
+    decision = dict(triage.data["decision"])
+    # Its unsure decision waits for a person (test_graph_review_queue.py)
+    assert decision.pop("needsReviewCount") == 1
+    assert len(decision.pop("needsReview")) == 1
+    assert decision == {
         "model": "fake",
         "threshold": 0.8,
         "questions": [

@@ -74,6 +74,23 @@ describe('WebSocketClient reconnects', () => {
     vi.restoreAllMocks();
   });
 
+  it('ignores the answer about running runs that a reconnect superseded', async () => {
+    const answers: ((response: Response) => void)[] = [];
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((resolve) => answers.push(resolve))));
+    const client = new WebSocketClient('ws://test/ws');
+    client.connect();
+    socket(0).open();
+    // The connection drops and comes back before the first answer is in
+    socket(0).fail();
+    await vi.advanceTimersByTimeAsync(5_000);
+    socket(1).open();
+    answers[1]!(new Response(JSON.stringify({ runs: [] })));
+    answers[0]!(new Response(JSON.stringify({ runs: [{ run_id: 'r-old', agent_name: 'triage', correlation_id: 'c-1', consumed_artifacts: [] }] })));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(useGraphStore.getState().inFlight.size).toBe(0);
+  });
+
   it('learns of the runs going on when it connects, but not of runs that ended meanwhile', async () => {
     let answer!: (response: Response) => void;
     const fetch = vi.fn(() => new Promise<Response>((resolve) => (answer = resolve)));

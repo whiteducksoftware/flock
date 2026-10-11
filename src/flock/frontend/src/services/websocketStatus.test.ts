@@ -82,6 +82,17 @@ describe('WebSocketClient agent status', () => {
     expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual(['a-2']);
   });
 
+  it('knows a run that consumed nothing (a direct invocation, a timer) is running', () => {
+    vi.useFakeTimers();
+    const client = new WebSocketClient('ws://test/ws');
+
+    receive(client, 'agent_activated', { agent_name: 'digest', run_id: 'r-9', consumed_types: [], consumed_artifacts: [], correlation_id: 'c-9' });
+    expect(useGraphStore.getState().inFlight.get('r-9')).toEqual({ agent: 'digest', types: [], artifacts: [], correlationId: 'c-9' });
+
+    receive(client, 'agent_completed', { agent_name: 'digest', run_id: 'r-9', agent_status: 'idle' });
+    expect(useGraphStore.getState().inFlight.has('r-9')).toBe(false);
+  });
+
   it('remembers what a starting run consumed, and its run', () => {
     vi.useFakeTimers();
     const client = new WebSocketClient('ws://test/ws');
