@@ -1,8 +1,7 @@
-import { useCallback, useMemo, useEffect, useState, useRef } from 'react';
+import { useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   ReactFlow,
   Background,
-  Controls,
   NodeChange,
   EdgeChange,
   applyNodeChanges,
@@ -12,6 +11,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import AgentNode, { openTrace } from './AgentNode';
+import CanvasDock from './CanvasDock';
 import FocusStage from './focus/FocusStage';
 import MessageNode from './MessageNode';
 import MessageFlowEdge from './MessageFlowEdge';
@@ -22,9 +22,7 @@ import MiniMap from './MiniMap';
 import { useGraphStore } from '../../store/graphStore';
 import { useFilterStore } from '../../store/filterStore';
 import { useUIStore, type AutoLayoutMode } from '../../store/uiStore';
-import { useModuleStore } from '../../store/moduleStore';
 import { useSettingsStore } from '../../store/settingsStore';
-import { moduleRegistry } from '../modules/ModuleRegistry';
 import {
   applyHierarchicalLayout,
   applyCircularLayout,
@@ -32,7 +30,6 @@ import {
   applyRandomLayout
 } from '../../services/layout';
 import { usePersistence } from '../../hooks/usePersistence';
-import { v4 as uuidv4 } from 'uuid';
 import {
   clearDebouncedAutoLayout,
   getEdgeIdSet,
@@ -46,7 +43,7 @@ import { fromControl } from './nodeClick';
 import { useUnfoldLayout } from './useUnfoldLayout';
 
 const GraphCanvas: React.FC = () => {
-  const { fitView, getIntersectingNodes, screenToFlowPosition, getViewport, setViewport } = useReactFlow();
+  const { getIntersectingNodes, screenToFlowPosition, getViewport, setViewport } = useReactFlow();
 
   const mode = useUIStore((state) => state.mode);
   const openDetailWindow = useUIStore((state) => state.openDetailWindow);
@@ -60,7 +57,6 @@ const GraphCanvas: React.FC = () => {
   const generateBlackboardViewGraph = useGraphStore((state) => state.generateBlackboardViewGraph);
   const updateNodePosition = useGraphStore((state) => state.updateNodePosition);
   const persistNodePosition = useGraphStore((state) => state.saveNodePosition);
-  const addModule = useModuleStore((state) => state.addModule);
   // UI Optimization Migration (Phase 4 - Spec 002): Use filterStore.applyFilters (backend-driven)
   const applyFilters = useFilterStore((state) => state.applyFilters);
 
@@ -79,9 +75,6 @@ const GraphCanvas: React.FC = () => {
   const nodeSpacing = useSettingsStore((state) => state.advanced.nodeSpacing);
   const rankSpacing = useSettingsStore((state) => state.advanced.rankSpacing);
 
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
-  const [showModuleSubmenu, setShowModuleSubmenu] = useState(false);
-  const [showLayoutSubmenu, setShowLayoutSubmenu] = useState(false);
 
   const autoLayoutDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousNodeIdsRef = useRef<Set<string> | null>(null);
@@ -196,12 +189,11 @@ const GraphCanvas: React.FC = () => {
     (
       layoutType: AutoLayoutMode,
       options?: {
-        closeMenus?: boolean;
         // When true, persist selected layout as the user's preferred auto-layout mode.
         updateStoredMode?: boolean;
       }
     ) => {
-      const { closeMenus = true, updateStoredMode = true } = options || {};
+      const { updateStoredMode = true } = options || {};
 
       if (updateStoredMode) {
         setAutoLayoutMode(layoutType);
@@ -212,11 +204,6 @@ const GraphCanvas: React.FC = () => {
         latestAutoLayoutModeRef.current = layoutType;
         layoutDueRef.current = true;
         useUIStore.getState().fold();
-        if (closeMenus) {
-          setContextMenu(null);
-          setShowModuleSubmenu(false);
-          setShowLayoutSubmenu(false);
-        }
         return;
       }
 
@@ -277,11 +264,6 @@ const GraphCanvas: React.FC = () => {
         persistNodePosition(node.id, node.position);
       });
 
-      if (closeMenus) {
-        setContextMenu(null);
-        setShowModuleSubmenu(false);
-        setShowLayoutSubmenu(false);
-      }
     },
     [
       nodes,
@@ -334,7 +316,6 @@ const GraphCanvas: React.FC = () => {
         return;
       }
       applyLayout(latestAutoLayoutModeRef.current, {
-        closeMenus: false,
         // Auto-layout should not overwrite the user's last explicit mode selection.
         updateStoredMode: false,
       });
@@ -383,47 +364,8 @@ const GraphCanvas: React.FC = () => {
     nodeSpacing,
     rankSpacing,
     collectDimensions: collectRenderedNodeDimensions,
-    relayout: () => applyLayout(latestAutoLayoutModeRef.current, { closeMenus: false, updateStoredMode: false }),
+    relayout: () => applyLayout(latestAutoLayoutModeRef.current, { updateStoredMode: false }),
   });
-
-  // Auto-zoom handler
-  const handleAutoZoom = useCallback(() => {
-    fitView({ padding: 0.1, duration: motionMs(300) });
-    setContextMenu(null);
-    setShowModuleSubmenu(false);
-  }, [fitView]);
-
-  // Add module handler
-  const handleAddModule = useCallback((moduleType: string, clickX: number, clickY: number) => {
-    const moduleInstance = {
-      id: uuidv4(),
-      type: moduleType,
-      position: { x: clickX, y: clickY },
-      size: { width: 600, height: 400 },
-      visible: true,
-    };
-
-    addModule(moduleInstance);
-    setContextMenu(null);
-    setShowModuleSubmenu(false);
-  }, [addModule]);
-
-  // Context menu handler
-  const onPaneContextMenu = useCallback((event: React.MouseEvent | MouseEvent) => {
-    event.preventDefault();
-    setContextMenu({
-      x: event.clientX,
-      y: event.clientY,
-    });
-    setShowModuleSubmenu(false);
-  }, []);
-
-  // Close context menu on click outside
-  const onPaneClick = useCallback(() => {
-    setContextMenu(null);
-    setShowModuleSubmenu(false);
-    setShowLayoutSubmenu(false);
-  }, []);
 
   // Node drag handler - prevent overlaps with collision detection
   const onNodeDrag = useCallback(
@@ -507,349 +449,20 @@ const GraphCanvas: React.FC = () => {
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         defaultEdgeOptions={defaultEdgeOptions}
-        onPaneContextMenu={onPaneContextMenu}
-        onPaneClick={onPaneClick}
         style={{ backgroundColor: 'var(--board)' }}
       >
         <Background color="var(--dot)" bgColor="var(--board)" gap={22} size={1.3} />
-        <Controls
-          style={{
-            backgroundColor: 'var(--color-bg-surface)',
-            border: '1px solid var(--color-border-default)',
-            borderRadius: 'var(--radius-lg)',
-            overflow: 'hidden',
-            boxShadow: 'var(--shadow-lg)',
-          }}
-          showZoom={true}
-          showFitView={true}
-          showInteractive={true}
-        />
         <MiniMap />
       </ReactFlow>
 
+      <CanvasDock
+        layout={autoLayoutMode}
+        autoArrange={autoLayoutEnabled}
+        onLayout={(mode) => applyLayout(mode)}
+        onAutoArrange={setAutoLayoutEnabled}
+      />
+
       <FocusStage onOpenTrace={openTrace} />
-
-      {/* Context Menu */}
-      {contextMenu && (
-        <div
-          style={{
-            position: 'fixed',
-            top: contextMenu.y,
-            left: contextMenu.x,
-            background: 'var(--color-bg-surface)',
-            border: 'var(--border-default)',
-            borderRadius: 'var(--radius-md)',
-            boxShadow: 'var(--shadow-lg)',
-            zIndex: 1000,
-            minWidth: 180,
-          }}
-        >
-          <div style={{ position: 'relative' }}>
-            <button
-              onMouseEnter={() => setShowLayoutSubmenu(true)}
-              onMouseLeave={(e) => {
-                const relatedTarget = e.relatedTarget as HTMLElement;
-                if (!relatedTarget || !relatedTarget.closest('.layout-submenu')) {
-                  setShowLayoutSubmenu(false);
-                }
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                width: '100%',
-                padding: 'var(--spacing-2) var(--spacing-4)',
-                border: 'none',
-                background: showLayoutSubmenu ? 'var(--color-bg-overlay)' : 'transparent',
-                cursor: 'pointer',
-                textAlign: 'left',
-                fontSize: 'var(--font-size-body-sm)',
-                color: 'var(--color-text-primary)',
-                transition: 'var(--transition-colors)',
-              }}
-            >
-              <span>Auto Layout</span>
-              <span style={{ marginLeft: 'var(--spacing-2)' }}>▶</span>
-            </button>
-
-            {/* Layout Submenu */}
-            {showLayoutSubmenu && (
-              <div
-                className="layout-submenu"
-                onMouseEnter={() => setShowLayoutSubmenu(true)}
-                onMouseLeave={() => setShowLayoutSubmenu(false)}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: '100%',
-                  background: 'var(--color-bg-surface)',
-                  border: 'var(--border-default)',
-                  borderRadius: 'var(--radius-md)',
-                  boxShadow: 'var(--shadow-lg)',
-                  zIndex: 1001,
-                  minWidth: 180,
-                }}
-              >
-                <button
-                  onClick={() => applyLayout('hierarchical-vertical')}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: 'var(--spacing-2) var(--spacing-4)',
-                    border: 'none',
-                    background: 'transparent',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    fontSize: 'var(--font-size-body-sm)',
-                    color: 'var(--color-text-primary)',
-                    transition: 'var(--transition-colors)',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'var(--color-bg-overlay)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  Hierarchical (Vertical)
-                </button>
-                <button
-                  onClick={() => applyLayout('hierarchical-horizontal')}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: 'var(--spacing-2) var(--spacing-4)',
-                    border: 'none',
-                    background: 'transparent',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    fontSize: 'var(--font-size-body-sm)',
-                    color: 'var(--color-text-primary)',
-                    transition: 'var(--transition-colors)',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'var(--color-bg-overlay)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  Hierarchical (Horizontal)
-                </button>
-                <button
-                  onClick={() => applyLayout('circular')}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: 'var(--spacing-2) var(--spacing-4)',
-                    border: 'none',
-                    background: 'transparent',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    fontSize: 'var(--font-size-body-sm)',
-                    color: 'var(--color-text-primary)',
-                    transition: 'var(--transition-colors)',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'var(--color-bg-overlay)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  Circular
-                </button>
-                <button
-                  onClick={() => applyLayout('grid')}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: 'var(--spacing-2) var(--spacing-4)',
-                    border: 'none',
-                    background: 'transparent',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    fontSize: 'var(--font-size-body-sm)',
-                    color: 'var(--color-text-primary)',
-                    transition: 'var(--transition-colors)',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'var(--color-bg-overlay)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  Grid
-                </button>
-                <button
-                  onClick={() => applyLayout('random')}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: 'var(--spacing-2) var(--spacing-4)',
-                    border: 'none',
-                    background: 'transparent',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    fontSize: 'var(--font-size-body-sm)',
-                    color: 'var(--color-text-primary)',
-                    transition: 'var(--transition-colors)',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'var(--color-bg-overlay)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  Random
-                </button>
-
-                <div
-                  style={{
-                    borderTop: '1px solid var(--color-border-subtle)',
-                    margin: 'var(--spacing-1) 0',
-                  }}
-                />
-
-                <button
-                  onClick={() => {
-                    setAutoLayoutEnabled(!autoLayoutEnabled);
-                    setContextMenu(null);
-                    setShowLayoutSubmenu(false);
-                    setShowModuleSubmenu(false);
-                  }}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: 'var(--spacing-2) var(--spacing-4)',
-                    border: 'none',
-                    background: 'transparent',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    fontSize: 'var(--font-size-body-sm)',
-                    color: 'var(--color-text-primary)',
-                    transition: 'var(--transition-colors)',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'var(--color-bg-overlay)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  Auto Layout: {autoLayoutEnabled ? 'On' : 'Off'}
-                </button>
-              </div>
-            )}
-          </div>
-
-          <button
-            onClick={handleAutoZoom}
-            style={{
-              display: 'block',
-              width: '100%',
-              padding: 'var(--spacing-2) var(--spacing-4)',
-              border: 'none',
-              background: 'transparent',
-              cursor: 'pointer',
-              textAlign: 'left',
-              fontSize: 'var(--font-size-body-sm)',
-              color: 'var(--color-text-primary)',
-              transition: 'var(--transition-colors)',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'var(--color-bg-overlay)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent';
-            }}
-          >
-            Auto Zoom
-          </button>
-
-          <div style={{ position: 'relative' }}>
-            <button
-              onMouseEnter={() => setShowModuleSubmenu(true)}
-              onMouseLeave={(e) => {
-                // Only close submenu if not moving to submenu itself
-                const relatedTarget = e.relatedTarget as HTMLElement;
-                if (!relatedTarget || !relatedTarget.closest('.module-submenu')) {
-                  setShowModuleSubmenu(false);
-                }
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                width: '100%',
-                padding: 'var(--spacing-2) var(--spacing-4)',
-                border: 'none',
-                background: showModuleSubmenu ? 'var(--color-bg-overlay)' : 'transparent',
-                cursor: 'pointer',
-                textAlign: 'left',
-                fontSize: 'var(--font-size-body-sm)',
-                color: 'var(--color-text-primary)',
-                transition: 'var(--transition-colors)',
-              }}
-            >
-              <span>Add Module</span>
-              <span style={{ marginLeft: 'var(--spacing-2)' }}>▶</span>
-            </button>
-
-            {/* Module Submenu */}
-            {showModuleSubmenu && (
-              <div
-                className="module-submenu"
-                onMouseEnter={() => setShowModuleSubmenu(true)}
-                onMouseLeave={() => setShowModuleSubmenu(false)}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: '100%',
-                  background: 'var(--color-bg-surface)',
-                  border: 'var(--border-default)',
-                  borderRadius: 'var(--radius-md)',
-                  boxShadow: 'var(--shadow-lg)',
-                  zIndex: 1001,
-                  minWidth: 160,
-                }}
-              >
-                {moduleRegistry.getAll().map((module) => (
-                  <button
-                    key={module.id}
-                    onClick={() => handleAddModule(module.id, contextMenu.x, contextMenu.y)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 'var(--gap-sm)',
-                      width: '100%',
-                      padding: 'var(--spacing-2) var(--spacing-4)',
-                      border: 'none',
-                      background: 'transparent',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      fontSize: 'var(--font-size-body-sm)',
-                      color: 'var(--color-text-primary)',
-                      transition: 'var(--transition-colors)',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'var(--color-bg-overlay)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'transparent';
-                    }}
-                  >
-                    {module.icon && <span>{module.icon}</span>}
-                    <span>{module.name}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 };
