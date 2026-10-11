@@ -814,14 +814,14 @@ type VoteState = 'agrees' | 'differs' | 'unsure';
 const VOTE_STYLE: Record<VoteState, { background: string; color: string; title: string }> = {
   agrees: { background: '#ede9fe', color: VIOLET_TEXT, title: 'Firm vote for the decision' },
   differs: { background: '#fef3c7', color: '#b45309', title: 'Firm vote that did not carry' },
-  unsure: { background: '#f5f5f4', color: '#78716c', title: 'No vote: below the threshold or refused' },
+  unsure: { background: '#f5f5f4', color: '#57534e', title: 'No vote: below the threshold or refused' },
 };
 
 function checklistVoteState(vote: Record<string, string>, results: Record<string, string>): VoteState {
-  const items = Object.entries(vote);
-  if (items.every(([item, result]) => results[item] === result)) return 'agrees';
+  const firm = Object.entries(vote).filter(([, result]) => result !== UNSURE);
+  if (firm.length === 0) return 'unsure'; // no firm item answer is no vote
   // A firm item answer that differs from the decision's result did not carry
-  return items.some(([item, result]) => result !== UNSURE && results[item] !== result) ? 'differs' : 'unsure';
+  return firm.some(([item, result]) => results[item] !== result) ? 'differs' : 'agrees';
 }
 
 function voteState(vote: EscalationAttempt, choice: string, threshold: number | null): VoteState {

@@ -229,7 +229,7 @@ class DecisionEngine(EngineComponent):
                         f"Decision model '{provider.label}' does not accept images; "
                         "use providers with image support (openai/, local/ with a "
                         "vision model) for inputs with Image fields, also in "
-                        "escalate=."
+                        "escalate= and models=."
                     )
 
         started = time.perf_counter()
@@ -328,10 +328,8 @@ class DecisionEngine(EngineComponent):
             and (len(candidates) < 2)
         ):
             # Nothing to rank: no candidates is UNSURE, a single one wins
-            answer = _trivial_answer(candidates)
-            if self.ensemble:  # no model was asked, so there are no votes
-                label = " + ".join(provider.label for provider in self.ensemble)
-                answer = replace(answer, model=label)
+            # No model was asked, so an ensemble has no votes
+            answer = replace(_trivial_answer(candidates), model=self._label)
             return {self.questions[0].__name__: answer}, []
         if self.tournament is not None:
             answer, rounds = await self._run_tournament(state, images, candidates)
@@ -756,12 +754,19 @@ class DecisionEngine(EngineComponent):
             refused=bool(results) and len(refused) == len(results),
             threshold=self.threshold,
             subject_ids=subject_ids,
-            model=top_label or (models[0] if models else self.provider.label),
+            model=top_label or (models[0] if models else self._label),
             tier=tier,
             attempts=attempts,
             votes=votes,
             latency_ms=latency_ms,
         )
+
+    @property
+    def _label(self) -> str:
+        """The configured model name: the provider's, or an ensemble's joined."""
+        if self.ensemble:
+            return " + ".join(provider.label for provider in self.ensemble)
+        return self.provider.label
 
     def _firm(self, answer: DecisionAnswer) -> bool:
         if answer.refused or answer.choice is None:

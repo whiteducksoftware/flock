@@ -228,6 +228,23 @@ async def test_one_candidate_left_needs_no_vote():
     assert [model.calls for model in models] == [[], []]
 
 
+async def test_an_empty_checklist_names_the_ensemble():
+    models = [
+        FakeDecider({"VoteControls": {"mfa": 0.9}}, label="a"),
+        FakeDecider({"VoteControls": {"mfa": 0.9}}, label="b"),
+    ]
+    flock = Flock()
+    flock.agent("audit").consumes(VoteTicket).decides(
+        VoteControls, models=models, options=lambda ctx: []
+    )
+
+    await flock.publish(VoteTicket(text="x"))
+    await flock.run_until_idle()
+
+    (decision,) = await _decisions(flock, VoteControls)
+    assert (decision["model"], decision["votes"]) == ("a + b", [])
+
+
 async def test_checklist_items_are_voted_one_by_one():
     models = [
         FakeDecider({"VoteControls": {"mfa": 0.97, "backup": 0.95}}, label="a"),
