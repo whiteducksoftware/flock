@@ -80,6 +80,12 @@ describe('contractOf', () => {
     });
   });
 
+  it('shows what a source sent as what it publishes', () => {
+    const source = node('external', { outputTypes: [], sentByType: { 'app.SupportTicket': 3 } });
+
+    expect(contractOf('external', [source], schemas).publishes.map((entry) => entry.label)).toEqual(['SupportTicket']);
+  });
+
   it('shows a decider\'s decisions without fields, and a type without a schema as such', () => {
     const contract = contractOf('triage', nodes, { 'app.SupportTicket': schemas['app.SupportTicket'] });
 

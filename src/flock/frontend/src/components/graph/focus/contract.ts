@@ -70,7 +70,12 @@ export function fieldsOf(schema: JsonSchema | undefined): Field[] {
 const DECISION = /^(?:.*\.)?Decision\[(.+)\]$/;
 
 const dataOf = (node: Node | undefined) =>
-  (node?.data ?? {}) as { subscriptions?: string[]; outputTypes?: string[]; typeLabels?: Record<string, string> };
+  (node?.data ?? {}) as {
+    subscriptions?: string[];
+    outputTypes?: string[];
+    sentByType?: Record<string, number>;
+    typeLabels?: Record<string, string>;
+  };
 
 /**
  * The agent's contract. A decision handle delivers the subject the decider
@@ -108,7 +113,9 @@ export function contractOf(
     return { type, label: shortTypeName(type), decision: false, note: schema ? null : 'no schema known', fields: fieldsOf(schema) };
   });
 
-  const publishes = [...new Set(data.outputTypes ?? [])].map((type): ContractEntry => {
+  // Declared outputs, and what it sent (a source such as `external` declares none)
+  const published = [...(data.outputTypes ?? []), ...Object.keys(data.sentByType ?? {})];
+  const publishes = [...new Set(published)].map((type): ContractEntry => {
     const question = DECISION.exec(type);
     if (question) {
       return { type, label: shortTypeName(question[1]!), decision: true, note: 'decision · routes to its handles', fields: [] };

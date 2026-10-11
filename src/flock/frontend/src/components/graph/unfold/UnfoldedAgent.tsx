@@ -165,6 +165,7 @@ const UnfoldedAgent: React.FC<UnfoldedAgentProps> = ({
         id={`${tabIds}-panel`}
         role="tabpanel"
         aria-labelledby={`${tabIds}-${tab}`}
+        tabIndex={0}
         className={`nodrag nowheel nopan ${styles.body}`}
         data-scroll
       >

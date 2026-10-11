@@ -84,6 +84,16 @@ describe('lineageOf', () => {
     expect(lineage.upstream).toEqual([{ node: 'mapper', label: 'Control.ORP.1.A1', decision: true }]);
   });
 
+  it('shows what a source sent, consumed or not', () => {
+    const source = { ...agent('external'), data: { name: 'external', outputTypes: [], sentByType: { 'app.SupportTicket': 3, 'app.Note': 1 } } };
+    const lineage = lineageOf('external', [source], [flow('external', 'triage', 'app.SupportTicket')]);
+
+    expect(lineage.outputs.map((output) => [output.label, output.consumers.map((consumer) => consumer.node)])).toEqual([
+      ['SupportTicket', ['triage']],
+      ['Note', []],
+    ]);
+  });
+
   it('names each upstream producer once per type', () => {
     expect(lineageOf('crm_sync', nodes, edges).upstream).toEqual([
       { node: 'billing_team', label: 'TeamReply', decision: false },

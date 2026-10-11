@@ -74,7 +74,11 @@ export function lineageOf(id: string, nodes: Node[], edges: Edge[]): Lineage {
     }
   }
 
-  const declared = ((nodes.find((node) => node.id === id)?.data as { outputTypes?: string[] } | undefined)?.outputTypes ?? []);
+  // Declared outputs, and what it sent (a source such as `external` declares none)
+  const data = nodes.find((node) => node.id === id)?.data as
+    | { outputTypes?: string[]; sentByType?: Record<string, number> }
+    | undefined;
+  const declared = [...(data?.outputTypes ?? []), ...Object.keys(data?.sentByType ?? {})];
   const published = flows.filter((flow) => flow.source === id);
   const types = [...new Set([...declared, ...published.map((flow) => flow.data.messageType)])];
   const outputs = types.map((type) => {

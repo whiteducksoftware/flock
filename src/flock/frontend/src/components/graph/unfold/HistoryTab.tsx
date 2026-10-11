@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import ImageThumbnails from '../../common/ImageThumbnails';
 import { shortTypeName } from '../../../utils/typeName';
 import { clockTime, shortId } from './format';
-import { useMessageHistory } from './messageHistory';
+import { type Message, useMessageHistory } from './messageHistory';
 import styles from './Unfolded.module.css';
 
 /** One line of a payload: a decision's answer, else its first text, else its JSON. */
@@ -40,8 +40,7 @@ const json = (payload: unknown): string => {
  * What the agent consumed (↓) and published (↑), newest first; a row opens
  * its payload. Read again when the agent's counts change.
  */
-const HistoryTab: React.FC<{ agent: string; revision: number }> = ({ agent, revision }) => {
-  const { messages, error } = useMessageHistory(agent, revision);
+export const HistoryList: React.FC<{ messages: Message[] | null; error: string | null }> = ({ messages, error }) => {
   const [open, setOpen] = useState<Set<string>>(new Set());
 
   const toggle = (id: string) =>
@@ -99,6 +98,12 @@ const HistoryTab: React.FC<{ agent: string; revision: number }> = ({ agent, revi
       })}
     </div>
   );
+};
+
+/** The history of `agent`, read for this tab. */
+const HistoryTab: React.FC<{ agent: string; revision: number }> = ({ agent, revision }) => {
+  const { messages, error } = useMessageHistory(agent, revision);
+  return <HistoryList messages={messages} error={error} />;
 };
 
 export default HistoryTab;
