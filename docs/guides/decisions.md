@@ -381,10 +381,11 @@ Every checklist decision that reaches the agent is added to the group of its dec
 | `choice` | `passed`, `failed` or `UNSURE`, as for a checklist decision |
 | `evidence` | Per item, the artifacts that showed it |
 | `subject_ids`, `decision_ids` | The artifacts and decisions in the group |
+| `revision` | How many decisions were combined |
 
 With `combine="any"` (default) an item is yes if any artifact shows it and no only if all say no; with `combine="all"` it is yes only if every artifact shows it and no if any says no. Anything else is `UNSURE`.
 
-Coverage is published per decision, so the latest coverage of a group is the current one. The groups live in the agent and are also filled from the visible history, so a restart with a persistent store loses nothing; updates run one at a time, so the last coverage holds every decision. A coverage keeps the group's common visibility; for groups with different visibilities, `visibility=` on `.aggregates()` sets the readership. `.aggregates()` needs subscriptions to the handles of one Checklist only, and cannot be combined with `.publishes()`, `.with_engines()` or batch subscriptions.
+Coverage is published per decision. Concurrent executions can store them out of order, so the coverage with the highest `revision` is a group's current one. The groups live in the agent and are also filled from the visible history, so a restart with a persistent store loses nothing; updates run one at a time, so the last coverage holds every decision. A coverage keeps the group's common visibility; for groups with different visibilities, `visibility=` on `.aggregates()` sets the readership. `.aggregates()` needs subscriptions to the handles of one Checklist only, and cannot be combined with `.publishes()`, `.with_engines()` or batch subscriptions.
 
 On the 24 documents of 12 organisations from the compliance example ([`11_coverage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/11_coverage.py), Microsoft-Decision-1, threshold 0.8), the coverage per organisation agrees with the ground truth on 80 to 91 of the decided controls; "shown" has recall 1.00 and precision 0.79, and 110 of the 1,200 controls stay unsure.
 

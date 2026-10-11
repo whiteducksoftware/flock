@@ -53,6 +53,11 @@ class Coverage(BaseModel):
     decision_ids: list[str] = Field(
         default_factory=list, description="Ids of the combined decisions"
     )
+    revision: int = Field(
+        default=0,
+        description="How many decisions were combined; per group, the highest "
+        "revision is the current coverage, whatever order coverages were stored in",
+    )
 
     @classmethod
     def of(cls, checklist: type[Question]) -> type[Coverage]:
@@ -248,6 +253,7 @@ class AggregateEngine(EngineComponent):
                 sid for entry in entries.values() for sid in entry.subject_ids
             ],
             decision_ids=list(entries),
+            revision=len(entries),
         )
         return coverage, self._readership(group, entries)
 

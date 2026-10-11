@@ -61,9 +61,11 @@ async def _coverages(flock: Flock) -> list:
 
 
 async def _latest(flock: Flock, group: str) -> dict:
-    return [a.payload for a in await _coverages(flock) if a.payload["group"] == group][
-        -1
+    """The current coverage of a group: the highest revision."""
+    group_coverages = [
+        a.payload for a in await _coverages(flock) if a.payload["group"] == group
     ]
+    return max(group_coverages, key=lambda c: c["revision"])
 
 
 async def test_any_document_can_show_a_control():
@@ -132,15 +134,19 @@ async def test_all_needs_every_document_to_show_a_control():
     assert coverage["choice"] == "failed"
 
 
-async def test_a_coverage_is_published_per_arrival_and_the_last_has_everything():
+async def test_a_coverage_is_published_per_arrival_with_a_growing_revision():
     flock = _flock()
     for text in ANSWERS:
         await flock.publish(CovDocument(org="acme", text=text))
     await flock.run_until_idle()
 
-    coverages = await _coverages(flock)
+    coverages = [c.payload for c in await _coverages(flock)]
     assert len(coverages) == 3
-    assert max(len(c.payload["decision_ids"]) for c in coverages) == 3
+    # A revision counts the combined decisions (history included); whatever
+    # order the coverages were stored in, the highest one has everything
+    assert all(c["revision"] == len(c["decision_ids"]) for c in coverages)
+    current = max(coverages, key=lambda c: c["revision"])
+    assert current["revision"] == 3
 
 
 async def test_a_callable_key_groups_by_anything():
