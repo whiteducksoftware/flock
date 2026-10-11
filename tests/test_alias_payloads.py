@@ -41,6 +41,13 @@ class AliasReceipt(BaseModel):
     order_id: str = Field(alias="orderId")
 
 
+@flock_type(name="AliasDraft")
+class AliasDraft(BaseModel):
+    """Another model with the order's fields, no aliases."""
+
+    order_id: str
+
+
 @flock_type(name="AliasPhoto")
 class AliasPhoto(BaseModel):
     picture: Image = Field(alias="pic")
@@ -151,7 +158,7 @@ async def test_the_sqlite_store_returns_alias_models(tmp_path):
     assert order.order_id == "42"
 
 
-async def test_an_application_returns_alias_outputs():
+def _receipt_app() -> FlockApplication:
     def factory() -> Flock:
         flock = Flock(no_output=True)
         flock.agent("clerk").consumes(AliasOrder).publishes(AliasReceipt).with_engines(
@@ -159,13 +166,30 @@ async def test_an_application_returns_alias_outputs():
         )
         return flock
 
-    app = FlockApplication(factory, input_type=AliasOrder, output_types=(AliasReceipt,))
+    return FlockApplication(
+        factory, input_type=AliasOrder, output_types=(AliasReceipt,)
+    )
 
-    result = await app.run(
+
+async def test_an_application_returns_alias_outputs():
+    result = await _receipt_app().run(
         AliasOrder(orderId="42"), context=WorkflowContext(workflow_id="wf-1")
     )
 
     assert result.status is WorkflowStatus.SUCCEEDED
+    assert result.values(AliasReceipt) == [AliasReceipt(orderId="42")]
+
+
+@pytest.mark.parametrize(
+    "request_",
+    [AliasDraft(order_id="42"), {"order_id": "42"}],
+    ids=["another model", "a mapping of its fields"],
+)
+async def test_an_application_takes_alias_inputs_by_field_name(request_):
+    result = await _receipt_app().run(
+        request_, context=WorkflowContext(workflow_id="wf-1")
+    )
+
     assert result.values(AliasReceipt) == [AliasReceipt(orderId="42")]
 
 
