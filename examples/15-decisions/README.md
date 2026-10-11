@@ -221,3 +221,40 @@ Escalated papers:
       microsoft-decision-1: machine_learning 0.56 → gpt-6-luna: computer_vision 1.00
   ...
 ```
+
+## 08_voting.py
+
+Three decision models (Microsoft-Decision-1, Jev, `gpt-6-luna`) sort the 100 arXiv abstracts by a vote. Papers the vote does not settle park in an `inbox` (`ResearchField.UNSURE`). The decisions record every model's answer, so the report shows each model on its own next to the ensemble, then every paper the models disagree about.
+
+**Key Concepts:**
+- `.decides(ResearchField, models=MODELS, vote=VOTE, threshold=0.8)`
+- `vote="majority"` (more than half of the models give the same firm answer), `"unanimous"` or `"mean"` (threshold on the mean probabilities)
+- `decision.votes` (every model's answer) and `decision.probabilities` (the mean)
+
+**Run:**
+```bash
+# AZURE_API_BASE, AZURE_API_KEY, JEV_API_KEY and OPENAI_API_KEY set
+uv run examples/15-decisions/08_voting.py
+VOTE=unanimous uv run examples/15-decisions/08_voting.py
+```
+
+Set `USE_DASHBOARD = True` to watch the decisions arrive with their votes.
+
+**What You'll See (2026-10-11, majority):**
+```
+                        firm   agree
+azure/decision-1          87      81
+jev/jev-latest            89      82
+openai/gpt-6-luna         95      91
+vote: majority            89      84
+UNSURE (inbox)            11
+
+Papers the models disagree about:
+  Prediction-Powered Data Fusion for Treatment Effect Estima  arXiv machine_learning
+      microsoft-decision-1: economics · jev-1.13.0: machine_learning · gpt-6-luna: machine_learning → machine_learning
+  OneSearch-VL: Unified Multimodal Deep Research Agent for I  arXiv computer_vision
+      microsoft-decision-1: unsure · jev-1.13.0: unsure · gpt-6-luna: computer_vision → UNSURE
+  ...
+```
+
+With `VOTE=unanimous`, 80 papers are firm and 78 of them agree with arXiv; with `VOTE=mean`, 84 and 81.
