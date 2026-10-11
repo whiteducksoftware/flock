@@ -50,7 +50,7 @@ Content-Type: application/json
 
 #### Images in Responses
 
-`GET /api/v1/artifacts` and `GET /api/v1/artifacts/{artifact_id}` return payloads with full image data by default. With `images=thumbnails` they return a short description in place of each image (`"🖼 image/jpeg · 42 KB"`) and add an `images` list per artifact: `path`, `mime`, `bytes` and a `thumb` data URL of at most 160 px. The dashboard uses this mode and loads a full image only when it is opened. WebSocket `message_published` events always carry the description and thumbnails, never the full image.
+`GET /api/v1/artifacts` and `GET /api/v1/artifacts/{artifact_id}` return payloads with full image data by default. With `images=thumbnails` they return a short description in place of each image (`"🖼 image/jpeg · 42 KB"`) and add an `images` list per artifact. Each entry has `path` (a display label such as `album.pages[1]`), `keys` (the same location as key segments, e.g. `["album", "pages", 1]`; use these to find the image, because keys may contain dots or brackets), `mime`, `bytes` and a `thumb` data URL of at most 160 px. The dashboard uses this mode and loads a full image only when it is opened. WebSocket `message_published` events always carry the description and thumbnails, never the full image.
 
 ---
 

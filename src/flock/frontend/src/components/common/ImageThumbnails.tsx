@@ -10,12 +10,15 @@ interface ImageThumbnailsProps {
 }
 
 interface OpenImage {
+  id: string; // from the key segments: display paths can look alike
   path: string;
   url?: string;
   error?: string;
 }
 
 const sizeLabel = (bytes: number) => `${Math.max(1, Math.round(bytes / 1024))} KB`;
+
+const imageId = (image: ImageSummary) => JSON.stringify(image.keys ?? [image.path]);
 
 /** The full image in a modal: focus on Close, Tab stays there, Escape closes. */
 const FullImageDialog: React.FC<{ image: OpenImage; onClose: () => void }> = ({ image, onClose }) => {
@@ -73,18 +76,19 @@ const ImageThumbnails: React.FC<ImageThumbnailsProps> = ({ artifactId, images })
 
   const openImage = async (image: ImageSummary) => {
     const { path } = image;
-    setOpen({ path });
+    const id = imageId(image);
+    setOpen({ id, path });
     try {
       const artifact = await fetchArtifact(artifactId);
       const url = valueAtKeys(artifact.payload, image.keys ?? [path])?.url;
       if (typeof url !== 'string' || !url.startsWith('data:image/')) {
         throw new Error('no image at this location');
       }
-      setOpen((current) => (current?.path === path ? { path, url } : current));
+      setOpen((current) => (current?.id === id ? { id, path, url } : current));
     } catch {
       setOpen((current) =>
-        current?.path === path
-          ? { path, error: 'Could not load the full image (it may be gone or not visible to you).' }
+        current?.id === id
+          ? { id, path, error: 'Could not load the full image (it may be gone or not visible to you).' }
           : current
       );
     }
@@ -96,7 +100,7 @@ const ImageThumbnails: React.FC<ImageThumbnailsProps> = ({ artifactId, images })
     <>
       <div className={styles.thumbnails}>
         {images.map((image) => (
-          <figure key={image.path} className={styles.thumbnail}>
+          <figure key={imageId(image)} className={styles.thumbnail}>
             <button
               type="button"
               className={styles.thumbnailButton}

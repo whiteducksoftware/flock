@@ -94,4 +94,30 @@ describe('ImageThumbnails', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(opener).toHaveFocus();
   });
+
+  it('tells apart images whose display paths look the same', async () => {
+    const twins = [
+      { path: 'a.b', keys: ['a.b'], mime: 'image/png', bytes: 10, thumb: 'data:image/png;base64,VE9Q' },
+      { path: 'a.b', keys: ['a', 'b'], mime: 'image/png', bytes: 10, thumb: 'data:image/png;base64,TkVTVA==' },
+    ];
+    let resolveTop!: (value: unknown) => void;
+    mockFetch
+      .mockReturnValueOnce(new Promise((resolve) => (resolveTop = resolve)))
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ payload: { a: { b: { url: 'data:image/png;base64,TkVTVEVE' } } } }),
+      });
+    render(<ImageThumbnails artifactId="a-1" images={twins} />);
+    const [top, nested] = screen.getAllByRole('button', { name: /open a\.b/i });
+
+    fireEvent.click(top!);
+    fireEvent.click(nested!);
+    await waitFor(() =>
+      expect(screen.getByAltText('a.b (full size)')).toHaveAttribute('src', 'data:image/png;base64,TkVTVEVE')
+    );
+    resolveTop({ ok: true, json: async () => ({ payload: { 'a.b': { url: 'data:image/png;base64,VE9QVE9Q' } } }) });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.getByAltText('a.b (full size)')).toHaveAttribute('src', 'data:image/png;base64,TkVTVEVE');
+  });
 });

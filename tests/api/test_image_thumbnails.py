@@ -167,3 +167,12 @@ async def test_events_build_thumbnails_off_the_event_loop(orchestrator, monkeypa
 
     assert threads
     assert threading.main_thread().name not in threads
+
+
+def test_reported_sizes_ignore_base64_padding():
+    from flock.api.thumbnails import image_summaries
+
+    picture = _picture((40, 30))
+    (summary,) = image_summaries({"picture": picture.model_dump()})
+
+    assert summary["bytes"] == len(picture.to_bytes())

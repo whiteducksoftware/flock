@@ -101,6 +101,11 @@ def thumbnail(url: str) -> str | None:
     return thumb
 
 
+def _decoded_size(encoded: str) -> int:
+    """Bytes a base64 string decodes to (padding excluded)."""
+    return len(encoded) * 3 // 4 - (len(encoded) - len(encoded.rstrip("=")))
+
+
 def image_summaries(payload: Any) -> list[dict[str, Any]]:
     """Dashboard data for each image in ``payload``."""
     summaries = []
@@ -112,7 +117,7 @@ def image_summaries(payload: Any) -> list[dict[str, Any]]:
             "path": _path_label(keys),
             "keys": keys,  # segments: unambiguous for keys with dots or brackets
             "mime": url[5 : url.index(";")],
-            "bytes": round(len(url.split(",", 1)[1]) * 3 / 4),
+            "bytes": _decoded_size(url.split(",", 1)[1]),
             "thumb": thumb,
         })
     return summaries
