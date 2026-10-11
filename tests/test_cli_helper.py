@@ -82,12 +82,22 @@ class TestDisplayHummingbird:
         assert "\n" in captured.out
 
 
+def _printed(mock_console: MagicMock) -> str:
+    """Everything a mocked console printed, as plain text."""
+    from rich.text import Text
+
+    return "".join(
+        call.args[0].plain if isinstance(call.args[0], Text) else str(call.args[0])
+        for call in mock_console.print.call_args_list
+    )
+
+
 class TestInitConsole:
     """Test the init_console function."""
 
     @patch("rich.console.Console")
     def test_init_console_default_params(self, mock_console_class):
-        """Test init_console with default parameters."""
+        """The screen is cleared and the banner printed in one go."""
         from flock.utils.cli_helper import init_console
 
         mock_console = MagicMock()
@@ -95,12 +105,9 @@ class TestInitConsole:
 
         init_console()
 
-        # Verify console was created
         mock_console_class.assert_called_once()
-        # Verify clear was called (default clear_screen=True)
         mock_console.clear.assert_called_once()
-        # Verify banner was printed (default show_banner=True)
-        assert mock_console.print.call_count >= 2  # Banner and attribution
+        assert mock_console.print.call_count == 1
 
     @patch("rich.console.Console")
     def test_init_console_no_clear_screen(self, mock_console_class):
@@ -112,10 +119,8 @@ class TestInitConsole:
 
         init_console(clear_screen=False)
 
-        # Verify clear was not called
         mock_console.clear.assert_not_called()
-        # Verify banner was still printed
-        assert mock_console.print.call_count >= 2
+        assert mock_console.print.call_count == 1
 
     @patch("rich.console.Console")
     def test_init_console_no_banner(self, mock_console_class):
@@ -127,14 +132,12 @@ class TestInitConsole:
 
         init_console(show_banner=False)
 
-        # Verify clear was called
         mock_console.clear.assert_called_once()
-        # Verify banner was not printed
         mock_console.print.assert_not_called()
 
     @patch("rich.console.Console")
     def test_init_console_with_model(self, mock_console_class):
-        """Test init_console with a model parameter."""
+        """The banner names the model."""
         from flock.utils.cli_helper import init_console
 
         mock_console = MagicMock()
@@ -142,16 +145,11 @@ class TestInitConsole:
 
         init_console(model="gpt-4")
 
-        # Verify console was created
-        mock_console_class.assert_called_once()
-        # Verify model info was printed
-        print_calls = mock_console.print.call_args_list
-        model_printed = any("gpt-4" in str(call) for call in print_calls)
-        assert model_printed, f"Model not found in print calls: {print_calls}"
+        assert "model: gpt-4" in _printed(mock_console)
 
     @patch("rich.console.Console")
     def test_init_console_all_false_with_model(self, mock_console_class):
-        """Test init_console with all flags False but with model."""
+        """Without the banner, only the model is printed."""
         from flock.utils.cli_helper import init_console
 
         mock_console = MagicMock()
@@ -159,31 +157,26 @@ class TestInitConsole:
 
         init_console(clear_screen=False, show_banner=False, model="claude-3")
 
-        # Verify clear was not called
         mock_console.clear.assert_not_called()
-        # Only model should be printed
         assert mock_console.print.call_count == 1
-        print_call = str(mock_console.print.call_args_list[0])
-        assert "claude-3" in print_call
+        assert "claude-3" in _printed(mock_console)
 
     @patch("rich.console.Console")
     @patch("flock.utils.cli_helper.__version__", "test-version")
     def test_init_console_version_in_banner(self, mock_console_class):
-        """Test that version is included in the banner."""
-        from flock.utils.cli_helper import init_console
+        """The banner names the version and the milestone."""
+        from flock.utils.cli_helper import MILESTONE, init_console
 
         mock_console = MagicMock()
         mock_console_class.return_value = mock_console
 
         init_console()
 
-        # Check that version was included in banner
-        print_calls = str(mock_console.print.call_args_list)
-        assert "test-version" in print_calls
+        assert f"vtest-version · {MILESTONE}" in _printed(mock_console)
 
     @patch("rich.console.Console")
     def test_init_console_banner_content(self, mock_console_class):
-        """Test that banner contains expected elements."""
+        """A formation shaped like a prompt (>) in front of the wordmark."""
         from flock.utils.cli_helper import init_console
 
         mock_console = MagicMock()
@@ -191,61 +184,33 @@ class TestInitConsole:
 
         init_console()
 
-        print_calls = str(mock_console.print.call_args_list)
-        # Check for duck emojis
-        assert "🦆" in print_calls
-        assert "🐓" in print_calls
-        assert "🐤" in print_calls
-        assert "🐧" in print_calls
-        # Check for FLOCK text
-        assert "▒█" in print_calls
-        # Check for company info
-        assert "white duck GmbH" in print_calls
-        assert "https://whiteduck.de" in print_calls
+        lines = _printed(mock_console).splitlines()
+        assert [line.index("⌄") for line in lines[:7]] == [2, 4, 6, 8, 6, 4, 2]
+        assert lines[3].endswith("█▀▀ █   █▀█ █▀▀ █▄▀")
+        assert "blackboard-first agent orchestration" in lines[5]
+        assert "🦆 white duck GmbH · https://whiteduck.de" in lines[6]
 
 
 class TestDisplayBannerNoVersion:
     """Test the display_banner_no_version function."""
 
     @patch("rich.console.Console")
-    def test_display_banner_no_version_basic(self, mock_console_class):
-        """Test that display_banner_no_version prints expected content."""
-        from flock.utils.cli_helper import display_banner_no_version
-
-        mock_console = MagicMock()
-        mock_console_class.return_value = mock_console
-
-        display_banner_no_version()
-
-        # Verify console was created
-        mock_console_class.assert_called_once()
-        # Verify banner was printed (should be 2 print calls)
-        assert mock_console.print.call_count == 2
-
-    @patch("rich.console.Console")
+    @patch("flock.utils.cli_helper.__version__", "test-version")
     def test_display_banner_no_version_content(self, mock_console_class):
-        """Test content of display_banner_no_version."""
-        from flock.utils.cli_helper import display_banner_no_version
+        """The same banner, with the milestone and without the version."""
+        from flock.utils.cli_helper import MILESTONE, display_banner_no_version
 
         mock_console = MagicMock()
         mock_console_class.return_value = mock_console
 
         display_banner_no_version()
 
-        print_calls = str(mock_console.print.call_args_list)
-        # Check for duck emojis
-        assert "🦆" in print_calls
-        assert "🐓" in print_calls
-        assert "🐤" in print_calls
-        assert "🐧" in print_calls
-        # Check for FLOCK text
-        assert "▒█" in print_calls
-        # Check for company info
-        assert "white duck GmbH" in print_calls
-        assert "https://whiteduck.de" in print_calls
-        # Ensure no version is included (unlike init_console)
-        # We can't check for absence of version directly, but we know
-        # it shouldn't reference __version__ in the banner text
+        printed = _printed(mock_console)
+        assert mock_console.print.call_count == 1
+        assert "█▀  █▄▄ █▄█ █▄▄ █ █" in printed
+        assert MILESTONE in printed
+        assert "test-version" not in printed
+        assert "🦆 white duck GmbH" in printed
 
     @patch("rich.console.Console")
     def test_display_banner_no_version_no_clear(self, mock_console_class):
@@ -257,29 +222,32 @@ class TestDisplayBannerNoVersion:
 
         display_banner_no_version()
 
-        # Verify clear was NOT called (unlike init_console)
         mock_console.clear.assert_not_called()
 
-    @patch("rich.console.Console")
-    def test_display_banner_no_version_text_styling(self, mock_console_class):
-        """Test that banner text has proper styling."""
-        from flock.utils.cli_helper import display_banner_no_version
 
-        mock_console = MagicMock()
-        mock_console_class.return_value = mock_console
+class TestDisplayAbout:
+    """The milestone's bird (flock-flow --about)."""
 
-        display_banner_no_version()
+    def test_about_shows_the_kingfisher_and_what_it_stands_for(self, capsys):
+        from flock.utils.cli_helper import MILESTONE, __version__, display_about
 
-        # Get the first print call (banner text)
-        first_call = mock_console.print.call_args_list[0]
-        text_arg = first_call[0][0]  # First positional argument
+        display_about()
 
-        # Check that it's a Text object with styling
-        from rich.text import Text
+        out = capsys.readouterr().out
+        assert MILESTONE == "Kingfisher"
+        assert f"flock-core {__version__}" in out
+        assert '"Kingfisher" milestone' in out
+        assert "UNSURE" in out
+        assert "▀" in out  # the sprite
+        assert "white duck GmbH" in out
 
-        assert isinstance(text_arg, Text)
-        assert text_arg.justify == "center"
-        assert text_arg.style == "bold orange3"
+    def test_the_kingfisher_is_drawn_in_half_blocks(self):
+        from flock.utils.cli_helper import _KINGFISHER, kingfisher
+
+        drawn = kingfisher().plain.splitlines()
+
+        assert len(drawn) == (len(_KINGFISHER) + 1) // 2  # two pixels a line
+        assert {len(line) for line in drawn} == {max(map(len, _KINGFISHER))}
 
 
 class TestEdgeCases:
@@ -295,10 +263,9 @@ class TestEdgeCases:
 
         init_console(model="")
 
-        # With empty model string, model line should not be printed
-        print_calls = str(mock_console.print.call_args_list)
-        # Should only have banner and attribution, not model line
-        assert mock_console.print.call_count == 2
+        # With an empty model string, the banner names no model
+        assert mock_console.print.call_count == 1
+        assert "model:" not in _printed(mock_console)
 
     @patch("rich.console.Console")
     def test_multiple_console_creations(self, mock_console_class):

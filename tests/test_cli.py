@@ -554,3 +554,35 @@ class TestModuleStructure:
         assert "demo" in command_names
         assert "list_agents" in command_names
         assert "serve" in command_names
+
+
+class TestAbout:
+    """flock-flow --about and python -m flock."""
+
+    def test_about_shows_the_milestone(self, runner):
+        result = runner.invoke(app, ["--about"])
+
+        assert result.exit_code == 0, result.output
+        assert '"Kingfisher" milestone' in strip_ansi(result.output)
+
+    def test_commands_still_need_no_about(self, runner):
+        result = runner.invoke(app, ["--help"])
+
+        assert result.exit_code == 0
+        assert "--about" in strip_ansi(result.output)
+        assert "sqlite-maintenance" in strip_ansi(result.output)
+
+    def test_python_m_flock_runs_the_cli(self):
+        import subprocess
+        import sys
+
+        result = subprocess.run(
+            [sys.executable, "-m", "flock", "--about"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert '"Kingfisher" milestone' in result.stdout

@@ -840,7 +840,7 @@ class AgentBuilder:
                 questions take the most confident section. The decision's
                 ``sections`` records the spans and the section per answer.
             item_thresholds: Checklist items with their own threshold instead
-                of ``threshold``, e.g. calibrated ones (``flock decisions
+                of ``threshold``, e.g. calibrated ones (``flock-flow decisions
                 calibrate``): ``{"mfa": 0.7}``, or ``{"Controls.mfa": 0.7}``
                 when several checklists of the decider share an item name.
             options: Restricts the single Choice or Checklist to a subset of its

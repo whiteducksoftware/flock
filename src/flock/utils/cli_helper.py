@@ -39,12 +39,50 @@ def display_hummingbird():
 """)
 
 
-def init_console(clear_screen: bool = True, show_banner: bool = True, model: str = ""):
-    """Display the Flock banner."""
+# The bird of the current milestone, shown by ``flock-flow --about``
+MILESTONE = "Kingfisher"
+
+_WORDMARK = ("█▀▀ █   █▀█ █▀▀ █▄▀", "█▀  █▄▄ █▄█ █▄▄ █ █")
+
+# The kingfisher, one character per pixel; two pixel rows make a terminal line
+_KINGFISHER = (
+    "...........bbbbbb.........",
+    ".........bBBBBBBBBb.......",
+    "........bBBbBBbBBbBb......",
+    ".......bBBBBBBBBBBBBb.....",
+    ".......BBbBBbBBbBBBBB.....",
+    "......kBOOOEOOOWBBBBBb....",
+    "kkkkkkkOOOOEOOWWWBBBBb....",
+    "..rrrrrWWBBBBOWWWBBBBBb...",
+    ".......WWWBBBBBBBBbBBBBb..",
+    "........WWOOOOOOBBBbBBBBb.",
+    "........OOOOOOOOOBBBBbBBBb",
+    "........OOOOOOOOOOBBBBbBBb",
+    ".........OOOOOOOOOOBBBBBb.",
+    "..........OOOOOOOOObBBBBb.",
+    "...........OOOOOOO..bBBBb.",
+    ".............RR.R....bBb..",
+    ".....TTTTTTTTRRTRTTTTTbb..",
+    "...TTTTTTTTTTTTTTTTTTTTT..",
+)
+_KINGFISHER_COLORS = {
+    "B": "#00a6d6",  # back and crown
+    "b": "#005f87",  # bars and wing
+    "O": "#ff8c1a",  # breast and cheek
+    "W": "#f5f5f0",  # throat and neck patch
+    "E": "#141414",  # eye
+    "k": "#5f5f64",  # upper bill
+    "r": "#cd462d",  # lower bill
+    "R": "#e8590c",  # feet
+    "T": "#8b5a2b",  # branch
+}
+
+
+def _console():
+    """A rich console that can print the banner's characters, on Windows too."""
     import sys
 
     from rich.console import Console
-    from rich.syntax import Text
 
     if sys.platform == "win32":
         try:
@@ -56,52 +94,100 @@ def init_console(clear_screen: bool = True, show_banner: bool = True, model: str
 
             sys.stdout = codecs.getwriter("utf-8")(sys.stdout.buffer, "strict")
             sys.stderr = codecs.getwriter("utf-8")(sys.stderr.buffer, "strict")
+    return Console()
 
-    console = Console()
-    banner_text = Text(
-        f"""
-🦆    🐓     🐤     🐧
-╭━━━━━━━━━━━━━━━━━━━━━━━━╮
-│ ▒█▀▀▀ █░░ █▀▀█ █▀▀ █░█ │
-│ ▒█▀▀▀ █░░ █░░█ █░░ █▀▄ │
-│ ▒█░░░ ▀▀▀ ▀▀▀▀ ▀▀▀ ▀░▀ │
-╰━━━━━━━━━v{__version__}━━━━━━━━╯
-🦆     🐤    🐧     🐓
-""",
-        justify="center",
-        style="bold orange3",
+
+def _banner(version: str | None = None, model: str = ""):
+    """A formation of birds shaped like a prompt (>) in front of the wordmark."""
+    from rich.text import Text
+
+    release = f"v{version} · {MILESTONE}" if version else MILESTONE
+    formation = ("⌄", "  ⌄", "    ⌄", "      ⌄", "    ⌄", "  ⌄", "⌄")
+    beside = (
+        (),
+        (),
+        (),
+        ((_WORDMARK[0], "bold orange3"),),
+        ((_WORDMARK[1], "bold orange3"), (f"  {release}", "dim")),
+        (("blackboard-first agent orchestration", "italic"),),
+        (("🦆 white duck GmbH · ", "dim"), ("https://whiteduck.de", "cyan")),
     )
+    text = Text()
+    for birds, parts in zip(formation, beside, strict=True):
+        text.append(f"  {birds:<9}" if parts else f"  {birds}", style="grey62")
+        for part, style in parts:
+            text.append(part, style=style)
+        text.append("\n")
+    if model:
+        text.append(f"{'':11}model: {model}\n", style="dim")
+    return text
+
+
+def init_console(clear_screen: bool = True, show_banner: bool = True, model: str = ""):
+    """Display the Flock banner."""
+    console = _console()
     if clear_screen:
         console.clear()
 
     if show_banner:
-        console.print(banner_text)
-        console.print(
-            "[italic]'Raven'[/] milestone - [bold]white duck GmbH[/] - [cyan]https://whiteduck.de[/]\n"
-        )
-
-    if model:
+        console.print(_banner(__version__, model))
+    elif model:
         console.print(f"[italic]Global Model:[/] {model}\n")
 
 
 def display_banner_no_version():
     """Display the Flock banner."""
-    from rich.console import Console
-    from rich.syntax import Text
+    _console().print(_banner())
 
-    console = Console()
-    banner_text = Text(
-        """
-🦆    🐓     🐤     🐧
-╭━━━━━━━━━━━━━━━━━━━━━━━━╮
-│ ▒█▀▀▀ █░░ █▀▀█ █▀▀ █░█ │
-│ ▒█▀▀▀ █░░ █░░█ █░░ █▀▄ │
-│ ▒█░░░ ▀▀▀ ▀▀▀▀ ▀▀▀ ▀░▀ │
-╰━━━━━━━━━━━━━━━━━━━━━━━━╯
-🦆     🐤    🐧     🐓
-""",
-        justify="center",
-        style="bold orange3",
+
+def kingfisher():
+    """The kingfisher as half blocks: the upper and lower pixel of each character."""
+    from rich.text import Text
+
+    width = max(len(row) for row in _KINGFISHER)
+    rows = [row.ljust(width, ".") for row in _KINGFISHER]
+    if len(rows) % 2:
+        rows.append("." * width)
+    text = Text()
+    for line, (top, bottom) in enumerate(zip(rows[::2], rows[1::2], strict=True)):
+        if line:
+            text.append("\n")
+        for upper, lower in zip(top, bottom, strict=True):
+            fg = _KINGFISHER_COLORS.get(upper)
+            bg = _KINGFISHER_COLORS.get(lower)
+            if fg and bg:
+                text.append("▀", style=f"{fg} on {bg}")
+            elif fg or bg:
+                text.append("▀" if fg else "▄", style=fg or bg)
+            else:
+                text.append(" ")
+    return text
+
+
+def display_about():
+    """The milestone's bird and what it stands for (``flock-flow --about``)."""
+    from rich.table import Table
+    from rich.text import Text
+
+    about = Text()
+    about.append(f"flock-core {__version__}", style="bold orange3")
+    about.append(f' · "{MILESTONE}" milestone\n\n', style="bold")
+    about.append(
+        "The kingfisher sits still and watches the water. It dives only when "
+        "it is sure, and it rarely misses.\n\n"
+        "Decision models do the same: calibrated probabilities, a threshold, "
+        "a firm answer above it. Below it, the bird stays on its branch: "
+        "UNSURE.\n\n",
+        style="italic",
     )
-    console.print(banner_text)
-    console.print("[bold]white duck GmbH[/] - [cyan]https://whiteduck.de[/]\n")
+    about.append("🦆 white duck GmbH · ", style="dim")
+    about.append("https://whiteduck.de", style="cyan")
+
+    grid = Table.grid(padding=(0, 3))
+    grid.add_column(no_wrap=True)
+    grid.add_column(max_width=52)
+    grid.add_row(kingfisher(), about)
+    console = _console()
+    console.print()
+    console.print(grid)
+    console.print()

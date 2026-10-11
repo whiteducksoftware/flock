@@ -31,6 +31,27 @@ app = typer.Typer(help="Blackboard Agents CLI")
 console = Console()
 
 
+def _show_about(value: bool) -> None:
+    if value:
+        from flock.utils.cli_helper import display_about
+
+        display_about()
+        raise typer.Exit
+
+
+@app.callback()
+def _cli(
+    about: bool = typer.Option(
+        False,
+        "--about",
+        callback=_show_about,
+        is_eager=True,
+        help="Show the milestone's bird and what it stands for.",
+    ),
+) -> None:
+    """Blackboard Agents CLI"""
+
+
 @app.command()
 def demo(
     topic: str = typer.Option("AI agents collaborating", help="Idea topic"),

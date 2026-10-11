@@ -22,7 +22,7 @@ well the thresholds fit the data they came from.
 🎯 Key Concepts:
 - `calibrate(decisions, labels, target_precision=0.95, min_support=3)`
 - `.decides(Controls, threshold=0.8, item_thresholds={...})`
-- Labels can also come from human reviews: `flock decisions calibrate DB`
+- Labels can also come from human reviews: `flock-flow decisions calibrate DB`
   reads the reviews in a SQLite store
 
 🎛️  CONFIGURATION:
