@@ -554,7 +554,7 @@ export const DeciderOptions = memo(({ decider }: { decider: DeciderInfo }) => {
         {decider.threshold !== null ? ` · threshold ${decider.threshold.toFixed(2)}` : ''}
         {decider.itemThresholds ? (
           <span title={Object.entries(decider.itemThresholds).map(([item, t]) => `${item} ${t.toFixed(2)}`).join(', ')}>
-            {` · ${Object.keys(decider.itemThresholds).length} item thresholds`}
+            {` · ${Object.keys(decider.itemThresholds).length} item threshold${Object.keys(decider.itemThresholds).length === 1 ? '' : 's'}`}
           </span>
         ) : null}
         {decider.shadow ? (

@@ -906,15 +906,13 @@ class AgentBuilder:
         if item_thresholds:
             checklists = {q.__name__: q for q in questions if q.__kind__ == "checklist"}
             for key, value in item_thresholds.items():
-                name, _, item = key.rpartition(".")
-                if name:
-                    owners = (
-                        [name]
-                        if item in getattr(checklists.get(name), "__options__", {})
-                        else []
-                    )
-                else:
-                    owners = [n for n, q in checklists.items() if key in q.__options__]
+                # "Checklist.item" only with a known checklist name in front;
+                # item ids may contain dots themselves (ORP.1.A1)
+                owners = [
+                    n
+                    for n, q in checklists.items()
+                    if key.startswith(f"{n}.") and key[len(n) + 1 :] in q.__options__
+                ] or [n for n, q in checklists.items() if key in q.__options__]
                 if not owners:
                     raise ValueError(
                         f"Agent '{self._agent.name}': item_thresholds= names no "

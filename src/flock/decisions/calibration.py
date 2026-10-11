@@ -164,8 +164,12 @@ async def calibrate_store(
 ) -> list[Suggestion]:
     """``calibrate()`` over every decision in ``store``, per decider, with the
     human reviews in it (and ``labels``, which win) as labels."""
+    # A standalone process may not have imported the application's question
+    # types; persisted decisions are recognised by their type name too
     decisions = [
-        artifact for artifact in await store.list() if is_decision_type(artifact.type)
+        artifact
+        for artifact in await store.list()
+        if artifact.type.startswith("Decision[") or is_decision_type(artifact.type)
     ]
     merged: dict[str, dict[str, Any]] = labels_from_reviews(decisions)
     for subject, answers in (labels or {}).items():

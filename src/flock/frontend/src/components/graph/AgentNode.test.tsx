@@ -435,4 +435,27 @@ describe('AgentNode', () => {
     );
     expect(screen.getByText(/2 item thresholds/)).toBeInTheDocument();
   });
+
+  it('should say item threshold for a single one', () => {
+    const data: AgentNodeData = {
+      name: 'audit',
+      status: 'idle',
+      subscriptions: ['Document'],
+      sentCount: 1,
+      recvCount: 1,
+      decision: {
+        model: 'fast',
+        threshold: 0.8,
+        itemThresholds: { mfa: 0.7 },
+        questions: [{ name: 'Controls', kind: 'checklist', options: ['mfa'], counts: {} }],
+      },
+    };
+
+    render(
+      <ReactFlowProvider>
+        <AgentNode {...createNodeProps(data)} />
+      </ReactFlowProvider>
+    );
+    expect(screen.getByText(/1 item threshold$/)).toBeInTheDocument();
+  });
 });

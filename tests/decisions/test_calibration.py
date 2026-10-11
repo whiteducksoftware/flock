@@ -217,6 +217,57 @@ async def test_item_thresholds_can_name_the_checklist():
     assert results["CalOther"]["mfa"] == UNSURE
 
 
+async def test_calibrate_store_finds_decision_types_it_never_imported(tmp_path):
+    from flock.core.artifacts import Artifact
+
+    store = SQLiteBlackboardStore(str(tmp_path / "foreign.db"))
+    await store.ensure_schema()
+    # Decisions of an application this process never imported
+    original = Artifact(
+        type="Decision[elsewhere.app.Route]",
+        payload=_decision("t1", {"billing": 0.9, "tech": 0.1}),
+        produced_by="triage",
+    )
+    review = Artifact(
+        type="Decision[elsewhere.app.Route]",
+        payload=_decision(
+            "t1", {"billing": 1.0}, model="lead", review_of=str(original.id)
+        ),
+        produced_by="lead",
+    )
+    await store.publish(original)
+    await store.publish(review)
+
+    suggestions = await calibrate_store(store, target_precision=0.9, min_support=1)
+    await store.close()
+
+    assert [(s.decider, s.threshold) for s in suggestions] == [("triage", 0.9)]
+
+
+def test_the_cli_rejects_a_zero_target(tmp_path):
+    from flock.cli import app
+
+    result = CliRunner().invoke(
+        app,
+        ["decisions", "calibrate", str(tmp_path / "x.db"), "--target-precision", "0"],
+    )
+
+    assert result.exit_code == 2  # a usage error, not a crash
+    assert "target" in result.output.lower()
+
+
+def test_dotted_item_ids_keep_their_dots():
+    dotted = Checklist.from_items(
+        "CalBsi", {"ORP.1.A1": "Responsibilities"}, question="Shown?"
+    )
+    builder = Flock().agent("x").consumes(CalTicket)
+
+    builder.decides(dotted, model=FakeDecider({}), item_thresholds={"ORP.1.A1": 0.7})
+    Flock().agent("y").consumes(CalTicket).decides(
+        dotted, model=FakeDecider({}), item_thresholds={"CalBsi.ORP.1.A1": 0.7}
+    )
+
+
 def test_a_plain_item_name_must_be_unambiguous():
     other = Checklist.from_items("CalOther2", {"mfa": "MFA"}, question="Shown?")
     with pytest.raises(ValueError, match="CalControls.mfa"):

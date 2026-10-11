@@ -161,10 +161,7 @@ app.add_typer(decisions_app, name="decisions")
 def decisions_calibrate(
     db_path: str = typer.Argument(..., help="Path to SQLite blackboard database"),
     target_precision: float = typer.Option(
-        0.95,
-        min=0.0,
-        max=1.0,
-        help="Share of right answers the firm answers must reach",
+        0.95, help="Share of right answers the firm answers must reach, in (0, 1]"
     ),
     min_support: int = typer.Option(
         5, min=1, help="Labelled answers a threshold needs at or above it"
@@ -174,6 +171,12 @@ def decisions_calibrate(
     from flock.decisions.calibration import calibrate_store
 
     store = SQLiteBlackboardStore(db_path)
+
+    if not 0.0 < target_precision <= 1.0:
+        raise typer.BadParameter(
+            f"The target precision must be in (0, 1], got {target_precision}.",
+            param_hint="--target-precision",
+        )
 
     async def _calibrate():
         await store.ensure_schema()
