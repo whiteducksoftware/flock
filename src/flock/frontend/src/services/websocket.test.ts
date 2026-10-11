@@ -280,33 +280,40 @@ describe('WebSocketClient run events', () => {
     vi.restoreAllMocks();
   });
 
-  it('knows which types are in flight to a running agent', () => {
+  const inFlightTypes = (agent: string) =>
+    [...useGraphStore.getState().inFlight.values()]
+      .filter((run) => run.agent === agent)
+      .flatMap((run) => run.types)
+      .sort();
+
+  it('knows which types are in flight to a running agent, run by run', () => {
     vi.spyOn(useGraphStore.getState(), 'refreshCurrentView').mockResolvedValue();
     const client = new WebSocketClient('ws://test/ws');
 
-    receive(client, 'agent_activated', { agent_name: 'billing', consumed_types: ['app.Ticket'] });
-    expect(useGraphStore.getState().inFlight.get('billing')).toEqual(['app.Ticket']);
+    receive(client, 'agent_activated', { agent_name: 'billing', run_id: 'a', consumed_types: ['app.Ticket'] });
+    receive(client, 'agent_activated', { agent_name: 'billing', run_id: 'b', consumed_types: ['app.Reply'] });
+    expect(inFlightTypes('billing')).toEqual(['app.Reply', 'app.Ticket']);
 
-    // Another run of it goes on: still in flight
-    receive(client, 'agent_completed', { agent_name: 'billing', agent_status: 'running' });
-    expect(useGraphStore.getState().inFlight.get('billing')).toEqual(['app.Ticket']);
+    // The newer run ends first: the older one's type stays in flight
+    receive(client, 'agent_completed', { agent_name: 'billing', run_id: 'b', agent_status: 'running' });
+    expect(inFlightTypes('billing')).toEqual(['app.Ticket']);
 
-    receive(client, 'agent_completed', { agent_name: 'billing', agent_status: 'idle' });
-    expect(useGraphStore.getState().inFlight.has('billing')).toBe(false);
+    receive(client, 'agent_error', { agent_name: 'billing', run_id: 'a', agent_status: 'error' });
+    expect(inFlightTypes('billing')).toEqual([]);
   });
 
   it('reloads the board after a failure, which says what failed', () => {
     const refresh = vi.spyOn(useGraphStore.getState(), 'refreshCurrentView').mockResolvedValue();
     const client = new WebSocketClient('ws://test/ws');
-    receive(client, 'agent_activated', { agent_name: 'crm_sync', consumed_types: ['app.Reply'] });
+    receive(client, 'agent_activated', { agent_name: 'crm_sync', run_id: 'r1', consumed_types: ['app.Reply'] });
     vi.advanceTimersByTime(1000);
     refresh.mockClear();
 
-    receive(client, 'agent_error', { agent_name: 'crm_sync', agent_status: 'error' });
+    receive(client, 'agent_error', { agent_name: 'crm_sync', run_id: 'r1', agent_status: 'error' });
     vi.advanceTimersByTime(1000);
 
     expect(useGraphStore.getState().agentStatus.get('crm_sync')).toBe('error');
-    expect(useGraphStore.getState().inFlight.has('crm_sync')).toBe(false);
+    expect(useGraphStore.getState().inFlight.size).toBe(0);
     expect(refresh).toHaveBeenCalledOnce();
   });
 });

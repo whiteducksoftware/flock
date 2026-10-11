@@ -176,8 +176,8 @@ export class WebSocketClient {
 
       // Update real-time status (fast, local)
       useGraphStore.getState().updateAgentStatus(data.agent_name, 'running');
-      // What it works on: the edges carrying these types are in flight
-      useGraphStore.getState().setInFlight(data.agent_name, data.consumed_types ?? []);
+      // What this run works on: the edges carrying these types are in flight
+      useGraphStore.getState().setInFlight(data.run_id, data.agent_name, data.consumed_types ?? []);
 
       // Schedule debounced refresh (batches within 500ms, then fetches backend snapshot)
       this.scheduleGraphRefresh();
@@ -269,11 +269,10 @@ export class WebSocketClient {
       // The server's status over all of the agent's runs; older servers send none
       const status = data.agent_status ?? 'idle';
       useGraphStore.getState().updateAgentStatus(data.agent_name, status);
-      // Another run of it goes on: its ticker stays, and so do the edges in flight
-      if (status !== 'running') {
-        useGraphStore.getState().updateStreamingTokens(data.agent_name, []);
-        useGraphStore.getState().setInFlight(data.agent_name, null);
-      }
+      // Another run of it goes on: its ticker stays
+      if (status !== 'running') useGraphStore.getState().updateStreamingTokens(data.agent_name, []);
+      // This run is done; another one keeps its own types in flight
+      useGraphStore.getState().setInFlight(data.run_id, data.agent_name, null);
       // A newer run failed: the snapshot says what (lastError)
       if (status === 'error') this.scheduleGraphRefresh();
 
@@ -286,7 +285,7 @@ export class WebSocketClient {
       // UI Optimization Migration (Phase 2 - Spec 002): Use NEW updateAgentStatus()
       // for FAST real-time updates without backend calls
       useGraphStore.getState().updateAgentStatus(data.agent_name, data.agent_status ?? 'error');
-      if (data.agent_status !== 'running') useGraphStore.getState().setInFlight(data.agent_name, null);
+      useGraphStore.getState().setInFlight(data.run_id, data.agent_name, null);
       // The snapshot says what failed (lastError)
       this.scheduleGraphRefresh();
 

@@ -123,7 +123,8 @@ const ErrorRow: React.FC<{ error: AgentData['lastError'] }> = ({ error }) => {
 
 const ScheduleLine: React.FC<{ timer: NonNullable<AgentData['timerState']>; now: number }> = ({ timer, now }) => {
   const last = timer.last_fire_time ? (now - Date.parse(timer.last_fire_time)) / 1000 : null;
-  const runs = [timer.iteration > 0 && `run ${timer.iteration}`, last !== null && `last ${formatAgo(last)}`]
+  // The timer counts its fires from 0
+  const runs = [last !== null && `run ${timer.iteration + 1}`, last !== null && `last ${formatAgo(last)}`]
     .filter(Boolean)
     .join(' · ');
   let next: React.ReactNode = null;
@@ -248,8 +249,9 @@ const AgentNode = memo(({ data, selected }: NodeProps) => {
       </div>
       {rows.length > 0 && (
         <div className={styles.ports}>
-          {rows.map((row) => (
-            <Port key={`${row.dir}:${row.type}`} row={row} />
+          {/* Two subscriptions can need the same type: the position tells them apart */}
+          {rows.map((row, index) => (
+            <Port key={`${index}:${row.dir}:${row.type}`} row={row} />
           ))}
         </div>
       )}

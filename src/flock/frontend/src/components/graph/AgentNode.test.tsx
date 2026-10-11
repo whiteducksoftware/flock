@@ -540,7 +540,36 @@ describe('AgentNode', () => {
 
       expect(screen.getByTestId('card-tag').textContent).toBe('0 9 * * 1-5');
       expect(container.textContent).toContain('next in 16 h 34 m');
-      expect(container.textContent).toContain('run 14 · last 23 h ago');
+      // The timer counts its fires from 0: iteration 14 is the 15th run
+      expect(container.textContent).toContain('run 15 · last 23 h ago');
+    });
+
+    it('shows no run before the first one', () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-10-11T12:00:00Z'));
+      const { container } = renderCard({
+        scheduleSpec: { type: 'interval', interval: 'PT30S' },
+        timerState: {
+          iteration: 0,
+          last_fire_time: null,
+          next_fire_time: '2026-10-11T12:00:30Z',
+          is_active: true,
+          is_completed: false,
+          is_stopped: false,
+        },
+      });
+
+      expect(container.textContent).toContain('next in 30 s');
+      expect(container.textContent).not.toContain('run ');
+    });
+
+    it('keeps two subscriptions to the same type apart', () => {
+      const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+      renderCard({ subscriptionGroups: [['app.Ticket'], ['app.Ticket']], receivedByType: { 'app.Ticket': 2 } });
+
+      expect(screen.getAllByTitle('app.Ticket')).toHaveLength(2);
+      // React warns about duplicate keys on the console
+      expect(errors.mock.calls.flat().join(' ')).not.toMatch(/same key/);
     });
 
     it('labels an AND gate and a join, and shows the open join', () => {

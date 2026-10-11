@@ -28,9 +28,13 @@ const MessageFlowEdge: React.FC<EdgeProps> = (props) => {
   const [path, labelX, labelY] = useEdgePath(props);
   const width = useEdgeWidth();
   const animate = useSettingsStore((state) => state.graph.edgeAnimation);
-  const inFlight = useGraphStore((state) =>
-    edge ? (state.inFlight.get(target) ?? []).includes(edge.messageType) : false,
-  );
+  const inFlight = useGraphStore((state) => {
+    if (!edge) return false;
+    for (const run of state.inFlight.values()) {
+      if (run.agent === target && run.types.includes(edge.messageType)) return true;
+    }
+    return false;
+  });
 
   const decision = edge?.decisionChoice !== undefined;
   const unsure = Boolean(edge?.decisionUnsure);
