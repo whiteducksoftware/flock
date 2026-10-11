@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fieldType, formToPayload, initialFormData, isRequiredField, payloadToForm } from './form';
+import { fieldType, formLosses, formToPayload, initialFormData, isRequiredField, payloadToForm } from './form';
 
 const imageDef = { type: 'object', properties: { url: { type: 'string' } }, 'x-flock-image': true };
 
@@ -116,6 +116,44 @@ describe('payloadToForm', () => {
     };
 
     expect(formToPayload(payloadToForm(payload, schema), schema)).toEqual(payload);
+  });
+});
+
+describe('formLosses', () => {
+  it('finds nothing to lose in the JSON the form itself made', () => {
+    const form = { ...initialFormData(schema), subject: 'x', count: '2', picture: { name: 'p', url: 'data:a' } };
+
+    expect(formLosses(formToPayload(form, schema), schema)).toEqual([]);
+  });
+
+  it('names the fields the form would change or drop', () => {
+    expect(
+      formLosses(
+        {
+          subject: 'x',
+          count: 1,
+          urgent: false,
+          sizes: [],
+          level: 'a',
+          picture: { url: 'data:a' },
+          note: null, // None would become an empty text
+          tags: ['a\nb', ''], // one item per line splits and drops them
+          pages: [], // an empty list would give way to the default
+          extra: 1, // not a field of the type
+        },
+        schema,
+      ),
+    ).toEqual(['tags', 'note', 'pages', 'extra']);
+  });
+
+  it('names fields the form would add that the JSON leaves out', () => {
+    expect(formLosses({ subject: 'x', count: 1, picture: { url: 'data:a' } }, schema)).toEqual([
+      'urgent',
+      'tags',
+      'sizes',
+      'note',
+      'level',
+    ]);
   });
 });
 

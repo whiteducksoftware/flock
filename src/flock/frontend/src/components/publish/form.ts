@@ -170,3 +170,23 @@ export function payloadToForm(payload: Record<string, any>, schema: Schema): For
   });
   return values;
 }
+
+/** A value as JSON with its keys sorted, so two values compare by content. */
+const canonical = (value: unknown): string | undefined =>
+  JSON.stringify(value, (_key, inner) =>
+    inner && typeof inner === 'object' && !Array.isArray(inner)
+      ? Object.fromEntries(Object.entries(inner).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
+      : inner
+  );
+
+/**
+ * The fields a payload would not keep through the form (JSON mode back to the
+ * form, then published): values the form changes or drops, fields the type
+ * does not have, and fields the form adds that the payload leaves out.
+ */
+export function formLosses(payload: Record<string, any>, schema: Schema): string[] {
+  const roundTrip = formToPayload(payloadToForm(payload, schema), schema);
+  // The type's fields in their order, then the ones it does not have
+  const keys = new Set([...Object.keys(schema.properties ?? {}), ...Object.keys(payload)]);
+  return [...keys].filter((key) => canonical(payload[key]) !== canonical(roundTrip[key]));
+}

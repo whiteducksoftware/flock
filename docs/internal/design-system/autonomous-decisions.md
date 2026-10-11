@@ -195,3 +195,5 @@ Each entry says what was decided, why, and where it landed.
 - **The toast is one message at a time in `uiStore`,** bottom center of the board above the timeline dock, 8 s, with one action; the next toast replaces it.
 - **The moves are their own commit,** so `git log --follow` keeps the history of the composer and its tests (the rewrite is 34 % similar).
 - **The shortcuts dialog only renames the entry** ("publish composer"); ⌘↵ joins it with the new keys in #569.
+- **From JSON back to the form only without losses** (review): the composer round-trips the JSON through the form and stays in JSON, naming the fields, if anything would change, drop or be added. Preserving such values in the form was the alternative; the form cannot show `None`, list items with line breaks or unknown fields.
+- **While a modal dialog is open (`aria-modal`), the board's shortcuts are off except Esc** (review): Ctrl+F opened the filters behind the composer and took the focus out of it. This covers the tournament bracket and the image viewer too.

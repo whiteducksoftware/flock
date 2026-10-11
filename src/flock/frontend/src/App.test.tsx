@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { act, render, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { useSettingsStore } from './store/settingsStore';
@@ -105,6 +105,27 @@ describe('App keyboard shortcuts', () => {
 
     // Settings close first; the publish panel stays for the next Esc
     expect(useSettingsStore.getState().ui).toMatchObject({ showSettings: false, showControls: true });
+  });
+
+  it('keeps the board\'s shortcuts away from an open publish composer, all but Esc', async () => {
+    render(<App />);
+    // The bootstrap connects last; nothing of it may outlive the test
+    await waitFor(() => expect(client.connect).toHaveBeenCalled());
+    act(() => useSettingsStore.getState().setShowControls(true));
+    const search = await screen.findByPlaceholderText('Find a type');
+
+    // Ctrl+F, Ctrl+, and Ctrl+M from inside the modal: nothing behind it opens or changes
+    for (const key of ['f', ',', 'm']) {
+      act(() => {
+        search.dispatchEvent(new KeyboardEvent('keydown', { key, ctrlKey: true, bubbles: true }));
+      });
+    }
+    expect(useSettingsStore.getState().ui).toMatchObject({ showFilters: false, showSettings: false });
+    expect(useUIStore.getState().mode).toBe('agent');
+    expect(document.activeElement).toBe(search);
+
+    press('Escape');
+    expect(useSettingsStore.getState().ui.showControls).toBe(false);
   });
 
   it('switches between Flow and Blackboard with Ctrl+M', async () => {

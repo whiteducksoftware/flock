@@ -298,6 +298,21 @@ describe('PublishComposer', () => {
       expect(screen.getByText('The JSON must be an object to show it as a form')).toBeInTheDocument();
     });
 
+    it('stays in JSON mode when the form would change the JSON, and names what', async () => {
+      await pickTicket();
+      fireEvent.click(screen.getByRole('button', { name: 'JSON' }));
+
+      // The form would add an empty message and drop the channel
+      fireEvent.change(jsonEditor(), { target: { value: '{ "subject": "x", "priority": 2, "channel": "mail" }' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Form' }));
+
+      expect(
+        screen.getByText('The form would change message and channel: edit them here, or publish the JSON as it is')
+      ).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'JSON' })).toHaveAttribute('aria-pressed', 'true');
+      expect(JSON.parse(jsonEditor().value)).toEqual({ subject: 'x', priority: 2, channel: 'mail' });
+    });
+
     it('checks the JSON against the schema before publishing it', async () => {
       await pickTicket();
       fireEvent.click(screen.getByRole('button', { name: 'JSON' }));

@@ -40,6 +40,10 @@ const SPACE_TAKEN =
 export const useKeyboardShortcuts = (config: KeyboardShortcutConfig = {}) => {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      // A modal dialog has the keyboard: only Esc reaches the board's shortcuts
+      // (it closes the dialog), nothing behind the dialog opens or takes the focus
+      if (event.key !== 'Escape' && document.querySelector('[aria-modal="true"]')) return;
+
       // Check for modifier key (Ctrl on Windows/Linux, Cmd on Mac)
       const modifier = event.ctrlKey || event.metaKey;
 

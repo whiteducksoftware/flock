@@ -18,6 +18,7 @@ import {
   type PickedImage,
   type Schema,
   fieldType,
+  formLosses,
   formToPayload,
   initialFormData,
   isRequiredField,
@@ -38,6 +39,10 @@ interface ValidationErrors {
 type EditorMode = 'form' | 'json';
 
 const pretty = (value: unknown) => JSON.stringify(value, null, 2);
+
+/** `a`, `a and b`, `a, b and c` */
+const andList = (names: string[]) =>
+  names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 
 /** The JSON of the editor as a value, or why it does not parse. */
 function parseJson(text: string): { value: unknown } | { error: string } {
@@ -306,6 +311,14 @@ const PublishComposer: React.FC = () => {
     const value = parsed.value;
     if (value === null || typeof value !== 'object' || Array.isArray(value)) {
       setJsonError('The JSON must be an object to show it as a form');
+      return;
+    }
+    // What the form cannot hold would change on the way back: stay here and say what
+    const losses = formLosses(value as Record<string, any>, schema);
+    if (losses.length > 0) {
+      setJsonError(
+        `The form would change ${andList(losses)}: edit ${losses.length === 1 ? 'it' : 'them'} here, or publish the JSON as it is`
+      );
       return;
     }
     setFormData(payloadToForm(value as Record<string, any>, schema));
