@@ -9,7 +9,7 @@ import { useGraphStore } from '../../store/graphStore';
 import { useUIStore, type AutoLayoutMode } from '../../store/uiStore';
 import { animatePositions } from './animatePositions';
 import { cardSizes } from './cardSizes';
-import { unfoldedPositions } from './unfoldLayout';
+import { UNFOLDED_SIZE, unfoldedPositions } from './unfoldLayout';
 
 interface UnfoldLayoutOptions {
   /** The board's layout */
@@ -20,6 +20,8 @@ interface UnfoldLayoutOptions {
   collectDimensions: () => Record<string, { width: number; height: number }>;
   /** Lays the board out anew, for nodes that came or went while one was unfolded */
   relayout: () => void;
+  /** Moves the board so this box (flow coordinates) is in view */
+  reveal?: (box: { x: number; y: number; width: number; height: number }) => void;
 }
 
 export function useUnfoldLayout(options: UnfoldLayoutOptions): void {
@@ -66,6 +68,8 @@ export function useUnfoldLayout(options: UnfoldLayoutOptions): void {
     );
     setTransientPositions(targets);
     moveTo(targets);
+    const at = targets.get(unfoldedNodeId);
+    if (at) latest.current.reveal?.({ ...at, ...UNFOLDED_SIZE });
   }, [unfoldedNodeId]);
 
   // The unfolded node left the board (the other view, filters): fold, move nothing

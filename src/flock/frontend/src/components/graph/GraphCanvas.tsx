@@ -43,7 +43,7 @@ import {
 import { useUnfoldLayout } from './useUnfoldLayout';
 
 const GraphCanvas: React.FC = () => {
-  const { fitView, getIntersectingNodes, screenToFlowPosition } = useReactFlow();
+  const { fitView, getIntersectingNodes, screenToFlowPosition, getViewport, setViewport } = useReactFlow();
 
   const mode = useUIStore((state) => state.mode);
   const openDetailWindow = useUIStore((state) => state.openDetailWindow);
@@ -306,6 +306,8 @@ const GraphCanvas: React.FC = () => {
     }
 
     scheduleDebouncedAutoLayout(autoLayoutDebounceRef, () => {
+      // A node unfolded meanwhile: the fold lays the board out
+      if (useUIStore.getState().unfoldedNodeId) return;
       applyLayout(latestAutoLayoutModeRef.current, {
         closeMenus: false,
         // Auto-layout should not overwrite the user's last explicit mode selection.
@@ -326,8 +328,31 @@ const GraphCanvas: React.FC = () => {
     };
   }, []);
 
+  // Pans the board, as little as it takes, so the box is in view (with a margin)
+  const reveal = useCallback(
+    (box: { x: number; y: number; width: number; height: number }) => {
+      const pane = document.querySelector('.react-flow')?.getBoundingClientRect();
+      if (!pane) return;
+      const { x, y, zoom } = getViewport();
+      const margin = 24;
+      const shift = (start: number, size: number, room: number) => {
+        const from = start * zoom;
+        const to = from + size * zoom;
+        if (to - from > room - 2 * margin) return margin - from; // Too big: show its start
+        if (from < margin) return margin - from;
+        if (to > room - margin) return room - margin - to;
+        return 0;
+      };
+      const dx = shift(box.x + x / zoom, box.width, pane.width);
+      const dy = shift(box.y + y / zoom, box.height, pane.height);
+      if (dx || dy) setViewport({ x: x + dx, y: y + dy, zoom }, { duration: 200 });
+    },
+    [getViewport, setViewport],
+  );
+
   // Neighbors make room while a node is unfolded
   useUnfoldLayout({
+    reveal,
     mode: autoLayoutMode,
     nodeSpacing,
     rankSpacing,

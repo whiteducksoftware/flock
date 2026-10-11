@@ -179,7 +179,7 @@ describe('UnfoldedAgent', () => {
         messages: [
           {
             id: 'm2',
-            type: 'app.Reply',
+            type: 'Decision[app.Route]',
             direction: 'published',
             payload: { text: 'Your refund is on its way' },
             timestamp: '2026-10-11T12:00:43Z',
@@ -202,7 +202,7 @@ describe('UnfoldedAgent', () => {
 
     const history = await screen.findByTestId('history');
     const [published, consumed] = within(history).getAllByRole('button');
-    expect(published!.textContent).toContain('↑ReplyYour refund is on its way9c34');
+    expect(published!.textContent).toContain('↑◆ RouteYour refund is on its way9c34');
     expect(consumed!.textContent).toContain('↓SupportTicketRefund not received9c34');
 
     fireEvent.click(consumed!);

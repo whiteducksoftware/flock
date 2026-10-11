@@ -9,7 +9,7 @@
   border-radius: var(--radius-card);
   border: 1px solid var(--line-2);
   background: var(--surface);
-  box-shadow: 0 0 0 4px var(--signal-soft), var(--shadow);
+  box-shadow: var(--shadow);
   color: var(--text);
   font-family: var(--font-sans);
   font-size: 12px;
@@ -19,6 +19,7 @@
 
 .node[data-status='running'] {
   border-color: color-mix(in srgb, var(--signal) 55%, transparent);
+  box-shadow: 0 0 0 4px var(--signal-soft), var(--shadow);
 }
 
 .node[data-status='error'] {
@@ -39,6 +40,15 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* The card's tag sits right after the name here */
+.tagSlot {
+  display: inline-flex;
+}
+
+.tagSlot > * {
+  margin-left: 0;
 }
 
 .state {

@@ -72,7 +72,7 @@ const UnfoldedAgent: React.FC<UnfoldedAgentProps> = ({
       <div className={styles.header}>
         {dot}
         <span className={styles.name}>{agent.name ?? id}</span>
-        {tag}
+        <span className={styles.tagSlot}>{tag}</span>
         <span className={styles.state} data-status={status}>
           {status === 'running' ? 'running' : status === 'error' ? 'failed' : ''}
         </span>

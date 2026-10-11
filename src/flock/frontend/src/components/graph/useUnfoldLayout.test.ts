@@ -17,12 +17,14 @@ const positions = () => Object.fromEntries(useGraphStore.getState().nodes.map((n
 
 describe('useUnfoldLayout', () => {
   const relayout = vi.fn();
+  const reveal = vi.fn();
   const render = () =>
     renderHook(() =>
       useUnfoldLayout({
         mode: 'grid',
         collectDimensions: () => Object.fromEntries(useGraphStore.getState().nodes.map((node) => [node.id, CARD])),
         relayout,
+        reveal,
       }),
     );
 
@@ -33,6 +35,7 @@ describe('useUnfoldLayout', () => {
     useUIStore.setState({ unfoldedNodeId: null });
     board().forEach((node) => cardSizes.set(node.id, CARD));
     relayout.mockReset();
+    reveal.mockReset();
   });
 
   afterEach(() => {
@@ -56,6 +59,8 @@ describe('useUnfoldLayout', () => {
     });
     // A snapshot refresh keeps them there
     expect(Object.fromEntries(useGraphStore.getState().transientPositions!)).toEqual(positions());
+    // The board shows all of it
+    expect(reveal).toHaveBeenCalledWith({ x: 400, y: 0, ...UNFOLDED_SIZE });
   });
 
   it('puts every node back when it folds', () => {

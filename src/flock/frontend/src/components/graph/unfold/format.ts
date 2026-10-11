@@ -11,8 +11,12 @@ export function duration(ms: number): string {
   return `${(ms / 60_000).toFixed(1)} m`;
 }
 
-/** `$0.0012`, `$1.25` */
-export const usd = (cost: number): string => `$${cost < 0.01 ? cost.toFixed(4) : cost.toFixed(2)}`;
+/** `$0`, `<$0.0001`, `$0.0012`, `$1.25` */
+export function usd(cost: number): string {
+  if (cost === 0) return '$0';
+  if (cost < 0.0001) return '<$0.0001';
+  return `$${cost < 0.01 ? cost.toFixed(4) : cost.toFixed(2)}`;
+}
 
 /** `1,234` */
 export const count = (n: number): string => n.toLocaleString('en-US');

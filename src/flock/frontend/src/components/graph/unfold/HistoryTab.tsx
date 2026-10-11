@@ -38,6 +38,17 @@ export function summary(payload: unknown): string {
   return typeof text === 'string' ? text : JSON.stringify(payload);
 }
 
+/** `◆ Route` for a decision, else the type without its module. */
+const TypeLabel: React.FC<{ type: string }> = ({ type }) => {
+  const decision = /^(?:.*\.)?Decision\[(.+)\]$/.exec(type);
+  if (!decision) return <>{shortTypeName(type)}</>;
+  return (
+    <>
+      <span className={styles.diamond}>◆</span> {shortTypeName(decision[1]!)}
+    </>
+  );
+};
+
 const json = (payload: unknown): string => {
   try {
     return JSON.stringify(payload, null, 2);
@@ -122,7 +133,7 @@ const HistoryTab: React.FC<{ agent: string; revision: number }> = ({ agent, revi
                 {consumed ? '↓' : '↑'}
               </span>
               <span className="mono" title={message.type}>
-                {shortTypeName(message.type)}
+                <TypeLabel type={message.type} />
               </span>
               <span className={styles.quiet}>{summary(message.payload)}</span>
               <span className={`mono ${styles.faint}`} title={message.correlationId ?? undefined}>
