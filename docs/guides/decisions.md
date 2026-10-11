@@ -514,9 +514,9 @@ For every decision that reaches it, the LLM gets the decided artifact (images in
 | `subject_ids` | The decided artifacts |
 | `model` | The LLM that wrote the explanation |
 
-The link fields are set by Flock, not by the LLM, and the explanation keeps the subjects' visibility. The default instructions ask the LLM to explain, not to answer the question itself; `instructions=` replaces them. `model=` defaults to the flock's model.
+The link fields are set by Flock, not by the LLM. The explanation quotes its subjects, so it keeps their visibility; for subjects with different visibilities, `visibility=` on `.explains()` sets the readership, and without it the explainer fails before the LLM is called. The default instructions ask the LLM to explain, not to answer the question itself; `instructions=` replaces them. `model=` defaults to the flock's model.
 
-`.explains()` needs subscriptions to decision handles only (`Route.UNSURE`, `Controls.failed`, `Route.billing`, or several handles for an AND) and cannot be combined with `.publishes()` or `.with_engines()`. An execution without a decision (a trigger added later) is skipped without calling the LLM. With several handles, one explanation covers all decisions about the subject.
+`.explains()` needs subscriptions to decision handles only (`Route.UNSURE`, `Controls.failed`, `Route.billing`, or several handles for an AND) and cannot be combined with `.publishes()`, `.with_engines()` or batch subscriptions. An execution without a decision (a trigger added later) is skipped without calling the LLM. With several handles, one explanation covers all decisions about the subject.
 
 On eight support tickets with Microsoft-Decision-1 at threshold 0.95 ([`10_explain.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/10_explain.py)), one ticket was unsure and the LLM ran once:
 

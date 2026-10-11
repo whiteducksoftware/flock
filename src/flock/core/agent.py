@@ -1002,7 +1002,10 @@ class AgentBuilder:
         return self
 
     def explains(
-        self, model: str | None = None, instructions: str | None = None
+        self,
+        model: str | None = None,
+        instructions: str | None = None,
+        visibility: Visibility | None = None,
     ) -> AgentBuilder:
         """Explain the decisions this agent consumes with an LLM.
 
@@ -1017,6 +1020,9 @@ class AgentBuilder:
         Args:
             model: LLM for the explanations; defaults to the flock's model.
             instructions: Replaces the default instructions to the LLM.
+            visibility: Readership of the explanations. By default they keep
+                the subjects' common visibility, and subjects with different
+                visibilities fail.
 
         Returns:
             self for method chaining
@@ -1033,6 +1039,11 @@ class AgentBuilder:
                 "subscribe only to decision handles, e.g. "
                 ".consumes(Route.UNSURE)."
             )
+        if any(s.batch is not None for s in subscriptions):
+            raise ValueError(
+                f"Agent '{self._agent.name}': .explains() explains one subject's "
+                "decisions at a time; batch subscriptions are not supported."
+            )
         if self._agent.engines:
             raise ValueError(
                 f"Agent '{self._agent.name}': .explains() sets the agent's engine; "
@@ -1043,7 +1054,7 @@ class AgentBuilder:
                 f"Agent '{self._agent.name}': an explaining agent publishes only "
                 "explanations; .explains() cannot be combined with .publishes()."
             )
-        engine = ExplainEngine(model=model)
+        engine = ExplainEngine(model=model, visibility=visibility)
         if instructions is not None:
             engine.instructions = instructions
         self.publishes(Explanation)

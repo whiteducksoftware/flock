@@ -13,6 +13,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from flock.core.artifacts import Artifact
+from flock.core.visibility import Visibility
 from flock.decisions.choice import UNSURE
 from flock.decisions.engine import inherited_visibility
 from flock.decisions.models import choice_of
@@ -119,6 +120,11 @@ class ExplainEngine(DSPyEngine):
 
     instructions: str | None = DEFAULT_INSTRUCTIONS
     enable_context: bool = False
+    visibility: Visibility | None = Field(
+        default=None,
+        description="Readership of the explanations; by default the subjects' "
+        "common visibility",
+    )
 
     async def evaluate(
         self, agent: Any, ctx: Context, inputs: EvalInputs, output_group: Any
@@ -126,6 +132,7 @@ class ExplainEngine(DSPyEngine):
         decisions = (ctx.state or {}).get("__decisions__") or []
         if not decisions:  # another trigger: nothing to explain or link to
             return EvalResult(artifacts=[], state=dict(inputs.state))
+        visibility = self._readership(inputs.artifacts)  # before the LLM is paid
         cases = [
             Artifact(
                 type=type_registry.name_for(DecisionToExplain),
@@ -141,7 +148,6 @@ class ExplainEngine(DSPyEngine):
         )
         result = await super().evaluate(agent, ctx, augmented, output_group)
 
-        visibility = inherited_visibility(inputs.artifacts)
         links = {
             "decision_ids": [item["id"] for item in decisions],
             "questions": [item["payload"].get("question", "") for item in decisions],
@@ -154,6 +160,19 @@ class ExplainEngine(DSPyEngine):
                 artifact.payload = {**artifact.payload, **links}
                 artifact.visibility = visibility.model_copy(deep=True)
         return result
+
+    def _readership(self, subjects: list[Artifact]) -> Visibility:
+        """The explicit visibility, else the subjects' common one."""
+        if self.visibility is not None:
+            return self.visibility.model_copy(deep=True)
+        try:
+            return inherited_visibility(subjects)
+        except ValueError:
+            raise ValueError(
+                "The explained subjects carry different visibilities, and an "
+                "explanation quotes them; pass visibility= to .explains() to "
+                "choose the explanation's readership explicitly."
+            ) from None
 
 
 __all__ = ["DecisionToExplain", "ExplainEngine", "Explanation", "decision_case"]

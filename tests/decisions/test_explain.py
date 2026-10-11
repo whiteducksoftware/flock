@@ -209,6 +209,61 @@ def test_explains_rejects_subscriptions_without_decisions():
         ).explains()
 
 
+@flock_type
+class ExplainNote(BaseModel):
+    text: str
+
+
+def _mixed_flock(**explains) -> Flock:
+    """A decision about a private ticket and a public note."""
+    flock = Flock("openai/gpt-4.1")
+    flock.agent("triage").consumes(ExplainTicket, ExplainNote).decides(
+        ExplainRoute,
+        model=FakeDecider({"billing": 0.55, "tech": 0.45}),
+        threshold=0.8,
+        visibility=PrivateVisibility(agents={"explainer"}),
+    )
+    flock.agent("explainer").consumes(ExplainRoute.UNSURE).explains(**explains)
+    return flock
+
+
+async def _publish_mixed(flock: Flock) -> None:
+    await flock.publish(
+        ExplainTicket(text="charged twice"),
+        visibility=PrivateVisibility(agents={"triage", "explainer"}),
+    )
+    await flock.publish(ExplainNote(text="customer since 2019"))
+    await flock.run_until_idle()
+
+
+async def test_mixed_subject_visibilities_need_an_explicit_readership(llm):
+    flock = _mixed_flock()
+
+    await _publish_mixed(flock)
+
+    assert llm == []  # refused before the LLM is called
+    errors = [a for a in await flock.store.list() if "WorkflowError" in a.type]
+    assert ".explains()" in errors[0].payload["error_message"]
+
+
+async def test_explains_visibility_sets_the_readership(llm):
+    flock = _mixed_flock(visibility=PrivateVisibility(agents={"auditor"}))
+
+    await _publish_mixed(flock)
+
+    (explanation,) = await _artifacts(flock, Explanation)
+    assert explanation.visibility.agents == {"auditor"}
+
+
+def test_explains_rejects_batched_subscriptions():
+    from flock.core.subscription import BatchSpec
+
+    with pytest.raises(ValueError, match="batch"):
+        Flock("openai/gpt-4.1").agent("x").consumes(
+            ExplainRoute.UNSURE, batch=BatchSpec(size=2)
+        ).explains()
+
+
 def test_explains_needs_a_decision_subscription():
     with pytest.raises(ValueError, match="explains"):
         Flock("openai/gpt-4.1").agent("x").consumes(ExplainTicket).explains()
