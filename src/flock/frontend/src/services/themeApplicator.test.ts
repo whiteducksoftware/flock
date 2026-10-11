@@ -82,6 +82,7 @@ describe('terminal themes on the tokens', () => {
         ['--on-signal', '--signal'],
         ['--on-sure', '--sure'],
         ['--on-error', '--error'],
+        ['--on-invert', '--invert'],
       ] as const) {
         expect(contrastRatio(tokens[text], tokens[fill]), `${file} ${text}`).toBeGreaterThanOrEqual(
           MIN_CONTRAST

@@ -158,7 +158,7 @@ export function terminalThemeTokens(theme: TerminalTheme): Record<ThemeToken, st
     '--text-2': mix(fg, bg, 0.25),
     '--text-3': bright.black,
     '--invert': fg,
-    '--on-invert': bg,
+    '--on-invert': bg, // set from the readable --invert below
     '--signal': normal.yellow,
     '--signal-ink': bright.yellow,
     '--signal-soft': alpha(normal.yellow, 0.13),
@@ -183,6 +183,9 @@ export function terminalThemeTokens(theme: TerminalTheme): Record<ThemeToken, st
       tokens[token] = legible(tokens[token], surface, towards);
     }
   }
+  // The primary button: the readable text color as its fill, and text on it
+  tokens['--invert'] = tokens['--text'];
+  tokens['--on-invert'] = onFill(tokens['--invert'], bg, fg);
   return tokens;
 }
 
@@ -233,12 +236,14 @@ export function builtInTheme(name: string): BuiltInTheme | null {
  * loaded. Falls back to Graphite when a terminal theme cannot be loaded.
  * Returns the name of the theme now applied ('default' comes back as
  * 'graphite'), so a caller can store it, or null when another theme was chosen
- * while this one loaded (that choice stands).
+ * while this one loaded (that choice stands). Without `fallback`, a theme that
+ * cannot be loaded throws instead and leaves the current theme.
  */
 export async function applyThemeByName(
   name: string,
   root: HTMLElement = document.documentElement,
-  load: (name: string) => Promise<TerminalTheme> = fetchTheme
+  load: (name: string) => Promise<TerminalTheme> = fetchTheme,
+  fallback = true
 ): Promise<string | null> {
   const builtIn = builtInTheme(name);
   if (builtIn) {
@@ -253,6 +258,7 @@ export async function applyThemeByName(
     return name;
   } catch (error) {
     if (choice !== latestChoice) return null;
+    if (!fallback) throw error;
     console.error(`[Theme] Could not load "${name}", using Graphite`, error);
     applyBuiltInTheme('graphite', root);
     return 'graphite';

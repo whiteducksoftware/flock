@@ -9,8 +9,7 @@ import React, { useState, useEffect } from 'react';
 import { useSettingsStore } from '../../store/settingsStore';
 import { fetchThemeList, fetchTheme, POPULAR_THEMES } from '../../services/themeService';
 import {
-  applyBuiltInTheme,
-  applyTheme,
+  applyThemeByName,
   BUILT_IN_THEMES,
   builtInTheme,
   resetToDefaultTheme,
@@ -53,18 +52,12 @@ const ThemeSelector: React.FC = () => {
   const handleThemeSelect = async (themeName: string) => {
     try {
       setError(null);
-      // Graphite and Paper need no API fetch
-      const builtIn = builtInTheme(themeName);
-      if (builtIn) {
-        applyBuiltInTheme(builtIn);
-        setTheme(builtIn);
+      // Only the latest choice applies and is stored (null: a newer one won)
+      const applied = await applyThemeByName(themeName, document.documentElement, fetchTheme, false);
+      if (applied !== null) {
+        setTheme(applied);
         setPreviewTheme(null);
-        return;
       }
-      const theme = await fetchTheme(themeName);
-      applyTheme(theme);
-      setTheme(themeName);
-      setPreviewTheme(null);
     } catch (err) {
       setError(`Failed to load theme "${themeName}"`);
       console.error('Theme application error:', err);
@@ -73,16 +66,14 @@ const ThemeSelector: React.FC = () => {
 
   const handleThemePreview = async (themeName: string) => {
     try {
-      // Graphite and Paper need no API fetch
-      const builtIn = builtInTheme(themeName);
-      if (builtIn) {
-        applyBuiltInTheme(builtIn);
-        setPreviewTheme(null);
-        return;
-      }
-      const theme = await fetchTheme(themeName);
-      setPreviewTheme(theme);
-      applyTheme(theme);
+      let loaded: TerminalTheme | null = null;
+      const applied = await applyThemeByName(
+        themeName,
+        document.documentElement,
+        async (name) => (loaded = await fetchTheme(name)),
+        false
+      );
+      if (applied !== null) setPreviewTheme(loaded);
     } catch (err) {
       console.error('Theme preview error:', err);
     }
