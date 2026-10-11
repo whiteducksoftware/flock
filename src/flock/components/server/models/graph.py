@@ -141,6 +141,7 @@ class GraphRun(BaseModel):
     completed_at: datetime | None = Field(default=None, alias="completedAt")
     metrics: dict[str, Any] = Field(default_factory=dict)
     error_message: str | None = Field(default=None, alias="errorMessage")
+    error_type: str | None = Field(default=None, alias="errorType")
 
 
 class GraphState(BaseModel):
@@ -149,6 +150,8 @@ class GraphState(BaseModel):
     consumptions: dict[str, list[str]] = Field(default_factory=dict)
     runs: list[GraphRun] = Field(default_factory=list)
     agent_status: dict[str, str] = Field(default_factory=dict, alias="agentStatus")
+    # Per agent, the run whose failure the collector saw last
+    last_failures: dict[str, str] = Field(default_factory=dict, alias="lastFailures")
 
 
 class GraphSnapshot(BaseModel):
