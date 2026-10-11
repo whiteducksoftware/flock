@@ -70,6 +70,60 @@ describe('graphStore - NEW Simplified Architecture', () => {
     vi.restoreAllMocks();
   });
 
+  describe('streaming previews on the Blackboard', () => {
+    const stream = (artifactId: string, correlation: string, agent = 'writer', type = 'app.Reply') =>
+      useGraphStore.getState().createOrUpdateStreamingMessageNode(artifactId, 'tok', {
+        artifact_type: type,
+        agent_name: agent,
+        correlation_id: correlation,
+        run_id: `run-${artifactId}`,
+      } as any);
+
+    beforeEach(() => {
+      useGraphStore.setState({ viewMode: 'blackboard', nodes: [] });
+    });
+
+    it('show only what the board\'s filters let through', () => {
+      vi.mocked(useFilterStore.getState).mockReturnValue({
+        correlationId: 'c-1',
+        timeRange: { preset: 'last10min' },
+        selectedArtifactTypes: [],
+        selectedProducers: [],
+        selectedTags: [],
+        selectedVisibility: [],
+      } as any);
+
+      stream('a-1', 'c-1');
+      stream('a-2', 'c-2'); // another run: no lane for it
+
+      expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual(['a-1']);
+    });
+
+    it('follow the type, producer and tag filters', () => {
+      const filters = { correlationId: null, timeRange: { preset: 'all' }, selectedVisibility: [] };
+      vi.mocked(useFilterStore.getState).mockReturnValue({
+        ...filters,
+        selectedArtifactTypes: ['app.Reply'],
+        selectedProducers: ['writer'],
+        selectedTags: [],
+      } as any);
+      stream('a-1', 'c-1');
+      stream('a-2', 'c-1', 'other');
+      stream('a-3', 'c-1', 'writer', 'app.Note');
+      expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual(['a-1']);
+
+      // A preview has no tags yet: a tag filter keeps it out
+      vi.mocked(useFilterStore.getState).mockReturnValue({
+        ...filters,
+        selectedArtifactTypes: [],
+        selectedProducers: [],
+        selectedTags: ['urgent'],
+      } as any);
+      stream('a-4', 'c-1');
+      expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual(['a-1']);
+    });
+  });
+
   describe('generateAgentViewGraph()', () => {
     it('should fetch agent view graph from backend', async () => {
       const mockSnapshot: GraphSnapshot = {
