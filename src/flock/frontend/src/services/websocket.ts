@@ -264,8 +264,13 @@ export class WebSocketClient {
     this.on('agent_completed', (data) => {
       // UI Optimization Migration (Phase 2 - Spec 002): Use NEW updateAgentStatus()
       // for FAST real-time updates without backend calls
-      useGraphStore.getState().updateAgentStatus(data.agent_name, 'idle');
-      useGraphStore.getState().updateStreamingTokens(data.agent_name, []); // Clear news ticker
+      // The server's status over all of the agent's runs; older servers send none
+      const status = data.agent_status ?? 'idle';
+      useGraphStore.getState().updateAgentStatus(data.agent_name, status);
+      // Another run of it goes on: its ticker stays
+      if (status !== 'running') useGraphStore.getState().updateStreamingTokens(data.agent_name, []);
+      // A newer run failed: the snapshot says what (lastError)
+      if (status === 'error') this.scheduleGraphRefresh();
 
       // OLD CODE REMOVED: Run status tracking (runs Map, batchUpdate)
       // Backend handles run data now
@@ -275,7 +280,9 @@ export class WebSocketClient {
     this.on('agent_error', (data) => {
       // UI Optimization Migration (Phase 2 - Spec 002): Use NEW updateAgentStatus()
       // for FAST real-time updates without backend calls
-      useGraphStore.getState().updateAgentStatus(data.agent_name, 'error');
+      useGraphStore.getState().updateAgentStatus(data.agent_name, data.agent_status ?? 'error');
+      // The snapshot says what failed (lastError)
+      this.scheduleGraphRefresh();
 
       // OLD CODE REMOVED: Run status tracking (runs Map, batchUpdate)
       // Backend handles run data now

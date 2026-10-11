@@ -596,3 +596,102 @@ def test_engines_label_themselves():
 
     assert DSPyEngine.kind == "LLM"
     assert OpenClawEngine.kind == "OpenClaw"
+
+
+@pytest.mark.asyncio
+async def test_agent_cards_get_their_subscription_groups():
+    from pydantic import BaseModel
+
+    from flock.registry import flock_type, type_registry
+
+    @flock_type(name="GroupTicket")
+    class GroupTicket(BaseModel):
+        text: str
+
+    @flock_type(name="GroupUrgent")
+    class GroupUrgent(BaseModel):
+        text: str
+
+    @flock_type(name="GroupNote")
+    class GroupNote(BaseModel):
+        text: str
+
+    orchestrator = Flock()
+    # An AND gate, then a second subscription of its own
+    orchestrator.agent("pager").consumes(GroupTicket, GroupUrgent).consumes(
+        GroupNote
+    ).publishes(GroupNote)
+    # Three of a kind
+    orchestrator.agent("triplets").consumes(GroupNote, GroupNote, GroupNote).publishes(
+        GroupTicket
+    )
+
+    collector = DashboardEventCollector(store=orchestrator.store)
+    assembler = GraphAssembler(orchestrator.store, collector, orchestrator)
+    snapshot = await assembler.build_snapshot(GraphRequest(view_mode="agent"))
+    (pager,) = [node for node in snapshot.nodes if node.id == "pager"]
+
+    name = type_registry.name_for
+    assert pager.data["subscriptionGroups"] == [
+        sorted([name(GroupTicket), name(GroupUrgent)]),
+        [name(GroupNote)],
+    ]
+    (triplets,) = [node for node in snapshot.nodes if node.id == "triplets"]
+    assert triplets.data["subscriptionGroups"] == [[name(GroupNote)] * 3]
+
+
+@pytest.mark.asyncio
+async def test_a_failed_agent_card_says_what_failed():
+    from pydantic import BaseModel
+
+    from flock.components.agent import EngineComponent
+    from flock.registry import flock_type
+
+    @flock_type(name="FailingTicket")
+    class FailingTicket(BaseModel):
+        text: str
+
+    @flock_type(name="FailingReply")
+    class FailingReply(BaseModel):
+        text: str
+
+    class RateLimitError(RuntimeError):
+        pass
+
+    class LimitedEngine(EngineComponent):
+        async def evaluate(self, agent, ctx, inputs, output_group):
+            raise RateLimitError("429 Too Many Requests")
+
+    orchestrator = Flock(no_output=True)
+    orchestrator.agent("tech_support").consumes(FailingTicket).publishes(
+        FailingReply
+    ).with_engines(LimitedEngine())
+    collector = DashboardEventCollector(store=orchestrator.store)
+    sent: list[str] = []
+
+    class Broadcasts:
+        async def broadcast(self, event):
+            sent.append(type(event).__name__)
+
+    collector.set_websocket_manager(Broadcasts())
+    for agent in orchestrator.agents:
+        agent._add_utilities([collector])
+
+    await orchestrator.publish(FailingTicket(text="login broken"))
+    await orchestrator.run_until_idle()
+    assembler = GraphAssembler(orchestrator.store, collector, orchestrator)
+    snapshot = await assembler.build_snapshot(GraphRequest(view_mode="agent"))
+    (node,) = [n for n in snapshot.nodes if n.id == "tech_support"]
+    (run,) = await collector.agent_runs("tech_support")
+
+    assert node.data["status"] == "error"
+    error = node.data["lastError"]
+    assert error["type"] == "RateLimitError"
+    assert error["message"] == "429 Too Many Requests"
+    assert error["runId"] == run["run_id"]
+    assert error["correlationId"] == run["correlation_id"]
+    assert datetime.fromisoformat(error["at"]) <= datetime.now(UTC)
+    assert run["error_type"] == "RateLimitError"
+    # The dashboard hears of the failure, and no "completed" undoes it
+    assert "AgentErrorEvent" in sent
+    assert "AgentCompletedEvent" not in sent

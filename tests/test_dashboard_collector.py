@@ -609,3 +609,98 @@ async def test_collector_as_agent_component(orchestrator):
     event_types = [type(event).__name__ for event in collector.events]
     assert "AgentActivatedEvent" in event_types
     assert "AgentCompletedEvent" in event_types
+
+
+def _run_context(orchestrator) -> Context:
+    return Context(
+        board=orchestrator.store,
+        orchestrator=orchestrator,
+        task_id=f"task-{uuid4()}",
+        state={},
+        correlation_id=str(uuid4()),
+    )
+
+
+async def _status(collector) -> str:
+    return (await collector.snapshot_graph_state()).agent_status["test_agent"]
+
+
+@pytest.mark.asyncio
+async def test_a_newer_failed_run_outlasts_an_older_success(
+    collector, test_agent, orchestrator
+):
+    older, newer = _run_context(orchestrator), _run_context(orchestrator)
+    await collector.on_pre_consume(test_agent, older, [])
+    await collector.on_pre_consume(test_agent, newer, [])
+
+    await collector.on_error(test_agent, newer, RuntimeError("boom"))
+    await collector.on_terminate(test_agent, newer)
+    await collector.on_terminate(test_agent, older)  # finishes last, but started first
+
+    assert await _status(collector) == "error"
+
+
+@pytest.mark.asyncio
+async def test_an_agent_with_a_run_still_going_is_running(
+    collector, test_agent, orchestrator
+):
+    older, newer = _run_context(orchestrator), _run_context(orchestrator)
+    await collector.on_pre_consume(test_agent, older, [])
+    await collector.on_pre_consume(test_agent, newer, [])
+
+    await collector.on_error(test_agent, older, RuntimeError("boom"))
+    await collector.on_terminate(test_agent, older)
+    assert await _status(collector) == "running"
+
+    await collector.on_terminate(test_agent, newer)
+    assert await _status(collector) == "idle"
+
+
+@pytest.mark.asyncio
+async def test_run_events_carry_the_agents_status(collector, test_agent, orchestrator):
+    sent: list = []
+
+    class Broadcasts:
+        async def broadcast(self, event):
+            sent.append(event)
+
+    collector.set_websocket_manager(Broadcasts())
+    older, newer = _run_context(orchestrator), _run_context(orchestrator)
+    await collector.on_pre_consume(test_agent, older, [])
+    await collector.on_pre_consume(test_agent, newer, [])
+
+    await collector.on_error(test_agent, older, RuntimeError("boom"))
+    await collector.on_terminate(test_agent, older)
+    await collector.on_terminate(test_agent, newer)
+
+    statuses = [
+        (type(event).__name__, event.agent_status)
+        for event in sent
+        if hasattr(event, "agent_status")
+    ]
+    # The failure happened while the newer run went on; then that one completed
+    assert statuses == [("AgentErrorEvent", "running"), ("AgentCompletedEvent", "idle")]
+
+
+@pytest.mark.asyncio
+async def test_the_failure_seen_last_is_the_agents_last_error(
+    collector, test_agent, orchestrator
+):
+    from datetime import timedelta
+
+    from flock.api.graph_builder import GraphAssembler
+
+    first, second = _run_context(orchestrator), _run_context(orchestrator)
+    for ctx in (first, second):
+        await collector.on_pre_consume(test_agent, ctx, [])
+        await collector.on_error(test_agent, ctx, RuntimeError(ctx.task_id))
+        await collector.on_terminate(test_agent, ctx)
+    # The wall clock stepped back between the two failures
+    collector._run_registry[first.task_id].completed_at += timedelta(hours=1)
+
+    state = await collector.snapshot_graph_state()
+    error = GraphAssembler._last_error(
+        state.last_failures.get("test_agent"), state.runs
+    )
+
+    assert error["runId"] == second.task_id
