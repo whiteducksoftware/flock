@@ -38,7 +38,10 @@ from flock.decisions.graph import (
     decider_info,
     decision_label,
     decision_view,
+    explanation_view,
+    explanations_by_decision,
     is_decision_type,
+    is_explanation_type,
 )
 from flock.decisions.models import choice_of
 from flock.logging.auto_trace import AutoTracedMeta
@@ -405,6 +408,11 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         artifacts: Mapping[str, GraphArtifact],
     ) -> list[GraphNode]:
         nodes: list[GraphNode] = []
+        explained = explanations_by_decision(
+            (artifact.payload, artifact.produced_by)
+            for artifact in artifacts.values()
+            if is_explanation_type(artifact.artifact_type)
+        )
 
         for artifact in artifacts.values():
             # Image data is shipped as thumbnails; the JSON view gets a description,
@@ -433,6 +441,12 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                     subject_thumb=self._subject_thumbnail(artifacts, artifact.payload),
                     levels=self._scale_levels(artifact.artifact_type),
                 )
+                if artifact.artifact_id in explained:
+                    node_data["decision"]["explanation"] = explained[
+                        artifact.artifact_id
+                    ]
+            elif is_explanation_type(artifact.artifact_type):
+                node_data["explanation"] = explanation_view(artifact.payload)
 
             nodes.append(
                 GraphNode(

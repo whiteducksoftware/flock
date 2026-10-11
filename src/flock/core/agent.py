@@ -706,6 +706,13 @@ class AgentBuilder:
                 # Dict without explicit threshold: add semantic_threshold
                 semantic_param = {**semantic_match, "threshold": semantic_threshold}
 
+        # types are decision models by now; choice_refs holds the handles
+        if self._is_explainer() and (batch is not None or not choice_refs):
+            raise ValueError(
+                f"Agent '{self._agent.name}': .explains() explains one subject's "
+                "decisions at a time; add only decision handle subscriptions "
+                "without batch=, e.g. .consumes(Route.UNSURE)."
+            )
         # Semantic matching: pass semantic_match parameter to Subscription
         # which will parse it into TextPredicate objects
         subscription = Subscription(
@@ -1001,10 +1008,77 @@ class AgentBuilder:
         self._agent.engines.append(engine)  # last: later .publishes() checks it
         return self
 
+    def explains(
+        self,
+        model: str | None = None,
+        instructions: str | None = None,
+        visibility: Visibility | None = None,
+    ) -> AgentBuilder:
+        """Explain the decisions this agent consumes with an LLM.
+
+        The agent must subscribe to decision handles, e.g.
+        ``.consumes(Route.UNSURE)``. For every decision that reaches it, an LLM
+        gets the decided artifact and the decision (question, options,
+        probabilities, threshold) and writes an ``Explanation``: why the
+        decision came out this way and what would settle it. The explanation
+        is linked to the decisions (``decision_ids``) and their subjects
+        (``subject_ids``) and keeps the subjects' visibility.
+
+        Args:
+            model: LLM for the explanations; defaults to the flock's model.
+            instructions: Replaces the default instructions to the LLM.
+            visibility: Readership of the explanations. By default they keep
+                the subjects' common visibility, and subjects with different
+                visibilities fail.
+
+        Returns:
+            self for method chaining
+
+        Examples:
+            >>> flock.agent("explainer").consumes(Route.UNSURE).explains()
+        """
+        from flock.decisions.explain import ExplainEngine, Explanation
+
+        subscriptions = self._agent.subscriptions
+        if not subscriptions or not all(s.choices for s in subscriptions):
+            raise ValueError(
+                f"Agent '{self._agent.name}': .explains() explains decisions; "
+                "subscribe only to decision handles, e.g. "
+                ".consumes(Route.UNSURE)."
+            )
+        if any(s.batch is not None for s in subscriptions):
+            raise ValueError(
+                f"Agent '{self._agent.name}': .explains() explains one subject's "
+                "decisions at a time; batch subscriptions are not supported."
+            )
+        if self._agent.engines:
+            raise ValueError(
+                f"Agent '{self._agent.name}': .explains() sets the agent's engine; "
+                "it cannot be combined with .with_engines()."
+            )
+        if self._agent.output_groups:
+            raise ValueError(
+                f"Agent '{self._agent.name}': an explaining agent publishes only "
+                "explanations; .explains() cannot be combined with .publishes()."
+            )
+        engine = ExplainEngine(model=model, visibility=visibility)
+        if instructions is not None:
+            engine.instructions = instructions
+        self.publishes(Explanation)
+        for output in self._agent.output_groups[-1].outputs:
+            output.inherit_visibility = True
+        self._agent.engines.append(engine)
+        return self
+
     def _is_decider(self) -> bool:
         from flock.decisions.engine import DecisionEngine
 
         return any(isinstance(e, DecisionEngine) for e in self._agent.engines)
+
+    def _is_explainer(self) -> bool:
+        from flock.decisions.explain import ExplainEngine
+
+        return any(isinstance(e, ExplainEngine) for e in self._agent.engines)
 
     def schedule(
         self,
@@ -1144,6 +1218,11 @@ class AgentBuilder:
                 f"Agent '{self._agent.name}': a decision agent publishes only its "
                 "decisions; .decides() cannot be combined with .publishes()."
             )
+        if self._is_explainer():
+            raise ValueError(
+                f"Agent '{self._agent.name}': an explaining agent publishes only "
+                "explanations; .explains() cannot be combined with .publishes()."
+            )
         # Normalize fan_out specification to FanOutRange (or None)
         fan_out_range = normalize_fan_out(fan_out) if fan_out is not None else None
 
@@ -1268,6 +1347,11 @@ class AgentBuilder:
         if self._is_decider():
             raise ValueError(
                 f"Agent '{self._agent.name}': .decides() sets the agent's engine; "
+                "it cannot be combined with .with_engines()."
+            )
+        if self._is_explainer():
+            raise ValueError(
+                f"Agent '{self._agent.name}': .explains() sets the agent's engine; "
                 "it cannot be combined with .with_engines()."
             )
         self._agent.engines.extend(engines)

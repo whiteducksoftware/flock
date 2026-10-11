@@ -291,3 +291,31 @@ Papers the shadow would have routed differently:
       live: UNSURE · shadow: computer_vision
   ...
 ```
+
+## 10_explain.py
+
+Microsoft-Decision-1 routes eight support tickets at threshold 0.95. An `explainer` agent consumes `Route.UNSURE` and lets an LLM explain each of those decisions: why the ticket is hard to route, citing the ticket, and what would settle it. The LLM runs only for the unsure tickets.
+
+**Key Concepts:**
+- `.consumes(Route.UNSURE).explains(model=EXPLAIN_MODEL)`
+- `Explanation` (`flock.decisions.explain`): `explanation` and `missing`, linked to the decision and the ticket
+- The LLM sees the ticket and the decision; it explains and does not decide
+
+**Run:**
+```bash
+# AZURE_API_BASE and AZURE_API_KEY set; DEFAULT_MODEL is the explaining LLM
+uv run examples/15-decisions/10_explain.py
+```
+
+Set `USE_DASHBOARD = True` to see the explanation on the unsure decision's card.
+
+**What You'll See (2026-10-11):**
+```
+Refund for broken item               → billing   [billing 0.96  shipping 0.04]
+Return label not working             → UNSURE    [shipping 0.90  tech 0.10]
+   💬 The model chose UNSURE because its highest probability, shipping at 90.17%, was below the 95% threshold. [...] "from the website gives an error when I print it" also suggests a technical bug, supporting tech as an alternative (9.50%). [...]
+   ❓ The exact error message and whether the failure occurs while generating or downloading the label on the website, printing an already downloaded label, or validating the label with the carrier [...]
+Weird charge after the app crashed   → billing   [billing 0.98  tech 0.02]
+
+The LLM ran 1 time for 8 tickets: only for the unsure ones.
+```
