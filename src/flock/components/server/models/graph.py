@@ -150,6 +150,8 @@ class GraphState(BaseModel):
     consumptions: dict[str, list[str]] = Field(default_factory=dict)
     runs: list[GraphRun] = Field(default_factory=list)
     agent_status: dict[str, str] = Field(default_factory=dict, alias="agentStatus")
+    # Per agent, the run whose failure the collector saw last
+    last_failures: dict[str, str] = Field(default_factory=dict, alias="lastFailures")
 
 
 class GraphSnapshot(BaseModel):

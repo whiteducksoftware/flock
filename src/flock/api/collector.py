@@ -126,6 +126,8 @@ class DashboardEventCollector(AgentComponent):
     # Per agent: its active runs, and the run it started last (status derivation)
     _active_runs: dict[str, set[str]] = PrivateAttr(default_factory=dict)
     _latest_run: dict[str, str] = PrivateAttr(default_factory=dict)
+    # Per agent, the run whose failure was seen last (not by the wall clock)
+    _last_failure: dict[str, str] = PrivateAttr(default_factory=dict)
     _artifact_consumers: dict[str, set[str]] = PrivateAttr(
         default_factory=lambda: defaultdict(set)
     )
@@ -142,6 +144,7 @@ class DashboardEventCollector(AgentComponent):
         self._run_registry = {}
         self._active_runs = {}
         self._latest_run = {}
+        self._last_failure = {}
         self._artifact_consumers = defaultdict(set)
         self._agent_status = {}
         self._store: BlackboardStore | None = store
@@ -428,6 +431,7 @@ class DashboardEventCollector(AgentComponent):
                 ensure_started=True,
             )
             self._set_run_status_locked(run, "error")
+            self._last_failure[agent.name] = run.run_id
             run.error_message = error_message
             run.error_type = error_type
             run.completed_at = datetime.now(UTC)
@@ -466,8 +470,12 @@ class DashboardEventCollector(AgentComponent):
             }
             runs = [record.to_graph_run() for record in self._run_registry.values()]
             agent_status = dict(self._agent_status)
+            last_failures = dict(self._last_failure)
         return GraphState(
-            consumptions=consumptions, runs=runs, agent_status=agent_status
+            consumptions=consumptions,
+            runs=runs,
+            agent_status=agent_status,
+            last_failures=last_failures,
         )
 
     async def agent_runs(

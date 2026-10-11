@@ -381,7 +381,9 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 "engineTag": self._engine_tag(agent),
             }
             if node_data["status"] == "error":
-                node_data["lastError"] = self._last_error(agent.name, graph_state.runs)
+                node_data["lastError"] = self._last_error(
+                    graph_state.last_failures.get(agent.name), graph_state.runs
+                )
 
             # Decision agents and choice subscribers
             decision = decider_info(
@@ -512,15 +514,14 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         return nodes
 
     @staticmethod
-    def _last_error(name: str, runs: list[GraphRun]) -> dict[str, Any] | None:
-        """The agent's latest failed run, for the error row of its card."""
-        failed = [
-            run for run in runs if run.agent_name == name and run.status == "error"
-        ]
-        if not failed:
+    def _last_error(run_id: str | None, runs: list[GraphRun]) -> dict[str, Any] | None:
+        """The run whose failure the collector saw last, for the card's error row.
+
+        The collector keeps that order; the timestamps are only shown.
+        """
+        run = next((run for run in runs if run.run_id == run_id), None)
+        if run is None:
             return None
-        oldest = datetime.min.replace(tzinfo=UTC)
-        run = max(failed, key=lambda r: r.completed_at or r.started_at or oldest)
         at = run.completed_at or run.started_at
         return {
             "type": run.error_type,
