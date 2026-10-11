@@ -18,34 +18,34 @@ const shortcuts: Shortcut[] = [
   // Navigation
   {
     keys: isMac ? ['⌘', 'M'] : ['Ctrl', 'M'],
-    description: 'Toggle Agent/Blackboard View',
+    description: 'Switch between Flow and Blackboard',
     category: 'Navigation',
   },
   {
     keys: isMac ? ['⌘', 'F'] : ['Ctrl', 'F'],
-    description: 'Focus filter input',
+    description: 'Search correlation IDs in the filters',
     category: 'Navigation',
   },
 
   // Panels
   {
     keys: isMac ? ['⌘', 'Shift', 'P'] : ['Ctrl', 'Shift', 'P'],
-    description: 'Toggle Publish Panel',
+    description: 'Open or close the publish panel',
     category: 'Panels',
   },
   {
     keys: isMac ? ['⌘', 'Shift', 'D'] : ['Ctrl', 'Shift', 'D'],
-    description: 'Toggle Agent Details',
+    description: 'Show or close the agent details',
     category: 'Panels',
   },
   {
     keys: isMac ? ['⌘', 'Shift', 'F'] : ['Ctrl', 'Shift', 'F'],
-    description: 'Toggle Filters Panel',
+    description: 'Open or close the filters',
     category: 'Panels',
   },
   {
     keys: isMac ? ['⌘', ','] : ['Ctrl', ','],
-    description: 'Toggle Settings Panel',
+    description: 'Open or close the settings',
     category: 'Panels',
   },
 

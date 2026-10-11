@@ -150,11 +150,47 @@ export class IndexedDBService {
   db: IDBDatabase | null = null;
   private inMemoryStore: Map<string, Map<string, any>> = new Map();
   private available = false;
+  // The one connection's opening, shared by every initialize() call
+  private opening: Promise<void> | null = null;
+
+  /** Close the connection, for example before the database is deleted. */
+  close(): void {
+    this.db?.close();
+    this.db = null;
+    this.opening = null;
+  }
 
   /**
-   * Initialize database with schema and indexes
+   * Delete the dashboard's database. It resolves once the database is gone
+   * and rejects when the deletion fails; while another tab keeps it open,
+   * `onBlocked` is told and the deletion waits for that tab to close.
    */
-  async initialize(): Promise<void> {
+  async deleteDatabase(onBlocked?: () => void): Promise<void> {
+    // A connection still opening would open after the close below
+    await this.opening?.catch(() => {});
+    this.close();
+    if (typeof indexedDB === 'undefined') return;
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.deleteDatabase(DB_NAME);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error ?? new Error('The database could not be deleted'));
+      request.onblocked = () => onBlocked?.();
+    });
+  }
+
+  /**
+   * Initialize database with schema and indexes. The service keeps one
+   * connection: later and concurrent calls share it.
+   */
+  initialize(): Promise<void> {
+    this.opening ??= this.open().catch((error) => {
+      this.opening = null;
+      throw error;
+    });
+    return this.opening;
+  }
+
+  private async open(): Promise<void> {
     // Check if IndexedDB is available
     if (typeof indexedDB === 'undefined') {
       console.warn('[IndexedDB] IndexedDB not available, using in-memory fallback');
@@ -268,6 +304,8 @@ export class IndexedDBService {
       });
 
       this.available = true;
+      // Let go when another tab deletes or upgrades the database
+      if (this.db) this.db.onversionchange = () => this.close();
       console.log('[IndexedDB] Database initialized:', DB_NAME, 'version', DB_VERSION);
     } catch (error) {
       console.error('[IndexedDB] Initialization failed, using in-memory fallback:', error);

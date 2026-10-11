@@ -113,11 +113,8 @@ const GraphCanvas: React.FC = () => {
   // Note: generateAgentViewGraph and generateBlackboardViewGraph are stable zustand functions
   // DO NOT add them to dependencies or it will cause infinite loop when nodes update
   useEffect(() => {
-    if (mode === 'agent') {
-      generateAgentViewGraph();
-    } else {
-      generateBlackboardViewGraph();
-    }
+    // A failed load is the store's error, which the board shows
+    (mode === 'agent' ? generateAgentViewGraph() : generateBlackboardViewGraph()).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
@@ -125,17 +122,14 @@ const GraphCanvas: React.FC = () => {
   // Note: generateAgentViewGraph and generateBlackboardViewGraph are stable zustand functions
   // DO NOT add them to dependencies or it will cause infinite loop when nodes update
   useEffect(() => {
-    if (mode === 'agent') {
-      generateAgentViewGraph();
-    } else {
-      generateBlackboardViewGraph();
-    }
+    // A failed load is the store's error, which the board shows
+    (mode === 'agent' ? generateAgentViewGraph() : generateBlackboardViewGraph()).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [edgeType, edgeStrokeWidth, edgeAnimation, mode]);
 
   // Apply filters whenever filter store state changes
   useEffect(() => {
-    applyFilters();
+    applyFilters().catch(() => {});
   }, [
     applyFilters,
     correlationId,

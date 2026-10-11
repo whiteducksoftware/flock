@@ -10,6 +10,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useSettingsStore } from '../../store/settingsStore';
+import { clearDashboardData } from '../../utils/clearDashboardData';
 
 const AdvancedSettings: React.FC = () => {
   const layoutDirection = useSettingsStore((state) => state.advanced.layoutDirection);
@@ -24,9 +25,13 @@ const AdvancedSettings: React.FC = () => {
   const setDebugMode = useSettingsStore((state) => state.setDebugMode);
   const setPerformanceMode = useSettingsStore((state) => state.setPerformanceMode);
 
+  // Another dashboard tab keeps the data open while it is cleared
+  const [clearBlocked, setClearBlocked] = useState(false);
+  const [clearError, setClearError] = useState<string | null>(null);
+
   // Version information state
   const [backendVersion, setBackendVersion] = useState<string>('Loading...');
-  const dashboardVersion = '0.1.1'; // From package.json
+  const dashboardVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev';
 
   // Fetch version information from backend
   useEffect(() => {
@@ -147,6 +152,41 @@ const AdvancedSettings: React.FC = () => {
           <p className="settings-description">
             Disable animations, shadows, and blur effects for better performance
           </p>
+        </div>
+      </div>
+
+      <div className="settings-section">
+        <h3 className="settings-section-title">Data</h3>
+
+        <div className="settings-field">
+          <p className="settings-description">
+            Forget the graph, filters, windows, layouts and presets this browser keeps. The blackboard is not touched.
+          </p>
+          <button
+            type="button"
+            className="btn sm"
+            onClick={() => {
+              if (confirm('Clear all dashboard data? This will remove all graph data and session data.')) {
+                setClearError(null);
+                clearDashboardData(undefined, () => setClearBlocked(true)).catch((error: unknown) => {
+                  setClearBlocked(false);
+                  setClearError(error instanceof Error ? error.message : String(error));
+                });
+              }
+            }}
+          >
+            Clear all dashboard data
+          </button>
+          {clearBlocked && (
+            <p role="status" className="settings-description">
+              Close the other dashboard tabs to finish clearing.
+            </p>
+          )}
+          {clearError && (
+            <p role="alert" className="settings-description" style={{ color: 'var(--error-ink)' }}>
+              The dashboard data could not be cleared: {clearError}
+            </p>
+          )}
         </div>
       </div>
 

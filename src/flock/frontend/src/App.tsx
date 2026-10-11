@@ -4,7 +4,6 @@ import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { measureRenderTime } from './utils/performance';
 import { initializeWebSocket } from './services/websocket';
 import { registerModules } from './components/modules/registerModules';
-import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { fetchArtifactSummary, fetchArtifacts } from './services/api';
 import { useGraphStore } from './store/graphStore';
 import { useUIStore } from './store/uiStore';
@@ -15,9 +14,7 @@ import { indexedDBService } from './services/indexeddb';
 registerModules();
 
 const App: React.FC = () => {
-  // Enable global keyboard shortcuts
-    useKeyboardShortcuts();
-
+  // Keyboard shortcuts are registered once, by DashboardLayout
   useEffect(() => {
     const resolveWebSocketUrl = (): string => {
       const explicit = import.meta.env.VITE_WS_URL;

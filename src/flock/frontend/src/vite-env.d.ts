@@ -10,6 +10,8 @@ interface ImportMeta {
 
 declare const __BUILD_TIMESTAMP__: string;
 declare const __BUILD_HASH__: string;
+/** The dashboard's version, from package.json */
+declare const __APP_VERSION__: string;
 
 declare module '*.module.css' {
   const classes: { [key: string]: string };

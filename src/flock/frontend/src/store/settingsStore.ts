@@ -76,10 +76,11 @@ export interface SettingsState {
 const DEFAULT_SETTINGS: Omit<SettingsState, keyof ReturnType<typeof createActions>> = {
   version: '1.0.0',
 
+  // Which panels are open; not saved, so the dashboard opens on the board
   ui: {
-    showFilters: false, // Hidden by default
-    showControls: true, // Shown by default
-    showSettings: false, // Hidden by default
+    showFilters: false,
+    showControls: false,
+    showSettings: false,
   },
 
   graph: {
@@ -183,6 +184,9 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'flock-flow-settings',
       version: 1,
+      partialize: ({ ui: _ui, ...saved }) => saved,
+      // Sessions before this one saved the open panels too
+      merge: (saved, current) => ({ ...current, ...(saved as Partial<SettingsState>), ui: current.ui }),
     }
   )
 );

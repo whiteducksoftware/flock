@@ -1,6 +1,7 @@
 import { useWSStore } from '../store/wsStore';
 import { useGraphStore } from '../store/graphStore';
 import { useFilterStore } from '../store/filterStore';
+import { fetchArtifactSummary } from './api';
 
 interface WebSocketMessage {
   event_type: 'agent_activated' | 'message_published' | 'streaming_output' | 'agent_completed' | 'agent_error' | 'correlation_group_updated' | 'batch_item_added';
@@ -14,6 +15,8 @@ export class WebSocketClient {
   ws: WebSocket | null = null;
   private reconnectTimeout: number | null = null;
   private reconnectAttempt = 0;
+  // A connection was lost; the next one refreshes the board
+  private connectionLost = false;
   private maxReconnectDelay = 30000; // 30 seconds
   private connectionTimeout: number | null = null;
   private connectionTimeoutMs = 10000; // 10 seconds
@@ -425,6 +428,22 @@ export class WebSocketClient {
           useWSStore.getState().setStatus('connected');
           useWSStore.getState().setError(null);
           useWSStore.getState().resetAttempts();
+          useWSStore.getState().setNextRetryAt(null);
+        }
+        // Back after a lost connection: what was published meanwhile never arrived
+        if (this.connectionLost) {
+          this.connectionLost = false;
+          // Live states from before the outage are stale; the snapshot says how things stand
+          useGraphStore.setState({
+            agentStatus: new Map(),
+            streamingTokens: new Map(),
+            agentLogicOperations: new Map(),
+          });
+          this.scheduleGraphRefresh();
+          // The counts missed those artifacts too
+          fetchArtifactSummary()
+            .then((summary) => useFilterStore.getState().setSummary(summary))
+            .catch((error) => console.error('[WebSocket] Summary refresh failed:', error));
         }
         this.reconnectAttempt = 0;
         this.flushBuffer();
@@ -450,20 +469,19 @@ export class WebSocketClient {
       this.ws.onclose = (event) => {
         console.log('[WebSocket] Closed:', event.code, event.reason);
         this.stopHeartbeat();
+        if (this.connectionTimeout !== null) {
+          clearTimeout(this.connectionTimeout);
+          this.connectionTimeout = null;
+        }
 
-        // Don't override error status
-        if (this.connectionStatus !== 'error') {
-          if (this.shouldReconnect && event.code !== 1000) {
-            this.connectionStatus = 'connecting'; // Will be reconnecting
-            if (typeof useWSStore !== 'undefined') {
-              useWSStore.getState().setStatus('reconnecting');
-            }
-            this.reconnect();
-          } else {
-            this.connectionStatus = 'disconnected';
-            if (typeof useWSStore !== 'undefined') {
-              useWSStore.getState().setStatus('disconnected');
-            }
+        // A failed connection (an error comes first) is retried like a dropped one
+        if (this.shouldReconnect && event.code !== 1000) {
+          this.connectionLost = true;
+          this.reconnect();
+        } else {
+          this.connectionStatus = 'disconnected';
+          if (typeof useWSStore !== 'undefined') {
+            useWSStore.getState().setStatus('disconnected');
           }
         }
       };
@@ -490,6 +508,8 @@ export class WebSocketClient {
 
     if (typeof useWSStore !== 'undefined') {
       useWSStore.getState().incrementAttempts();
+      useWSStore.getState().setStatus('reconnecting');
+      useWSStore.getState().setNextRetryAt(Date.now() + delay);
     }
     this.reconnectAttempt++;
 
@@ -497,6 +517,9 @@ export class WebSocketClient {
 
     this.reconnectTimeout = window.setTimeout(() => {
       this.reconnectTimeout = null;
+      if (typeof useWSStore !== 'undefined') {
+        useWSStore.getState().setNextRetryAt(null);
+      }
       this.connect();
     }, delay);
   }
@@ -686,11 +709,23 @@ export class WebSocketClient {
     // Don't override it here to maintain proper status flow
   }
 
+  /** Retry now instead of waiting for the scheduled attempt. */
   reconnectManually(): void {
+    // Connected, or an attempt is under way already
+    if (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING) return;
     this.shouldReconnect = true;
+    // Whatever ended the connection, the board reloads once it is back
+    this.connectionLost = true;
+    // The wait starts over if this try fails too
     this.reconnectAttempt = 0;
+    if (this.reconnectTimeout !== null) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
     if (typeof useWSStore !== 'undefined') {
-      useWSStore.getState().resetAttempts();
+      // It counts as an attempt, so the dashboard stays reconnecting meanwhile
+      useWSStore.getState().incrementAttempts();
+      useWSStore.getState().setNextRetryAt(null);
     }
     this.connect();
   }
@@ -737,6 +772,11 @@ export const getWebSocketClient = (url?: string): WebSocketClient => {
     throw new Error('WebSocket client not initialized');
   }
   return wsClient;
+};
+
+/** Reconnect now instead of waiting for the next scheduled attempt. */
+export const retryConnectionNow = (): void => {
+  wsClient?.reconnectManually();
 };
 
 export const initializeWebSocket = (url: string): WebSocketClient => {
