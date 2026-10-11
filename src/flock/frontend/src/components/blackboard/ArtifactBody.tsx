@@ -1,8 +1,7 @@
 /**
  * What an unfolded artifact card shows from the board's snapshot: a
  * decision's probabilities and review, an explanation, a coverage, image
- * thumbnails. The decision displays keep their look until the decision kit
- * (#566).
+ * thumbnails, in the decision kit's encodings.
  */
 
 import React from 'react';

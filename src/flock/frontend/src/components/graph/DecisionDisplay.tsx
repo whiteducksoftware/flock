@@ -36,6 +36,19 @@ export interface DeciderQuestion {
   samples?: Record<string, DecisionSample[]>;
 }
 
+/** An unsure decision of a decider that no person reviewed yet (the graph snapshot carries them, #610). */
+export interface ReviewItem {
+  id: string;
+  question: string;
+  correlationId: string | null;
+  bestGuess: string | null;
+  probabilities: Record<string, number>;
+  /** The options a person can choose */
+  options: string[] | null;
+  /** A field that names the decided artifact, else its first text */
+  subjectTitle: string | null;
+}
+
 export interface DeciderInfo {
   model: string;
   threshold: number | null;
@@ -46,6 +59,8 @@ export interface DeciderInfo {
   vote?: string; // how the ensemble decides: majority, unanimous or mean
   shadow?: { model: string; compared: number; agree: number }; // shadow model and its agreement
   itemThresholds?: Record<string, number>; // checklist items with their own threshold
+  needsReview?: ReviewItem[]; // its unsure decisions no one reviewed, newest first (at most 20)
+  needsReviewCount?: number; // how many there are
 }
 
 export interface ShadowAnswer {
@@ -1068,7 +1083,9 @@ function SectionsNote({ decision, sections }: { decision: DecisionInfo; sections
 const MAX_REVIEW_OPTIONS = 6;
 
 /** Review: a person confirms or overrides an unsure decision; the best guess is preselected. */
-const ReviewControl = memo(({ decision, artifactId }: { decision: DecisionInfo; artifactId: string }) => {
+type Reviewable = Pick<DecisionInfo, 'probabilities' | 'options' | 'bestGuess'>;
+
+export const ReviewControl = memo(({ decision, artifactId }: { decision: Reviewable; artifactId: string }) => {
   const [reviewed, setReviewed] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
