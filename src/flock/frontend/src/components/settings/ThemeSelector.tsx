@@ -275,7 +275,7 @@ const ThemeSelector: React.FC = () => {
             </div>
           )}
 
-          {filteredThemes.length === 0 && !loading && (
+          {builtInThemes.length + filteredThemes.length === 0 && !loading && (
             <div style={{
               padding: 'var(--space-component-md)',
               textAlign: 'center',

@@ -25,6 +25,16 @@ describe('ThemeSelector', () => {
     expect(useSettingsStore.getState().appearance.theme).toBe('paper');
   });
 
+  it('finds a built-in theme by name without claiming nothing matched', async () => {
+    render(<ThemeSelector />);
+    await waitFor(() => expect(screen.getByText('Built-in Themes')).toBeTruthy());
+
+    fireEvent.change(screen.getByLabelText('Search Themes'), { target: { value: 'graphite' } });
+
+    expect(screen.getByRole('button', { name: 'Graphite' })).toBeTruthy();
+    expect(screen.queryByText(/No themes found/)).toBeNull();
+  });
+
   it('shows a theme stored by the old dashboard as Graphite', async () => {
     useSettingsStore.getState().setTheme('default');
 

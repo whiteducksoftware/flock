@@ -14,7 +14,11 @@ if (!rootElement) {
   throw new Error('Root element not found');
 }
 
-// The stored theme, again after a reload (a terminal theme once it is loaded)
-void applyThemeByName(useSettingsStore.getState().appearance.theme);
+// The stored theme, again after a reload (a terminal theme once it is loaded).
+// A theme that is gone is replaced by Graphite in the settings too.
+const storedTheme = useSettingsStore.getState().appearance.theme;
+void applyThemeByName(storedTheme).then((applied) => {
+  if (applied !== storedTheme) useSettingsStore.getState().setTheme(applied);
+});
 
 ReactDOM.createRoot(rootElement).render(<App />);

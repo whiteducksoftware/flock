@@ -46,12 +46,13 @@ All values are in [`tokens.css`](tokens.css). The root element carries `data-the
 | `--sure` / `--sure-ink` | `#7BA8F5` / `#9DBEF8` | `#2E6BD1` / `#2559B0` | Blue fill / blue text |
 | `--error` / `--error-ink` | `#F07563` / `#F59384` | `#C8432F` / `#A8361F` | Coral fill / coral text |
 | `--hatch` | white 22 % | black 24 % | Stripe color of `.hatch` |
+| `--on-signal` / `--on-sure` / `--on-error` | `#0B0C0E` (all three) | `#16171A` / `#FFFFFF` / `#FFFFFF` | Text on a solid signal fill (filled badges and buttons) |
 
 The `-soft` variants (13-16 % alpha) tint backgrounds such as the streaming ticker or a selected review option.
 
 **Radii:** 6 px tags, 7-8 px buttons and chips, 10-12 px nodes and cards, 16 px dialogs. **Spacing:** 4 px base; node padding 12 × 14 px; panel padding 16-20 px; 80 px between columns of nodes in the hierarchical layout.
 
-**Terminal themes.** The 336 themes in `src/flock/themes` keep working: the theme applicator maps them onto these tokens (background → `--bg`/`--board`, foreground → `--text`, bright black → `--text-3`, yellow → `--signal`, blue → `--sure`, red → `--error`; surfaces and lines are mixed from background and foreground). No component may hard-code a color. Text tokens of a terminal theme are checked for 4.5:1 against `--surface` and darkened or lightened when they fail.
+**Terminal themes.** The 336 themes in `src/flock/themes` keep working: the theme applicator maps them onto these tokens (background → `--bg`/`--board`, foreground → `--text`, bright black → `--text-3`, yellow → `--signal`, blue → `--sure`, red → `--error`; surfaces and lines are mixed from background and foreground). No component may hard-code a color. Text tokens of a terminal theme are checked for 4.5:1 against `--surface` and darkened or lightened when they fail; the `--on-*` tokens take the theme's background or foreground, or black or white, whichever reads on their fill.
 
 ## Typography
 

@@ -282,7 +282,7 @@
 
   /* Duration */
   --duration-instant: 0ms;
-  --duration-fast: 100ms;
+  /* --duration-fast (120 ms) comes from the tokens */
   --duration-normal: 200ms;
   --duration-slow: 300ms;
   --duration-slower: 400ms;

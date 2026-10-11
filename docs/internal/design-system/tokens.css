@@ -37,6 +37,11 @@
   --error-soft: rgba(240, 117, 99, 0.13);
   --hatch: rgba(255, 255, 255, 0.22);
 
+  /* Text on a solid signal fill (a filled badge or button) */
+  --on-signal: #0b0c0e;
+  --on-sure: #0b0c0e;
+  --on-error: #0b0c0e;
+
   /* Depth */
   --scrim: rgba(5, 6, 8, 0.72);
   --shadow: 0 1px 0 rgba(255, 255, 255, 0.035) inset, 0 18px 40px -18px rgba(0, 0, 0, 0.75);
@@ -84,6 +89,10 @@
   --error-ink: #a8361f;
   --error-soft: rgba(200, 67, 47, 0.1);
   --hatch: rgba(20, 20, 20, 0.24);
+
+  --on-signal: #16171a;
+  --on-sure: #ffffff;
+  --on-error: #ffffff;
 
   --scrim: rgba(240, 239, 235, 0.72);
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 14px 30px -16px rgba(0, 0, 0, 0.2);

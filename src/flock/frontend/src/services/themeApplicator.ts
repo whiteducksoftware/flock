@@ -41,6 +41,9 @@ export const THEME_TOKENS = [
   '--error',
   '--error-ink',
   '--error-soft',
+  '--on-signal',
+  '--on-sure',
+  '--on-error',
   '--hatch',
   '--scrim',
 ] as const;
@@ -119,6 +122,13 @@ export function legible(color: string, ground: string, target: string): string {
   return result;
 }
 
+/** Text for a solid `fill`: the theme's ground or text if it reads, else black or white. */
+export function onFill(fill: string, bg: string, fg: string): string {
+  const candidates = [bg, fg].sort((a, b) => contrastRatio(b, fill) - contrastRatio(a, fill));
+  if (contrastRatio(candidates[0]!, fill) >= MIN_CONTRAST) return candidates[0]!;
+  return contrastRatio('#000000', fill) >= contrastRatio('#ffffff', fill) ? '#000000' : '#ffffff';
+}
+
 /** The tokens a terminal theme sets, as CSS values. */
 export function terminalThemeTokens(theme: TerminalTheme): Record<ThemeToken, string> {
   // Theme files may pad their values (" #f7f7f7"): every color as plain hex
@@ -158,6 +168,9 @@ export function terminalThemeTokens(theme: TerminalTheme): Record<ThemeToken, st
     '--error': normal.red,
     '--error-ink': bright.red,
     '--error-soft': alpha(normal.red, 0.13),
+    '--on-signal': onFill(normal.yellow, bg, fg),
+    '--on-sure': onFill(normal.blue, bg, fg),
+    '--on-error': onFill(normal.red, bg, fg),
     '--hatch': alpha(fg, light ? 0.24 : 0.22),
     '--scrim': alpha(bg, 0.72),
   };
@@ -208,22 +221,26 @@ export function builtInTheme(name: string): BuiltInTheme | null {
 /**
  * Apply a theme by name: a built-in one at once, a terminal theme once it is
  * loaded. Falls back to Graphite when a terminal theme cannot be loaded.
+ * Returns the name of the theme now applied ('default' comes back as
+ * 'graphite'), so a caller can store it.
  */
 export async function applyThemeByName(
   name: string,
   root: HTMLElement = document.documentElement,
   load: (name: string) => Promise<TerminalTheme> = fetchTheme
-): Promise<void> {
+): Promise<string> {
   const builtIn = builtInTheme(name);
   if (builtIn) {
     applyBuiltInTheme(builtIn, root);
-    return;
+    return builtIn;
   }
   try {
     applyTheme(await load(name), root);
+    return name;
   } catch (error) {
     console.error(`[Theme] Could not load "${name}", using Graphite`, error);
     applyBuiltInTheme('graphite', root);
+    return 'graphite';
   }
 }
 

@@ -38,12 +38,12 @@
 
 .applyButton {
   background: var(--color-success);
-  color: var(--color-text-on-primary);
+  color: var(--on-sure);
 }
 
 .deleteButton {
   background: var(--color-error);
-  color: var(--color-text-on-primary);
+  color: var(--on-error);
 }
 
 .saveButton:disabled,

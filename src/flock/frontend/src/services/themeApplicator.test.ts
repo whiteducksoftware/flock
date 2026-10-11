@@ -75,6 +75,21 @@ describe('terminal themes on the tokens', () => {
     );
   });
 
+  it('puts readable text on every solid signal fill', () => {
+    for (const file of Object.keys(THEME_FILES).map((path) => path.split('/').pop()!)) {
+      const tokens = terminalThemeTokens(loadTheme(file));
+      for (const [text, fill] of [
+        ['--on-signal', '--signal'],
+        ['--on-sure', '--sure'],
+        ['--on-error', '--error'],
+      ] as const) {
+        expect(contrastRatio(tokens[text], tokens[fill]), `${file} ${text}`).toBeGreaterThanOrEqual(
+          MIN_CONTRAST
+        );
+      }
+    }
+  });
+
   it('keeps every text token readable for all bundled terminal themes', () => {
     const files = Object.keys(THEME_FILES).map((path) => path.split('/').pop()!);
     expect(files.length).toBeGreaterThan(300);
@@ -125,13 +140,14 @@ describe('applying themes', () => {
     const root = document.documentElement;
     const load = vi.fn(async () => dark);
 
-    await applyThemeByName('default', root, load); // stored by the old dashboard
+    // 'default' was stored by the old dashboard
+    expect(await applyThemeByName('default', root, load)).toBe('graphite');
     expect(root.dataset.theme).toBe('graphite');
-    await applyThemeByName('paper', root, load);
+    expect(await applyThemeByName('paper', root, load)).toBe('paper');
     expect(root.dataset.theme).toBe('paper');
     expect(load).not.toHaveBeenCalled();
 
-    await applyThemeByName('dracula', root, load);
+    expect(await applyThemeByName('dracula', root, load)).toBe('dracula');
     expect(load).toHaveBeenCalledWith('dracula');
     expect(root.style.getPropertyValue('--bg')).toBe('#101010');
   });
@@ -141,10 +157,11 @@ describe('applying themes', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     applyTheme(dark);
 
-    await applyThemeByName('gone', root, async () => {
+    const applied = await applyThemeByName('gone', root, async () => {
       throw new Error('404');
     });
 
+    expect(applied).toBe('graphite'); // so the settings stop asking for it
     expect(root.dataset.theme).toBe('graphite');
     expect(root.style.getPropertyValue('--bg')).toBe('');
   });

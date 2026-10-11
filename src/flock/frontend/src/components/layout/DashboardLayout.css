@@ -222,7 +222,7 @@
 
 .controls-toggle.active {
   background: var(--color-success);
-  color: var(--color-text-on-primary);
+  color: var(--on-sure);
   border-color: var(--color-success);
   box-shadow: var(--shadow-sm);
 }
