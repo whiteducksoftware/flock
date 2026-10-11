@@ -31,6 +31,8 @@ describe('rangeFromBrush', () => {
     expect(rangeFromBrush(now - 10 * MIN, now, now, bucket)).toEqual({ preset: 'last10min' });
     expect(rangeFromBrush(now - 5 * MIN - 20_000, now - 10_000, now, bucket)).toEqual({ preset: 'last5min' });
     expect(rangeFromBrush(now - 60 * MIN, now, now, bucket)).toEqual({ preset: 'last1hour' });
+    // Over five hours a bar is five minutes: ten minutes are still the ten-minute preset
+    expect(rangeFromBrush(now - 10 * MIN, now, now, 5 * MIN)).toEqual({ preset: 'last10min' });
   });
 
   it('keeps any other brush to now open, so it stays live, and a brush in the past fixed', () => {

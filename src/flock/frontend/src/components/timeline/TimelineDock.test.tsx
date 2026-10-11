@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useFilterStore } from '../../store/filterStore';
 import { useUIStore } from '../../store/uiStore';
 import TimelineDock from './TimelineDock';
@@ -91,5 +91,27 @@ describe('TimelineDock', () => {
     useUIStore.getState().openDock('traces', 'c-123');
 
     await waitFor(() => expect((screen.getByRole('textbox', { name: 'Search traces' }) as HTMLInputElement).value).toBe('c-123'));
+  });
+
+  it('keeps an edited trace search across tabs, and a trace link replaces it', async () => {
+    useUIStore.setState({ dockOpen: true, dockTab: 'traces', traceSearch: 'c-123' });
+    render(<TimelineDock />);
+    const search = () => screen.getByRole('textbox', { name: 'Search traces' }) as HTMLInputElement;
+
+    fireEvent.change(await waitFor(search), { target: { value: 'status:error' } });
+    fireEvent.click(screen.getByRole('tab', { name: 'History' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Traces' }));
+    await waitFor(() => expect(search().value).toBe('status:error'));
+
+    // The same run's link again
+    act(() => useUIStore.getState().openDock('traces', 'c-123'));
+    await waitFor(() => expect(search().value).toBe('c-123'));
+  });
+
+  it('says when the activity is not available', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 503 })));
+    render(<TimelineDock />);
+
+    expect(await screen.findByText('Activity not available')).toBeTruthy();
   });
 });

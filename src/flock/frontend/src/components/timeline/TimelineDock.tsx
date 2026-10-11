@@ -31,7 +31,7 @@ const TimelineDock: React.FC = () => {
   const tab = useUIStore((state) => state.dockTab);
   const traceSearch = useUIStore((state) => state.traceSearch);
   const timeRange = useFilterStore((state) => state.timeRange);
-  const { activity, domain } = useActivity(BUCKETS);
+  const { activity, domain, failed } = useActivity(BUCKETS);
   const tabIds = useId();
   const range = formatTimeRange(timeRange);
 
@@ -43,7 +43,7 @@ const TimelineDock: React.FC = () => {
             Activity <span className={styles.faint}>· last hour</span>
           </span>
           <span className={`mono num ${styles.faint} ${styles.count}`}>
-            {activity ? `${activity.total} artifact${activity.total === 1 ? '' : 's'}` : 'Loading…'}
+            {activity ? `${activity.total} artifact${activity.total === 1 ? '' : 's'}` : failed ? 'Activity not available' : 'Loading…'}
           </span>
         </div>
         <div className={styles.middle}>
@@ -116,8 +116,14 @@ const TimelineDock: React.FC = () => {
         </button>
       </div>
       <div id={`${tabIds}-panel`} role="tabpanel" aria-labelledby={`${tabIds}-${tab}`} tabIndex={0} className={styles.body}>
-        {/* Keyed by the search, so a trace link opens on its correlation */}
-        {tab === 'traces' && <TraceModuleJaeger key={traceSearch} views={['timeline', 'statistics']} search={traceSearch} />}
+        {/* The search lives in the dock: it outlives the tab, and a trace link replaces it */}
+        {tab === 'traces' && (
+          <TraceModuleJaeger
+            views={['timeline', 'statistics']}
+            search={traceSearch}
+            onSearchChange={(search) => useUIStore.getState().setTraceSearch(search)}
+          />
+        )}
         {tab === 'history' && <HistoricalArtifactsModule />}
         {tab === 'metrics' && <TraceModuleJaeger views={['metrics', 'dependencies']} />}
         {tab === 'settings' && <TraceModuleJaeger views={['configuration', 'guide']} />}

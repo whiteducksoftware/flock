@@ -47,8 +47,9 @@ export function brushOf(range: TimeRange, domain: Domain, now: number): { from: 
 export function rangeFromBrush(start: number, end: number, now: number, bucketMs: number): TimeRange {
   if (now - end > bucketMs) return { preset: 'custom', start, end };
   const length = now - start;
-  const preset = PRESETS.find((entry) => Math.abs(entry.ms - length) <= bucketMs);
-  return preset ? { preset: preset.preset } : { preset: 'custom', start };
+  // The closest preset, within a bar (over five hours a bar is five minutes)
+  const closest = PRESETS.reduce((best, entry) => (Math.abs(entry.ms - length) < Math.abs(best.ms - length) ? entry : best));
+  return Math.abs(closest.ms - length) <= bucketMs ? { preset: closest.preset } : { preset: 'custom', start };
 }
 
 const clock = (at: number) => new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });

@@ -32,8 +32,10 @@ interface SpanNode extends Span {
 interface TraceModuleJaegerProps {
   /** The views this place offers, the first shown first (the timeline dock's tabs split them) */
   views?: ViewMode[];
-  /** Start with this search, e.g. the correlation ID of a failed run */
+  /** The search, e.g. the correlation ID of a failed run; a new one replaces what was typed */
   search?: string;
+  /** Called with what is typed, so the search outlives the viewer (the dock's tabs) */
+  onSearchChange?: (search: string) => void;
 }
 
 interface TraceGroup {
@@ -76,7 +78,7 @@ export type ViewMode = 'timeline' | 'statistics' | 'metrics' | 'dependencies' | 
 
 const ALL_VIEWS: ViewMode[] = ['timeline', 'statistics', 'metrics', 'dependencies', 'configuration', 'guide'];
 
-const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = ({ search, views = ALL_VIEWS }) => {
+const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = ({ search, onSearchChange, views = ALL_VIEWS }) => {
   // A view button only where there is more than one view to choose
   const shows = (view: ViewMode) => views.length > 1 && views.includes(view);
   const [traces, setTraces] = useState<Span[]>([]);
@@ -86,6 +88,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = ({ search, views = A
   const [expandedSpans, setExpandedSpans] = useState<Set<string>>(new Set());
   const [collapsedSpans, setCollapsedSpans] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState(search ?? '');
+  useEffect(() => setSearchQuery(search ?? ''), [search]);
   const [viewMode, setViewMode] = useState<ViewMode>(views[0] ?? 'timeline');
   const [focusedSpanId, setFocusedSpanId] = useState<string | null>(null);
   const [expandedDeps, setExpandedDeps] = useState<Set<string>>(new Set());
@@ -917,7 +920,10 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = ({ search, views = A
           aria-label="Search traces"
           placeholder="Search traces: agent:billing_team status:error service:DecisionEngine, an operation, a trace or correlation ID"
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            onSearchChange?.(e.target.value);
+          }}
           style={{
             width: '100%',
             padding: 'var(--space-component-sm)',

@@ -39,6 +39,7 @@ interface UIState {
   dockTab: DockTab;
   traceSearch: string;
   openDock: (tab: DockTab, traceSearch?: string) => void;
+  setTraceSearch: (traceSearch: string) => void;
   closeDock: () => void;
 
   // The node in focus: a full stage over the dimmed board (not saved)
@@ -94,6 +95,7 @@ export const useUIStore = create<UIState>()(
         openDock: (tab: DockTab, traceSearch?: string) =>
           set((state) => ({ dockOpen: true, dockTab: tab, traceSearch: traceSearch ?? state.traceSearch, focusedNodeId: null })),
         closeDock: () => set({ dockOpen: false }),
+        setTraceSearch: (traceSearch: string) => set({ traceSearch }),
 
         focusedNodeId: null,
         focus: (nodeId: string) => set({ focusedNodeId: nodeId, dockOpen: false }),
