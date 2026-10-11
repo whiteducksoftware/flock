@@ -54,6 +54,7 @@ class RunRecord:
     completed_at: datetime | None = None
     metrics: dict[str, Any] = field(default_factory=dict)
     error_message: str | None = None
+    error_type: str | None = None
 
     def to_graph_run(self) -> GraphRun:
         status = (
@@ -71,6 +72,7 @@ class RunRecord:
             completed_at=self.completed_at,
             metrics=dict(self.metrics),
             error_message=self.error_message,
+            error_type=self.error_type,
         )
 
 
@@ -121,6 +123,11 @@ class DashboardEventCollector(AgentComponent):
     # Graph assembly helpers
     _graph_lock: asyncio.Lock = PrivateAttr(default_factory=asyncio.Lock)
     _run_registry: dict[str, RunRecord] = PrivateAttr(default_factory=dict)
+    # Per agent: its active runs, and the run it started last (status derivation)
+    _active_runs: dict[str, set[str]] = PrivateAttr(default_factory=dict)
+    _latest_run: dict[str, str] = PrivateAttr(default_factory=dict)
+    # Per agent, the run whose failure was seen last (not by the wall clock)
+    _last_failure: dict[str, str] = PrivateAttr(default_factory=dict)
     _artifact_consumers: dict[str, set[str]] = PrivateAttr(
         default_factory=lambda: defaultdict(set)
     )
@@ -135,6 +142,9 @@ class DashboardEventCollector(AgentComponent):
         self._websocket_manager = None
         self._graph_lock = asyncio.Lock()
         self._run_registry = {}
+        self._active_runs = {}
+        self._latest_run = {}
+        self._last_failure = {}
         self._artifact_consumers = defaultdict(set)
         self._agent_status = {}
         self._store: BlackboardStore | None = store
@@ -206,7 +216,7 @@ class DashboardEventCollector(AgentComponent):
                 correlation_id=correlation_id,
                 ensure_started=True,
             )
-            run.status = "active"
+            self._set_run_status_locked(run, "active")
             for artifact_id in consumed_artifacts:
                 if artifact_id not in run.consumed_artifacts:
                     run.consumed_artifacts.append(artifact_id)
@@ -276,7 +286,7 @@ class DashboardEventCollector(AgentComponent):
                 correlation_id=correlation_id,
                 ensure_started=True,
             )
-            run.status = "active"
+            self._set_run_status_locked(run, "active")
             if artifact_id not in run.produced_artifacts:
                 run.produced_artifacts.append(artifact_id)
             await self._update_agent_snapshot_locked(agent)
@@ -357,20 +367,23 @@ class DashboardEventCollector(AgentComponent):
                 correlation_id=correlation_id,
                 ensure_started=True,
             )
-            # on_terminate follows on_error too: a failed run stays an error
-            if run.status != "error":
-                run.status = "completed"
+            # on_terminate follows on_error too: a failed run stays an error,
+            # and so does its agent until it runs again
+            failed = run.status == "error"
+            if not failed:
+                self._set_run_status_locked(run, "completed")
                 run.duration_ms = duration_ms
                 run.completed_at = datetime.now(UTC)
             run.metrics = dict(metrics)
             for artifact_id in artifacts_produced:
                 if artifact_id not in run.produced_artifacts:
                     run.produced_artifacts.append(artifact_id)
-            self._agent_status[agent.name] = "idle"
+            self._agent_status[agent.name] = self._derived_status_locked(agent.name)
+            event.agent_status = self._agent_status[agent.name]
             await self._update_agent_snapshot_locked(agent)
 
-        # Broadcast via WebSocket if manager is configured
-        if self._websocket_manager:
+        # A failed run was announced as agent_error; agent_completed would undo it
+        if self._websocket_manager and not failed:
             await self._websocket_manager.broadcast(event)
 
     async def on_error(self, agent: "Agent", ctx: Context, error: Exception) -> None:
@@ -417,16 +430,36 @@ class DashboardEventCollector(AgentComponent):
                 correlation_id=correlation_id,
                 ensure_started=True,
             )
-            run.status = "error"
+            self._set_run_status_locked(run, "error")
+            self._last_failure[agent.name] = run.run_id
             run.error_message = error_message
+            run.error_type = error_type
             run.completed_at = datetime.now(UTC)
             run.duration_ms = duration_ms
-            self._agent_status[agent.name] = "error"
+            self._agent_status[agent.name] = self._derived_status_locked(agent.name)
+            event.agent_status = self._agent_status[agent.name]
             await self._update_agent_snapshot_locked(agent)
 
         # Broadcast via WebSocket if manager is configured
         if self._websocket_manager:
             await self._websocket_manager.broadcast(event)
+
+    def _set_run_status_locked(self, run: RunRecord, status: str) -> None:
+        """Set a run's status and keep its agent's active runs up to date."""
+        run.status = status
+        active = self._active_runs.setdefault(run.agent_name, set())
+        if status == "active":
+            active.add(run.run_id)
+        else:
+            active.discard(run.run_id)
+
+    def _derived_status_locked(self, agent_name: str) -> str:
+        """An agent is running while any of its runs is; otherwise the run it
+        started last says whether it failed (runs can end out of order)."""
+        if self._active_runs.get(agent_name):
+            return "running"
+        latest = self._run_registry.get(self._latest_run.get(agent_name, ""))
+        return "error" if latest is not None and latest.status == "error" else "idle"
 
     async def snapshot_graph_state(self) -> GraphState:
         """Return a thread-safe snapshot of runs, consumptions, and agent status."""
@@ -437,8 +470,12 @@ class DashboardEventCollector(AgentComponent):
             }
             runs = [record.to_graph_run() for record in self._run_registry.values()]
             agent_status = dict(self._agent_status)
+            last_failures = dict(self._last_failure)
         return GraphState(
-            consumptions=consumptions, runs=runs, agent_status=agent_status
+            consumptions=consumptions,
+            runs=runs,
+            agent_status=agent_status,
+            last_failures=last_failures,
         )
 
     async def agent_runs(
@@ -473,6 +510,7 @@ class DashboardEventCollector(AgentComponent):
                     "artifacts_produced": len(record.produced_artifacts),
                 },
                 "error_message": record.error_message,
+                "error_type": record.error_type,
             }
             for record in records[:limit]
         ]
@@ -529,6 +567,8 @@ class DashboardEventCollector(AgentComponent):
                 started_at=datetime.now(UTC) if ensure_started else None,
             )
             self._run_registry[run_id] = run
+            # Creation order: the wall clock can step back
+            self._latest_run[agent_name] = run_id
         else:
             run.agent_name = agent_name
             if correlation_id:

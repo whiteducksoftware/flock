@@ -353,6 +353,18 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 "name": agent.name,
                 "status": agent_status.get(agent.name, "idle"),
                 "subscriptions": subscriptions,
+                # Each subscription's types, repeated as often as it needs them:
+                # an AND gate or join has several, .consumes(A, A, A) three As
+                "subscriptionGroups": [
+                    sorted(
+                        name
+                        for name, count in (
+                            sub.type_counts or dict.fromkeys(sub.type_names, 1)
+                        ).items()
+                        for _ in range(count)
+                    )
+                    for sub in agent.subscriptions
+                ],
                 "outputTypes": output_types,
                 "sentCount": produced.total if produced else 0,
                 "recvCount": consumed.total if consumed else 0,
@@ -368,6 +380,10 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 "isOpenClawAgent": is_openclaw_agent,
                 "engineTag": self._engine_tag(agent),
             }
+            if node_data["status"] == "error":
+                node_data["lastError"] = self._last_error(
+                    graph_state.last_failures.get(agent.name), graph_state.runs
+                )
 
             # Decision agents and choice subscribers
             decision = decider_info(
@@ -496,6 +512,24 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             existing_names.add(name)
 
         return nodes
+
+    @staticmethod
+    def _last_error(run_id: str | None, runs: list[GraphRun]) -> dict[str, Any] | None:
+        """The run whose failure the collector saw last, for the card's error row.
+
+        The collector keeps that order; the timestamps are only shown.
+        """
+        run = next((run for run in runs if run.run_id == run_id), None)
+        if run is None:
+            return None
+        at = run.completed_at or run.started_at
+        return {
+            "type": run.error_type,
+            "message": run.error_message,
+            "at": at.isoformat() if at else None,
+            "correlationId": run.correlation_id,
+            "runId": run.run_id,
+        }
 
     @staticmethod
     def _engine_tag(agent: object) -> str | None:
