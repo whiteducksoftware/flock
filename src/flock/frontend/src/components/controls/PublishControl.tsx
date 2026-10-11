@@ -136,11 +136,19 @@ const PublishControl: React.FC = () => {
 
         // Image fields: a picture must be chosen unless the field is optional
         const imageKind = imageFieldKind(prop, artifactType.schema);
-        if (imageKind) {
-          const missing = imageKind === 'many' ? !(value?.length > 0) : !value;
-          const required = isExplicitlyRequired || (!hasDefault && imageKind === 'one');
+        if (imageKind === 'many') {
+          // An empty list is valid unless the schema asks for a minimum
+          const arraySchema = prop.anyOf?.find((option: any) => option?.type === 'array') ?? prop;
+          const minItems = arraySchema.minItems ?? 0;
+          if ((value?.length ?? 0) < minItems) {
+            newErrors[key] = `${key} needs at least ${minItems} picture${minItems === 1 ? '' : 's'}`;
+          }
+          return;
+        }
+        if (imageKind === 'one') {
+          const required = isExplicitlyRequired || !hasDefault;
           // A required field that may be None is valid without a picture (null)
-          if (missing && required && !(imageKind === 'one' && isNullable(prop))) {
+          if (!value && required && !isNullable(prop)) {
             newErrors[key] = `${key} is required`;
           }
           return;

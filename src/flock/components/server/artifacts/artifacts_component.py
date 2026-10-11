@@ -240,13 +240,45 @@ class ArtifactsComponent(ServerComponent):
         # No - op
         pass
 
+    @staticmethod
+    def _upload_metadata(controls: dict[str, str]) -> tuple[Any, set[str] | None]:
+        """Visibility and tags of an upload: JSON text parts, as in the JSON body."""
+        visibility = None
+        if controls.get("visibility"):
+            try:
+                visibility = deserialize_visibility(
+                    json.loads(controls["visibility"]), strict=True
+                )
+            except Exception as exc:
+                raise HTTPException(
+                    status_code=400, detail=f"Invalid 'visibility': {exc}"
+                ) from exc
+        tags = None
+        if controls.get("tags"):
+            try:
+                parsed = json.loads(controls["tags"])
+            except json.JSONDecodeError as exc:
+                raise HTTPException(
+                    status_code=400, detail=f"Invalid 'tags': {exc}"
+                ) from exc
+            if not (
+                isinstance(parsed, list) and all(isinstance(t, str) for t in parsed)
+            ):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid 'tags': expected a JSON array of strings",
+                )
+            tags = set(parsed) or None
+        return visibility, tags
+
     async def _publish_upload(self, form, orchestrator) -> ArtifactPublishResponse:
         # Control values come from text parts only: a file part may be named
         # like them (an artifact can have a field called "type" or "payload")
         controls = {
             name: value
             for name, value in form.multi_items()
-            if isinstance(value, str) and name in ("type", "payload")
+            if isinstance(value, str)
+            and name in ("type", "payload", "visibility", "tags", "partition_key")
         }
         artifact_type = controls.get("type")
         if not artifact_type:
@@ -265,6 +297,7 @@ class ArtifactsComponent(ServerComponent):
             model = type_registry.resolve(type_registry.resolve_name(artifact_type))
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        visibility, tags = self._upload_metadata(controls)
 
         try:
             # Each file is checked and re-encoded as it is read, so raw uploads
@@ -283,6 +316,9 @@ class ArtifactsComponent(ServerComponent):
             await orchestrator.publish(
                 {"type": artifact_type, "payload": payload},
                 correlation_id=str(uuid4()),
+                visibility=visibility,
+                tags=tags,
+                partition_key=controls.get("partition_key") or None,
             )
         except image_uploads.UploadError as exc:
             raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc

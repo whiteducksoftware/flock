@@ -347,3 +347,38 @@ async def test_dashboard_publishes_are_reencoded_on_the_server(dashboard):
     (photo,) = await _stored(flock, UploadPhoto)
     with PILImage.open(io.BytesIO(photo.picture.to_bytes())) as stored:
         assert stored.size == (1024, 51)
+
+
+async def test_uploads_keep_visibility_tags_and_partition_key(setup):
+    flock, client = setup
+
+    response = client.post(
+        "/api/v1/artifacts/upload",
+        data={
+            "type": "UploadPhoto",
+            "payload": json.dumps({"caption": "private"}),
+            "visibility": json.dumps({"kind": "Private", "agents": ["reviewer"]}),
+            "tags": json.dumps(["vacation", "2026"]),
+            "partition_key": "family",
+        },
+        files={"picture": ("red.png", _png_bytes(), "image/png")},
+    )
+
+    assert response.status_code == 200, response.text
+    (artifact,) = await flock.store.list()
+    assert artifact.visibility.kind == "Private"
+    assert artifact.tags == {"vacation", "2026"}
+    assert artifact.partition_key == "family"
+
+
+def test_invalid_upload_metadata_is_rejected(setup):
+    _, client = setup
+
+    response = client.post(
+        "/api/v1/artifacts/upload",
+        data={"type": "UploadPhoto", "payload": json.dumps({"caption": "x"}), "tags": "not json"},
+        files={"picture": ("red.png", _png_bytes(), "image/png")},
+    )
+
+    assert response.status_code == 400
+    assert "tags" in response.text

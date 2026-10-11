@@ -66,6 +66,18 @@ const photoTypes = [
       required: ['note', 'picture'],
     },
   },
+  {
+    name: 'Strip',
+    schema: {
+      $defs: { Image: imageDef },
+      type: 'object',
+      properties: {
+        title: { type: 'string', title: 'Title' },
+        frames: { type: 'array', items: { $ref: '#/$defs/Image' }, title: 'Frames' },
+      },
+      required: ['title', 'frames'],
+    },
+  },
 ];
 
 const png = (name: string) =>
@@ -166,5 +178,16 @@ describe('PublishControl image fields', () => {
 
     await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
     expect(publishedContent()).toEqual({ note: 'no picture', picture: null });
+  });
+
+  it('allows an empty required list of images unless the schema sets minItems', async () => {
+    await openForm('Strip');
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ correlation_id: 'c-5' }) });
+
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'blank' } });
+    fireEvent.click(screen.getByRole('button', { name: /publish artifact/i }));
+
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+    expect(publishedContent()).toEqual({ title: 'blank', frames: [] });
   });
 });
