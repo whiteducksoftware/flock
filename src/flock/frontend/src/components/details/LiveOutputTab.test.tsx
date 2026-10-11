@@ -615,9 +615,9 @@ describe('LiveOutputTab', () => {
   });
 
   describe('Virtualization Performance', () => {
+    // Virtualization keeps the DOM to the visible window however many lines
+    // arrive; wall-clock limits would only measure the machine
     it('should handle 1000+ lines without performance degradation', () => {
-      const startTime = performance.now();
-
       const outputs: StreamingOutputData[] = Array.from({ length: 1000 }, (_, i) => ({
         agent_name: 'test_agent',
         run_id: 'run-1',
@@ -629,13 +629,8 @@ describe('LiveOutputTab', () => {
 
       render(<MockVirtualizedOutputTab nodeId="agent-1" outputs={outputs} />);
 
-      const endTime = performance.now();
-      const renderTime = endTime - startTime;
-
-      // Virtualized rendering should be fast (< 100ms for 1000 lines)
-      expect(renderTime).toBeLessThan(100);
-
       expect(screen.getByTestId('total-lines')).toHaveTextContent('1000');
+      expect(screen.getAllByTestId(/virtual-line-/).length).toBeLessThan(100);
     });
 
     it('should only render visible lines in virtualized mode', () => {
@@ -675,12 +670,11 @@ describe('LiveOutputTab', () => {
           })
         );
 
-        const startTime = performance.now();
         rerender(<MockVirtualizedOutputTab nodeId="agent-1" outputs={outputs} />);
-        const endTime = performance.now();
 
-        // Each update should be fast
-        expect(endTime - startTime).toBeLessThan(50);
+        // Every update counts all lines and keeps only the visible ones
+        expect(screen.getByTestId('total-lines')).toHaveTextContent(String((batch + 1) * 100));
+        expect(screen.getAllByTestId(/virtual-line-/).length).toBeLessThan(100);
       }
 
       expect(screen.getByTestId('total-lines')).toHaveTextContent('1000');

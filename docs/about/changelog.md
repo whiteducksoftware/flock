@@ -74,6 +74,7 @@ search:
 
 ### 🐛 Fixes
 
+- **The live output tests no longer time the machine** (#587). Two virtualization tests asserted wall-clock limits (under 100 ms and 50 ms) and failed at random on slow CI runners. They now check what virtualization guarantees: every line is counted, and only the visible ones are in the DOM after each update.
 - **Dashboard keyboard shortcuts work again** (#581). `App` and `DashboardLayout` both registered the shortcuts, so Ctrl+M, Ctrl+Shift+P, Ctrl+Shift+F and Ctrl+, toggled twice and did nothing, and Esc closed two panels per press. The layout registers them once.
 - **The publish panel's tests wait for the artifact types** (#578). The panel renders its type select before the types load, and the tests chose a type as soon as the select was there, so they failed at random on slow CI runners (12 of 15 with the types arriving 20 ms later). They now wait for the type's option.
 - **Dashboard decisions show their review and explanation, wherever these are** (#550). A decision in the graph showed its review and explanation only when they were in the same view, and an aggregating agent counted each group by the newest coverage revision in view. Reviews, explanations and newer revisions are published later, so filters and the view's limit left them out: a reviewed decision offered its review buttons again, and a group could count with a stale outcome. The graph now loads them from the store, starting at the earliest decision or coverage in view, with the view's visibility filter.
