@@ -258,11 +258,17 @@ class DSPySignatureBuilder:
                 # Image fields reach the model as images (dspy.Image), not text
                 prompt_model = dspy_input_model(input_model)
 
-                # Handle batching: pluralize field name and use list[Type]
-                if batched:
+                # Batches, and several inputs of one type (.consumes(A, A)), are
+                # lists: pluralize the field name and use list[Type]
+                if batched or len(artifacts_of_type) > 1:
                     field_name = self._pluralize(field_name)
                     input_type = list[prompt_model]
-                    desc = f"Batch of {input_model.__name__} instances to process"
+                    desc = (
+                        f"Batch of {input_model.__name__} instances to process"
+                        if batched
+                        else f"{len(artifacts_of_type)} {input_model.__name__} "
+                        "instances, consumed together"
+                    )
                     fields[field_name] = (input_type, dspy_mod.InputField(desc=desc))
                 else:
                     # Single input: use singular field name
@@ -411,13 +417,13 @@ class DSPySignatureBuilder:
                     for art in artifacts_of_type
                 ]
 
-                if batched:
-                    # Batch mode: pluralize field name and use list
+                if batched or len(validated_payloads) > 1:
+                    # Batches and several inputs of one type: pluralized list,
+                    # as declared in the signature
                     field_name = self._pluralize(field_name)
                     payload[field_name] = validated_payloads
                 else:
-                    # Single mode: use first (or only) artifact
-                    # For multi-input joins, we have one artifact per type
+                    # One artifact of this type (joins have one per type)
                     payload[field_name] = (
                         validated_payloads[0] if validated_payloads else {}
                     )

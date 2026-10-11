@@ -69,6 +69,7 @@ search:
 
 ### 🐛 Fixes
 
+- **LLM agents see every input of one type** (#546). An agent consuming several artifacts of one type at once, such as `.consumes(Task, Task)`, received all of them, but the DSPy engine sent only the first to the model. Such inputs are now one list field (`tasks: list[Task]`), as in batches; types that occur once keep their singular field.
 - **Scripts using the SQLite store exit.** The aiosqlite connection ran on a non-daemon thread, so a process whose `SQLiteBlackboardStore` was never closed hung after `asyncio.run()` returned, and `flock.shutdown()` did not close the store. The connection thread no longer keeps the process alive, and a full `flock.shutdown()` closes a SQLite store, which reconnects if used again. If an agent task outlives `cancel_grace`, the store stays open so the late task cannot reopen it; close it with `await store.close()` once the task has ended. Other stores are not closed.
 - **New models work through Azure and gateways too.** When an API rejects `max_tokens` and asks for `max_completion_tokens` (an Azure deployment of `gpt-6-luna`, for example), the DSPy engine retries that request once with `max_completion_tokens` and remembers the model and endpoint for the rest of the process. The retry happens per LM request, so the agent's program and streaming are not re-run; other errors are not retried.
 - **Timers and batches conflict in either order.** `.schedule()` rejected an existing batch subscription, but `.schedule().consumes(..., batch=...)` was accepted. Both orders now raise the same `ValueError`.

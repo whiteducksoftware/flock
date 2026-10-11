@@ -269,6 +269,8 @@ def _prepare_signature_with_context(
 
 **Why this matters:** The LLM sees "Generate report from task" instead of "Generate output from input" - much clearer!
 
+Several inputs of one type, as in `.consumes(Task, Task)`, become one list field (`"tasks": (list[Task], InputField())`) holding all of them, as in a batch.
+
 ### Phase 2: Program Selection
 
 ```python
