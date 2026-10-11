@@ -194,6 +194,36 @@ async def test_a_failing_decision_stops_its_shadow_before_it_fails():
     assert events == ["shadow stopped", "decision failed"]
 
 
+async def test_a_slow_shadow_times_out_without_holding_the_decision():
+    events: list[str] = []
+    flock = Flock()
+    flock.agent("triage").consumes(ShadowTicket).decides(
+        ShadowRoute,
+        model=_route(0.95, "live"),
+        shadow=_SlowShadow(events),
+        shadow_timeout=0.05,
+    )
+
+    await flock.publish(ShadowTicket(text="charged twice"))
+    await flock.run_until_idle()
+
+    (decision,) = await _decisions(flock, ShadowRoute)
+    assert decision["choice"] == "billing"
+    assert decision["shadow"]["model"] == "candidate"
+    assert "no answer within 0.05 s" in decision["shadow"]["error"]
+    assert events == ["shadow stopped"]
+
+
+def test_the_shadow_timeout_must_be_positive():
+    with pytest.raises(ValueError, match="shadow_timeout"):
+        Flock().agent("x").consumes(ShadowTicket).decides(
+            ShadowRoute,
+            model=_route(0.9, "a"),
+            shadow=_route(0.9, "b"),
+            shadow_timeout=0,
+        )
+
+
 async def test_a_text_only_shadow_records_an_error_for_images():
     picture = Image.from_pil(PILImage.new("RGB", (8, 8), "red"))
     text_only = _route(0.9, "candidate", supports_images=False)

@@ -201,6 +201,12 @@ class DecisionEngine(EngineComponent):
         default=None,
         description="Answers every question too; recorded, never routed",
     )
+    shadow_timeout: float = Field(
+        default=10.0,
+        gt=0,
+        description="Seconds the decision waits for the shadow after its own "
+        "answer; a slower shadow is cancelled and recorded as an error",
+    )
     enable_context: bool = Field(
         default=False, description="Decisions are made on the inputs only"
     )
@@ -250,7 +256,13 @@ class DecisionEngine(EngineComponent):
                     await shadowed
             raise
         latency_ms = round((time.perf_counter() - started) * 1000, 3)
-        shadow = await shadowed if shadowed is not None else None
+        shadow = None
+        if shadowed is not None:
+            try:
+                shadow = await asyncio.wait_for(shadowed, self.shadow_timeout)
+            except TimeoutError:  # wait_for has cancelled the shadow
+                shadow = f"TimeoutError: no answer within {self.shadow_timeout:g} s"
+                logger.warning(f"Shadow decision model '{self.shadow.label}': {shadow}")
 
         subject_ids = [str(a.id) for a in inputs.artifacts]
         artifacts = []
@@ -355,9 +367,7 @@ class DecisionEngine(EngineComponent):
                 )
             answers = await self._ask(state, wire, images, provider=self.shadow)
         except Exception as exc:  # a shadow must never fail the decision
-            logger.warning(
-                "Shadow decision model '%s' failed: %s", self.shadow.label, exc
-            )
+            logger.warning(f"Shadow decision model '{self.shadow.label}' failed: {exc}")
             return f"{type(exc).__name__}: {exc}"
         return answers, round((time.perf_counter() - started) * 1000, 3)
 
