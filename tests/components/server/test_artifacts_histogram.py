@@ -126,6 +126,24 @@ async def test_errors_count_by_their_resolved_type(store):
     assert errors == [1, 0, 0, 0]
 
 
+async def test_sqlite_reads_only_the_range_of_a_histogram(tmp_path):
+    sqlite = SQLiteBlackboardStore(str(tmp_path / "plan.db"))
+    await sqlite.ensure_schema()
+    conn = await sqlite._get_connection()
+
+    cursor = await conn.execute(
+        "EXPLAIN QUERY PLAN SELECT COUNT(*) FROM artifacts "
+        "WHERE created_at >= ? AND created_at <= ?",
+        (START.isoformat(), END.isoformat()),
+    )
+    plan = " ".join(row["detail"] for row in await cursor.fetchall())
+    await sqlite.close()
+
+    # The dashboard asks for the last hour again and again; no full scan
+    assert "SEARCH artifacts USING" in plan
+    assert "created_at>?" in plan
+
+
 def _client(enforce_visibility: bool, orchestrator: Flock) -> TestClient:
     app = FastAPI()
 
