@@ -470,6 +470,12 @@ Thresholds need enough labels. [`14_calibration.py`](https://github.com/whiteduc
 
 Precision rises at the same recall, but the target is far off on documents the thresholds were not fitted to, and almost three times as many answers stay unsure: 12 labelled documents per control are too few for stable thresholds. Calibrate on as many labels as you can, and measure on labels the thresholds did not come from.
 
+In the dashboard, a decider names how many items have their own threshold (the thresholds on hover):
+
+<p align="center">
+  <img alt="A checklist decider with threshold 0.80 and 3 item thresholds" src="../../assets/images/decisions/decision-item-thresholds.png" width="320">
+</p>
+
 ### Escalation cascades
 
 `escalate=` asks another decision model about what the first one was not sure about, before anything routes to `UNSURE`:
