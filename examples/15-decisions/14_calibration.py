@@ -130,7 +130,7 @@ async def main() -> None:
     # Calibrate per control on half of the documents, with their ground truth
     by_doc = {d["id"]: d for d in DOCUMENTS}
     labels = {
-        decision["subject_ids"][0]: by_doc[doc_id]["labels"]
+        decision["subject_ids"][0]: {"Controls": by_doc[doc_id]["labels"]}
         for doc_id, decision in decisions.items()
         if doc_id in {d["id"] for d in calibration_half}
     }

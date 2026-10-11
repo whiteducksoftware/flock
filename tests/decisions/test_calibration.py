@@ -90,7 +90,12 @@ def test_calibrate_suggests_a_threshold_per_question():
         _decision("t3", {"billing": 0.1, "tech": 0.9}),
         _decision("t4", {"billing": 0.6, "tech": 0.4}),  # wrong
     ]
-    labels = {"t1": "billing", "t2": "billing", "t3": "tech", "t4": "tech"}
+    labels = {
+        "t1": {"CalRoute": "billing"},
+        "t2": {"CalRoute": "billing"},
+        "t3": {"CalRoute": "tech"},
+        "t4": {"CalRoute": "tech"},
+    }
 
     (suggestion,) = calibrate(decisions, labels, target_precision=0.95, min_support=2)
 
@@ -119,9 +124,9 @@ def test_checklists_get_a_threshold_per_item():
         checklist("d3", mfa=0.85, logs=0.9),
     ]
     labels = {
-        "d1": {"mfa": "yes", "logs": "yes"},
-        "d2": {"mfa": "no", "logs": "no"},
-        "d3": {"mfa": "yes", "logs": "yes"},
+        "d1": {"CalControls": {"mfa": "yes", "logs": "yes"}},
+        "d2": {"CalControls": {"mfa": "no", "logs": "no"}},
+        "d3": {"CalControls": {"mfa": "yes", "logs": "yes"}},
     }
 
     suggestions = calibrate(decisions, labels, target_precision=0.95, min_support=2)
@@ -137,9 +142,87 @@ def test_reviews_are_labels_and_are_not_calibrated_themselves():
         _decision("t1", {"tech": 1.0}, model="lead", review_of="x"),
     ]
 
-    assert labels_from_reviews(decisions) == {"t1": "tech"}
+    assert labels_from_reviews(decisions) == {"t1": {"CalRoute": "tech"}}
     (suggestion,) = calibrate(decisions, labels_from_reviews(decisions), min_support=1)
     assert suggestion.labeled == 1
+
+
+def test_a_label_counts_only_for_its_question():
+    decisions = [
+        _decision("t1", {"billing": 0.9, "tech": 0.1}),
+        {
+            **_decision("t1", {"yes": 0.9, "no": 0.1}),
+            "question": "CalUrgent",
+            "kind": "yesno",
+        },
+    ]
+
+    suggestions = calibrate(decisions, {"t1": {"CalUrgent": "yes"}}, min_support=1)
+
+    assert [s.question for s in suggestions] == ["CalUrgent"]
+
+
+def test_deciders_are_calibrated_apart():
+    from flock.core.artifacts import Artifact
+
+    def decision(producer: str, subject: str, p: float) -> Artifact:
+        return Artifact(
+            type="x",
+            payload=_decision(subject, {"billing": p, "tech": 1 - p}),
+            produced_by=producer,
+        )
+
+    decisions = [decision("fast", "t1", 0.9), decision("strong", "t1", 0.99)]
+
+    suggestions = calibrate(decisions, {"t1": {"CalRoute": "billing"}}, min_support=1)
+
+    assert sorted((s.decider, s.threshold) for s in suggestions) == [
+        ("fast", 0.9),
+        ("strong", 0.99),
+    ]
+
+
+def test_calibration_constraints_are_checked():
+    with pytest.raises(ValueError, match="target"):
+        suggest_threshold([(0.9, True)], target=0)
+    with pytest.raises(ValueError, match="target"):
+        suggest_threshold([(0.9, True)], target=1.5)
+    with pytest.raises(ValueError, match="min_support"):
+        suggest_threshold([(0.9, True)], target=0.9, min_support=0)
+
+
+async def test_item_thresholds_can_name_the_checklist():
+    other = Checklist.from_items("CalOther", {"mfa": "MFA"}, question="Shown?")
+    flock = Flock()
+    flock.agent("audit").consumes(CalTicket).decides(
+        CalControls,
+        other,
+        model=FakeDecider({
+            "CalControls": {"mfa": 0.75, "logs": 0.75},
+            "CalOther": {"mfa": 0.75},
+        }),
+        threshold=0.9,
+        item_thresholds={"CalControls.mfa": 0.7},
+    )
+
+    await flock.publish(CalTicket(text="policy"))
+    await flock.run_until_idle()
+
+    results = {
+        a.payload["question"]: a.payload["results"]
+        for a in await flock.store.list()
+        if a.type.startswith("Decision[")
+    }
+    assert results["CalControls"]["mfa"] == "yes"
+    assert results["CalOther"]["mfa"] == UNSURE
+
+
+def test_a_plain_item_name_must_be_unambiguous():
+    other = Checklist.from_items("CalOther2", {"mfa": "MFA"}, question="Shown?")
+    with pytest.raises(ValueError, match="CalControls.mfa"):
+        Flock().agent("x").consumes(CalTicket).decides(
+            CalControls, other, model=FakeDecider({}), item_thresholds={"mfa": 0.7}
+        )
 
 
 async def test_item_thresholds_apply_per_checklist_item():

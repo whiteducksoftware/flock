@@ -841,7 +841,8 @@ class AgentBuilder:
                 ``sections`` records the spans and the section per answer.
             item_thresholds: Checklist items with their own threshold instead
                 of ``threshold``, e.g. calibrated ones (``flock decisions
-                calibrate``).
+                calibrate``): ``{"mfa": 0.7}``, or ``{"Controls.mfa": 0.7}``
+                when several checklists of the decider share an item name.
             options: Restricts the single Choice or Checklist to a subset of its
                 options for each execution: a callable that receives the
                 context (``ctx.decisions`` holds the decisions that triggered
@@ -903,24 +904,33 @@ class AgentBuilder:
                         f"together with {name} yet."
                     )
         if item_thresholds:
-            items = {
-                item
-                for question in questions
-                if question.__kind__ == "checklist"
-                for item in question.__options__
-            }
-            unknown = sorted(set(item_thresholds) - items)
-            if unknown:
-                raise ValueError(
-                    f"Agent '{self._agent.name}': item_thresholds= names no "
-                    f"checklist item of this decider: {', '.join(unknown)}."
-                )
-            bad = {k: v for k, v in item_thresholds.items() if not 0.0 < v <= 1.0}
-            if bad:
-                raise ValueError(
-                    f"Agent '{self._agent.name}': item_thresholds= must be in "
-                    f"(0, 1], got {bad}."
-                )
+            checklists = {q.__name__: q for q in questions if q.__kind__ == "checklist"}
+            for key, value in item_thresholds.items():
+                name, _, item = key.rpartition(".")
+                if name:
+                    owners = (
+                        [name]
+                        if item in getattr(checklists.get(name), "__options__", {})
+                        else []
+                    )
+                else:
+                    owners = [n for n, q in checklists.items() if key in q.__options__]
+                if not owners:
+                    raise ValueError(
+                        f"Agent '{self._agent.name}': item_thresholds= names no "
+                        f"checklist item of this decider: {key}."
+                    )
+                if len(owners) > 1:
+                    qualified = ", ".join(f"{n}.{key}" for n in owners)
+                    raise ValueError(
+                        f"Agent '{self._agent.name}': item_thresholds= key '{key}' "
+                        f"is an item of several checklists; use {qualified}."
+                    )
+                if not 0.0 < value <= 1.0:
+                    raise ValueError(
+                        f"Agent '{self._agent.name}': item_thresholds= must be in "
+                        f"(0, 1], got {key}={value}."
+                    )
         if shadow_timeout <= 0:
             raise ValueError(
                 f"Agent '{self._agent.name}': shadow_timeout must be positive, "

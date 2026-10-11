@@ -161,10 +161,13 @@ app.add_typer(decisions_app, name="decisions")
 def decisions_calibrate(
     db_path: str = typer.Argument(..., help="Path to SQLite blackboard database"),
     target_precision: float = typer.Option(
-        0.95, help="Share of right answers the firm answers must reach"
+        0.95,
+        min=0.0,
+        max=1.0,
+        help="Share of right answers the firm answers must reach",
     ),
     min_support: int = typer.Option(
-        5, help="Labelled answers a threshold needs at or above it"
+        5, min=1, help="Labelled answers a threshold needs at or above it"
     ),
 ) -> None:
     """Suggest thresholds per question and checklist item from human reviews."""
@@ -185,6 +188,7 @@ def decisions_calibrate(
         return
     table = Table(title=f"Thresholds for precision {target_precision:.2f}")
     for column in (
+        "decider",
         "question",
         "item",
         "labelled",
@@ -193,8 +197,11 @@ def decisions_calibrate(
         "coverage",
     ):
         table.add_column(column)
-    for s in sorted(suggestions, key=lambda s: (s.question, s.item or "")):
+    for s in sorted(
+        suggestions, key=lambda s: (s.decider or "", s.question, s.item or "")
+    ):
         table.add_row(
+            s.decider or "",
             s.question,
             s.item or "",
             str(s.labeled),

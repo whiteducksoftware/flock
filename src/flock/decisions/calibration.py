@@ -1,10 +1,11 @@
 """Calibration: thresholds for a target precision, from labelled decisions.
 
 Thresholds are per task, not global. ``calibrate()`` takes recorded decisions
-and labels (the right answer per decided artifact) and suggests, per question
-and per checklist item, the lowest threshold whose firm answers reach the
-target precision; the lowest such threshold leaves the most answers firm.
-Human reviews (``review_of``) are labels too: ``labels_from_reviews()``.
+and labels (the right answer per decided artifact and question) and suggests,
+per decider and question and per checklist item, the lowest threshold whose
+firm answers reach the target precision; the lowest such threshold leaves the
+most answers firm. Human reviews (``review_of``) are labels too:
+``labels_from_reviews()``.
 """
 
 from __future__ import annotations
@@ -14,12 +15,16 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from flock.core.artifacts import Artifact
 from flock.decisions.graph import is_decision_type
 
 
 class Suggestion(BaseModel):
-    """A suggested threshold for one question or checklist item."""
+    """A suggested threshold for one question or checklist item of a decider."""
 
+    decider: str | None = Field(
+        default=None, description="Agent that made the decisions, if known"
+    )
     question: str = Field(description="Name of the question")
     item: str | None = Field(default=None, description="Checklist item, if any")
     labeled: int = Field(description="Labelled answers considered")
@@ -35,6 +40,13 @@ class Suggestion(BaseModel):
     )
 
 
+def _check(target: float, min_support: int) -> None:
+    if not 0.0 < target <= 1.0:
+        raise ValueError(f"The target precision must be in (0, 1], got {target}.")
+    if min_support < 1:
+        raise ValueError(f"min_support must be at least 1, got {min_support}.")
+
+
 def suggest_threshold(
     points: Iterable[tuple[float, bool]], target: float, min_support: int = 5
 ) -> tuple[float | None, float | None, float]:
@@ -45,6 +57,7 @@ def suggest_threshold(
     ``(threshold, precision, coverage)``; threshold and precision are None
     when no threshold reaches the target.
     """
+    _check(target, min_support)
     points = list(points)
     for threshold in sorted({confidence for confidence, _ in points}):
         firm = [correct for confidence, correct in points if confidence >= threshold]
@@ -56,49 +69,55 @@ def suggest_threshold(
     return None, None, 0.0
 
 
-def _payload(decision: BaseModel | Mapping[str, Any]) -> dict[str, Any]:
+def _unpack(decision: Any) -> tuple[str | None, dict[str, Any]]:
+    """(decider, payload) of an artifact, a decision model or a payload."""
+    if isinstance(decision, Artifact):
+        return decision.produced_by, dict(decision.payload)
     if isinstance(decision, BaseModel):
-        return decision.model_dump(mode="json")
-    return dict(decision)
+        return None, decision.model_dump(mode="json")
+    return None, dict(decision)
 
 
-def labels_from_reviews(
-    decisions: Iterable[BaseModel | Mapping[str, Any]],
-) -> dict[str, str]:
-    """Decided artifact id -> the reviewer's answer, from human reviews."""
-    labels: dict[str, str] = {}
+def labels_from_reviews(decisions: Iterable[Any]) -> dict[str, dict[str, str]]:
+    """Decided artifact id -> question -> the reviewer's answer."""
+    labels: dict[str, dict[str, str]] = {}
     for decision in decisions:
-        payload = _payload(decision)
+        _, payload = _unpack(decision)
         if payload.get("review_of") and payload.get("subject_ids"):
-            labels[str(payload["subject_ids"][0])] = str(payload["choice"])
+            subject = str(payload["subject_ids"][0])
+            question = str(payload.get("question"))
+            labels.setdefault(subject, {})[question] = str(payload["choice"])
     return labels
 
 
 def calibrate(
-    decisions: Iterable[BaseModel | Mapping[str, Any]],
-    labels: Mapping[str, Any],
+    decisions: Iterable[Any],
+    labels: Mapping[str, Mapping[str, Any]],
     target_precision: float = 0.95,
     min_support: int = 5,
 ) -> list[Suggestion]:
-    """Suggest thresholds per question, and per item for checklists.
+    """Suggest thresholds per decider and question, and per checklist item.
 
-    ``labels`` maps a decided artifact's id (the decision's first subject) to
-    the right answer: an option, or for a checklist a mapping of item to
+    ``decisions`` are decision artifacts (their producer is the decider),
+    decision models or payloads (decider unknown). ``labels`` maps a decided
+    artifact's id (the decision's first subject) to the right answer per
+    question name: an option, or for a checklist a mapping of item to
     ``"yes"`` or ``"no"``. A choice, yes/no or scale answer is its best guess
     with its probability; a checklist item's answer is yes or no, whichever is
     more probable, with that probability. Human reviews themselves are left
     out.
     """
-    points: dict[tuple[str, str | None], list[tuple[float, bool]]] = {}
+    _check(target_precision, min_support)
+    points: dict[tuple[str | None, str, str | None], list[tuple[float, bool]]] = {}
     for decision in decisions:
-        payload = _payload(decision)
+        decider, payload = _unpack(decision)
         subject_ids = payload.get("subject_ids") or []
         if payload.get("review_of") or not subject_ids:
             continue
-        label = labels.get(str(subject_ids[0]))
+        question = str(payload.get("question"))
+        label = (labels.get(str(subject_ids[0])) or {}).get(question)
         if label is None:
             continue
-        question = str(payload.get("question"))
         probabilities = payload.get("probabilities") or {}
         if payload.get("kind") == "checklist":
             if not isinstance(label, Mapping):
@@ -109,23 +128,23 @@ def calibrate(
                 answer, confidence = (
                     ("yes", p_yes) if p_yes >= 0.5 else ("no", 1 - p_yes)
                 )
-                points.setdefault((question, item), []).append((
-                    confidence,
-                    answer == label[item],
-                ))
+                key = (decider, question, item)
+                points.setdefault(key, []).append((confidence, answer == label[item]))
         elif payload.get("best_guess") is not None:
             best = payload["best_guess"]
-            points.setdefault((question, None), []).append((
+            key = (decider, question, None)
+            points.setdefault(key, []).append((
                 probabilities.get(best, 0.0),
                 best == label,
             ))
     suggestions = []
-    for (question, item), answers in points.items():
+    for (decider, question, item), answers in points.items():
         threshold, precision, coverage = suggest_threshold(
             answers, target_precision, min_support
         )
         suggestions.append(
             Suggestion(
+                decider=decider,
                 question=question,
                 item=item,
                 labeled=len(answers),
@@ -141,16 +160,16 @@ async def calibrate_store(
     store: Any,
     target_precision: float = 0.95,
     min_support: int = 5,
-    labels: Mapping[str, Any] | None = None,
+    labels: Mapping[str, Mapping[str, Any]] | None = None,
 ) -> list[Suggestion]:
-    """``calibrate()`` over every decision in ``store``, with the human reviews
-    in it (and ``labels``, which win) as labels."""
+    """``calibrate()`` over every decision in ``store``, per decider, with the
+    human reviews in it (and ``labels``, which win) as labels."""
     decisions = [
-        artifact.payload
-        for artifact in await store.list()
-        if is_decision_type(artifact.type)
+        artifact for artifact in await store.list() if is_decision_type(artifact.type)
     ]
-    merged = {**labels_from_reviews(decisions), **(labels or {})}
+    merged: dict[str, dict[str, Any]] = labels_from_reviews(decisions)
+    for subject, answers in (labels or {}).items():
+        merged.setdefault(subject, {}).update(answers)
     return calibrate(decisions, merged, target_precision, min_support)
 
 
