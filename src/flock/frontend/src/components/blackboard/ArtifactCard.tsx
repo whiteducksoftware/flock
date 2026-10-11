@@ -149,7 +149,7 @@ const Unfolded: React.FC<{ card: LaneCard }> = ({ card }) => {
           </span>
         </div>
       )}
-      <ArtifactBody id={card.id} data={card.data} />
+      <ArtifactBody id={card.id} data={card.data} decisionHeader={false} />
       <div className={styles.meta}>
         {meta.map(([key, value]) => (
           <React.Fragment key={key}>

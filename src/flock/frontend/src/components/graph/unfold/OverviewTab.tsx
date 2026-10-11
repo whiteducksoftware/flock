@@ -2,6 +2,7 @@ import React from 'react';
 import { AggregatorInfo, CoverageSummary, DeciderInfo, DeciderOptions } from '../DecisionDisplay';
 import type { AgentRun } from './agentRuns';
 import { count, usd } from './format';
+import ReviewQueue from './ReviewQueue';
 import styles from './Unfolded.module.css';
 
 interface OverviewTabProps {
@@ -40,6 +41,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ runs, states, decider, aggreg
           <DeciderOptions decider={decider} />
         </div>
       )}
+      {decider && <ReviewQueue decider={decider} />}
       {aggregator && (
         <div className={styles.section}>
           <span className={styles.label}>Coverage</span>

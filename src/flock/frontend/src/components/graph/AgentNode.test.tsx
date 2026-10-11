@@ -247,7 +247,8 @@ describe('AgentNode', () => {
     expect(screen.getByText('Anger')).toBeInTheDocument();
 
     const split = screen.getAllByTestId('yesno-segment');
-    expect(split.map((s) => s.dataset.option)).toEqual(['yes', 'no', 'UNSURE']);
+    // yes from the left, no from the right, the unsure share between them
+    expect(split.map((s) => s.dataset.option)).toEqual(['yes', 'UNSURE', 'no']);
     expect(split[0]?.style.width).toBe(`${(7 / 11) * 100}%`);
     expect(screen.getByText('1 refused')).toBeInTheDocument();
 

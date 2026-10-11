@@ -215,6 +215,42 @@
   margin-top: 18px;
 }
 
+/* The decider's review queue */
+.queue {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.queueItem {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px dashed var(--line-2);
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: 12px;
+}
+
+.queueHead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.queueTitle {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
 .stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
