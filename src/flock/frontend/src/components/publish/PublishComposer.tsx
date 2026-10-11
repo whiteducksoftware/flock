@@ -21,6 +21,7 @@ import {
   formLosses,
   formToPayload,
   initialFormData,
+  inputKind,
   isRequiredField,
   lines,
   minPictures,
@@ -581,8 +582,8 @@ const PublishComposer: React.FC = () => {
       );
     }
 
-    // Default: text input or textarea for strings
-    const isLongText = prop.maxLength > 100 || key.toLowerCase().includes('description');
+    // Default: text input or textarea for strings (formLosses knows which, see inputKind)
+    const isLongText = inputKind(key, prop, schema) === 'textarea';
 
     if (isLongText) {
       return (

@@ -567,3 +567,27 @@ textarea.input {
     flex: 1 1 auto;
   }
 }
+
+/* Short screens (a phone held sideways): the whole composer scrolls, the footer stays at its bottom */
+@media (max-height: 560px) {
+  .dialog {
+    margin-top: 8px;
+    max-height: calc(100vh - 16px);
+    overflow-y: auto;
+  }
+
+  .body,
+  .content,
+  .types {
+    flex: none;
+    min-height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .footer {
+    position: sticky;
+    bottom: 0;
+    background: var(--surface);
+  }
+}

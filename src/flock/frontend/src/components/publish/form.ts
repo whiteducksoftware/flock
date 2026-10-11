@@ -83,6 +83,25 @@ export function fieldType(prop: any, schema: Schema): string {
   return PYTHON_TYPES[prop.type] ?? prop.type ?? 'any';
 }
 
+/** The input a field gets in the form. */
+export type InputKind = 'image' | 'boolean' | 'list' | 'number' | 'enum' | 'textarea' | 'text';
+
+/**
+ * The input a field gets: a picture picker, a checkbox, a text area with one
+ * list item per line (lists of strings or numbers), a number, a select, a
+ * text area for long or described text, else a one-line text input.
+ */
+export function inputKind(key: string, prop: any, schema: Schema): InputKind {
+  if (imageFieldKind(prop, schema)) return 'image';
+  if (prop.type === 'boolean') return 'boolean';
+  const items = prop.type === 'array' ? prop.items?.type : undefined;
+  if (items === 'string' || items === 'number' || items === 'integer') return 'list';
+  if (prop.type === 'number' || prop.type === 'integer') return 'number';
+  if (Array.isArray(prop.enum)) return 'enum';
+  if (prop.maxLength > 100 || key.toLowerCase().includes('description')) return 'textarea';
+  return 'text';
+}
+
 /** The payload the form publishes: each value converted to its schema type. */
 export function formToPayload(formData: FormValues, schema: Schema): Record<string, any> {
   const processedData: Record<string, any> = {};
@@ -189,9 +208,20 @@ export function formLosses(payload: Record<string, any>, schema: Schema): string
   const form = payloadToForm(payload, schema);
   const roundTrip = formToPayload(form, schema);
   const properties = schema.properties ?? {};
-  // Apart from pictures, the form's inputs hold text, numbers and booleans only
-  const unshowable = (key: string) =>
-    key in properties && !imageFieldKind(properties[key], schema) && form[key] !== null && typeof form[key] === 'object';
+  // What the field's input cannot show: apart from pictures, objects (the inputs
+  // hold text, numbers and booleans); line breaks in a one-line text input; an
+  // option the select does not have
+  const unshowable = (key: string) => {
+    if (!(key in properties)) return false;
+    const prop = properties[key];
+    const value = form[key];
+    const kind = inputKind(key, prop, schema);
+    if (kind === 'image') return false;
+    if (value !== null && typeof value === 'object') return true;
+    if (kind === 'text') return typeof value === 'string' && /[\r\n]/.test(value);
+    if (kind === 'enum') return value !== '' && !prop.enum.includes(value);
+    return false;
+  };
   // The type's fields in their order, then the ones it does not have
   const keys = new Set([...Object.keys(properties), ...Object.keys(payload)]);
   return [...keys].filter((key) => unshowable(key) || canonical(payload[key]) !== canonical(roundTrip[key]));

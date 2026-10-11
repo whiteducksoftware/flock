@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fieldType, formLosses, formToPayload, initialFormData, isRequiredField, payloadToForm } from './form';
+import { fieldType, formLosses, formToPayload, initialFormData, inputKind, isRequiredField, payloadToForm } from './form';
 
 const imageDef = { type: 'object', properties: { url: { type: 'string' } }, 'x-flock-image': true };
 
@@ -162,6 +162,22 @@ describe('formLosses', () => {
     ).toEqual(['items', 'meta', 'grid']);
   });
 
+  it('names values its inputs cannot show: line breaks in a one-line text, an option the select does not have', () => {
+    const texts = {
+      type: 'object',
+      properties: {
+        subject: { type: 'string' },
+        description: { type: 'string' },
+        body: { type: 'string', maxLength: 2000 },
+        level: { enum: ['a', 'b'], type: 'string' },
+      },
+    };
+
+    // A text area keeps line breaks; a one-line input drops them
+    expect(formLosses({ subject: 'a\nb', description: 'c\nd', body: 'e\nf', level: 'a' }, texts)).toEqual(['subject']);
+    expect(formLosses({ subject: 'a', description: '', body: '', level: 'c' }, texts)).toEqual(['level']);
+  });
+
   it('names fields the form would add that the JSON leaves out', () => {
     expect(formLosses({ subject: 'x', count: 1, picture: { url: 'data:a' } }, schema)).toEqual([
       'urgent',
@@ -170,6 +186,28 @@ describe('formLosses', () => {
       'note',
       'level',
     ]);
+  });
+});
+
+describe('inputKind', () => {
+  it('names the input each field gets', () => {
+    const kinds = Object.fromEntries(
+      Object.entries(schema.properties).map(([key, prop]) => [key, inputKind(key, prop, schema)])
+    );
+
+    expect(kinds).toEqual({
+      subject: 'text',
+      count: 'number',
+      urgent: 'boolean',
+      tags: 'list',
+      sizes: 'list',
+      note: 'text',
+      level: 'enum',
+      picture: 'image',
+      pages: 'image',
+    });
+    expect(inputKind('description', { type: 'string' }, schema)).toBe('textarea');
+    expect(inputKind('body', { type: 'string', maxLength: 500 }, schema)).toBe('textarea');
   });
 });
 

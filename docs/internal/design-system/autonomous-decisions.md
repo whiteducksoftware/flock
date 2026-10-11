@@ -197,3 +197,5 @@ Each entry says what was decided, why, and where it landed.
 - **The shortcuts dialog only renames the entry** ("publish composer"); ⌘↵ joins it with the new keys in #569.
 - **From JSON back to the form only without losses** (review): the composer round-trips the JSON through the form and stays in JSON, naming the fields, if anything would change, drop or be added. Preserving such values in the form was the alternative; the form cannot show `None`, list items with line breaks, objects, lists of objects or unknown fields.
 - **While a modal dialog is open (`aria-modal`), the board's shortcuts are off except Esc** (review): Ctrl+F opened the filters behind the composer and took the focus out of it. This covers the tournament bracket and the image viewer too.
+- **What an input cannot show keeps JSON mode too** (review): line breaks in a one-line text input and an option the select does not have count as losses; `inputKind` in `form.ts` is the one place that says which input a field gets.
+- **On short screens (under 560 px high) the whole composer scrolls** (review): at 667 × 375 the footer was clipped; the composer is now one scroll area, the footer at its end.
