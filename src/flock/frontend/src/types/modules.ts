@@ -7,4 +7,6 @@ export interface ModuleInstance {
   maximized?: boolean;
   preMaximizePosition?: { x: number; y: number };
   preMaximizeSize?: { width: number; height: number };
+  /** What the module searches for when it opens (the trace viewer: a correlation ID) */
+  search?: string;
 }

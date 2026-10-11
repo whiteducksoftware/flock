@@ -399,23 +399,25 @@ const GraphCanvas: React.FC = () => {
     [openDetailWindow]
   );
 
-  const defaultEdgeOptions = useMemo(
-    () => ({
-      type: edgeType,
-      animated: edgeAnimation,
-      style: {
-        stroke: 'var(--color-edge-default)',
-        strokeWidth: edgeStrokeWidth,
-      },
-    }),
-    [edgeType, edgeAnimation, edgeStrokeWidth]
+  // The edges animate themselves while an artifact is in flight
+  const defaultEdgeOptions = useMemo(() => ({ type: edgeType }), [edgeType]);
+
+  // Arrowheads in the line color of the theme
+  const themedEdges = useMemo(
+    () =>
+      edges.map((edge) =>
+        edge.markerEnd && typeof edge.markerEnd === 'object'
+          ? { ...edge, markerEnd: { ...edge.markerEnd, color: 'var(--line-2)', width: 14, height: 14 } }
+          : edge,
+      ),
+    [edges],
   );
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
       <ReactFlow
         nodes={nodes}
-        edges={edges}
+        edges={themedEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeDrag={onNodeDrag}
@@ -426,18 +428,9 @@ const GraphCanvas: React.FC = () => {
         defaultEdgeOptions={defaultEdgeOptions}
         onPaneContextMenu={onPaneContextMenu}
         onPaneClick={onPaneClick}
-        style={{
-          backgroundColor: 'var(--color-bg-elevated)',
-        }}
+        style={{ backgroundColor: 'var(--board)' }}
       >
-        <Background
-          color="var(--color-border-subtle)"
-          gap={16}
-          size={1}
-          style={{
-            backgroundColor: 'var(--color-bg-elevated)',
-          }}
-        />
+        <Background color="var(--dot)" bgColor="var(--board)" gap={22} size={1.3} />
         <Controls
           style={{
             backgroundColor: 'var(--color-bg-surface)',

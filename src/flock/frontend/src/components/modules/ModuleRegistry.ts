@@ -32,7 +32,7 @@ export interface ModuleDefinition {
   name: string;
   description: string;
   icon?: string;
-  component: React.ComponentType<{ context: ModuleContext }>;
+  component: React.ComponentType<{ context: ModuleContext; search?: string }>;
   onMount?: (context: ModuleContext) => void;
   onUnmount?: () => void;
 }

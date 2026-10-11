@@ -211,7 +211,7 @@ const ModuleWindow: React.FC<ModuleWindowProps> = memo(({ instanceId }) => {
             background: 'var(--color-bg-surface)',
           }}
         >
-          <ModuleComponent context={context} />
+          <ModuleComponent context={context} search={instance.search} />
         </div>
       </div>
     </Rnd>

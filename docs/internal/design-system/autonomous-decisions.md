@@ -31,7 +31,7 @@ Each entry says what was decided, why, and where it landed.
 
 - **#578 (PR #579):** the publish panel's tests chose a type before the types had loaded. 12 of 15 failed with a 20 ms delay.
 - **#581 (PR #582):** the keyboard shortcuts were registered twice and cancelled each other out. Fixed on `main` as well, since the released dashboard has the bug.
-- **`LiveOutputTab.test.tsx`:** it asserts wall-clock durations (`< 50 ms`), which fail on slow runners. Fixed on `main`.
+- **#587 (PR #588):** `LiveOutputTab.test.tsx` asserted wall-clock durations (`< 50 ms`) against a mock from the test file; the real tab does not virtualize. The mock and its tests were removed rather than adding virtualization to a component #561 replaces.
 
 ## Rework items
 
@@ -60,3 +60,32 @@ Each entry says what was decided, why, and where it landed.
 - **The filter popover's controls (presets, multi-selects) are on the tokens.** The blue and red fills were the wrong signals.
 - **Ctrl+F opens the filters on the correlation search,** until the command palette replaces it.
 - **Settings shows the dashboard version from `package.json`** (it said 0.1.1).
+
+### #560 Agent cards, chips and edges
+
+- **Backend prerequisites as PRs on `main`:**
+  - `subscriptionGroups` and `lastError` for the `AND`/`JOIN` rows and the error row (#585, PR #586);
+  - the collector derives the agent status from its runs and puts it on the run events, so concurrent runs do not flip the card.
+- **The error row opens the existing trace viewer module** on the run's correlation ID (`ModuleInstance.search`) until the Traces tab (#561) and the timeline dock (#564) replace it.
+- **"In flight" means:** a run of the edge's target agent consumed that type (`consumed_types` of `agent_activated`) and has not ended. Runs are tracked by `run_id`, so one ending leaves a concurrent run's edges moving.
+  - A dashboard that connects while a run is under way shows that run's edges still, until the next activation; its status dot is right. Seeding them from the snapshot needs the active runs' types from the server, and a snapshot that arrives after a run's `agent_completed` would keep that run in flight for good. The edge animation setting now means "animate edges in flight"; the global always-on animation is gone.
+- **A subscription that needs a type several times** (`.consumes(A, A, A)`) shows one row with `×3`.
+- **Subscriptions that would show the same row show it once.** The server labels and counts by type, so `.consumes(Route.billing).consumes(Route.shipping)` reads `◆ Route.billing | Route.shipping` with one count. A row per handle needs counts per subscription from the server.
+- **Decision handles about the same subject read `AND`** (`pager`: `Route.tech AND Urgent.yes`), although they correlate like a join under the hood; `JOIN` is kept for joins by a key.
+- **The demo does not record traces,** so the error row's trace viewer opens empty there; the link carries the run's correlation ID.
+- **The chip shows the received count** as its one count.
+- **Join keys:**
+  - shown without the tuple quoting;
+  - long keys (ids) keep their first 8 characters;
+  - more open keys show as `+N`.
+- **A batch shows one cell per item up to 24,** then a bar.
+- **Countdowns of joins and batches go on from the server's,** taken when the snapshot arrived, on the browser's monotonic clock. The browser's clock never has to agree with the server's.
+  - Both countdowns turn amber under 30 s (the design names it for joins).
+  - The oldest open join is taken over all of the agent's joins.
+- **The status dot is labelled** (`running`, `failed`, `idle`) for screen readers, since a chip has no other status text.
+- **Removed settings:**
+  - agent colors, node shadow, status pulse and compact view: status colors are the signals, and the chip level replaces the compact view;
+  - the default edge width is 1.5 px, per the design.
+- **The board background is the dotted `--board`;** the old canvas controls stay until the canvas dock (#563).
+- **Decision summaries inside cards keep their current look** until the decision kit (#566).
+

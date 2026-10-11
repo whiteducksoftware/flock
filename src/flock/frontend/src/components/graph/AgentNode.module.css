@@ -1,0 +1,275 @@
+/* Card and chip of an agent (docs/internal/design-system/mockups/States.dc.html) */
+
+.card {
+  position: relative;
+  min-width: 220px;
+  max-width: 300px;
+  padding: 12px 14px 10px;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.card[data-status='running'],
+.chip[data-status='running'] {
+  border-color: color-mix(in srgb, var(--signal) 55%, transparent);
+}
+
+.card[data-status='error'],
+.chip[data-status='error'] {
+  border-color: color-mix(in srgb, var(--error) 65%, transparent);
+}
+
+.card[data-selected],
+.chip[data-selected] {
+  outline: 2px solid var(--sure);
+  outline-offset: 2px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.name {
+  font-weight: 600;
+  font-size: 13.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tag {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: var(--radius-tag);
+  border: 1px solid var(--line-2);
+  color: var(--text-2);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.diamond {
+  color: var(--sure-ink);
+}
+
+.more {
+  color: var(--text-3);
+}
+
+.ports {
+  margin-top: 8px;
+}
+
+.port {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 26px;
+}
+
+.dir {
+  width: 28px;
+  flex: none;
+  color: var(--text-3);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.type {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.times {
+  color: var(--text-3);
+}
+
+.count {
+  color: var(--text-2);
+  transition: color var(--duration-fast) var(--ease);
+}
+
+.flash {
+  color: var(--signal-ink);
+}
+
+.ticker {
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-radius: var(--radius-tag);
+  background: var(--signal-soft);
+  color: var(--signal-ink);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.caret {
+  animation: caret-blink 1s step-end infinite;
+}
+
+.error {
+  margin-top: 6px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--radius-tag);
+  background: var(--error-soft);
+  color: var(--error-ink);
+  font: inherit;
+  font-size: 11.5px;
+  text-align: left;
+}
+
+button.error {
+  cursor: pointer;
+}
+
+button.error:hover {
+  background: color-mix(in srgb, var(--error) 22%, transparent);
+}
+
+button.error:focus-visible {
+  outline: 2px solid var(--sure);
+  outline-offset: 2px;
+}
+
+.errorText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.schedule {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 11.5px;
+  color: var(--text-2);
+}
+
+.strong {
+  color: var(--text);
+}
+
+.quiet {
+  color: var(--text-3);
+}
+
+.quietStrong {
+  color: var(--text-2);
+}
+
+.urgent {
+  color: var(--signal-ink);
+}
+
+.end {
+  margin-left: auto;
+}
+
+.wait {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: var(--radius-control);
+  border: 1px dashed var(--line-2);
+}
+
+.waitHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--text-2);
+}
+
+.track {
+  display: flex;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.filled {
+  background: var(--text-2);
+}
+
+.cells {
+  display: grid;
+  gap: 3px;
+}
+
+.cell,
+.cellOn {
+  height: 8px;
+  border-radius: 2px;
+}
+
+.cellOn {
+  background: var(--text-2);
+}
+
+.handle {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--board);
+  border: 1.5px solid var(--line-2);
+}
+
+.chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 12px;
+}
+
+.chip .name {
+  font-size: 12.5px;
+}
+
+@keyframes caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .caret {
+    animation: none;
+  }
+}

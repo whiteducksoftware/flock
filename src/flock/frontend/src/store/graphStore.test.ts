@@ -124,6 +124,18 @@ describe('graphStore - NEW Simplified Architecture', () => {
       expect(state.viewMode).toBe('agent');
     });
 
+    it('stamps agent nodes with when the snapshot arrived, for their countdowns', async () => {
+      const agent = { id: 'agent1', type: 'agent', data: { name: 'batcher' }, position: { x: 0, y: 0 } } as Node;
+      vi.mocked(fetchGraphSnapshot).mockResolvedValue({ nodes: [], edges: [], statistics: null } as unknown as GraphSnapshot);
+      vi.mocked(mergeNodePositions).mockReturnValue([agent]);
+      vi.mocked(overlayWebSocketState).mockReturnValue([agent]);
+      vi.spyOn(performance, 'now').mockReturnValue(1234.5);
+
+      await useGraphStore.getState().generateAgentViewGraph();
+
+      expect(useGraphStore.getState().nodes[0]?.data).toEqual({ name: 'batcher', snapshotAt: 1234.5 });
+    });
+
     it('should pass filters from filterStore to backend', async () => {
       const mockFilters = {
         correlationId: 'test-correlation-id',

@@ -260,3 +260,60 @@ describe('WebSocketClient reconnects', () => {
     client.disconnect();
   });
 });
+
+describe('WebSocketClient run events', () => {
+  /** Hand the client one event, as the server sends it. */
+  const receive = (client: WebSocketClient, event_type: string, data: Record<string, unknown>) =>
+    (client as unknown as { handleMessage: (event: MessageEvent) => void }).handleMessage(
+      new MessageEvent('message', { data: JSON.stringify({ event_type, data, correlation_id: '', timestamp: '' }) }),
+    );
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    useGraphStore.setState({ agentStatus: new Map(), inFlight: new Map() });
+  });
+
+  afterEach(() => {
+    useGraphStore.setState(useGraphStore.getInitialState(), true);
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  const inFlightTypes = (agent: string) =>
+    [...useGraphStore.getState().inFlight.values()]
+      .filter((run) => run.agent === agent)
+      .flatMap((run) => run.types)
+      .sort();
+
+  it('knows which types are in flight to a running agent, run by run', () => {
+    vi.spyOn(useGraphStore.getState(), 'refreshCurrentView').mockResolvedValue();
+    const client = new WebSocketClient('ws://test/ws');
+
+    receive(client, 'agent_activated', { agent_name: 'billing', run_id: 'a', consumed_types: ['app.Ticket'] });
+    receive(client, 'agent_activated', { agent_name: 'billing', run_id: 'b', consumed_types: ['app.Reply'] });
+    expect(inFlightTypes('billing')).toEqual(['app.Reply', 'app.Ticket']);
+
+    // The newer run ends first: the older one's type stays in flight
+    receive(client, 'agent_completed', { agent_name: 'billing', run_id: 'b', agent_status: 'running' });
+    expect(inFlightTypes('billing')).toEqual(['app.Ticket']);
+
+    receive(client, 'agent_error', { agent_name: 'billing', run_id: 'a', agent_status: 'error' });
+    expect(inFlightTypes('billing')).toEqual([]);
+  });
+
+  it('reloads the board after a failure, which says what failed', () => {
+    const refresh = vi.spyOn(useGraphStore.getState(), 'refreshCurrentView').mockResolvedValue();
+    const client = new WebSocketClient('ws://test/ws');
+    receive(client, 'agent_activated', { agent_name: 'crm_sync', run_id: 'r1', consumed_types: ['app.Reply'] });
+    vi.advanceTimersByTime(1000);
+    refresh.mockClear();
+
+    receive(client, 'agent_error', { agent_name: 'crm_sync', run_id: 'r1', agent_status: 'error' });
+    vi.advanceTimersByTime(1000);
+
+    expect(useGraphStore.getState().agentStatus.get('crm_sync')).toBe('error');
+    expect(useGraphStore.getState().inFlight.size).toBe(0);
+    expect(refresh).toHaveBeenCalledOnce();
+  });
+});

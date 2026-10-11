@@ -29,6 +29,8 @@ import { indexedDBService } from '../services/indexeddb';
 interface GraphState {
   // Real-time WebSocket state (overlaid on backend snapshot)
   agentStatus: Map<string, string>;
+  /** Per running run, its agent and the types it consumed (edges in flight) */
+  inFlight: Map<string, { agent: string; types: string[] }>;
   streamingTokens: Map<string, string[]>;
   agentLogicOperations: Map<string, AgentLogicOperations[]>; // Phase 1.3: Logic operations state
 
@@ -56,6 +58,7 @@ interface GraphState {
 
   // Actions - Real-time WebSocket updates
   updateAgentStatus: (agentId: string, status: string) => void;
+  setInFlight: (runId: string, agentId: string, types: string[] | null) => void;
   updateStreamingTokens: (agentId: string, tokens: string[]) => void;
   updateAgentLogicOperations: (agentId: string, logicOps: AgentLogicOperations[]) => void; // Phase 1.3
   addEvent: (message: Message) => void;
@@ -123,6 +126,7 @@ export const useGraphStore = create<GraphState>()(
     (set, get) => ({
       // Initial state
       agentStatus: new Map(),
+      inFlight: new Map(),
       streamingTokens: new Map(),
       agentLogicOperations: new Map(), // Phase 1.3
       nodes: [],
@@ -145,6 +149,8 @@ export const useGraphStore = create<GraphState>()(
 
           const request = buildGraphRequest('agent');
           const snapshot: GraphSnapshot = await fetchGraphSnapshot(request);
+          // The snapshot's countdowns (joins, batches) go on from here, on the monotonic clock
+          const snapshotAt = performance.now();
 
           const { savedPositions, nodes: currentNodes, agentStatus, streamingTokens, agentLogicOperations } = get();
 
@@ -152,7 +158,9 @@ export const useGraphStore = create<GraphState>()(
           const mergedNodes = mergeNodePositions(snapshot.nodes, savedPositions, currentNodes);
 
           // Overlay real-time WebSocket state
-          const finalNodes = overlayWebSocketState(mergedNodes, agentStatus, streamingTokens, agentLogicOperations);
+          const finalNodes = overlayWebSocketState(mergedNodes, agentStatus, streamingTokens, agentLogicOperations).map(
+            (node) => (node.type === 'agent' ? { ...node, data: { ...node.data, snapshotAt } } : node),
+          );
 
           set({
             nodes: finalNodes,
@@ -271,6 +279,15 @@ export const useGraphStore = create<GraphState>()(
       },
 
       // Real-time WebSocket update actions
+      setInFlight: (runId, agentId, types) => {
+        set((state) => {
+          const inFlight = new Map(state.inFlight);
+          if (types && types.length > 0) inFlight.set(runId, { agent: agentId, types });
+          else inFlight.delete(runId);
+          return { inFlight };
+        });
+      },
+
       updateAgentStatus: (agentId, status) => {
         set((state) => {
           const agentStatus = new Map(state.agentStatus);
