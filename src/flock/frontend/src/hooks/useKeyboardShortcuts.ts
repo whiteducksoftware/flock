@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useGraphStore } from '../store/graphStore';
 import { useUIStore } from '../store/uiStore';
 import { useSettingsStore } from '../store/settingsStore';
 
@@ -7,8 +8,20 @@ interface KeyboardShortcutConfig {
   onFocusFilter?: () => void;
   onCloseWindows?: () => void;
   onToggleHelp?: () => void;
-  onToggleAgentDetails?: () => void;
 }
+
+/** The node Space and Ctrl+Shift+D act on: the focused agent, else the selected one, else the unfolded one. */
+const unfoldTarget = (): string | null => {
+  const { nodes } = useGraphStore.getState();
+  const isAgent = (id: string | null | undefined) => nodes.some((node) => node.id === id && node.type === 'agent');
+  const focused = document.activeElement?.closest('.react-flow__node[data-id]')?.getAttribute('data-id');
+  if (isAgent(focused)) return focused!;
+  const selected = nodes.find((node) => node.selected && node.type === 'agent');
+  return selected?.id ?? useUIStore.getState().unfoldedNodeId;
+};
+
+/** Focus where Space means something else: typing, pressing a button, a tab, a dialog. */
+const SPACE_TAKEN = 'input, textarea, select, button, a[href], [contenteditable="true"], [role="tab"], [role="dialog"]';
 
 /**
  * Custom hook for managing global keyboard shortcuts
@@ -19,9 +32,9 @@ interface KeyboardShortcutConfig {
  * - Ctrl+, (or Cmd+,): Toggle Settings Panel
  * - Ctrl+Shift+F: Toggle Filters Panel
  * - Ctrl+Shift+P: Toggle Publish Panel
- * - Ctrl+Shift+D: Toggle Agent Details
+ * - Space, Ctrl+Shift+D: Unfold or fold the selected node
  * - Ctrl+/ (or Cmd+/): Toggle Keyboard Shortcuts Help
- * - Esc: Close all panels and detail windows
+ * - Esc: Close a panel, else fold the unfolded node, else close the artifact windows
  */
 export const useKeyboardShortcuts = (config: KeyboardShortcutConfig = {}) => {
   useEffect(() => {
@@ -53,12 +66,21 @@ export const useKeyboardShortcuts = (config: KeyboardShortcutConfig = {}) => {
         return;
       }
 
-      // Ctrl+Shift+D: Toggle Agent Details
+      // Ctrl+Shift+D: Unfold or fold the selected node
       if (modifier && event.shiftKey && event.key === 'D') {
         event.preventDefault();
-        if (config.onToggleAgentDetails) {
-          config.onToggleAgentDetails();
-        }
+        const target = unfoldTarget();
+        if (target) useUIStore.getState().toggleUnfold(target);
+        return;
+      }
+
+      // Space: Unfold or fold the selected node, unless the focus has a use for it
+      if (event.key === ' ' && !modifier && !event.altKey) {
+        if (document.activeElement?.closest(SPACE_TAKEN)) return;
+        const target = unfoldTarget();
+        if (!target) return;
+        event.preventDefault();
+        useUIStore.getState().toggleUnfold(target);
         return;
       }
 
@@ -120,9 +142,9 @@ export const useKeyboardShortcuts = (config: KeyboardShortcutConfig = {}) => {
         if (config.onCloseWindows) {
           config.onCloseWindows();
         } else {
-          // Priority: Close panels first, then detail windows
+          // Priority: Close panels first, then the unfolded node, then artifact windows
           const { showSettings, showFilters, showControls } = useSettingsStore.getState().ui;
-          const detailWindows = useUIStore.getState().detailWindows;
+          const { detailWindows, unfoldedNodeId } = useUIStore.getState();
 
           if (showSettings) {
             event.preventDefault();
@@ -133,6 +155,9 @@ export const useKeyboardShortcuts = (config: KeyboardShortcutConfig = {}) => {
           } else if (showFilters) {
             event.preventDefault();
             useSettingsStore.getState().setShowFilters(false);
+          } else if (unfoldedNodeId) {
+            event.preventDefault();
+            useUIStore.getState().fold();
           } else if (detailWindows.size > 0) {
             event.preventDefault();
             // Close all detail windows

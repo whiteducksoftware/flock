@@ -40,6 +40,7 @@ import {
   hasNewNodeAdditions,
   scheduleDebouncedAutoLayout,
 } from './autoLayoutTrigger';
+import { useUnfoldLayout } from './useUnfoldLayout';
 
 const GraphCanvas: React.FC = () => {
   const { fitView, getIntersectingNodes, screenToFlowPosition } = useReactFlow();
@@ -299,7 +300,8 @@ const GraphCanvas: React.FC = () => {
     previousNodeIdsRef.current = currentNodeIds;
     previousEdgeIdsRef.current = currentEdgeIds;
 
-    if (!autoLayoutEnabled || (!hasNewNodes && !hasNewEdges)) {
+    // While a node is unfolded the board waits; folding lays it out anew if nodes came
+    if (!autoLayoutEnabled || (!hasNewNodes && !hasNewEdges) || useUIStore.getState().unfoldedNodeId) {
       return;
     }
 
@@ -323,6 +325,15 @@ const GraphCanvas: React.FC = () => {
       clearDebouncedAutoLayout(autoLayoutDebounceRef);
     };
   }, []);
+
+  // Neighbors make room while a node is unfolded
+  useUnfoldLayout({
+    mode: autoLayoutMode,
+    nodeSpacing,
+    rankSpacing,
+    collectDimensions: collectRenderedNodeDimensions,
+    relayout: () => applyLayout(latestAutoLayoutModeRef.current, { closeMenus: false, updateStoredMode: false }),
+  });
 
   // Auto-zoom handler
   const handleAutoZoom = useCallback(() => {
@@ -386,15 +397,28 @@ const GraphCanvas: React.FC = () => {
   // Node drag stop handler - persist position with 300ms debounce
   const onNodeDragStop = useCallback(
     (_event: React.MouseEvent | MouseEvent, node: Node) => {
+      const { transientPositions, setTransientPositions } = useGraphStore.getState();
+      if (transientPositions) {
+        // A node is unfolded: the move lasts until it folds and is not saved
+        setTransientPositions(new Map(transientPositions).set(node.id, node.position));
+        return;
+      }
       saveNodePositionDebounced(node.id, node.position);
     },
     [saveNodePositionDebounced]
   );
 
-  // Node double-click handler - open detail window
+  // A click unfolds an agent in place (a click inside the unfolded one changes nothing)
+  const onNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
+    if (node.type === 'agent' && useUIStore.getState().unfoldedNodeId !== node.id) {
+      useUIStore.getState().unfold(node.id);
+    }
+  }, []);
+
+  // Artifacts open their detail window until their cards unfold too (#565)
   const onNodeDoubleClick = useCallback(
     (_event: React.MouseEvent, node: Node) => {
-      openDetailWindow(node.id);
+      if (node.type === 'message') openDetailWindow(node.id);
     },
     [openDetailWindow]
   );
@@ -422,7 +446,10 @@ const GraphCanvas: React.FC = () => {
         onEdgesChange={onEdgesChange}
         onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
+        onNodeClick={onNodeClick}
         onNodeDoubleClick={onNodeDoubleClick}
+        // Space unfolds and folds the selected node; dragging the board pans it
+        panActivationKeyCode={null}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         defaultEdgeOptions={defaultEdgeOptions}

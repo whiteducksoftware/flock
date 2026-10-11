@@ -258,7 +258,7 @@ export class WebSocketClient {
         }
       }
 
-      // Note: The actual output storage is handled by LiveOutputTab's event listener
+      // Note: The unfolded node's Live tab listens to these events itself
       // This handler is for real-time token updates only
     });
 

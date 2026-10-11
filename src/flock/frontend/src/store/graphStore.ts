@@ -45,6 +45,8 @@ interface GraphState {
 
   // Position persistence (saved to IndexedDB)
   savedPositions: Map<string, { x: number; y: number }>;
+  /** Positions that win over the saved ones while a node is unfolded; never saved */
+  transientPositions: Map<string, { x: number; y: number }> | null;
 
   // Loading state
   isLoading: boolean;
@@ -69,6 +71,8 @@ interface GraphState {
 
   // Actions - Position persistence
   updateNodePosition: (nodeId: string, position: { x: number; y: number }) => void;
+  setNodePositions: (positions: Map<string, { x: number; y: number }>) => void;
+  setTransientPositions: (positions: Map<string, { x: number; y: number }> | null) => void;
   saveNodePosition: (nodeId: string, position: { x: number; y: number }) => void;
   loadSavedPositions: () => Promise<void>;
 
@@ -121,6 +125,15 @@ function buildGraphRequest(viewMode: 'agent' | 'blackboard'): GraphRequest {
  */
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
+/** Nodes placed where an unfolded board has them, if one is unfolded. */
+const withTransientPositions = (nodes: Node[], positions: Map<string, { x: number; y: number }> | null): Node[] =>
+  positions
+    ? nodes.map((node) => {
+        const position = positions.get(node.id);
+        return position ? { ...node, position } : node;
+      })
+    : nodes;
+
 export const useGraphStore = create<GraphState>()(
   devtools(
     (set, get) => ({
@@ -135,6 +148,7 @@ export const useGraphStore = create<GraphState>()(
       events: [],
       viewMode: 'agent',
       savedPositions: new Map(),
+      transientPositions: null,
       // The dashboard loads its board as it starts
       isLoading: true,
       error: null,
@@ -158,8 +172,11 @@ export const useGraphStore = create<GraphState>()(
           const mergedNodes = mergeNodePositions(snapshot.nodes, savedPositions, currentNodes);
 
           // Overlay real-time WebSocket state
-          const finalNodes = overlayWebSocketState(mergedNodes, agentStatus, streamingTokens, agentLogicOperations).map(
-            (node) => (node.type === 'agent' ? { ...node, data: { ...node.data, snapshotAt } } : node),
+          const finalNodes = withTransientPositions(
+            overlayWebSocketState(mergedNodes, agentStatus, streamingTokens, agentLogicOperations).map((node) =>
+              node.type === 'agent' ? { ...node, data: { ...node.data, snapshotAt } } : node,
+            ),
+            get().transientPositions,
           );
 
           set({
@@ -442,6 +459,17 @@ export const useGraphStore = create<GraphState>()(
           return { nodes };
         });
       },
+
+      setNodePositions: (positions) => {
+        set((state) => ({
+          nodes: state.nodes.map((node) => {
+            const position = positions.get(node.id);
+            return position ? { ...node, position } : node;
+          }),
+        }));
+      },
+
+      setTransientPositions: (positions) => set({ transientPositions: positions }),
 
       // Position persistence actions
       updateNodePosition: (nodeId, position) => {

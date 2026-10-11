@@ -26,16 +26,21 @@ const shortcuts: Shortcut[] = [
     description: 'Search correlation IDs in the filters',
     category: 'Navigation',
   },
+  {
+    keys: ['Space'],
+    description: 'Unfold or fold the selected node',
+    category: 'Navigation',
+  },
+  {
+    keys: isMac ? ['⌘', 'Shift', 'D'] : ['Ctrl', 'Shift', 'D'],
+    description: 'Unfold or fold the selected node',
+    category: 'Navigation',
+  },
 
   // Panels
   {
     keys: isMac ? ['⌘', 'Shift', 'P'] : ['Ctrl', 'Shift', 'P'],
     description: 'Open or close the publish panel',
-    category: 'Panels',
-  },
-  {
-    keys: isMac ? ['⌘', 'Shift', 'D'] : ['Ctrl', 'Shift', 'D'],
-    description: 'Show or close the agent details',
     category: 'Panels',
   },
   {
@@ -52,7 +57,7 @@ const shortcuts: Shortcut[] = [
   // General
   {
     keys: ['Esc'],
-    description: 'Close panels and windows',
+    description: 'Close a panel, else fold the unfolded node',
     category: 'General',
   },
   {

@@ -3,10 +3,11 @@
  * (docs/internal/design-system/README.md, Nodes: four levels).
  */
 
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Handle, NodeProps, Position, useStore } from '@xyflow/react';
 import { v4 as uuidv4 } from 'uuid';
 import { useModuleStore } from '../../store/moduleStore';
+import { useUIStore } from '../../store/uiStore';
 import { Icon } from '../icons/Icon';
 import {
   AgentData,
@@ -20,7 +21,9 @@ import {
   PortRow,
   tagOf,
 } from './card/cardModel';
+import { cardSizes } from './cardSizes';
 import { AggregatorInfo, CoverageSummary, DeciderInfo, DeciderOptions } from './DecisionDisplay';
+import UnfoldedAgent from './unfold/UnfoldedAgent';
 import styles from './AgentNode.module.css';
 
 /** Below this zoom the board shows chips instead of cards. */
@@ -213,9 +216,12 @@ const BatchBox: React.FC<{ wait: NonNullable<ReturnType<typeof batchWait>> }> = 
   );
 };
 
-const AgentNode = memo(({ data, selected }: NodeProps) => {
+const AgentNode = memo(({ id, data, selected }: NodeProps) => {
   const agent = data as AgentData;
-  const chip = useStore((state) => state.transform[2] < CHIP_ZOOM);
+  // An unfolded node stays unfolded at any zoom; it is what the reader looks at
+  const unfolded = useUIStore((state) => state.unfoldedNodeId === id);
+  const chip = useStore((state) => state.transform[2] < CHIP_ZOOM) && !unfolded;
+  const card = useRef<HTMLDivElement>(null);
   const status = agent.status === 'running' ? 'running' : agent.status === 'error' ? 'error' : 'idle';
   const operations = agent.logicOperations ?? [];
   const timer = agent.scheduleSpec ? agent.timerState : undefined;
@@ -237,6 +243,11 @@ const AgentNode = memo(({ data, selected }: NodeProps) => {
     </>
   );
 
+  // Making room for the unfolded node starts from its card's size
+  useLayoutEffect(() => {
+    if (card.current) cardSizes.set(id, { width: card.current.offsetWidth, height: card.current.offsetHeight });
+  });
+
   if (chip) {
     return (
       <div className={styles.chip} data-status={status} data-selected={selected || undefined}>
@@ -257,9 +268,42 @@ const AgentNode = memo(({ data, selected }: NodeProps) => {
   const age = agent.snapshotAt !== undefined ? (performance.now() - agent.snapshotAt) / 1000 : 0;
   const join = waits ? joinWait(operations, age) : null;
   const batch = waits ? batchWait(operations, age) : null;
+  const ticker = status === 'running' && tokens.length > 0 && (
+    <div className={`mono ${styles.ticker}`} data-testid="ticker">
+      …{tokens.join('').slice(-48)}
+      <span className={styles.caret}>▍</span>
+    </div>
+  );
+  const states = (ticker || status === 'error' || timer || join || batch) && (
+    <>
+      {ticker}
+      {status === 'error' && <ErrorRow error={agent.lastError} />}
+      {timer && <ScheduleLine timer={timer} now={now} />}
+      {join && <JoinBox wait={join} />}
+      {batch && <BatchBox wait={batch} />}
+    </>
+  );
+
+  if (unfolded) {
+    return (
+      <UnfoldedAgent
+        id={id}
+        agent={agent}
+        status={status}
+        dot={dot}
+        tag={tag && <Tag tag={tag} />}
+        handles={handles}
+        rows={rows}
+        states={states}
+        decider={decider}
+        aggregator={aggregator}
+        onOpenTrace={openTrace}
+      />
+    );
+  }
 
   return (
-    <div className={styles.card} data-status={status} data-selected={selected || undefined}>
+    <div ref={card} className={styles.card} data-status={status} data-selected={selected || undefined}>
       {handles}
       <div className={styles.header}>
         {dot}
@@ -276,16 +320,7 @@ const AgentNode = memo(({ data, selected }: NodeProps) => {
       )}
       {decider && <DeciderOptions decider={decider} />}
       {aggregator && <CoverageSummary aggregator={aggregator} />}
-      {status === 'running' && tokens.length > 0 && (
-        <div className={`mono ${styles.ticker}`} data-testid="ticker">
-          …{tokens.join('').slice(-48)}
-          <span className={styles.caret}>▍</span>
-        </div>
-      )}
-      {status === 'error' && <ErrorRow error={agent.lastError} />}
-      {timer && <ScheduleLine timer={timer} now={now} />}
-      {join && <JoinBox wait={join} />}
-      {batch && <BatchBox wait={batch} />}
+      {states}
     </div>
   );
 });
