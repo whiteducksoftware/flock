@@ -706,6 +706,7 @@ class ArtifactsComponent(ServerComponent):
             artifact_id: UUID,
             request: Request,
             images: Literal["full", "thumbnails"] = Query("full"),
+            embed_meta: bool = Query(False, alias="embed_meta"),
         ) -> dict[str, Any]:
             artifact = await orchestrator.store.get(artifact_id)
             if artifact is None:
@@ -719,8 +720,13 @@ class ArtifactsComponent(ServerComponent):
                 )
                 if not allowed:
                     raise HTTPException(status_code=404, detail="artifact not found")
+            consumptions = (
+                await orchestrator.store.consumptions_of(artifact.id)
+                if embed_meta
+                else None
+            )
             if images == "thumbnails":  # thumbnails decode images: off the event loop
                 return await asyncio.to_thread(
-                    self._serialize_artifact, artifact, thumbnails=True
+                    self._serialize_artifact, artifact, consumptions, thumbnails=True
                 )
-            return self._serialize_artifact(artifact)
+            return self._serialize_artifact(artifact, consumptions)

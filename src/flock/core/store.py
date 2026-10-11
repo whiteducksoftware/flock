@@ -134,6 +134,34 @@ class BlackboardStore:
         """Persist one or more consumption events."""
         raise NotImplementedError
 
+    async def consumptions_of(self, artifact_id: UUID) -> list[ConsumptionRecord]:
+        """The consumption history of one artifact (empty if it has none).
+
+        The built-in stores read it by the artifact's ID. This fallback, for
+        stores without such an index, searches the artifact's run for it.
+        """
+        artifact = await self.get(artifact_id)
+        if artifact is None:
+            return []
+        filters = FilterConfig(
+            correlation_id=str(artifact.correlation_id)
+            if artifact.correlation_id
+            else None
+        )
+        offset, page = 0, 100
+        while True:
+            found, total = await self.query_artifacts(
+                filters, limit=page, offset=offset, embed_meta=True
+            )
+            for envelope in found:
+                if isinstance(envelope, ArtifactEnvelope) and (
+                    envelope.artifact.id == artifact_id
+                ):
+                    return list(envelope.consumptions)
+            offset += page
+            if not found or offset >= total:
+                return []
+
     async def query_artifacts(
         self,
         filters: FilterConfig | None = None,
@@ -272,6 +300,10 @@ class InMemoryBlackboardStore(BlackboardStore):
     ) -> None:  # pragma: no cover - helper
         for artifact in artifacts:
             await self.publish(artifact)
+
+    async def consumptions_of(self, artifact_id: UUID) -> list[ConsumptionRecord]:
+        async with self._lock:
+            return list(self._consumptions_by_artifact.get(artifact_id, []))
 
     async def record_consumptions(
         self,
@@ -481,6 +513,13 @@ class SQLiteBlackboardStore(BlackboardStore):
                     record,
                 )
                 await conn.commit()
+
+    async def consumptions_of(self, artifact_id: UUID) -> list[ConsumptionRecord]:
+        conn = await self._get_connection()
+        found = await self._consumption_loader.load_for_artifacts(
+            conn, [str(artifact_id)]
+        )
+        return list(found.get(artifact_id, []))
 
     async def record_consumptions(  # type: ignore[override]
         self,
