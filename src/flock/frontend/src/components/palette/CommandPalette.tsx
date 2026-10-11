@@ -55,6 +55,8 @@ const commandsFor = (onShowShortcuts: () => void): PaletteCommands => ({
   showLane: (correlationId) => {
     useFilterStore.getState().setCorrelationId(correlationId);
     useUIStore.getState().setBlackboardView('lanes');
+    // Its lane shows whether or not it needs a review
+    useUIStore.getState().setNeedsReviewOnly(false);
     setMode('blackboard');
   },
   setMode,
@@ -165,6 +167,10 @@ const CommandPalette: React.FC<{ onShowShortcuts: () => void }> = ({ onShowShort
   const run = (item: PaletteItem, action: number) => {
     const chosen = item.actions[action];
     if (!chosen) return;
+    // The focus goes back first: an overlay the action opens (the composer, the
+    // settings) takes it as the place to return to, not the search about to go
+    inputRef.current?.blur();
+    opener?.focus?.();
     close();
     chosen.run();
   };

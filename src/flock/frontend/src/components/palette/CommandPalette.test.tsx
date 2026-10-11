@@ -141,6 +141,36 @@ describe('CommandPalette', () => {
     expect(useFilterStore.getState().correlationId).toBe('4e7b1c2d-0000-4000-8000-000000000000');
   });
 
+  it('shows a run\'s lane also when only runs that need a review show', async () => {
+    useUIStore.setState({ needsReviewOnly: true });
+    render(<CommandPalette onShowShortcuts={() => {}} />);
+
+    fireEvent.change(input(), { target: { value: '4e7b' } });
+    key('Enter', { shiftKey: true });
+
+    expect(useUIStore.getState().mode).toBe('blackboard');
+    expect(useUIStore.getState().needsReviewOnly).toBe(false);
+  });
+
+  it('gives the focus back before an action opens another overlay', () => {
+    const opener = document.createElement('button');
+    document.body.appendChild(opener);
+    opener.focus();
+    let focusWhenOpened: Element | null = null;
+    const unsubscribe = useSettingsStore.subscribe((state) => {
+      if (state.ui.showControls) focusWhenOpened = document.activeElement;
+    });
+    render(<CommandPalette onShowShortcuts={() => {}} />);
+
+    fireEvent.change(input(), { target: { value: 'publish an' } });
+    key('Enter');
+
+    // The composer takes this element as the one to give the focus back to
+    expect(focusWhenOpened).toBe(opener);
+    unsubscribe();
+    opener.remove();
+  });
+
   it('says when nothing matches', () => {
     render(<CommandPalette onShowShortcuts={() => {}} />);
 
