@@ -538,8 +538,9 @@ describe('MessageNode', () => {
               probabilities: { billing: 0.71, tech: 0.29 },
               votes: [
                 { model: 'a', choice: 'billing', probabilities: { billing: 0.95, tech: 0.05 }, confidence: 0.95, refused: false },
-                { model: 'b', choice: 'tech', probabilities: { billing: 0.2, tech: 0.8 }, confidence: 0.8, refused: false },
-                { model: 'c', choice: null, probabilities: {}, confidence: null, refused: true },
+                { model: 'b', choice: 'tech', probabilities: { billing: 0.08, tech: 0.92 }, confidence: 0.92, refused: false },
+                { model: 'c', choice: 'tech', probabilities: { billing: 0.2, tech: 0.8 }, confidence: 0.8, refused: false },
+                { model: 'd', choice: null, probabilities: {}, confidence: null, refused: true },
               ],
               confidence: 0.71,
               threshold: 0.9,
@@ -553,8 +554,9 @@ describe('MessageNode', () => {
       </ReactFlowProvider>
     );
     const votes = screen.getAllByTestId('decision-vote');
-    expect(votes.map((v) => v.textContent)).toEqual(['a · billing 0.95', 'b · tech 0.80', 'c · refused']);
-    expect(votes.map((v) => v.getAttribute('data-agrees'))).toEqual(['true', 'false', 'false']);
+    expect(votes.map((v) => v.textContent)).toEqual(['a · billing 0.95', 'b · tech 0.92', 'c · tech 0.80', 'd · refused']);
+    // Firm and agreeing, firm but different, below the threshold, refused
+    expect(votes.map((v) => v.getAttribute('data-vote'))).toEqual(['agrees', 'differs', 'unsure', 'unsure']);
   });
 
   it('should summarize the checklist votes of an ensemble', () => {

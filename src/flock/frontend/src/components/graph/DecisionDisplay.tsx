@@ -790,30 +790,44 @@ function voteLabel(vote: EscalationAttempt): string {
   return `${count('yes')} yes · ${count('no')} no${unsure ? ` · ${unsure} unsure` : ''}`;
 }
 
-/** Ensemble: every model's answer; violet where it agrees with the decision. */
-const EnsembleVotes = memo(({ votes, choice }: { votes: EscalationAttempt[]; choice: string }) => (
-  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px', fontSize: '10px', fontFamily: 'monospace' }}>
-    {votes.map((vote, index) => {
-      const agrees = !vote.results && !vote.refused && vote.choice === choice;
-      return (
-        <span
-          key={index}
-          data-testid="decision-vote"
-          data-agrees={String(agrees)}
-          style={{
-            padding: '1px 6px',
-            borderRadius: '999px',
-            background: agrees || vote.results ? '#ede9fe' : '#fef3c7',
-            color: agrees || vote.results ? VIOLET_TEXT : '#b45309',
-            fontWeight: 600,
-          }}
-        >
-          {`${vote.model} · ${voteLabel(vote)}`}
-        </span>
-      );
-    })}
-  </div>
-));
+type VoteState = 'agrees' | 'differs' | 'unsure';
+
+const VOTE_STYLE: Record<VoteState, { background: string; color: string; title: string }> = {
+  agrees: { background: '#ede9fe', color: VIOLET_TEXT, title: 'Firm vote for the decision' },
+  differs: { background: '#fef3c7', color: '#b45309', title: 'Firm vote that did not carry' },
+  unsure: { background: '#f5f5f4', color: '#78716c', title: 'No vote: below the threshold or refused' },
+};
+
+function voteState(vote: EscalationAttempt, choice: string, threshold: number | null): VoteState {
+  if (vote.refused || !vote.choice) return 'unsure';
+  const p = vote.probabilities?.[vote.choice] ?? vote.confidence;
+  if (threshold !== null && (p == null || p < threshold)) return 'unsure';
+  return vote.choice === choice ? 'agrees' : 'differs';
+}
+
+/** Ensemble: every model's vote, colored by how it relates to the decision. */
+const EnsembleVotes = memo(
+  ({ votes, choice, threshold }: { votes: EscalationAttempt[]; choice: string; threshold: number | null }) => (
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px', fontSize: '10px', fontFamily: 'monospace' }}>
+      {votes.map((vote, index) => {
+        // Checklist votes hold one result per item; they are shown neutral
+        const state = vote.results ? 'agrees' : voteState(vote, choice, threshold);
+        const style = VOTE_STYLE[state];
+        return (
+          <span
+            key={index}
+            data-testid="decision-vote"
+            data-vote={vote.results ? undefined : state}
+            title={vote.results ? undefined : style.title}
+            style={{ padding: '1px 6px', borderRadius: '999px', background: style.background, color: style.color, fontWeight: 600 }}
+          >
+            {`${vote.model} · ${voteLabel(vote)}`}
+          </span>
+        );
+      })}
+    </div>
+  )
+);
 EnsembleVotes.displayName = 'EnsembleVotes';
 
 /** Escalation: the lower tiers that were not sure, then the model that answered. */
@@ -1000,7 +1014,7 @@ export const DecisionBars = memo(({ decision }: { decision: DecisionInfo }) => {
           <ChoiceBars decision={decision} />
         </>
       )}
-      {decision.votes && decision.votes.length > 0 && <EnsembleVotes votes={decision.votes} choice={decision.choice} />}
+      {decision.votes && decision.votes.length > 0 && <EnsembleVotes votes={decision.votes} choice={decision.choice} threshold={decision.threshold} />}
       {decision.attempts && decision.attempts.length > 0 && (
         <EscalationTrail attempts={decision.attempts} model={decision.model} tier={decision.tier ?? decision.attempts.length} />
       )}
