@@ -133,6 +133,15 @@ class TracingComponent(ServerComponent):
         first span, which can be after the server started."""
         return self._db_path is not None and Path(self._db_path).exists()
 
+    def _connect(self) -> duckdb.DuckDBPyConnection:
+        """A connection to the trace database, configured as the tracer's exporter
+        connects. DuckDB refuses a second connection to a file in one process with
+        another configuration (``read_only=True``), so the dashboard's reads and the
+        exporter's writes would fail whenever they meet (#599); with the same
+        configuration they share the database.
+        """
+        return duckdb.connect(str(self._db_path))
+
     def configure(self, app, orchestrator):
         """Configure the Component.
 
@@ -185,7 +194,7 @@ class TracingComponent(ServerComponent):
                 )
                 return []
             try:
-                with duckdb.connect(str(self._db_path), read_only=True) as conn:
+                with self._connect() as conn:
                     # Query all spans from DuckDB
                     result = conn.execute(_ALL_SPANS_SQL).fetchall()
                     spans = [_span_from_row(row) for row in result]
@@ -197,7 +206,7 @@ class TracingComponent(ServerComponent):
                 return []
 
         def read_agent_traces(agent_name: str, runs: int) -> list[dict[str, Any]]:
-            with duckdb.connect(str(self._db_path), read_only=True) as conn:
+            with self._connect() as conn:
                 result = conn.execute(_AGENT_SPANS_SQL, [agent_name, runs]).fetchall()
             return [_span_from_row(row) for row in result]
 
@@ -246,7 +255,7 @@ class TracingComponent(ServerComponent):
                 )
                 return {"services": [], "operations": []}
             try:
-                with duckdb.connect(str(self._db_path), read_only=True) as conn:
+                with self._connect() as conn:
                     # Get unique services
                     services_result = conn.execute(
                         """
@@ -331,7 +340,7 @@ class TracingComponent(ServerComponent):
                     "database_size_mb": 0,
                 }
             try:
-                with duckdb.connect(str(self._db_path), read_only=True) as conn:
+                with self._connect() as conn:
                     # Get total spans
                     total_spans = conn.execute("SELECT COUNT(*) FROM spans").fetchone()
                     # Get total unique traces
