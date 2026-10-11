@@ -11,11 +11,7 @@ export type AutoLayoutMode =
   | 'grid'
   | 'random';
 
-interface DetailWindow {
-  nodeId: string;
-  position: { x: number; y: number };
-  size: { width: number; height: number };
-}
+export type BlackboardView = 'lanes' | 'table';
 
 interface UIState {
   // Visualization mode
@@ -47,11 +43,15 @@ interface UIState {
   focus: (nodeId: string) => void;
   unfocus: () => void;
 
-  // Artifact detail windows of the Blackboard view, until its cards unfold (#565); not saved
-  detailWindows: Map<string, DetailWindow>;
-  openDetailWindow: (nodeId: string) => void;
-  closeDetailWindow: (nodeId: string) => void;
-  updateDetailWindow: (nodeId: string, updates: Partial<DetailWindow>) => void;
+  // The Blackboard view: lanes or the table (saved), the artifact card unfolded in place
+  // and whether only runs that need a review show (not saved)
+  blackboardView: BlackboardView;
+  setBlackboardView: (view: BlackboardView) => void;
+  unfoldedArtifactId: string | null;
+  unfoldArtifact: (artifactId: string) => void;
+  foldArtifact: () => void;
+  needsReviewOnly: boolean;
+  setNeedsReviewOnly: (on: boolean) => void;
 
   // Layout preferences
   layoutDirection: 'TB' | 'LR';
@@ -101,34 +101,14 @@ export const useUIStore = create<UIState>()(
         focus: (nodeId: string) => set({ focusedNodeId: nodeId, dockOpen: false }),
         unfocus: () => set({ focusedNodeId: null }),
 
-        detailWindows: new Map(),
-        openDetailWindow: (nodeId: string) =>
-          set((state) => {
-            const windows = new Map(state.detailWindows);
-            if (!windows.has(nodeId)) {
-              windows.set(nodeId, {
-                nodeId,
-                position: { x: 100 + windows.size * 20, y: 100 + windows.size * 20 },
-                size: { width: 600, height: 400 },
-              });
-            }
-            return { detailWindows: windows };
-          }),
-        closeDetailWindow: (nodeId: string) =>
-          set((state) => {
-            const windows = new Map(state.detailWindows);
-            windows.delete(nodeId);
-            return { detailWindows: windows };
-          }),
-        updateDetailWindow: (nodeId: string, updates: Partial<DetailWindow>) =>
-          set((state) => {
-            const windows = new Map(state.detailWindows);
-            const existing = windows.get(nodeId);
-            if (existing) {
-              windows.set(nodeId, { ...existing, ...updates });
-            }
-            return { detailWindows: windows };
-          }),
+        blackboardView: 'lanes',
+        setBlackboardView: (view: BlackboardView) => set({ blackboardView: view }),
+        // One card at a time, as one agent unfolds at a time
+        unfoldedArtifactId: null,
+        unfoldArtifact: (artifactId: string) => set({ unfoldedArtifactId: artifactId }),
+        foldArtifact: () => set({ unfoldedArtifactId: null }),
+        needsReviewOnly: false,
+        setNeedsReviewOnly: (on: boolean) => set({ needsReviewOnly: on }),
 
         layoutDirection: 'TB',
         setLayoutDirection: (direction: 'TB' | 'LR') => set({ layoutDirection: direction }),
@@ -142,12 +122,13 @@ export const useUIStore = create<UIState>()(
         name: 'ui-storage',
         partialize: (state) => ({
           mode: state.mode,
+          blackboardView: state.blackboardView,
           layoutDirection: state.layoutDirection,
           autoLayoutEnabled: state.autoLayoutEnabled,
           autoLayoutMode: state.autoLayoutMode,
         }) as any,
         merge: (persistedState: any, currentState: any) => {
-          // Older dashboards saved their detail windows and their default tab; agents unfold now
+          // Older dashboards saved their detail windows and their default tab; agents and artifacts unfold now
           const { detailWindows: _windows, defaultTab: _tab, ...saved } = persistedState ?? {};
           return {
             ...currentState,

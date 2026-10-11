@@ -17,7 +17,7 @@ const agent = (id: string, selected = false): Node => ({ id, type: 'agent', posi
 describe('useKeyboardShortcuts: unfolding', () => {
   beforeEach(() => {
     useGraphStore.setState({ nodes: [agent('intake'), agent('triage', true)] });
-    useUIStore.setState({ unfoldedNodeId: null, focusedNodeId: null, dockOpen: false, detailWindows: new Map() });
+    useUIStore.setState({ unfoldedNodeId: null, focusedNodeId: null, dockOpen: false, unfoldedArtifactId: null });
     renderHook(() => useKeyboardShortcuts());
   });
 
@@ -112,5 +112,17 @@ describe('useKeyboardShortcuts: unfolding', () => {
 
     press('Escape');
     expect(useUIStore.getState().unfoldedNodeId).toBeNull();
+  });
+
+  it('folds what the view shows: the artifact card on the Blackboard, the agent on the Flow', () => {
+    useUIStore.setState({ mode: 'blackboard', unfoldedNodeId: 'intake', unfoldedArtifactId: 'artifact-1' });
+
+    press('Escape');
+    expect(useUIStore.getState()).toMatchObject({ unfoldedArtifactId: null, unfoldedNodeId: 'intake' });
+
+    useUIStore.setState({ mode: 'agent', unfoldedArtifactId: 'artifact-2' });
+    press('Escape');
+    expect(useUIStore.getState()).toMatchObject({ unfoldedArtifactId: 'artifact-2', unfoldedNodeId: null });
+    useUIStore.setState({ mode: 'agent', unfoldedArtifactId: null });
   });
 });

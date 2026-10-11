@@ -13,14 +13,11 @@ import '@xyflow/react/dist/style.css';
 import AgentNode, { openTrace } from './AgentNode';
 import CanvasDock from './CanvasDock';
 import FocusStage from './focus/FocusStage';
-import MessageNode from './MessageNode';
 import MessageFlowEdge from './MessageFlowEdge';
-import TransformEdge from './TransformEdge';
 import PendingJoinEdge from './PendingJoinEdge';
 import PendingBatchEdge from './PendingBatchEdge';
 import MiniMap from './MiniMap';
 import { useGraphStore } from '../../store/graphStore';
-import { useFilterStore } from '../../store/filterStore';
 import { useUIStore, type AutoLayoutMode } from '../../store/uiStore';
 import { useSettingsStore } from '../../store/settingsStore';
 import {
@@ -48,7 +45,6 @@ const GraphCanvas: React.FC = () => {
   const mode = useUIStore((state) => state.mode);
   // With the timeline dock expanded the board is a strip of chips: no dock or minimap on it
   const dockOpen = useUIStore((state) => state.dockOpen);
-  const openDetailWindow = useUIStore((state) => state.openDetailWindow);
   const autoLayoutEnabled = useUIStore((state) => state.autoLayoutEnabled);
   const setAutoLayoutEnabled = useUIStore((state) => state.setAutoLayoutEnabled);
   const autoLayoutMode = useUIStore((state) => state.autoLayoutMode);
@@ -56,18 +52,8 @@ const GraphCanvas: React.FC = () => {
   const nodes = useGraphStore((state) => state.nodes);
   const edges = useGraphStore((state) => state.edges);
   const generateAgentViewGraph = useGraphStore((state) => state.generateAgentViewGraph);
-  const generateBlackboardViewGraph = useGraphStore((state) => state.generateBlackboardViewGraph);
   const updateNodePosition = useGraphStore((state) => state.updateNodePosition);
   const persistNodePosition = useGraphStore((state) => state.saveNodePosition);
-  // UI Optimization Migration (Phase 4 - Spec 002): Use filterStore.applyFilters (backend-driven)
-  const applyFilters = useFilterStore((state) => state.applyFilters);
-
-  const correlationId = useFilterStore((state) => state.correlationId);
-  const timeRange = useFilterStore((state) => state.timeRange);
-  const selectedArtifactTypes = useFilterStore((state) => state.selectedArtifactTypes);
-  const selectedProducers = useFilterStore((state) => state.selectedProducers);
-  const selectedTags = useFilterStore((state) => state.selectedTags);
-  const selectedVisibility = useFilterStore((state) => state.selectedVisibility);
 
   // Graph settings from settings store
   const edgeType = useSettingsStore((state) => state.graph.edgeType);
@@ -93,7 +79,6 @@ const GraphCanvas: React.FC = () => {
   const nodeTypes = useMemo(
     () => ({
       agent: AgentNode,
-      message: MessageNode,
     }),
     []
   );
@@ -102,46 +87,25 @@ const GraphCanvas: React.FC = () => {
   const edgeTypes = useMemo(
     () => ({
       message_flow: MessageFlowEdge,
-      transformation: TransformEdge,
       pending_join: PendingJoinEdge,  // Phase 1.5: Pending edges for JoinSpec correlation groups
       pending_batch: PendingBatchEdge, // Phase 1.5: Pending edges for BatchSpec accumulation
     }),
     []
   );
 
-  // UI Optimization Migration (Phase 4.1 - Spec 002): Generate graph when mode changes
-  // Backend snapshot includes ALL latest data, no need to watch OLD agents/messages/runs Maps
-  // Note: generateAgentViewGraph and generateBlackboardViewGraph are stable zustand functions
-  // DO NOT add them to dependencies or it will cause infinite loop when nodes update
+  // The board's data loads in useBoardData; new edge settings redraw the graph
+  // (not on mount: the board loads it then). generateAgentViewGraph is a stable
+  // zustand function; as a dependency it would loop on every node update.
+  const edgeSettingsSeen = useRef(false);
   useEffect(() => {
+    if (!edgeSettingsSeen.current) {
+      edgeSettingsSeen.current = true;
+      return;
+    }
     // A failed load is the store's error, which the board shows
-    (mode === 'agent' ? generateAgentViewGraph() : generateBlackboardViewGraph()).catch(() => {});
+    generateAgentViewGraph().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode]);
-
-  // Regenerate graph when edge settings change to apply new edge styles
-  // Note: generateAgentViewGraph and generateBlackboardViewGraph are stable zustand functions
-  // DO NOT add them to dependencies or it will cause infinite loop when nodes update
-  useEffect(() => {
-    // A failed load is the store's error, which the board shows
-    (mode === 'agent' ? generateAgentViewGraph() : generateBlackboardViewGraph()).catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [edgeType, edgeStrokeWidth, edgeAnimation, mode]);
-
-  // Apply filters whenever filter store state changes
-  useEffect(() => {
-    applyFilters().catch(() => {});
-  }, [
-    applyFilters,
-    correlationId,
-    timeRange.preset,
-    timeRange.start,
-    timeRange.end,
-    selectedArtifactTypes.join('|'),
-    selectedProducers.join('|'),
-    selectedTags.join('|'),
-    selectedVisibility.join('|'),
-  ]);
+  }, [edgeType, edgeStrokeWidth, edgeAnimation]);
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -411,15 +375,11 @@ const GraphCanvas: React.FC = () => {
     }
   }, []);
 
-  // A double-click puts an agent in focus; artifacts open their detail window until their cards unfold (#565)
-  const onNodeDoubleClick = useCallback(
-    (event: React.MouseEvent, node: Node) => {
-      if (fromControl(event.target)) return;
-      if (node.type === 'agent') useUIStore.getState().focus(node.id);
-      else if (node.type === 'message') openDetailWindow(node.id);
-    },
-    [openDetailWindow]
-  );
+  // A double-click puts an agent in focus
+  const onNodeDoubleClick = useCallback((event: React.MouseEvent, node: Node) => {
+    if (fromControl(event.target)) return;
+    if (node.type === 'agent') useUIStore.getState().focus(node.id);
+  }, []);
 
   // The edges animate themselves while an artifact is in flight
   const defaultEdgeOptions = useMemo(() => ({ type: edgeType }), [edgeType]);
