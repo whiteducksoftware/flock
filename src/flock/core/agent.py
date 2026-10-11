@@ -752,7 +752,7 @@ class AgentBuilder:
         questions_per_request: int = 100,
         tournament: Any | None = None,
         options: Callable[[Context], Iterable[str]] | None = None,
-        escalate: Sequence[str | Any] | None = None,
+        escalate: str | Sequence[str | Any] | None = None,
         models: Sequence[str | Any] | None = None,
         vote: str | None = None,
     ) -> AgentBuilder:
@@ -782,10 +782,10 @@ class AgentBuilder:
             questions_per_request: Most questions sent in one provider request.
             tournament: A ``Tournament`` to ask one large Choice in rounds of
                 groups; required for choices with more than 255 options.
-            escalate: Decision models to ask, in order, when a decision is not
-                firm (below ``threshold`` or refused): each tier gets only the
-                questions (and checklist items) the previous tier was unsure
-                about. A decision records the ``tier`` that answered and the
+            escalate: Decision models (or a single one) to ask, in order, when
+                a decision is not firm (below ``threshold`` or refused): each
+                tier gets only the questions (and checklist items) the previous
+                tier was unsure about. A decision records the ``tier`` that answered and the
                 earlier ``attempts``; still unsure after the last tier, it routes
                 to ``UNSURE`` as usual.
             models: Several decision models (instead of ``model``) that answer
@@ -839,6 +839,8 @@ class AgentBuilder:
             )
         from flock.decisions.choice import MAX_OPTIONS
 
+        if isinstance(escalate, str):
+            escalate = [escalate]  # one tier, not a sequence of characters
         if escalate and tournament is not None:
             raise ValueError(
                 f"Agent '{self._agent.name}': escalate= is not supported together "
