@@ -319,3 +319,31 @@ Weird charge after the app crashed   → billing   [billing 0.98  tech 0.02]
 
 The LLM ran 1 time for 8 tickets: only for the unsure ones.
 ```
+
+## 11_coverage.py
+
+Checks the 24 compliance documents against the 100 controls (as in `05_compliance_checklist.py`) and combines the checklists per organisation: a control counts as shown once any of the organisation's documents shows it. The report compares each organisation's coverage with the ground truth.
+
+**Key Concepts:**
+- `.consumes(Controls.ANY).aggregates(by="organisation", combine="any")`
+- `Coverage.of(Controls)` (`flock.decisions.coverage`): `group`, `results`, `evidence`, `subject_ids`, `decision_ids`
+- One coverage per decision; the latest per group is current
+
+**Run:**
+```bash
+# AZURE_API_BASE and AZURE_API_KEY set
+uv run examples/15-decisions/11_coverage.py
+```
+
+Set `USE_DASHBOARD = True` to watch the coverage agent count passed and failed organisations.
+
+**What You'll See (2026-10-11, Microsoft-Decision-1):**
+```
+organisation               docs  yes   no   ?  truth yes  agrees
+Alder Grid Energy             2   21   71   8         17   88/92
+Brightwater Logistics         2   26   65   9         27   90/91
+...
+Verdant Rail                  2   39   52   9         30   82/91
+
+Coverage 'shown': precision 0.79, recall 1.00; 110 controls still unsure
+```

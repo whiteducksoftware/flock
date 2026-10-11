@@ -358,6 +358,35 @@ Screens are yes/no checklists rather than choices. A choice spreads its probabil
 
 The network's latency is its slowest screen plus the ranker. The right control was among the network's passes for every sentence, with a median of 5 passes per sentence.
 
+### Coverage across artifacts
+
+A checklist answers per artifact. With a catalog of 100 controls, a single policy never shows all of them, so every document fails. The question that matters is per organisation: is each control shown by *any* of its documents? An aggregating agent answers it:
+
+```python
+from flock.decisions.coverage import Coverage
+
+flock.agent("audit").consumes(Document).decides(Controls, threshold=0.8)
+flock.agent("coverage").consumes(Controls.ANY).aggregates(by="organisation", combine="any")
+flock.agent("gaps").consumes(Coverage.of(Controls), where=lambda c: c.choice == "failed")
+```
+
+Every checklist decision that reaches the agent is added to the group of its decided artifact: `by` names a field of the artifact (`"organisation"`) or is a function of it. After each decision, the agent publishes the group's `Coverage.of(Controls)`:
+
+| Field | Meaning |
+|---|---|
+| `group` | The group's key |
+| `combine` | `any` or `all` |
+| `results` | Combined answer per item |
+| `choice` | `passed`, `failed` or `UNSURE`, as for a checklist decision |
+| `evidence` | Per item, the artifacts that showed it |
+| `subject_ids`, `decision_ids` | The artifacts and decisions in the group |
+
+With `combine="any"` (default) an item is yes if any artifact shows it and no only if all say no; with `combine="all"` it is yes only if every artifact shows it and no if any says no. Anything else is `UNSURE`.
+
+Coverage is published per decision, so the latest coverage of a group is the current one. The groups live in the agent and are also filled from the visible history, so a restart with a persistent store loses nothing; updates run one at a time, so the last coverage holds every decision. A coverage keeps the group's common visibility; for groups with different visibilities, `visibility=` on `.aggregates()` sets the readership. `.aggregates()` needs subscriptions to the handles of one Checklist only, and cannot be combined with `.publishes()`, `.with_engines()` or batch subscriptions.
+
+On the 24 documents of 12 organisations from the compliance example ([`11_coverage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/11_coverage.py), Microsoft-Decision-1, threshold 0.8), the coverage per organisation agrees with the ground truth on 80 to 91 of the decided controls; "shown" has recall 1.00 and precision 0.79, and 110 of the 1,200 controls stay unsure.
+
 ## Thresholds and the UNSURE branch
 
 With `threshold=0.8` the decision is firm only when the chosen option's probability is at least 0.8. Otherwise `choice` is `UNSURE` and only `Route.UNSURE` subscribers run, typically an LLM agent or a human-in-the-loop step. This is a confidence-gated cascade: keep the confident verdicts, escalate the rest.
@@ -727,4 +756,4 @@ They judge well when the answer can be read off the supplied state: routing, int
 
 ## Example
 
-[`examples/15-decisions/01_ticket_triage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/01_ticket_triage.py) routes support tickets with Microsoft-Decision-1 (or any other provider) and sends ambiguous tickets to a supervisor. [`02_arxiv_race.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/02_arxiv_race.py) races an LLM against the available decision models on 100 arXiv abstracts. [`03_color_sorter.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/03_color_sorter.py) sorts generated shapes into color bins from their images. [`04_question_types.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/04_question_types.py) asks a choice, a yes/no and a scale question about every ticket in one request. [`05_compliance_checklist.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/05_compliance_checklist.py) checks 24 fictional security documents against 100 controls and compares the answers with ground truth. [`06_control_mapping_tournament.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/06_control_mapping_tournament.py) maps evidence sentences to one of the 100 controls in three ways: a single choice, a tournament and a screening network. [`07_escalation.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/07_escalation.py) sorts the arXiv abstracts with a cascade of two decision models and shows which tier answered each paper. [`08_voting.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/08_voting.py) lets three decision models vote on them and compares each model with the ensemble. [`09_shadow.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/09_shadow.py) runs a candidate model in the shadow of the live one and lists where it would have routed differently. [`10_explain.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/10_explain.py) lets an LLM explain the tickets the router was unsure about.
+[`examples/15-decisions/01_ticket_triage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/01_ticket_triage.py) routes support tickets with Microsoft-Decision-1 (or any other provider) and sends ambiguous tickets to a supervisor. [`02_arxiv_race.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/02_arxiv_race.py) races an LLM against the available decision models on 100 arXiv abstracts. [`03_color_sorter.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/03_color_sorter.py) sorts generated shapes into color bins from their images. [`04_question_types.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/04_question_types.py) asks a choice, a yes/no and a scale question about every ticket in one request. [`05_compliance_checklist.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/05_compliance_checklist.py) checks 24 fictional security documents against 100 controls and compares the answers with ground truth. [`06_control_mapping_tournament.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/06_control_mapping_tournament.py) maps evidence sentences to one of the 100 controls in three ways: a single choice, a tournament and a screening network. [`07_escalation.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/07_escalation.py) sorts the arXiv abstracts with a cascade of two decision models and shows which tier answered each paper. [`08_voting.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/08_voting.py) lets three decision models vote on them and compares each model with the ensemble. [`09_shadow.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/09_shadow.py) runs a candidate model in the shadow of the live one and lists where it would have routed differently. [`10_explain.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/10_explain.py) lets an LLM explain the tickets the router was unsure about. [`11_coverage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/11_coverage.py) combines the compliance checklists per organisation.
