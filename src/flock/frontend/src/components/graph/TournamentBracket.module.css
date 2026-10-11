@@ -1,0 +1,222 @@
+/*
+ * The tournament bracket: a full-screen modal over the board (docs/internal/
+ * design-system/README.md, Overlays). The champion's path is blue, a hovered
+ * option is traced in the text color, a refused group is dashed.
+ */
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: var(--scrim);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-dialog);
+  background: var(--surface);
+  box-shadow: var(--shadow-stage);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 13px;
+}
+
+.header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.label {
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.title {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.diamond {
+  color: var(--sure-ink);
+}
+
+.subtitle {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.close {
+  margin-left: auto;
+}
+
+.stage {
+  position: relative;
+  flex: 1 1 0;
+  overflow: auto;
+  padding: 20px;
+}
+
+.lines {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+
+.columns {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 72px;
+}
+
+.column {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 230px;
+}
+
+.columnHead {
+  position: sticky;
+  top: 0;
+}
+
+.columnTitle {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.columnSub {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.groupRefused {
+  border-style: dashed;
+  border-color: var(--text-3);
+}
+
+.groupLabel,
+.groupMore {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-3);
+}
+
+.refused {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--text-2);
+}
+
+.refusedMark {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  border: 1.5px dashed var(--text-3);
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: default;
+}
+
+.option[data-winner='true'] {
+  border-color: var(--sure);
+}
+
+.option[data-hovered] {
+  border-color: var(--text-2);
+  background: var(--surface-3);
+}
+
+.name {
+  width: 86px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.option[data-survivor='true'] .name,
+.option[data-hovered] .name {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.option[data-winner='true'] .name {
+  color: var(--sure-ink);
+  font-weight: 600;
+}
+
+.track {
+  flex: 1 1 0;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-3);
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--text-3);
+}
+
+.option[data-survivor='true'] .fill {
+  background: var(--text-2);
+}
+
+.option[data-winner='true'] .fill {
+  background: var(--sure);
+}
+
+.value {
+  width: 34px;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-3);
+}

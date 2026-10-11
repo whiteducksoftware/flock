@@ -35,7 +35,7 @@ describe('ArtifactBody', () => {
     const options = screen.getAllByTestId('decision-option');
     expect(options.map((o) => o.dataset.option)).toEqual(['billing', 'tech', 'shipping']);
     expect(options[0]?.dataset.chosen).toBe('true');
-    expect(screen.getByText('94%')).toBeInTheDocument();
+    expect(screen.getByText('0.94')).toBeInTheDocument();
     expect(screen.getByText(/threshold 0\.80/)).toBeInTheDocument();
     expect(screen.getByText(/local\/clef-flash · 84 ms/)).toBeInTheDocument();
   });
@@ -138,11 +138,14 @@ describe('ArtifactBody', () => {
               refused: false,
             })} />
     );
-    expect(screen.getByText('◆ Urgent: yes')).toBeInTheDocument();
+    expect(screen.getByText('Urgent')).toBeInTheDocument();
+    expect(screen.getByText('Yes / No')).toBeInTheDocument();
+    expect(screen.getByTestId('decision-answer')).toHaveTextContent(/^yes$/);
     const bar = screen.getByTestId('decision-yesno');
     expect(bar.dataset.yes).toBe('0.9');
-    expect(screen.getByText('yes 90%')).toBeInTheDocument();
-    expect(screen.getByText('no 10%')).toBeInTheDocument();
+    expect(screen.getByText('yes 0.90')).toBeInTheDocument();
+    expect(screen.getByText('unsure zone 0.20 – 0.80')).toBeInTheDocument();
+    expect(screen.getByText('no 0.10')).toBeInTheDocument();
     expect(screen.getByTestId('decision-unsure-zone').style.left).toBe('20%');
   });
 
@@ -166,7 +169,8 @@ describe('ArtifactBody', () => {
     const options = screen.getAllByTestId('decision-option');
     expect(options.map((o) => o.dataset.option)).toEqual(['calm', 'annoyed', 'angry', 'furious']);
     expect(options[2]?.dataset.chosen).toBe('true');
-    expect(screen.getByText('◆ Anger: angry · score 2.20')).toBeInTheDocument();
+    expect(screen.getByText('Scale')).toBeInTheDocument();
+    expect(screen.getByTestId('decision-answer')).toHaveTextContent('angry score 2.20');
     expect(screen.getByTestId('decision-score').style.left).toBe(`${((2.2 + 0.5) / 4) * 100}%`);
   });
 
@@ -186,7 +190,7 @@ describe('ArtifactBody', () => {
               refused: true,
             })} />
     );
-    expect(screen.getByText('◆ Urgent: refused')).toBeInTheDocument();
+    expect(screen.getByTestId('decision-answer')).toHaveTextContent(/^refused$/);
     expect(screen.queryByTestId('decision-yesno')).not.toBeInTheDocument();
     expect(screen.queryAllByTestId('decision-option')).toHaveLength(0);
   });
@@ -210,7 +214,12 @@ describe('ArtifactBody', () => {
               refused: false,
             })} />
     );
-    expect(screen.getByText('◆ Controls: failed · 1 yes · 1 no · 2 unsure')).toBeInTheDocument();
+    // A failed checklist names the items that are no; the legend counts every result
+    expect(screen.getByTestId('decision-answer')).toHaveTextContent('failed 1 required item is no: review');
+    expect(screen.getByText('yes 1')).toBeInTheDocument();
+    expect(screen.getByText('no 1')).toBeInTheDocument();
+    expect(screen.getByText('unsure 1')).toBeInTheDocument();
+    expect(screen.getByText('refused 1')).toBeInTheDocument();
     const cells = screen.getAllByTestId('checklist-cell');
     expect(cells.map((c) => c.dataset.result)).toEqual(['yes', 'no', 'UNSURE', 'UNSURE']);
     expect(cells[0]).toHaveAttribute('title', 'mfa · yes · p 0.98');
@@ -241,10 +250,8 @@ describe('ArtifactBody', () => {
             })} />
     );
     const rounds = screen.getAllByTestId('tournament-round');
-    expect(rounds.map((r) => r.textContent)).toEqual([
-      '1000 options · 50 groups → 100',
-      '100 options · 5 groups → 4',
-    ]);
+    expect(screen.getByText('1000 options')).toBeInTheDocument();
+    expect(rounds.map((r) => r.textContent)).toEqual(['50 groups → 100', '5 groups → 4']);
     expect(screen.getAllByTestId('decision-option')).toHaveLength(4);
   });
 
@@ -351,7 +358,8 @@ describe('ArtifactBody', () => {
     );
     const attempts = screen.getAllByTestId('escalation-attempt');
     expect(attempts.map((a) => a.textContent)).toEqual(['fast · billing 0.60', 'medium · refused']);
-    expect(screen.getByTestId('escalation-final')).toHaveTextContent('strong · tier 2');
+    expect(screen.getByTestId('escalation-final')).toHaveTextContent('strong · billing 0.97');
+    expect(screen.getByText('Answered at tier 2 after 2 attempts.')).toBeInTheDocument();
   });
 
   it('should fall back to the confidence when an attempt has no probability for its choice', () => {
@@ -583,7 +591,7 @@ describe('ArtifactBody', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Review as tech' }));
 
-      await waitFor(() => expect(screen.getByTestId('decision-review')).toHaveTextContent('reviewed as tech'));
+      await waitFor(() => expect(screen.getByTestId('decision-review')).toHaveTextContent('after review: ◆ tech'));
       // The review is a new decision: the graph refreshes to show it
       expect(refreshSpy).toHaveBeenCalled();
       const [url, init] = fetchSpy.mock.calls[0] ?? [];
@@ -615,7 +623,7 @@ describe('ArtifactBody', () => {
     render(
       <ArtifactBody id="msg-1" data={unsureRoute({ review: { choice: 'tech', by: 'alice' } })} />
     );
-    expect(screen.getByTestId('decision-review')).toHaveTextContent('reviewed as tech by alice');
+    expect(screen.getByTestId('decision-review')).toHaveTextContent('after review: ◆ tech by alice');
     expect(screen.queryAllByRole('button', { name: /^Review as / })).toHaveLength(0);
   });
 
@@ -650,8 +658,11 @@ describe('ArtifactBody', () => {
           }} />
     );
     const card = screen.getByTestId('coverage-card');
-    expect(card).toHaveTextContent('Controls coverage of acme: UNSURE');
-    expect(card).toHaveTextContent('2 yes · 0 no · 1 unsure');
+    expect(card).toHaveTextContent('Controls coverage of acme');
+    expect(screen.getByTestId('decision-answer')).toHaveTextContent(/^UNSURE/);
+    expect(screen.getByText('yes 2')).toBeInTheDocument();
+    expect(screen.getByText('no 0')).toBeInTheDocument();
+    expect(screen.getByText('unsure 1')).toBeInTheDocument();
     expect(card).toHaveTextContent('any of 2 documents');
     expect(screen.getByRole('group', { name: 'Controls items' })).toBeInTheDocument();
   });

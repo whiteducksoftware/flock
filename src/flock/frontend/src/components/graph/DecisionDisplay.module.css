@@ -1,0 +1,784 @@
+/*
+ * The decision kit: deciders on the board and decisions, explanations and
+ * coverages on the blackboard (docs/internal/design-system/README.md, Decision
+ * kit; mockups/Decisions.dc.html). Blue is a decided answer, the hatch is
+ * unsure, dashed outlines are best guesses and refusals, coral is failed.
+ */
+
+/* Shared text */
+
+.diamond,
+.sureInk {
+  color: var(--sure-ink);
+}
+
+.errorInk {
+  color: var(--error-ink);
+}
+
+.quiet {
+  color: var(--text-2);
+}
+
+.faint {
+  color: var(--text-3);
+}
+
+.strong {
+  color: var(--text);
+}
+
+.start {
+  align-self: flex-start;
+}
+
+.label,
+.kind {
+  flex: none;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.kind {
+  margin-left: auto;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12.5px;
+}
+
+.foot {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+  overflow-wrap: anywhere;
+}
+
+.note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-2);
+  text-wrap: pretty;
+}
+
+/* Marks: decided, unsure, refused, failed */
+
+.swatch {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+}
+
+.swatchSmall {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.dashed {
+  outline: 1px dashed var(--text-3);
+  outline-offset: -1px;
+}
+
+.refusedMark {
+  border: 1.5px dashed var(--text-3);
+}
+
+.check {
+  flex: none;
+  stroke-width: 2.6;
+  color: var(--sure-ink);
+}
+
+.cross {
+  flex: none;
+  stroke-width: 2.4;
+  color: var(--error-ink);
+}
+
+/* A decision: header, answer, its drawing, footer, then the sections */
+
+.decision {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.withSubject {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.withSubject > .decision {
+  flex: 1 1 0;
+}
+
+.subject {
+  flex: none;
+  width: 88px;
+  height: 88px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 2px solid var(--sure);
+}
+
+.subjectUnsure {
+  border-style: dashed;
+  border-color: var(--text-3);
+}
+
+.answer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.answerText {
+  flex: none;
+  font-weight: 600;
+}
+
+.answerDetail {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.meta {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+/* Rows of bars: a choice's probabilities, a decider's answers */
+
+.bars {
+  display: grid;
+  grid-template-columns: fit-content(120px) minmax(40px, 1fr) auto;
+  align-items: center;
+  gap: 9px 10px;
+  font-size: 12px;
+}
+
+.row {
+  display: contents;
+}
+
+.wide {
+  grid-column: 1 / -1;
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+}
+
+.value {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}
+
+.track {
+  position: relative;
+  display: flex;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-3);
+}
+
+.fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--text-3);
+  transition: width var(--duration-layout) var(--ease);
+}
+
+.fillSure {
+  background: var(--sure);
+}
+
+.fillQuiet {
+  background: var(--text-2);
+}
+
+/* A best guess or an unsure share: hatched (global .hatch) with a dashed outline */
+.fillGuess {
+  background-color: transparent;
+  outline: 1px dashed var(--text-2);
+  outline-offset: -1px;
+}
+
+.tick {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  background: var(--text);
+}
+
+.more {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+/* One bar split into shares: yes / unsure / no, passed / failed / unsure */
+
+.split {
+  display: flex;
+  height: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--surface-3);
+}
+
+.split > span {
+  height: 100%;
+  transition: width var(--duration-layout) var(--ease);
+}
+
+.shareSure {
+  background: var(--sure);
+}
+
+.shareNo {
+  background: var(--text-3);
+  opacity: 0.55;
+}
+
+.shareFailed {
+  background: var(--error);
+}
+
+.ends {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}
+
+/* Yes / no: yes from the left, no from the right, the unsure zone hatched */
+
+.yesno {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.yesnoBar {
+  position: relative;
+  display: flex;
+  height: 10px;
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--surface-3);
+}
+
+.side {
+  background: color-mix(in srgb, var(--text-3) 35%, transparent);
+}
+
+.sideSure {
+  background: var(--sure);
+}
+
+.sideLeaning {
+  background: color-mix(in srgb, var(--sure) 45%, transparent);
+}
+
+.noSide {
+  flex: 1 1 0;
+}
+
+.zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background-color: var(--surface-3);
+}
+
+.markerRow {
+  position: relative;
+  height: 7px;
+}
+
+.marker {
+  position: absolute;
+  top: 0;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 7px solid var(--text);
+}
+
+/* Scale: one column per level */
+
+.levels {
+  position: relative;
+  display: grid;
+  align-items: end;
+  height: 64px;
+  border-bottom: 1px solid var(--line-2);
+}
+
+.levelsCompact {
+  height: 50px;
+}
+
+.level {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  height: 100%;
+  min-width: 0;
+  padding: 0 3px;
+}
+
+.levelValue {
+  position: relative;
+  z-index: 1;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-3);
+}
+
+.levelBar {
+  width: 100%;
+  border-radius: 3px 3px 0 0;
+  background: var(--text-3);
+  opacity: 0.6;
+  transition: height var(--duration-layout) var(--ease);
+}
+
+.levelBarSure {
+  background: var(--sure);
+  opacity: 1;
+}
+
+.levelBarGuess {
+  background-color: transparent;
+  opacity: 1;
+  outline: 1px dashed var(--text-2);
+  outline-offset: -1px;
+}
+
+.thresholdLine {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed var(--text-2);
+  pointer-events: none;
+}
+
+.levelNames {
+  display: grid;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-2);
+  text-align: center;
+}
+
+.levelNames > span {
+  min-width: 0;
+  padding: 0 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Checklist: one cell per item, and a legend with counts */
+
+.cells {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.cell {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+}
+
+.cellYes {
+  background: var(--sure);
+}
+
+.cellNo {
+  background: var(--surface-3);
+}
+
+.legendNo {
+  outline: 1px solid var(--line-2);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 11px;
+  color: var(--text-2);
+}
+
+.legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* A decider's checklist: answers per item across decisions, the items most often no */
+
+.strip {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 22px;
+}
+
+.stripItem {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column-reverse;
+  border-radius: 1px;
+  overflow: hidden;
+  background: var(--surface-3);
+}
+
+/* Chips: tournament rounds, escalation tiers, votes, shadow */
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 7px;
+  border: 1px solid var(--line-2);
+  font-size: 11.5px;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chipSure {
+  border-color: var(--sure);
+  color: var(--sure-ink);
+}
+
+.chipUnsure {
+  border-style: dashed;
+  color: var(--text);
+}
+
+.chipDashed {
+  border-style: dashed;
+}
+
+.arrow {
+  flex: none;
+  color: var(--text-3);
+}
+
+/* An arrow and the chip it leads to wrap together */
+.step {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.result {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+}
+
+/* Review: the best guess preselected in blue */
+
+.reviewRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.pick,
+.pick:hover {
+  border-color: var(--sure);
+  color: var(--sure-ink);
+  background: var(--sure-soft);
+}
+
+.reviewNote {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+/* Explanation */
+
+.explanation {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.explainText {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text);
+  text-wrap: pretty;
+}
+
+/* Collapsed to three lines */
+.clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.settle {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.settle > span:first-child {
+  flex: none;
+  color: var(--text-3);
+}
+
+.toggle {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.toggle:hover {
+  color: var(--text);
+}
+
+/* A decider on the board: its questions and their answers so far */
+
+.decider {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.question {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.question + .question {
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.questionName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
+.counts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}
+
+.counts > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.deciderFoot {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.deciderFoot summary {
+  cursor: pointer;
+}
+
+.shadowRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.shadowRow > .track {
+  flex: 1 1 0;
+  min-width: 24px;
+}
+
+/* Image lanes: the latest images decided per option, zoomed 3x on hover */
+
+.lanes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.laneRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.laneName {
+  flex: none;
+  width: 52px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.lane {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.laneUnsure {
+  padding: 3px;
+  border-radius: 6px;
+}
+
+.thumb {
+  width: 26px;
+  height: 26px;
+  object-fit: cover;
+  border-radius: 5px;
+  border: 1px solid var(--line-2);
+  transform-origin: center;
+  transition: transform var(--duration-fast) var(--ease), box-shadow var(--duration-fast) var(--ease);
+}
+
+.thumb:hover {
+  position: relative;
+  z-index: 1000;
+  transform: scale(3);
+  box-shadow: var(--shadow);
+}
+
+.lanePill {
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-2);
+}
+
+/* An aggregating agent on the board */
+
+.coverageSummary {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+}
