@@ -461,7 +461,7 @@ flock.agent("audit").consumes(Document).decides(
 Human reviews are labels: `labels_from_reviews(decisions)` turns every [review](#human-review) into the right answer to its question about its subject, and the CLI calibrates a SQLite store from the decisions and reviews in it, per decider, and prints the thresholds exactly, ready to copy into `item_thresholds`:
 
 ```bash
-flock decisions calibrate .flock/blackboard.db --target-precision 0.95 --min-support 5
+flock-flow decisions calibrate .flock/blackboard.db --target-precision 0.95 --min-support 5
 ```
 
 Thresholds need enough labels. [`14_calibration.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/14_calibration.py) calibrates the 100 controls on 12 of the 24 compliance documents (precision 0.95, at least 3 answers per threshold) and measures on the other 12 with Microsoft-Decision-1:

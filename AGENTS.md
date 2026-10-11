@@ -42,6 +42,7 @@ Useful environment variables (see `.envtemplate` and [configuration reference](d
 | Example | `uv run python examples/01-getting-started/01_declarative_pizza.py` |
 | Live decision tests | `FLOCK_LIVE_DECISIONS=1 uv run pytest tests/decisions/test_live_providers.py` |
 | Version bump | `uv run poe version-patch` (see [Versions and pull requests](#versions-and-pull-requests)) |
+| CLI | `uv run flock-flow --help` (also `python -m flock`; `flock` itself is util-linux's file-locking tool); `--about` shows the milestone's bird |
 
 Pre-commit hooks run Ruff and other checks; a pre-push hook (`scripts/check_version_bump.py`) flags code changes without a version bump.
 
@@ -123,7 +124,7 @@ pitches = await flock.store.get_by_type(Pitch)  # list[Pitch]
 - **Engines:** `.with_engines(DSPyEngine(...))` or a custom `EngineComponent`. `DSPyEngine(lm_kwargs={"azure_ad_token_provider": get_default_azure_token_provider()})` uses Entra ID; the helper is in `flock.engines.auth.azure` and needs the `azure` extra.
 - **Persistence:**
   - `Flock(..., store=SQLiteBlackboardStore(".flock/blackboard.db"))` from `flock.core.store`; the schema is created on first use.
-  - Maintenance: `flock sqlite-maintenance DB --delete-before ISO --vacuum`.
+  - Maintenance: `flock-flow sqlite-maintenance DB --delete-before ISO --vacuum`.
   - Dapr state stores: [Dapr guide](docs/guides/dapr-state-store.md).
 - **Webhooks:** `WebhookDeliveryComponent` (`flock.components.orchestrator`) delivers artifacts to the webhook URL and secret given with a REST publish request ([webhooks guide](docs/guides/webhooks.md)).
 - **Dashboard and API:** `await flock.serve(dashboard=True)` serves the REST API (OpenAPI at `/docs`) and the dashboard on port 8344.
@@ -176,7 +177,7 @@ flock.agent("audit").consumes(Decision.of(Route)).publishes(Entry)    # the deci
   - `.consumes(Controls.ANY).aggregates(by="organisation", combine="any" | "all")` publishes `Coverage.of(Controls)` (`flock.decisions.coverage`) per group as checklist decisions arrive.
   - `sections=Sections(field="text", max_chars=4000)` decides a long text field section by section; the decision's `sections` records which section answered.
   - `await flock.review(decision_id, choice=..., reviewer=...)` publishes a person's decision (`review_of`) that routes like any other; the dashboard shows review buttons on unsure decisions.
-  - `calibrate(decisions, labels, target_precision=0.95)` (`flock.decisions.calibration`) and `flock decisions calibrate DB` suggest thresholds per question and checklist item; `.decides(..., item_thresholds={...})` applies them.
+  - `calibrate(decisions, labels, target_precision=0.95)` (`flock.decisions.calibration`) and `flock-flow decisions calibrate DB` suggest thresholds per question and checklist item; `.decides(..., item_thresholds={...})` applies them.
 - **Rules:**
   - A decision agent publishes only its decisions: no `.with_engines()` or `.publishes()` with `.decides()`.
   - Handles and `Decision.of(X)` cannot share an agent.
