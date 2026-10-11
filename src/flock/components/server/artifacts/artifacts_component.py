@@ -38,6 +38,37 @@ from flock.utils.type_resolution import TypeResolutionHelper
 from flock.utils.visibility_utils import deserialize_visibility
 
 
+async def _consumptions_of(store, artifact: Artifact) -> list[ConsumptionRecord]:
+    """The consumption history of one artifact, from any store.
+
+    Stores embed consumptions only in searches, so this searches for exactly
+    this artifact (its type, producer, run and time, all bounds inclusive)
+    and picks it by ID among artifacts that share those.
+    """
+    filters = FilterConfig(
+        type_names={artifact.type},
+        produced_by={artifact.produced_by},
+        correlation_id=str(artifact.correlation_id)
+        if artifact.correlation_id
+        else None,
+        start=artifact.created_at,
+        end=artifact.created_at,
+    )
+    offset, page = 0, 100
+    while True:
+        found, total = await store.query_artifacts(
+            filters, limit=page, offset=offset, embed_meta=True
+        )
+        for envelope in found:
+            if isinstance(envelope, ArtifactEnvelope) and (
+                envelope.artifact.id == artifact.id
+            ):
+                return list(envelope.consumptions)
+        offset += page
+        if not found or offset >= total:
+            return []
+
+
 class ArtifactComponentConfig(ServerComponentConfig):
     """Configuration for Artifacts Component."""
 
@@ -706,6 +737,7 @@ class ArtifactsComponent(ServerComponent):
             artifact_id: UUID,
             request: Request,
             images: Literal["full", "thumbnails"] = Query("full"),
+            embed_meta: bool = Query(False, alias="embed_meta"),
         ) -> dict[str, Any]:
             artifact = await orchestrator.store.get(artifact_id)
             if artifact is None:
@@ -719,8 +751,13 @@ class ArtifactsComponent(ServerComponent):
                 )
                 if not allowed:
                     raise HTTPException(status_code=404, detail="artifact not found")
+            consumptions = (
+                await _consumptions_of(orchestrator.store, artifact)
+                if embed_meta
+                else None
+            )
             if images == "thumbnails":  # thumbnails decode images: off the event loop
                 return await asyncio.to_thread(
-                    self._serialize_artifact, artifact, thumbnails=True
+                    self._serialize_artifact, artifact, consumptions, thumbnails=True
                 )
-            return self._serialize_artifact(artifact)
+            return self._serialize_artifact(artifact, consumptions)
