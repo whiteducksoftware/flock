@@ -628,6 +628,62 @@ describe('MessageNode', () => {
     expect(shadow).toHaveAttribute('title', 'TimeoutError: no reply');
   });
 
+  it('should name the section a long-document decision came from', () => {
+    render(
+      <ReactFlowProvider>
+        <MessageNode
+          {...createNodeProps(
+            decisionNode({
+              question: 'Topic',
+              kind: 'choice',
+              choice: 'backup',
+              bestGuess: 'backup',
+              probabilities: { access: 0.05, backup: 0.95 },
+              sections: { field: 'text', spans: [[0, 30], [32, 60], [62, 90]], answeredBy: { Topic: 1 } },
+              confidence: 0.95,
+              threshold: 0.9,
+              model: 'fake',
+              latencyMs: 100,
+              score: null,
+              refused: false,
+            })
+          )}
+        />
+      </ReactFlowProvider>
+    );
+    expect(screen.getByText(/3 sections of text · from section 2/)).toBeInTheDocument();
+  });
+
+  it('should name the section of each checklist item', () => {
+    render(
+      <ReactFlowProvider>
+        <MessageNode
+          {...createNodeProps(
+            decisionNode({
+              question: 'Controls',
+              kind: 'checklist',
+              choice: 'passed',
+              bestGuess: 'passed',
+              probabilities: { mfa: 0.97, backup: 0.96 },
+              items: ['mfa', 'backup'],
+              results: { mfa: 'yes', backup: 'yes' },
+              refusedItems: [],
+              sections: { field: 'text', spans: [[0, 30], [32, 60]], answeredBy: { mfa: 0, backup: 1 } },
+              confidence: null,
+              threshold: 0.9,
+              model: 'fake',
+              latencyMs: 100,
+              score: null,
+              refused: false,
+            })
+          )}
+        />
+      </ReactFlowProvider>
+    );
+    expect(screen.getByRole('img', { name: 'backup · yes · p 0.96 · section 2' })).toBeInTheDocument();
+    expect(screen.getByText(/2 sections of text/)).toBeInTheDocument();
+  });
+
   it('should show a coverage as a checklist grid for its group', () => {
     render(
       <ReactFlowProvider>

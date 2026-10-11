@@ -105,6 +105,7 @@ export interface DecisionInfo {
   attempts?: EscalationAttempt[]; // lower tiers that were not sure, oldest first
   votes?: EscalationAttempt[]; // ensemble: every model's answer, in model order
   shadow?: ShadowAnswer; // shadow mode: what the shadow model decided (never routed)
+  sections?: { field: string; spans: number[][]; answeredBy: Record<string, number> }; // long documents
   explanation?: { explanation: string; missing?: string | null; model: string; by?: string | null }; // latest LLM explanation
   confidence: number | null;
   threshold: number | null;
@@ -1049,9 +1050,12 @@ const ChecklistGrid = memo(({ decision }: { decision: DecisionInfo }) => {
       {items.map((item) => {
         const result = results[item] ?? UNSURE;
         const p = decision.probabilities[item];
+        const section = decision.sections?.answeredBy[item];
         const title = refused.has(item)
           ? `${item} · refused`
-          : `${item} · ${result}${p !== undefined ? ` · p ${p.toFixed(2)}` : ''}`;
+          : `${item} · ${result}${p !== undefined ? ` · p ${p.toFixed(2)}` : ''}${
+              section !== undefined ? ` · section ${section + 1}` : ''
+            }`;
         return (
           <span
             key={item}
@@ -1138,6 +1142,17 @@ export const CoverageCard = memo(({ coverage }: { coverage: CoverageInfo }) => {
 });
 CoverageCard.displayName = 'CoverageCard';
 
+/** Long documents: how many sections were decided, and which one answered. */
+function SectionsNote({ decision, sections }: { decision: DecisionInfo; sections: NonNullable<DecisionInfo['sections']> }) {
+  const from = sections.answeredBy[decision.question];
+  return (
+    <span>
+      {` · ${sections.spans.length} sections of ${sections.field}`}
+      {from !== undefined ? ` · from section ${from + 1}` : ''}
+    </span>
+  );
+}
+
 /** One decision: its answer drawn by question kind, with model and threshold. */
 export const DecisionBars = memo(({ decision }: { decision: DecisionInfo }) => {
   const [bracketOpen, setBracketOpen] = useState(false);
@@ -1201,6 +1216,7 @@ export const DecisionBars = memo(({ decision }: { decision: DecisionInfo }) => {
         {decision.candidates ? (
           <span title={decision.candidates.join(', ')}>{` · among ${decision.candidates.length} candidates`}</span>
         ) : null}
+        {decision.sections ? <SectionsNote decision={decision} sections={decision.sections} /> : null}
       </div>
     </div>
   );
