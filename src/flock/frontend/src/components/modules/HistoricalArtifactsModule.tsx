@@ -26,10 +26,11 @@ const resolveTimeRangeToIso = (range: TimeRangeSelection): { from?: string; to?:
   if (range.preset === 'last1hour') {
     return { from: new Date(now - 60 * 60 * 1000).toISOString() };
   }
-  if (range.preset === 'custom' && range.start && range.end) {
+  if (range.preset === 'custom') {
+    // Each bound on its own: a range brushed up to now has a start only
     return {
-      from: new Date(range.start).toISOString(),
-      to: new Date(range.end).toISOString(),
+      ...(range.start !== undefined && { from: new Date(range.start).toISOString() }),
+      ...(range.end !== undefined && { to: new Date(range.end).toISOString() }),
     };
   }
   return {};

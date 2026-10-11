@@ -74,6 +74,8 @@ export const formatTimeRange = (range: TimeRange): string => {
     const endDate = new Date(range.end).toLocaleString();
     return `${startDate} - ${endDate}`;
   }
+  // A range brushed up to now has a start only
+  if (range.preset === 'custom' && range.start) return `Since ${new Date(range.start).toLocaleString()}`;
   if (range.preset === 'custom') {
     return 'Custom range';
   }
