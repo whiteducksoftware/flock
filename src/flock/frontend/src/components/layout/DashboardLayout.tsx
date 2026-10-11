@@ -6,9 +6,7 @@ import PublishControl from '../controls/PublishControl';
 import ModuleWindow from '../modules/ModuleWindow';
 import SettingsPanel from '../settings/SettingsPanel';
 import KeyboardShortcutsDialog from '../common/KeyboardShortcutsDialog';
-import { useUIStore } from '../../store/uiStore';
 import { useModuleStore } from '../../store/moduleStore';
-import { useGraphStore } from '../../store/graphStore';
 import { useSettingsStore } from '../../store/settingsStore';
 import { useModulePersistence } from '../../hooks/useModulePersistence';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
@@ -30,31 +28,9 @@ const DashboardLayout: React.FC = () => {
   // Enable module window persistence
   useModulePersistence();
 
-  const handleToggleAgentDetails = () => {
-    const detailWindows = useUIStore.getState().detailWindows;
-
-    // Check if any detail windows are open
-    if (detailWindows.size > 0) {
-      // Close all detail windows
-      detailWindows.forEach((_, nodeId) => {
-        useUIStore.getState().closeDetailWindow(nodeId);
-      });
-    } else {
-      // UI Optimization Migration (Phase 4.1): Read agent nodes from state.nodes
-      const nodes = useGraphStore.getState().nodes;
-      const agentNodes = nodes.filter((node) => node.type === 'agent');
-
-      // Open detail windows for all agents
-      agentNodes.forEach((node) => {
-        useUIStore.getState().openDetailWindow(node.id);
-      });
-    }
-  };
-
   // The dashboard's keyboard shortcuts, registered once
   useKeyboardShortcuts({
     onToggleHelp: () => setShowKeyboardShortcuts((prev) => !prev),
-    onToggleAgentDetails: handleToggleAgentDetails,
   });
 
   return (

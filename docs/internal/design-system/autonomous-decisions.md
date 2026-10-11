@@ -89,3 +89,30 @@ Each entry says what was decided, why, and where it landed.
 - **The board background is the dotted `--board`;** the old canvas controls stay until the canvas dock (#563).
 - **Decision summaries inside cards keep their current look** until the decision kit (#566).
 
+
+### #561 Unfold a node in place
+
+- **Backend prerequisites on `main`:**
+  - agent nodes carry `description` and `model`, the model resolved as the agent gets it at run time (#592, PR #593);
+  - the dashboard read its traces from `.flock/` next to the installed package while the tracer writes to the working directory, and looked for the file only at startup; it now reads the working directory's file on every request (#594, PR #595). Until then the trace viewer, and the Traces tab, showed nothing.
+- **One node is unfolded at a time,** as the issue proposed. It stays unfolded when the board zooms out to chips; it is what the reader looks at.
+- **Making room:**
+  - a hierarchical layout reruns with the unfolded size (the design's rule);
+  - circular, grid and random arrangements keep their shape and get room inserted: what lies right of the card moves right by the width it gains, what lies below moves down, so nothing that was apart overlaps;
+  - the unfolded node keeps its top-left corner, so it opens where it was clicked;
+  - folding puts every node back, animated like the unfolding.
+  - the board then pans as little as it takes to show all of the unfolded node (24 px margin, no zoom); a card at the edge used to unfold under the header.
+- **Positions while a node is unfolded are not saved,** and snapshot refreshes keep them (they win over the saved ones). Moving a node meanwhile lasts until the node folds. A layout that comes due meanwhile (new nodes or edges with auto layout on) waits for the fold, which then lays the board out anew; with auto layout off the fold puts the nodes back and leaves new ones where they appeared. Choosing a layout from the menu folds the node first and lays the board out in that mode.
+- **A click on a control inside a card** (the failed run's trace button, a review button) does only what the control does; it does not unfold the card.
+- **Keys:**
+  - Space and Ctrl+Shift+D unfold or fold the focused agent, else the selected one, else the unfolded one; Space is left to buttons, fields, tabs and dialogs that have the focus.
+  - Esc folds the unfolded node once the panels are closed (it used to close the detail windows), and leaves an Esc that a dialog already handled.
+  - Space no longer pans the board (`panActivationKeyCode`); dragging the board pans it.
+- **Artifact detail windows stay** until artifact cards unfold in the Blackboard view (#565); they open with a double-click and are no longer saved.
+- **Removed with the agent windows:** the three tabs, the stream store, and their tests, which tested mock components defined in the test files rather than the tabs.
+- **Tabs:**
+  - Live starts from the server's streaming history on every opening and adds live events it does not have yet, so reopening never repeats output (the old tab appended the history again each time); it follows the end while scrolled there, without a switch. It keeps the text, not the events, and shows the latest 100,000 characters: a history can hold 100,000s of events.
+  - History reloads when the agent's counts change; Runs and the Overview reload when its status or counts change, and every 3 s while it runs, since a busy agent's runs start and end while it stays `running`.
+  - The Overview sums tokens and cost over the runs the server lists (the latest 50, labelled so); unpriced runs add tokens, not cost.
+  - Traces reads the agent's latest five runs from a new endpoint, `/api/traces/agents/{name}` (`Agent.execute` spans by `agent.name` and the spans below them, #597, PR #598), since `/api/traces` returns the whole trace database; "Open in the trace viewer" stays until the timeline dock (#564).
+- **Not yet:** the focus button (#562) and the decider's review queue (#566). Until the decision kit, a decider's model shows both under its name and in its answers.

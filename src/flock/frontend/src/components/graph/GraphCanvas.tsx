@@ -40,9 +40,12 @@ import {
   hasNewNodeAdditions,
   scheduleDebouncedAutoLayout,
 } from './autoLayoutTrigger';
+import { MOVE_MS, motionMs } from './animatePositions';
+import { fromControl } from './nodeClick';
+import { useUnfoldLayout } from './useUnfoldLayout';
 
 const GraphCanvas: React.FC = () => {
-  const { fitView, getIntersectingNodes, screenToFlowPosition } = useReactFlow();
+  const { fitView, getIntersectingNodes, screenToFlowPosition, getViewport, setViewport } = useReactFlow();
 
   const mode = useUIStore((state) => state.mode);
   const openDetailWindow = useUIStore((state) => state.openDetailWindow);
@@ -84,6 +87,8 @@ const GraphCanvas: React.FC = () => {
   const previousEdgeIdsRef = useRef<Set<string> | null>(null);
   const previousModeRef = useRef(mode);
   const latestAutoLayoutModeRef = useRef(autoLayoutMode);
+  // A layout that came due while a node is unfolded; folding runs it
+  const layoutDueRef = useRef(false);
 
   // Persistence hook - loads positions on mount and handles debounced drag saves
   const { saveNodePosition: saveNodePositionDebounced } = usePersistence();
@@ -201,6 +206,19 @@ const GraphCanvas: React.FC = () => {
         setAutoLayoutMode(layoutType);
       }
 
+      // A node is unfolded: fold it, and the fold lays the board out in this mode
+      if (useUIStore.getState().unfoldedNodeId) {
+        latestAutoLayoutModeRef.current = layoutType;
+        layoutDueRef.current = true;
+        useUIStore.getState().fold();
+        if (closeMenus) {
+          setContextMenu(null);
+          setShowModuleSubmenu(false);
+          setShowLayoutSubmenu(false);
+        }
+        return;
+      }
+
       // Get the React Flow pane element to find its actual center
       const pane = document.querySelector('.react-flow__pane');
       let viewportCenter = { x: 0, y: 0 };
@@ -302,8 +320,18 @@ const GraphCanvas: React.FC = () => {
     if (!autoLayoutEnabled || (!hasNewNodes && !hasNewEdges)) {
       return;
     }
+    // While a node is unfolded the board waits; folding lays it out
+    if (useUIStore.getState().unfoldedNodeId) {
+      layoutDueRef.current = true;
+      return;
+    }
 
     scheduleDebouncedAutoLayout(autoLayoutDebounceRef, () => {
+      // A node unfolded meanwhile: the fold lays the board out
+      if (useUIStore.getState().unfoldedNodeId) {
+        layoutDueRef.current = true;
+        return;
+      }
       applyLayout(latestAutoLayoutModeRef.current, {
         closeMenus: false,
         // Auto-layout should not overwrite the user's last explicit mode selection.
@@ -324,9 +352,42 @@ const GraphCanvas: React.FC = () => {
     };
   }, []);
 
+  // Pans the board, as little as it takes, so the box is in view (with a margin)
+  const reveal = useCallback(
+    (box: { x: number; y: number; width: number; height: number }) => {
+      const pane = document.querySelector('.react-flow')?.getBoundingClientRect();
+      if (!pane) return;
+      const { x, y, zoom } = getViewport();
+      const margin = 24;
+      const shift = (start: number, size: number, room: number) => {
+        const from = start * zoom;
+        const to = from + size * zoom;
+        if (to - from > room - 2 * margin) return margin - from; // Too big: show its start
+        if (from < margin) return margin - from;
+        if (to > room - margin) return room - margin - to;
+        return 0;
+      };
+      const dx = shift(box.x + x / zoom, box.width, pane.width);
+      const dy = shift(box.y + y / zoom, box.height, pane.height);
+      if (dx || dy) setViewport({ x: x + dx, y: y + dy, zoom }, { duration: motionMs(MOVE_MS) });
+    },
+    [getViewport, setViewport],
+  );
+
+  // Neighbors make room while a node is unfolded
+  useUnfoldLayout({
+    reveal,
+    layoutDue: layoutDueRef,
+    mode: autoLayoutMode,
+    nodeSpacing,
+    rankSpacing,
+    collectDimensions: collectRenderedNodeDimensions,
+    relayout: () => applyLayout(latestAutoLayoutModeRef.current, { closeMenus: false, updateStoredMode: false }),
+  });
+
   // Auto-zoom handler
   const handleAutoZoom = useCallback(() => {
-    fitView({ padding: 0.1, duration: 300 });
+    fitView({ padding: 0.1, duration: motionMs(300) });
     setContextMenu(null);
     setShowModuleSubmenu(false);
   }, [fitView]);
@@ -386,15 +447,29 @@ const GraphCanvas: React.FC = () => {
   // Node drag stop handler - persist position with 300ms debounce
   const onNodeDragStop = useCallback(
     (_event: React.MouseEvent | MouseEvent, node: Node) => {
+      const { transientPositions, setTransientPositions } = useGraphStore.getState();
+      if (transientPositions) {
+        // A node is unfolded: the move lasts until it folds and is not saved
+        setTransientPositions(new Map(transientPositions).set(node.id, node.position));
+        return;
+      }
       saveNodePositionDebounced(node.id, node.position);
     },
     [saveNodePositionDebounced]
   );
 
-  // Node double-click handler - open detail window
+  // A click unfolds an agent in place (a click inside the unfolded one, or on a control, changes nothing)
+  const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
+    if (fromControl(event.target)) return;
+    if (node.type === 'agent' && useUIStore.getState().unfoldedNodeId !== node.id) {
+      useUIStore.getState().unfold(node.id);
+    }
+  }, []);
+
+  // Artifacts open their detail window until their cards unfold too (#565)
   const onNodeDoubleClick = useCallback(
     (_event: React.MouseEvent, node: Node) => {
-      openDetailWindow(node.id);
+      if (node.type === 'message') openDetailWindow(node.id);
     },
     [openDetailWindow]
   );
@@ -422,7 +497,10 @@ const GraphCanvas: React.FC = () => {
         onEdgesChange={onEdgesChange}
         onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
+        onNodeClick={onNodeClick}
         onNodeDoubleClick={onNodeDoubleClick}
+        // Space unfolds and folds the selected node; dragging the board pans it
+        panActivationKeyCode={null}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         defaultEdgeOptions={defaultEdgeOptions}

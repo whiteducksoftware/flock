@@ -48,6 +48,7 @@ describe('graphStore - NEW Simplified Architecture', () => {
       statistics: null,
       events: [],
       viewMode: 'agent',
+      transientPositions: null,
     });
 
     // Clear all mocks
@@ -134,6 +135,21 @@ describe('graphStore - NEW Simplified Architecture', () => {
       await useGraphStore.getState().generateAgentViewGraph();
 
       expect(useGraphStore.getState().nodes[0]?.data).toEqual({ name: 'batcher', snapshotAt: 1234.5 });
+    });
+
+    it('keeps an unfolded board\'s positions over the saved ones when the snapshot refreshes', async () => {
+      const agent = { id: 'agent1', type: 'agent', data: {}, position: { x: 100, y: 100 } } as Node;
+      vi.mocked(fetchGraphSnapshot).mockResolvedValue({ nodes: [], edges: [], statistics: null } as unknown as GraphSnapshot);
+      vi.mocked(mergeNodePositions).mockReturnValue([agent]);
+      vi.mocked(overlayWebSocketState).mockReturnValue([agent]);
+      useGraphStore.getState().setTransientPositions(new Map([['agent1', { x: 5, y: 6 }]]));
+
+      await useGraphStore.getState().generateAgentViewGraph();
+      expect(useGraphStore.getState().nodes[0]?.position).toEqual({ x: 5, y: 6 });
+
+      useGraphStore.getState().setTransientPositions(null);
+      await useGraphStore.getState().generateAgentViewGraph();
+      expect(useGraphStore.getState().nodes[0]?.position).toEqual({ x: 100, y: 100 });
     });
 
     it('should pass filters from filterStore to backend', async () => {
@@ -334,6 +350,24 @@ describe('graphStore - NEW Simplified Architecture', () => {
       const state = useGraphStore.getState();
       expect(state.nodes.find((n) => n.id === 'agent1')?.data.status).toBe('running');
       expect(state.nodes.find((n) => n.id === 'agent2')?.data.status).toBe('idle');
+    });
+  });
+
+  describe('setNodePositions()', () => {
+    it('moves the given nodes and leaves the others', () => {
+      useGraphStore.setState({
+        nodes: [
+          { id: 'a', position: { x: 0, y: 0 }, data: {} },
+          { id: 'b', position: { x: 10, y: 10 }, data: {} },
+        ] as Node[],
+      });
+
+      useGraphStore.getState().setNodePositions(new Map([['a', { x: 3, y: 4 }]]));
+
+      expect(useGraphStore.getState().nodes.map((node) => node.position)).toEqual([
+        { x: 3, y: 4 },
+        { x: 10, y: 10 },
+      ]);
     });
   });
 

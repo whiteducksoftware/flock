@@ -13,7 +13,6 @@ interface DetailWindow {
   nodeId: string;
   position: { x: number; y: number };
   size: { width: number; height: number };
-  activeTab: 'liveOutput' | 'messageHistory' | 'runStatus';
 }
 
 interface UIState {
@@ -27,7 +26,13 @@ interface UIState {
   deselectNode: (nodeId: string) => void;
   clearSelection: () => void;
 
-  // Detail windows
+  // The node unfolded on the board, one at a time (not saved)
+  unfoldedNodeId: string | null;
+  unfold: (nodeId: string) => void;
+  fold: () => void;
+  toggleUnfold: (nodeId: string) => void;
+
+  // Artifact detail windows of the Blackboard view, until its cards unfold (#565); not saved
   detailWindows: Map<string, DetailWindow>;
   openDetailWindow: (nodeId: string) => void;
   closeDetailWindow: (nodeId: string) => void;
@@ -40,10 +45,6 @@ interface UIState {
   setAutoLayoutEnabled: (enabled: boolean) => void;
   autoLayoutMode: AutoLayoutMode;
   setAutoLayoutMode: (mode: AutoLayoutMode) => void;
-
-  // Preferences
-  defaultTab: 'liveOutput' | 'messageHistory' | 'runStatus';
-  setDefaultTab: (tab: 'liveOutput' | 'messageHistory' | 'runStatus') => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -66,6 +67,12 @@ export const useUIStore = create<UIState>()(
           }),
         clearSelection: () => set({ selectedNodeIds: new Set() }),
 
+        unfoldedNodeId: null,
+        unfold: (nodeId: string) => set({ unfoldedNodeId: nodeId }),
+        fold: () => set({ unfoldedNodeId: null }),
+        toggleUnfold: (nodeId: string) =>
+          set((state) => ({ unfoldedNodeId: state.unfoldedNodeId === nodeId ? null : nodeId })),
+
         detailWindows: new Map(),
         openDetailWindow: (nodeId: string) =>
           set((state) => {
@@ -75,7 +82,6 @@ export const useUIStore = create<UIState>()(
                 nodeId,
                 position: { x: 100 + windows.size * 20, y: 100 + windows.size * 20 },
                 size: { width: 600, height: 400 },
-                activeTab: state.defaultTab,
               });
             }
             return { detailWindows: windows };
@@ -103,27 +109,21 @@ export const useUIStore = create<UIState>()(
         autoLayoutMode: 'hierarchical-horizontal',
         setAutoLayoutMode: (mode: AutoLayoutMode) => set({ autoLayoutMode: mode }),
 
-        defaultTab: 'liveOutput',
-        setDefaultTab: (tab: 'liveOutput' | 'messageHistory' | 'runStatus') => set({ defaultTab: tab }),
       }),
       {
         name: 'ui-storage',
         partialize: (state) => ({
           mode: state.mode,
-          detailWindows: Array.from(state.detailWindows.entries()),
-          defaultTab: state.defaultTab,
           layoutDirection: state.layoutDirection,
           autoLayoutEnabled: state.autoLayoutEnabled,
           autoLayoutMode: state.autoLayoutMode,
         }) as any,
         merge: (persistedState: any, currentState: any) => {
-          // Convert detailWindows array back to Map
-          if (persistedState?.detailWindows && Array.isArray(persistedState.detailWindows)) {
-            persistedState.detailWindows = new Map(persistedState.detailWindows);
-          }
+          // Older dashboards saved their detail windows and their default tab; agents unfold now
+          const { detailWindows: _windows, defaultTab: _tab, ...saved } = persistedState ?? {};
           return {
             ...currentState,
-            ...persistedState,
+            ...saved,
           };
         },
       }

@@ -28,8 +28,50 @@ describe('uiStore', () => {
       layoutDirection: 'TB',
       autoLayoutEnabled: true,
       autoLayoutMode: 'hierarchical-horizontal',
-      defaultTab: 'liveOutput',
+      unfoldedNodeId: null,
     });
+  });
+
+  it('unfolds one node at a time', () => {
+    const { unfold, fold, toggleUnfold } = useUIStore.getState();
+
+    unfold('triage');
+    expect(useUIStore.getState().unfoldedNodeId).toBe('triage');
+
+    unfold('billing_team');
+    expect(useUIStore.getState().unfoldedNodeId).toBe('billing_team');
+
+    fold();
+    expect(useUIStore.getState().unfoldedNodeId).toBeNull();
+
+    toggleUnfold('triage');
+    expect(useUIStore.getState().unfoldedNodeId).toBe('triage');
+    toggleUnfold('triage');
+    expect(useUIStore.getState().unfoldedNodeId).toBeNull();
+  });
+
+  it('saves neither the unfolded node nor open windows', () => {
+    useUIStore.getState().unfold('triage');
+    useUIStore.getState().openDetailWindow('artifact-1');
+    useUIStore.getState().setMode('blackboard');
+
+    const saved = JSON.stringify(memoryStorage.get('ui-storage'));
+    expect(saved).toContain('blackboard');
+    expect(saved).not.toContain('triage');
+    expect(saved).not.toContain('artifact-1');
+  });
+
+  it('drops the windows an older dashboard saved', async () => {
+    memoryStorage.set('ui-storage', {
+      state: { mode: 'blackboard', detailWindows: [['triage', { nodeId: 'triage' }]] },
+      version: 0,
+    } as unknown as string);
+
+    await (useUIStore as any).persist.rehydrate();
+
+    expect(useUIStore.getState().mode).toBe('blackboard');
+    expect(useUIStore.getState().detailWindows).toBeInstanceOf(Map);
+    expect(useUIStore.getState().detailWindows.size).toBe(0);
   });
 
   it('should set mode to blackboard', () => {

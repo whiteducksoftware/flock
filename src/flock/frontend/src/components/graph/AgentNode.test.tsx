@@ -5,6 +5,7 @@ import { useLayoutEffect } from 'react';
 import AgentNode from './AgentNode';
 import { NodeProps } from '@xyflow/react';
 import { useModuleStore } from '../../store/moduleStore';
+import { useUIStore } from '../../store/uiStore';
 
 // UI Optimization Migration (Phase 4.1 - Spec 002): AgentNodeData removed, use Record<string, any>
 type AgentNodeData = Record<string, any>;
@@ -654,6 +655,31 @@ describe('AgentNode', () => {
       expect(batch.textContent).toBe('batch 2 / ∞or in 0:29');
       expect(batch.querySelector('[class*="urgent"]')?.textContent).toBe('0:29');
     });
+  });
+
+  it('unfolds in place when it is the unfolded node, at any zoom', () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ runs: [] }))));
+    useUIStore.setState({ unfoldedNodeId: 'test-agent' });
+    const ZoomedOut = ({ children }: { children: React.ReactNode }) => {
+      const store = useStoreApi();
+      useLayoutEffect(() => {
+        store.setState({ transform: [0, 0, 0.4] });
+      }, [store]);
+      return <>{children}</>;
+    };
+
+    render(
+      <ReactFlowProvider>
+        <ZoomedOut>
+          <AgentNode {...createNodeProps({ name: 'test-agent', status: 'idle', subscriptions: ['app.Ticket'] })} />
+        </ZoomedOut>
+      </ReactFlowProvider>,
+    );
+
+    expect(screen.getByTestId('unfolded')).toBeTruthy();
+    expect(screen.getByRole('tablist')).toBeTruthy();
+    useUIStore.setState({ unfoldedNodeId: null });
+    vi.unstubAllGlobals();
   });
 
   it('shows a chip when the board is zoomed out', () => {
