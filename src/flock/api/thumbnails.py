@@ -10,6 +10,7 @@ the full images.
 from __future__ import annotations
 
 import hashlib
+import json
 import threading
 from collections import OrderedDict
 from typing import Any
@@ -33,6 +34,15 @@ def is_image_data(value: Any) -> bool:
     )
 
 
+def _json_key(key: Any) -> str:
+    """A dict key as it appears in the JSON payload (True -> "true", None -> "null")."""
+    if isinstance(key, str):
+        return key
+    if key is None or isinstance(key, bool):
+        return json.dumps(key)
+    return str(key)
+
+
 def _locate_images(
     value: Any, keys: tuple[str | int, ...] = ()
 ) -> list[tuple[list[str | int], str]]:
@@ -42,7 +52,7 @@ def _locate_images(
     found: list[tuple[list[str | int], str]] = []
     if isinstance(value, dict):
         for key, item in value.items():
-            found += _locate_images(item, (*keys, str(key)))
+            found += _locate_images(item, (*keys, _json_key(key)))
     elif isinstance(value, list | tuple):
         for index, item in enumerate(value):
             found += _locate_images(item, (*keys, index))

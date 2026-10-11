@@ -187,3 +187,17 @@ def test_image_like_values_that_are_not_images_get_no_preview(url):
 
     assert image_summaries(payload) == []
     assert compact(payload)["note"].startswith("🖼")
+
+
+def test_key_segments_match_the_json_keys():
+    from flock.api.thumbnails import image_summaries
+
+    picture = _picture((20, 20)).model_dump()
+
+    summaries = image_summaries({"flags": {True: picture, None: picture, 3: picture}})
+
+    assert [summary["keys"] for summary in summaries] == [
+        ["flags", "true"],
+        ["flags", "null"],
+        ["flags", "3"],
+    ]
