@@ -153,6 +153,58 @@ def sqlite_maintenance(
         console.print("[yellow]VACUUM completed[/yellow]")
 
 
+decisions_app = typer.Typer(help="Decision models")
+app.add_typer(decisions_app, name="decisions")
+
+
+@decisions_app.command("calibrate")
+def decisions_calibrate(
+    db_path: str = typer.Argument(..., help="Path to SQLite blackboard database"),
+    target_precision: float = typer.Option(
+        0.95, help="Share of right answers the firm answers must reach"
+    ),
+    min_support: int = typer.Option(
+        5, help="Labelled answers a threshold needs at or above it"
+    ),
+) -> None:
+    """Suggest thresholds per question and checklist item from human reviews."""
+    from flock.decisions.calibration import calibrate_store
+
+    store = SQLiteBlackboardStore(db_path)
+
+    async def _calibrate():
+        await store.ensure_schema()
+        try:
+            return await calibrate_store(store, target_precision, min_support)
+        finally:
+            await store.close()
+
+    suggestions = asyncio.run(_calibrate())
+    if not suggestions:
+        console.print("[yellow]No reviewed decisions to calibrate from.[/yellow]")
+        return
+    table = Table(title=f"Thresholds for precision {target_precision:.2f}")
+    for column in (
+        "question",
+        "item",
+        "labelled",
+        "threshold",
+        "precision",
+        "coverage",
+    ):
+        table.add_column(column)
+    for s in sorted(suggestions, key=lambda s: (s.question, s.item or "")):
+        table.add_row(
+            s.question,
+            s.item or "",
+            str(s.labeled),
+            "-" if s.threshold is None else f"{s.threshold:.2f}",
+            "-" if s.precision is None else f"{s.precision:.2f}",
+            f"{s.coverage:.2f}",
+        )
+    console.print(table)
+
+
 def main() -> None:
     app()
 

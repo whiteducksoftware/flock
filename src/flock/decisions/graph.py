@@ -133,6 +133,8 @@ def decider_info(
         info["vote"] = engine.vote
     if engine.shadow is not None:
         info["shadow"] = _shadow_info(engine, produced)
+    if engine.item_thresholds:
+        info["itemThresholds"] = dict(engine.item_thresholds)
     return info
 
 

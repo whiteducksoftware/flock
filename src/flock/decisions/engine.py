@@ -229,6 +229,10 @@ class DecisionEngine(EngineComponent):
         default=None,
         description="Splits a long text field into sections decided one by one",
     )
+    item_thresholds: dict[str, float] = Field(
+        default_factory=dict,
+        description="Checklist items with their own threshold instead of threshold",
+    )
     shadow_timeout: float = Field(
         default=10.0,
         gt=0,
@@ -540,7 +544,7 @@ class DecisionEngine(EngineComponent):
         if (
             question.item is not None
             and refused
-            and self._item_result(strength(best[1])) != "yes"
+            and self._item_result(strength(best[1]), question.item) != "yes"
         ):
             # No section shows the item and one refused: not every section says no
             return refused[0]
@@ -678,7 +682,7 @@ class DecisionEngine(EngineComponent):
             return None
         if question.item is None:
             return answer.choice
-        return self._item_result(answer.probabilities.get("yes", 0.0))
+        return self._item_result(answer.probabilities.get("yes", 0.0), question.item)
 
     def _settled(self, question: DecisionQuestion, answer: DecisionAnswer) -> bool:
         """A firm answer: a checklist item's result, else the threshold."""
@@ -686,7 +690,8 @@ class DecisionEngine(EngineComponent):
             return self._firm(answer)
         if answer.refused or answer.choice is None:
             return False
-        return self._item_result(answer.probabilities.get("yes", 0.0)) != UNSURE
+        p_yes = answer.probabilities.get("yes", 0.0)
+        return self._item_result(p_yes, question.item) != UNSURE
 
     def _candidates(self, ctx: Context) -> dict[str, str] | None:
         """The options of the single question for this execution (options=)."""
@@ -835,11 +840,15 @@ class DecisionEngine(EngineComponent):
                 )
         return wire
 
-    def _item_result(self, p_yes: float) -> str:
+    def _item_result(self, p_yes: float, item: str | None = None) -> str:
         # The more probable answer, firm if it reaches the threshold (as for a
-        # YesNo question; below 0.5 the yes and no regions would overlap)
+        # YesNo question; below 0.5 the yes and no regions would overlap). An
+        # item can have its own threshold.
         answer, probability = ("yes", p_yes) if p_yes >= 0.5 else ("no", 1.0 - p_yes)
-        if self.threshold is None or probability >= self.threshold:
+        threshold = (
+            self.item_thresholds.get(item, self.threshold) if item else self.threshold
+        )
+        if threshold is None or probability >= threshold:
             return answer
         return UNSURE
 
@@ -872,7 +881,7 @@ class DecisionEngine(EngineComponent):
             if item_question.name in trail.verdicts:
                 results[item] = trail.verdicts[item_question.name] or UNSURE
             else:
-                results[item] = self._item_result(probabilities[item])
+                results[item] = self._item_result(probabilities[item], item)
 
         if not results:
             outcome = UNSURE  # no items to check
@@ -900,7 +909,9 @@ class DecisionEngine(EngineComponent):
                 attempts[index]["results"][item_question.item] = (
                     UNSURE
                     if earlier.refused or earlier.choice is None
-                    else self._item_result(earlier.probabilities.get("yes", 0.0))
+                    else self._item_result(
+                        earlier.probabilities.get("yes", 0.0), item_question.item
+                    )
                 )
         # Ensembles: every model's result per item, in the order of the models
         votes: list[dict[str, Any]] = []

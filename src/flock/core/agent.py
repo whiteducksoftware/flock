@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import os
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
 from typing import TYPE_CHECKING, Any
@@ -783,6 +783,7 @@ class AgentBuilder:
         shadow: str | Any | None = None,
         shadow_timeout: float = 10.0,
         sections: Any | None = None,
+        item_thresholds: Mapping[str, float] | None = None,
     ) -> AgentBuilder:
         """Answer questions about each input with a decision model.
 
@@ -838,6 +839,9 @@ class AgentBuilder:
                 section. A checklist item is yes if any section shows it, other
                 questions take the most confident section. The decision's
                 ``sections`` records the spans and the section per answer.
+            item_thresholds: Checklist items with their own threshold instead
+                of ``threshold``, e.g. calibrated ones (``flock decisions
+                calibrate``).
             options: Restricts the single Choice or Checklist to a subset of its
                 options for each execution: a callable that receives the
                 context (``ctx.decisions`` holds the decisions that triggered
@@ -898,6 +902,25 @@ class AgentBuilder:
                         f"Agent '{self._agent.name}': sections= is not supported "
                         f"together with {name} yet."
                     )
+        if item_thresholds:
+            items = {
+                item
+                for question in questions
+                if question.__kind__ == "checklist"
+                for item in question.__options__
+            }
+            unknown = sorted(set(item_thresholds) - items)
+            if unknown:
+                raise ValueError(
+                    f"Agent '{self._agent.name}': item_thresholds= names no "
+                    f"checklist item of this decider: {', '.join(unknown)}."
+                )
+            bad = {k: v for k, v in item_thresholds.items() if not 0.0 < v <= 1.0}
+            if bad:
+                raise ValueError(
+                    f"Agent '{self._agent.name}': item_thresholds= must be in "
+                    f"(0, 1], got {bad}."
+                )
         if shadow_timeout <= 0:
             raise ValueError(
                 f"Agent '{self._agent.name}': shadow_timeout must be positive, "
@@ -1033,6 +1056,7 @@ class AgentBuilder:
             shadow=None if shadow is None else with_budget(shadow),
             shadow_timeout=shadow_timeout,
             sections=sections,
+            item_thresholds=dict(item_thresholds or {}),
         )
         self.publishes(*(Decision.of(question) for question in questions))
         for output in self._agent.output_groups[-1].outputs:
