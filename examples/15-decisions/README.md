@@ -412,3 +412,29 @@ Who handled what:
 
 3 reviewed decisions are labels for calibration.
 ```
+
+## 14_calibration.py
+
+Checks the 24 compliance documents against the 100 controls with one global threshold (0.8), calibrates a threshold per control on half of the documents (target precision 0.95, ground truth as labels) and decides the other half again with those `item_thresholds`. The report compares the held-out half with both.
+
+**Key Concepts:**
+- `calibrate(decisions, labels, target_precision=0.95, min_support=3)`
+- `.decides(Controls, threshold=0.8, item_thresholds={...})`
+- Measure on documents the thresholds were not fitted to
+
+**Run:**
+```bash
+# AZURE_API_BASE and AZURE_API_KEY set
+uv run examples/15-decisions/14_calibration.py
+```
+
+**What You'll See (2026-10-11, Microsoft-Decision-1):**
+```
+Calibrated 96 of 100 controls for precision 0.95: 9 below 0.8, 87 at or above it
+
+held-out documents           precision  recall  unsure
+global threshold 0.8              0.76    0.99      75
+calibrated                        0.81    0.99     217
+```
+
+With 12 labelled documents per control, precision rises but stays far from 0.95 on the held-out half, and more answers stay unsure; more labels give steadier thresholds.

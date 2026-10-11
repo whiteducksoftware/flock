@@ -438,6 +438,38 @@ A **refused** question (OpenAI's Decisions API can refuse a question and still a
 
 Calibration is per task, not global. Pick each decider's threshold on that decider's own data. Recorded decisions (persistent store, traces) make it cheap to replay inputs against another model before switching.
 
+### Calibrating thresholds
+
+With labels (the right answer for some decided artifacts), `calibrate()` suggests thresholds instead of guessing them:
+
+```python
+from flock.decisions.calibration import calibrate
+
+suggestions = calibrate(decisions, labels, target_precision=0.95, min_support=5)
+item_thresholds = {s.item: s.threshold for s in suggestions if s.item and s.threshold}
+
+flock.agent("audit").consumes(Document).decides(
+    Controls, threshold=0.8, item_thresholds=item_thresholds
+)
+```
+
+`decisions` are decision artifacts' payloads (or models); `labels` maps a decided artifact's id to its right answer: an option, or for a Checklist a mapping of item to `"yes"` or `"no"`. Per question, and per checklist item, `calibrate()` returns a `Suggestion` with the lowest threshold whose firm answers reach `target_precision`, counting only thresholds with at least `min_support` labelled answers at or above them, and the `precision` and `coverage` (share of firm answers) at that threshold; `threshold` is `None` when no threshold reaches the target. A choice, yes/no or scale answer is its best guess with its probability; a checklist item's answer is yes or no, whichever is more probable, with that probability. `item_thresholds=` on `.decides()` gives checklist items their own threshold.
+
+Human reviews are labels: `labels_from_reviews(decisions)` turns every [review](#human-review) into the right answer for its subject, and the CLI calibrates a SQLite store from the decisions and reviews in it:
+
+```bash
+flock decisions calibrate .flock/blackboard.db --target-precision 0.95 --min-support 5
+```
+
+Thresholds need enough labels. [`14_calibration.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/14_calibration.py) calibrates the 100 controls on 12 of the 24 compliance documents (precision 0.95, at least 3 answers per threshold) and measures on the other 12 with Microsoft-Decision-1:
+
+| Held-out documents | Precision of "shown" | Recall | Unsure answers |
+|---|---|---|---|
+| one threshold, 0.8 | 0.76 | 0.99 | 75 |
+| calibrated item thresholds | 0.81 | 0.99 | 217 |
+
+Precision rises at the same recall, but the target is far off on documents the thresholds were not fitted to, and almost three times as many answers stay unsure: 12 labelled documents per control are too few for stable thresholds. Calibrate on as many labels as you can, and measure on labels the thresholds did not come from.
+
 ### Escalation cascades
 
 `escalate=` asks another decision model about what the first one was not sure about, before anything routes to `UNSURE`:
@@ -833,4 +865,4 @@ They judge well when the answer can be read off the supplied state: routing, int
 
 ## Example
 
-[`examples/15-decisions/01_ticket_triage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/01_ticket_triage.py) routes support tickets with Microsoft-Decision-1 (or any other provider) and sends ambiguous tickets to a supervisor. [`02_arxiv_race.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/02_arxiv_race.py) races an LLM against the available decision models on 100 arXiv abstracts. [`03_color_sorter.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/03_color_sorter.py) sorts generated shapes into color bins from their images. [`04_question_types.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/04_question_types.py) asks a choice, a yes/no and a scale question about every ticket in one request. [`05_compliance_checklist.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/05_compliance_checklist.py) checks 24 fictional security documents against 100 controls and compares the answers with ground truth. [`06_control_mapping_tournament.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/06_control_mapping_tournament.py) maps evidence sentences to one of the 100 controls in three ways: a single choice, a tournament and a screening network. [`07_escalation.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/07_escalation.py) sorts the arXiv abstracts with a cascade of two decision models and shows which tier answered each paper. [`08_voting.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/08_voting.py) lets three decision models vote on them and compares each model with the ensemble. [`09_shadow.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/09_shadow.py) runs a candidate model in the shadow of the live one and lists where it would have routed differently. [`10_explain.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/10_explain.py) lets an LLM explain the tickets the router was unsure about. [`11_coverage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/11_coverage.py) combines the compliance checklists per organisation. [`12_long_documents.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/12_long_documents.py) checks long manuals in sections and shows where each control is shown. [`13_human_review.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/13_human_review.py) lets a person review the unsure tickets.
+[`examples/15-decisions/01_ticket_triage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/01_ticket_triage.py) routes support tickets with Microsoft-Decision-1 (or any other provider) and sends ambiguous tickets to a supervisor. [`02_arxiv_race.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/02_arxiv_race.py) races an LLM against the available decision models on 100 arXiv abstracts. [`03_color_sorter.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/03_color_sorter.py) sorts generated shapes into color bins from their images. [`04_question_types.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/04_question_types.py) asks a choice, a yes/no and a scale question about every ticket in one request. [`05_compliance_checklist.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/05_compliance_checklist.py) checks 24 fictional security documents against 100 controls and compares the answers with ground truth. [`06_control_mapping_tournament.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/06_control_mapping_tournament.py) maps evidence sentences to one of the 100 controls in three ways: a single choice, a tournament and a screening network. [`07_escalation.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/07_escalation.py) sorts the arXiv abstracts with a cascade of two decision models and shows which tier answered each paper. [`08_voting.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/08_voting.py) lets three decision models vote on them and compares each model with the ensemble. [`09_shadow.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/09_shadow.py) runs a candidate model in the shadow of the live one and lists where it would have routed differently. [`10_explain.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/10_explain.py) lets an LLM explain the tickets the router was unsure about. [`11_coverage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/11_coverage.py) combines the compliance checklists per organisation. [`12_long_documents.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/12_long_documents.py) checks long manuals in sections and shows where each control is shown. [`13_human_review.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/13_human_review.py) lets a person review the unsure tickets. [`14_calibration.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/14_calibration.py) calibrates a threshold per control and measures it on held-out documents.
