@@ -434,5 +434,68 @@ describe('MessageNode', () => {
     );
     expect(screen.getByText(/among 3 candidates/)).toBeInTheDocument();
   });
+
+  it('should show the escalation trail of a decision answered one tier up', () => {
+    render(
+      <ReactFlowProvider>
+        <MessageNode
+          {...createNodeProps(
+            decisionNode({
+              question: 'Route',
+              kind: 'choice',
+              choice: 'billing',
+              bestGuess: 'billing',
+              probabilities: { billing: 0.97, tech: 0.03 },
+              tier: 2,
+              attempts: [
+                { model: 'fast', choice: 'billing', probabilities: { billing: 0.6, tech: 0.4 }, confidence: 0.6, refused: false },
+                { model: 'medium', choice: null, probabilities: {}, confidence: null, refused: true },
+              ],
+              confidence: 0.97,
+              threshold: 0.9,
+              model: 'strong',
+              latencyMs: 700,
+              score: null,
+              refused: false,
+            })
+          )}
+        />
+      </ReactFlowProvider>
+    );
+    const attempts = screen.getAllByTestId('escalation-attempt');
+    expect(attempts.map((a) => a.textContent)).toEqual(['fast · billing 0.60', 'medium · refused']);
+    expect(screen.getByTestId('escalation-final')).toHaveTextContent('strong · tier 2');
+  });
+
+  it('should count the escalated items of a checklist attempt', () => {
+    render(
+      <ReactFlowProvider>
+        <MessageNode
+          {...createNodeProps(
+            decisionNode({
+              question: 'Controls',
+              kind: 'checklist',
+              choice: 'passed',
+              bestGuess: 'passed',
+              probabilities: { mfa: 0.98, backup: 0.97 },
+              items: ['mfa', 'backup'],
+              results: { mfa: 'yes', backup: 'yes' },
+              refusedItems: [],
+              tier: 1,
+              attempts: [{ model: 'fast', results: { backup: 'UNSURE' } }],
+              confidence: null,
+              threshold: 0.9,
+              model: 'strong',
+              latencyMs: 400,
+              score: null,
+              refused: false,
+            })
+          )}
+        />
+      </ReactFlowProvider>
+    );
+    expect(screen.getByTestId('escalation-attempt')).toHaveTextContent('fast · 1 unsure');
+    expect(screen.getByTestId('escalation-attempt')).toHaveAttribute('title', expect.stringContaining('backup'));
+  });
 });
 

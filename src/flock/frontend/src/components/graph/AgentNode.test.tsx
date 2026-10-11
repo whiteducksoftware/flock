@@ -322,5 +322,28 @@ describe('AgentNode', () => {
     expect(screen.getByText('+57 more options')).toBeInTheDocument();
     expect(screen.getByText(/tournament: groups of 20, keep 2/)).toBeInTheDocument();
   });
+
+  it('should show the escalation cascade of a decider', () => {
+    const data: AgentNodeData = {
+      name: 'triage',
+      status: 'idle',
+      subscriptions: ['Ticket'],
+      sentCount: 2,
+      recvCount: 2,
+      decision: {
+        model: 'fast',
+        threshold: 0.9,
+        escalate: ['medium', 'strong'],
+        questions: [{ name: 'Route', kind: 'choice', options: ['billing', 'tech'], counts: { billing: 2, tech: 0 } }],
+      },
+    };
+
+    render(
+      <ReactFlowProvider>
+        <AgentNode {...createNodeProps(data)} />
+      </ReactFlowProvider>
+    );
+    expect(screen.getByText(/fast › medium › strong/)).toBeInTheDocument();
+  });
 });
 

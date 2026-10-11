@@ -38,6 +38,16 @@ export interface DeciderInfo {
   threshold: number | null;
   questions: DeciderQuestion[];
   tournament?: { groupSize: number; keep: number };
+  escalate?: string[]; // models asked after `model`, in order, when it is not sure
+}
+
+export interface EscalationAttempt {
+  model: string;
+  choice?: string | null;
+  probabilities?: Record<string, number>;
+  confidence?: number | null;
+  refused?: boolean;
+  results?: Record<string, string>; // checklist: the escalated items and their results
 }
 
 export interface TournamentGroupResult {
@@ -76,6 +86,8 @@ export interface DecisionInfo {
   refusedItems?: string[];
   rounds?: TournamentRound[]; // tournament: rounds before the final question
   candidates?: string[]; // options= restricted the question to these options
+  tier?: number; // escalation tier that answered (0: the decider's model)
+  attempts?: EscalationAttempt[]; // lower tiers that were not sure, oldest first
   confidence: number | null;
   threshold: number | null;
   model: string;
@@ -511,7 +523,7 @@ export const DeciderOptions = memo(({ decider }: { decider: DeciderInfo }) => {
         </div>
       ))}
       <div style={{ fontSize: '10px', color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-family-mono)' }}>
-        {decider.model}
+        {[decider.model, ...(decider.escalate ?? [])].join(' › ')}
         {decider.threshold !== null ? ` · threshold ${decider.threshold.toFixed(2)}` : ''}
         {decider.tournament
           ? ` · tournament: groups of ${decider.tournament.groupSize}, keep ${decider.tournament.keep}`
@@ -757,6 +769,41 @@ ScaleBars.displayName = 'ScaleBars';
 const NO_CELL = '#d6d3d1';
 const CELL_COLOR: Record<string, string> = { yes: DECISION_COLOR, no: NO_CELL, UNSURE: AMBER };
 
+function attemptLabel(attempt: EscalationAttempt): string {
+  if (attempt.results) return `${Object.keys(attempt.results).length} unsure`;
+  if (attempt.refused || !attempt.choice) return 'refused';
+  return `${attempt.choice} ${(attempt.probabilities?.[attempt.choice] ?? 0).toFixed(2)}`;
+}
+
+/** Escalation: the lower tiers that were not sure, then the model that answered. */
+const EscalationTrail = memo(({ attempts, model, tier }: { attempts: EscalationAttempt[]; model: string; tier: number }) => (
+  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px', fontSize: '10px', fontFamily: 'monospace' }}>
+    {attempts.map((attempt, index) => (
+      <span key={index} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+        <span
+          data-testid="escalation-attempt"
+          title={
+            attempt.results
+              ? `Tier ${index}: not sure about ${Object.keys(attempt.results).join(', ')}; asked one tier up`
+              : `Tier ${index}: ${attempt.refused ? 'refused' : 'below the threshold'}; asked one tier up`
+          }
+          style={{ padding: '1px 6px', borderRadius: '999px', background: '#fef3c7', color: '#b45309', fontWeight: 600 }}
+        >
+          {`${attempt.model} · ${attemptLabel(attempt)}`}
+        </span>
+        <span style={{ color: STONE }}>›</span>
+      </span>
+    ))}
+    <span
+      data-testid="escalation-final"
+      style={{ padding: '1px 6px', borderRadius: '999px', background: '#ede9fe', color: VIOLET_TEXT, fontWeight: 700 }}
+    >
+      {`${model} · tier ${tier}`}
+    </span>
+  </div>
+));
+EscalationTrail.displayName = 'EscalationTrail';
+
 /** Tournament: the rounds that narrowed the options down to the final question. */
 const TournamentRounds = memo(({ rounds, onOpen }: { rounds: TournamentRound[]; onOpen?: () => void }) => (
   <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px', fontSize: '10px', fontFamily: 'monospace' }}>
@@ -911,6 +958,9 @@ export const DecisionBars = memo(({ decision }: { decision: DecisionInfo }) => {
           )}
           <ChoiceBars decision={decision} />
         </>
+      )}
+      {decision.attempts && decision.attempts.length > 0 && (
+        <EscalationTrail attempts={decision.attempts} model={decision.model} tier={decision.tier ?? decision.attempts.length} />
       )}
       <div style={{ fontSize: '10px', color: STONE, fontFamily: 'monospace' }}>
         {decision.model}
