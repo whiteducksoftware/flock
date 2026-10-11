@@ -1,7 +1,24 @@
 import React, { useEffect, useState } from 'react';
 import type { Edge, Node } from '@xyflow/react';
-import { type ContractEntry, contractOf } from './contract';
+import { type ContractEntry, contractOf, type Field } from './contract';
 import styles from './Focus.module.css';
+
+const Fields: React.FC<{ fields: Field[] }> = ({ fields }) => (
+  <div className={`mono ${styles.kv}`}>
+    {fields.map((field) => (
+      <React.Fragment key={field.name}>
+        <span>
+          {field.name}
+          {!field.required && <span className={styles.faint}>?</span>}
+        </span>
+        <span>
+          {field.type}
+          {field.description && <span className={styles.faint}> · {field.description}</span>}
+        </span>
+      </React.Fragment>
+    ))}
+  </div>
+);
 
 const Entry: React.FC<{ entry: ContractEntry }> = ({ entry }) => (
   <div className={styles.card}>
@@ -12,22 +29,16 @@ const Entry: React.FC<{ entry: ContractEntry }> = ({ entry }) => (
       </span>
       {entry.note && <span className={`${styles.faint} ${styles.end}`}>{entry.note}</span>}
     </div>
-    {entry.fields.length > 0 && (
-      <div className={`mono ${styles.kv}`}>
-        {entry.fields.map((field) => (
-          <React.Fragment key={field.name}>
-            <span>
-              {field.name}
-              {!field.required && <span className={styles.faint}>?</span>}
-            </span>
-            <span>
-              {field.type}
-              {field.description && <span className={styles.faint}> · {field.description}</span>}
-            </span>
-          </React.Fragment>
-        ))}
-      </div>
-    )}
+    {entry.fields.length > 0 && <Fields fields={entry.fields} />}
+    {/* A handle that may bring one of several subjects: each with its fields */}
+    {entry.subjects?.map((subject) => (
+      <React.Fragment key={subject.type}>
+        <span className={`mono ${styles.quiet}`} title={subject.type}>
+          {subject.label}
+        </span>
+        {subject.fields.length > 0 && <Fields fields={subject.fields} />}
+      </React.Fragment>
+    ))}
   </div>
 );
 

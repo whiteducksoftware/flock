@@ -80,6 +80,22 @@ describe('contractOf', () => {
     });
   });
 
+  it('shows each subject\'s fields when a decider decides about several types', () => {
+    const nodes = [
+      node('triage', { subscriptions: ['app.SupportTicket', 'app.TeamReply'], outputTypes: ['Decision[app.Route]'] }),
+      node('billing_team', { subscriptions: ['Decision[app.Route]'], typeLabels: { 'Decision[app.Route]': '◆ Route.billing' } }),
+    ];
+
+    expect(contractOf('billing_team', nodes, schemas).consumes[0]).toMatchObject({
+      note: 'decision handle · receives the SupportTicket or TeamReply',
+      fields: [],
+      subjects: [
+        { type: 'app.SupportTicket', label: 'SupportTicket', fields: fieldsOf(schemas['app.SupportTicket']) },
+        { type: 'app.TeamReply', label: 'TeamReply', fields: fieldsOf(schemas['app.TeamReply']) },
+      ],
+    });
+  });
+
   it('shows what a source sent as what it publishes', () => {
     const source = node('external', { outputTypes: [], sentByType: { 'app.SupportTicket': 3 } });
 
