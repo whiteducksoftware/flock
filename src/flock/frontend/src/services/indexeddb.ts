@@ -158,6 +158,22 @@ export class IndexedDBService {
   }
 
   /**
+   * Delete the dashboard's database. It resolves once the database is gone;
+   * while another tab keeps it open, `onBlocked` is told and the deletion
+   * waits for that tab to close.
+   */
+  async deleteDatabase(onBlocked?: () => void): Promise<void> {
+    this.close();
+    if (typeof indexedDB === 'undefined') return;
+    await new Promise<void>((resolve) => {
+      const request = indexedDB.deleteDatabase(DB_NAME);
+      request.onsuccess = () => resolve();
+      request.onerror = () => resolve();
+      request.onblocked = () => onBlocked?.();
+    });
+  }
+
+  /**
    * Initialize database with schema and indexes
    */
   async initialize(): Promise<void> {

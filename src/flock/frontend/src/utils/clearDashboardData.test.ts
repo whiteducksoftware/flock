@@ -1,23 +1,68 @@
 import 'fake-indexeddb/auto';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { indexedDBService } from '../services/indexeddb';
+import { useSettingsStore } from '../store/settingsStore';
 import { clearDashboardData } from './clearDashboardData';
 
+const databases = async () => (await indexedDB.databases()).map((database) => database.name ?? '');
+
+const open = (name: string) =>
+  new Promise<IDBDatabase>((resolve, reject) => {
+    const request = indexedDB.open(name);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+
 describe('clearDashboardData', () => {
-  it('deletes the databases before it reloads', async () => {
+  beforeEach(async () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
-    // The dashboard keeps its database open, which blocks a deletion
+    localStorage.clear();
+    // The dashboard keeps its database open
     await indexedDBService.initialize();
-    localStorage.setItem('flock-flow-settings', '{}');
+    useSettingsStore.getState().setEdgeType('straight');
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('deletes the dashboard database and settings before it reloads', async () => {
     const left: string[][] = [];
     const reload = vi.fn(async () => {
-      left.push((await indexedDB.databases()).map((database) => database.name ?? ''));
+      left.push(await databases());
     });
 
     await clearDashboardData(reload);
 
     expect(reload).toHaveBeenCalledOnce();
-    await vi.waitFor(() => expect(left).toEqual([[]]));
-    expect(localStorage.length).toBe(0);
+    await vi.waitFor(() => expect(left).toHaveLength(1));
+    expect(left[0]).not.toContain('flock_dashboard_v1');
+    expect(localStorage.getItem('flock-flow-settings')).toBeNull();
+  });
+
+  it('leaves the data of other apps on the same origin alone', async () => {
+    (await open('another-app')).close();
+    localStorage.setItem('another-app-key', 'kept');
+
+    await clearDashboardData(() => {});
+
+    expect(await databases()).toContain('another-app');
+    expect(localStorage.getItem('another-app-key')).toBe('kept');
+  });
+
+  it('waits for another tab to let go of the database before it reloads', async () => {
+    // Another dashboard tab, which does not close on request
+    const otherTab = await open('flock_dashboard_v1');
+    otherTab.onversionchange = () => {};
+    const reload = vi.fn();
+    const onBlocked = vi.fn();
+
+    const cleared = clearDashboardData(reload, onBlocked);
+    await vi.waitFor(() => expect(onBlocked).toHaveBeenCalledOnce());
+    expect(reload).not.toHaveBeenCalled();
+
+    otherTab.close();
+    await cleared;
+    expect(reload).toHaveBeenCalledOnce();
   });
 });

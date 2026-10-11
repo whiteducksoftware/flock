@@ -25,6 +25,9 @@ const AdvancedSettings: React.FC = () => {
   const setDebugMode = useSettingsStore((state) => state.setDebugMode);
   const setPerformanceMode = useSettingsStore((state) => state.setPerformanceMode);
 
+  // Another dashboard tab keeps the data open while it is cleared
+  const [clearBlocked, setClearBlocked] = useState(false);
+
   // Version information state
   const [backendVersion, setBackendVersion] = useState<string>('Loading...');
   const dashboardVersion = '0.1.1'; // From package.json
@@ -163,12 +166,17 @@ const AdvancedSettings: React.FC = () => {
             className="btn sm"
             onClick={() => {
               if (confirm('Clear all dashboard data? This will remove all graph data and session data.')) {
-                void clearDashboardData();
+                void clearDashboardData(undefined, () => setClearBlocked(true));
               }
             }}
           >
             Clear all dashboard data
           </button>
+          {clearBlocked && (
+            <p role="status" className="settings-description">
+              Close the other dashboard tabs to finish clearing.
+            </p>
+          )}
         </div>
       </div>
 

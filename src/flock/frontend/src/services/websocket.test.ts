@@ -129,6 +129,20 @@ describe('WebSocketClient reconnects', () => {
     client.disconnect();
   });
 
+  it('lets an attempt under way finish when asked to retry now', () => {
+    const client = new WebSocketClient('ws://test/ws');
+    client.connect();
+    socket(0).fail();
+    vi.advanceTimersByTime(1000); // the planned attempt is connecting
+    const before = useWSStore.getState().reconnectAttempts;
+
+    client.reconnectManually();
+
+    expect(FakeSocket.made).toHaveLength(2);
+    expect(useWSStore.getState().reconnectAttempts).toBe(before);
+    client.disconnect();
+  });
+
   it('refreshes the board when a retry by hand ends an offline spell', () => {
     const refresh = vi.spyOn(useGraphStore.getState(), 'refreshCurrentView').mockResolvedValue();
     const client = new WebSocketClient('ws://test/ws');

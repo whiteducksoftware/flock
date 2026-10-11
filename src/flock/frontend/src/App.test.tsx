@@ -7,14 +7,12 @@ import { useUIStore } from './store/uiStore';
 
 // The board itself is not under test here
 vi.mock('./components/graph/GraphCanvas', () => ({ default: () => <div data-testid="graph" /> }));
-vi.mock('./services/websocket', () => {
-  const client = { connect: vi.fn(), disconnect: vi.fn(), reconnectManually: vi.fn() };
-  return {
-    initializeWebSocket: () => client,
-    getWebSocketClient: () => client,
-    retryConnectionNow: () => client.reconnectManually(),
-  };
-});
+const client = vi.hoisted(() => ({ connect: vi.fn(), disconnect: vi.fn(), reconnectManually: vi.fn() }));
+vi.mock('./services/websocket', () => ({
+  initializeWebSocket: () => client,
+  getWebSocketClient: () => client,
+  retryConnectionNow: () => client.reconnectManually(),
+}));
 vi.mock('./services/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./services/api')>()),
   fetchArtifactSummary: vi.fn(async () => ({
@@ -44,6 +42,7 @@ describe('App keyboard shortcuts', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     useSettingsStore.getState().resetToDefaults();
     useUIStore.setState({ mode: 'agent' });
+    client.connect.mockClear();
   });
 
   afterEach(() => {
@@ -53,7 +52,8 @@ describe('App keyboard shortcuts', () => {
 
   it('opens the publish panel with Ctrl+Shift+P', async () => {
     render(<App />);
-    await waitFor(() => expect(document.querySelector('header')).not.toBeNull());
+    // The bootstrap connects last; nothing of it may outlive the test
+    await waitFor(() => expect(client.connect).toHaveBeenCalled());
 
     press('P', true);
 
@@ -62,7 +62,8 @@ describe('App keyboard shortcuts', () => {
 
   it('opens the filters on the correlation search with Ctrl+F', async () => {
     render(<App />);
-    await waitFor(() => expect(document.querySelector('header')).not.toBeNull());
+    // The bootstrap connects last; nothing of it may outlive the test
+    await waitFor(() => expect(client.connect).toHaveBeenCalled());
 
     press('f');
 
@@ -80,7 +81,8 @@ describe('App keyboard shortcuts', () => {
         <App />
       </>,
     );
-    await waitFor(() => expect(document.querySelector('header')).not.toBeNull());
+    // The bootstrap connects last; nothing of it may outlive the test
+    await waitFor(() => expect(client.connect).toHaveBeenCalled());
 
     press('f');
 
@@ -92,7 +94,8 @@ describe('App keyboard shortcuts', () => {
 
   it('switches between Flow and Blackboard with Ctrl+M', async () => {
     render(<App />);
-    await waitFor(() => expect(document.querySelector('header')).not.toBeNull());
+    // The bootstrap connects last; nothing of it may outlive the test
+    await waitFor(() => expect(client.connect).toHaveBeenCalled());
 
     press('m');
 

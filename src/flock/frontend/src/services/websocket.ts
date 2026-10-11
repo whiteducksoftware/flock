@@ -700,7 +700,8 @@ export class WebSocketClient {
 
   /** Retry now instead of waiting for the scheduled attempt. */
   reconnectManually(): void {
-    if (this.ws?.readyState === WebSocket.OPEN) return;
+    // Connected, or an attempt is under way already
+    if (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING) return;
     this.shouldReconnect = true;
     // Whatever ended the connection, the board reloads once it is back
     this.connectionLost = true;
