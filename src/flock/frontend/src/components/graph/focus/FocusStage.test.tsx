@@ -185,6 +185,20 @@ describe('FocusStage', () => {
     expect(within(contract).getByLabelText('Publishes').textContent).toContain('TeamReplyreply?str · Short answer');
   });
 
+  it('shows the fields of each subject a handle may bring', async () => {
+    useGraphStore.setState({
+      nodes: nodes.map((node) =>
+        node.id === 'triage' ? { ...node, data: { ...node.data, subscriptions: ['app.SupportTicket', 'app.TeamReply'] } } : node,
+      ),
+    });
+    render(<FocusStage onOpenTrace={() => {}} />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Contract' }));
+
+    const consumes = within(await screen.findByTestId('contract')).getByLabelText('Consumes');
+    expect(consumes.textContent).toContain('SupportTicketsubjectstr');
+    expect(consumes.textContent).toContain('TeamReplyreply?str · Short answer');
+  });
+
   it('moves between its tabs with the arrow keys', () => {
     render(<FocusStage onOpenTrace={() => {}} />);
     expect(screen.getAllByRole('tab').map((tab) => tab.tabIndex)).toEqual([0, -1, -1, -1, -1]);

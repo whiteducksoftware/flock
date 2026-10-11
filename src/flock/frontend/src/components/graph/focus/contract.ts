@@ -20,6 +20,8 @@ export interface ContractEntry {
   decision: boolean;
   note: string | null;
   fields: Field[];
+  /** A handle whose decider decides about several types: each subject with its fields */
+  subjects?: { type: string; label: string; fields: Field[] }[];
 }
 
 export interface Contract {
@@ -107,6 +109,13 @@ export function contractOf(
         decision: true,
         note: subjects.length > 0 ? `decision handle · receives the ${subjects.map(shortTypeName).join(' or ')}` : 'decision handle',
         fields: subjects.length === 1 ? fieldsOf(schemas[subjects[0]!]) : [],
+        ...(subjects.length > 1 && {
+          subjects: subjects.map((subject) => ({
+            type: subject,
+            label: shortTypeName(subject),
+            fields: fieldsOf(schemas[subject]),
+          })),
+        }),
       };
     }
     const schema = schemas[type];
