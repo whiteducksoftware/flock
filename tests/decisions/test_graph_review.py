@@ -44,3 +44,22 @@ async def test_review_and_reviewed_decision_views():
     views = {n.id: n.data["decision"] for n in blackboard.nodes if "decision" in n.data}
     assert views[str(unsure.id)]["review"] == {"choice": "tech", "by": "alice"}
     assert views[str(reviewed.id)]["reviewOf"] == str(unsure.id)
+
+
+async def test_a_decision_view_lists_the_options_a_person_can_choose():
+    flock = Flock()
+    flock.is_dashboard = True
+    flock.agent("triage").consumes(GraphRevTicket).decides(
+        GraphRevRoute,
+        model=FakeDecider({"billing": 0.5, "tech": 0.5}, refuse={"GraphRevRoute"}),
+    )
+    collector = DashboardEventCollector(store=flock.store)
+    await flock.publish(GraphRevTicket(text="?"))
+    await flock.run_until_idle()
+
+    assembler = GraphAssembler(flock.store, collector, flock)
+    blackboard = await assembler.build_snapshot(GraphRequest(view_mode="blackboard"))
+    (view,) = [n.data["decision"] for n in blackboard.nodes if "decision" in n.data]
+    # A refusal has no probabilities; the options still allow a review
+    assert view["probabilities"] == {}
+    assert view["options"] == ["billing", "tech"]

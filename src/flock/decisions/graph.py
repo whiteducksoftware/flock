@@ -175,11 +175,13 @@ def decision_view(
     payload: Mapping[str, Any],
     subject_thumb: str | None = None,
     levels: list[str] | None = None,
+    options: list[str] | None = None,
 ) -> dict[str, Any]:
     """Decision fields for the dashboard's decision artifact view.
 
     ``levels`` are the ordered options of a scale question or the items of a
-    checklist.
+    checklist; ``options`` are the options a person can choose when reviewing
+    (all of the question's, also for a refusal without probabilities).
     """
     view = {
         "question": payload.get("question"),
@@ -207,6 +209,8 @@ def decision_view(
         view["shadow"] = dict(payload["shadow"])
     if payload.get("review_of"):
         view["reviewOf"] = payload["review_of"]
+    if options:
+        view["options"] = list(options)
     if payload.get("sections"):
         sections = payload["sections"]
         view["sections"] = {

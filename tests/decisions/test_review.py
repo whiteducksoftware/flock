@@ -154,6 +154,37 @@ async def test_unknown_choices_and_non_decisions_are_rejected():
         await flock.review("00000000-0000-0000-0000-000000000000", choice="billing")
 
 
+async def test_a_late_review_keeps_the_embargo_of_the_reviewed_decision():
+    import asyncio
+    from datetime import timedelta
+
+    from flock.core.visibility import AfterVisibility, PublicVisibility
+
+    flock = Flock()
+    flock.agent("triage").consumes(RevTicket).decides(
+        RevRoute,
+        model=FakeDecider({"billing": 0.55, "tech": 0.45}),
+        threshold=0.8,
+        visibility=AfterVisibility(
+            ttl=timedelta(milliseconds=20), then=PublicVisibility()
+        ),
+    )
+    flock.agent("tech").consumes(RevRoute.tech).with_engines(Take()).publishes(
+        RevHandled
+    )
+    await flock.publish(RevTicket(text="app crashed"))
+    await flock.run_until_idle()
+    (unsure,) = await _artifacts(flock, Decision.of(RevRoute))
+    await asyncio.sleep(0.05)  # the decision's embargo is over
+
+    reviewed = await flock.review(unsure.id, choice="tech")
+    await flock.run_until_idle()
+
+    assert reviewed.visibility.ttl == timedelta(0)  # not a fresh 20 ms
+    (handled,) = await _artifacts(flock, RevHandled)
+    assert handled.payload["team"] == "tech"
+
+
 async def test_a_reviewer_cannot_share_an_agents_name():
     flock = _flock()
     await flock.publish(RevTicket(text="app crashed"))

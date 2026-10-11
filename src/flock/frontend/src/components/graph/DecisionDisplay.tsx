@@ -111,6 +111,7 @@ export interface DecisionInfo {
   sections?: { field: string; spans: number[][]; answeredBy: Record<string, number> }; // long documents
   review?: { choice: string; by: string | null }; // the latest review of this decision
   reviewOf?: string; // this decision is a person's review of that decision
+  options?: string[]; // the question's options, for a review (also of a refusal)
   explanation?: { explanation: string; missing?: string | null; model: string; by?: string | null }; // latest LLM explanation
   confidence: number | null;
   threshold: number | null;
@@ -1172,11 +1173,12 @@ const ReviewControl = memo(({ decision, artifactId }: { decision: DecisionInfo; 
   if (reviewed) {
     return <ReviewNote text={`✓ reviewed as ${reviewed}`} />;
   }
-  // The most probable options first, the best guess leading
-  const options = Object.entries(decision.probabilities)
+  // The most probable options first, the best guess leading; a refusal has no
+  // probabilities, so its question's options are offered in order
+  const ranked = Object.entries(decision.probabilities)
     .sort((a, b) => b[1] - a[1])
-    .map(([option]) => option)
-    .slice(0, MAX_REVIEW_OPTIONS);
+    .map(([option]) => option);
+  const options = (ranked.length > 0 ? ranked : (decision.options ?? [])).slice(0, MAX_REVIEW_OPTIONS);
   const review = (option: string) => {
     setBusy(true);
     setError(null);

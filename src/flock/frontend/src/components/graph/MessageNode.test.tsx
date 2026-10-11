@@ -731,6 +731,20 @@ describe('MessageNode', () => {
     }
   });
 
+  it('should offer the question options to review a refused decision', () => {
+    render(
+      <ReactFlowProvider>
+        <MessageNode
+          {...createNodeProps(
+            unsureRoute({ bestGuess: null, probabilities: {}, refused: true, options: ['billing', 'tech'] })
+          )}
+        />
+      </ReactFlowProvider>
+    );
+    const buttons = screen.getAllByRole('button', { name: /^Review as / });
+    expect(buttons.map((b) => b.textContent)).toEqual(['billing', 'tech']);
+  });
+
   it('should show the review of a reviewed decision instead of the controls', () => {
     render(
       <ReactFlowProvider>
