@@ -174,12 +174,16 @@ def check_inline_images(value: Any) -> None:
     before it is stored. Only valid image data URLs under a ``url`` key are
     checked; other values are left alone.
     """
-    if isinstance(value, dict):
+    if isinstance(value, BaseModel):  # a model object in a raw payload, maybe changed
+        check_inline_images(value.model_dump())
+    elif isinstance(value, dict):
         url = value.get("url")
         if isinstance(url, str) and _DATA_URL.match(url):
             Image(url=url)  # size and pixel limits; ValidationError is a ValueError
         for key, item in value.items():
-            if key != "url":  # sibling keys may hold more images
+            if key != "url" or not isinstance(
+                item, str
+            ):  # any other value may hold images
                 check_inline_images(item)
     elif isinstance(value, list | tuple):
         for item in value:

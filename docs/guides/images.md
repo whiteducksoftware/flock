@@ -38,7 +38,7 @@ await flock.publish(ProductPhoto(sku="A-17", photo=Image.from_file("a17.jpg")))
 | Decoded size | 20 MB | When an `Image` is created, and again before any artifact is stored |
 | Pixels | 50 million (e.g. 8660 x 5773) | From the image header, before decoding |
 | Source | Inline `data:image/...;base64,...` only | URLs and file paths are rejected |
-| Uploads per request (REST) | 20 files | Before the request body is parsed |
+| Uploads per request (REST) | 20 files, and at most 20 x 20 MB in total | Total size before the body is parsed, file count while it is parsed |
 
 The limits hold on every publish path:
 

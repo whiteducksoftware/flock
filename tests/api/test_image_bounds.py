@@ -203,3 +203,28 @@ async def test_a_mutated_model_is_checked_when_published(tiny_bound):
 
     with pytest.raises(ValueError, match="larger than"):
         await flock.publish(photo)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        pytest.param(lambda url: {"url": {"url": url}}, id="container-under-url"),
+        pytest.param(lambda url: {"shot": _mutated_image(url)}, id="embedded-image"),
+        pytest.param(
+            lambda url: {"photo": BoundPhoto.model_construct(caption="x", picture=_mutated_image(url))},
+            id="embedded-model",
+        ),
+    ],
+)
+async def test_raw_payload_shapes_cannot_hide_an_oversized_image(tiny_bound, payload):
+    flock = Flock()
+    artifact = Artifact(type="Odd", payload=payload(_noisy_url()), produced_by="external")
+
+    with pytest.raises(ValueError, match="larger than"):
+        await flock.publish(artifact)
+
+
+def _mutated_image(url: str) -> Image:
+    image = Image(url=_png_url((8, 8)))
+    image.url = url  # bypasses validation
+    return image
