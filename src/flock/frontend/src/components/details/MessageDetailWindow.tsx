@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Rnd } from 'react-rnd';
 import { useUIStore } from '../../store/uiStore';
 import JsonAttributeRenderer from '../modules/JsonAttributeRenderer';
+import ImageThumbnails from '../common/ImageThumbnails';
 import { fetchArtifacts, type ArtifactListItem } from '../../services/api';
 
 interface MessageDetailWindowProps {
@@ -34,6 +35,7 @@ const MessageDetailWindow: React.FC<MessageDetailWindowProps> = ({ nodeId }) => 
         const response = await fetchArtifacts({
           limit: 100,
           embedMeta: true,
+          images: 'thumbnails', // full images are loaded when opened
         });
 
         // Find the artifact matching this node ID
@@ -335,6 +337,9 @@ const MessageDetailWindow: React.FC<MessageDetailWindowProps> = ({ nodeId }) => 
                       overflow: 'auto',
                     }}
                   >
+                    {artifact.images && (
+                      <ImageThumbnails artifactId={artifact.id} images={artifact.images} />
+                    )}
                     <JsonAttributeRenderer
                       value={JSON.stringify(artifact.payload, null, 2)}
                       maxStringLength={Number.POSITIVE_INFINITY}

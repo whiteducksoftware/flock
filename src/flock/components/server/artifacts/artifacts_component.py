@@ -1,9 +1,10 @@
 """ServerComponent used to interact with artifacts on the Blackboard."""
 
+import asyncio
 import json
 from dataclasses import replace
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, Query
@@ -12,6 +13,7 @@ from starlette.datastructures import UploadFile as StarletteUploadFile
 from starlette.requests import Request
 
 from flock.api import image_uploads
+from flock.api.thumbnails import compact, image_summaries
 from flock.components.server.artifacts.models import (
     ArtifactListResponse,
     ArtifactPublishRequest,
@@ -65,12 +67,17 @@ class ArtifactsComponent(ServerComponent):
     priority: int = Field(default=1, description="Registration priority. Default = 1")
 
     def _serialize_artifact(
-        self, artifact, consumptions: list[ConsumptionRecord] | None = None
+        self,
+        artifact,
+        consumptions: list[ConsumptionRecord] | None = None,
+        *,
+        thumbnails: bool = False,
     ) -> dict[str, Any]:
         data = {
             "id": str(artifact.id),
             "type": artifact.type,
-            "payload": artifact.payload,
+            # With thumbnails, image data becomes a description plus small previews
+            "payload": compact(artifact.payload) if thumbnails else artifact.payload,
             "produced_by": artifact.produced_by,
             "visibility": artifact.visibility.model_dump(mode="json"),
             "visibility_kind": getattr(artifact.visibility, "kind", "Unknown"),
@@ -82,6 +89,8 @@ class ArtifactsComponent(ServerComponent):
             "tags": sorted(artifact.tags),
             "version": artifact.version,
         }
+        if thumbnails and (images := image_summaries(artifact.payload)):
+            data["images"] = images
         if consumptions is not None:
             data["consumptions"] = [
                 {
@@ -95,6 +104,23 @@ class ArtifactsComponent(ServerComponent):
             ]
             data["consumed_by"] = sorted({record.consumer for record in consumptions})
         return data
+
+    async def _serialize_many(
+        self, entries, *, thumbnails: bool
+    ) -> list[dict[str, Any]]:
+        """Serialize artifacts or envelopes; thumbnails are built in a worker thread."""
+
+        def run() -> list[dict[str, Any]]:
+            return [
+                self._serialize_artifact(
+                    entry.artifact, entry.consumptions, thumbnails=thumbnails
+                )
+                if isinstance(entry, ArtifactEnvelope)
+                else self._serialize_artifact(entry, thumbnails=thumbnails)
+                for entry in entries
+            ]
+
+        return await asyncio.to_thread(run) if thumbnails else run()
 
     def _parse_datetime(
         self,
@@ -407,7 +433,10 @@ class ArtifactsComponent(ServerComponent):
             limit: int = Query(50, ge=1, le=500),
             offset: int = Query(0, ge=0),
             embed_meta: bool = Query(False, alias="embed_meta"),
+            images: Literal["full", "thumbnails"] = Query("full"),
         ) -> ArtifactListResponse:
+            thumbs = images == "thumbnails"
+
             filters = self._make_filter_config(
                 type_names=type_names,
                 produced_by=produced_by,
@@ -425,16 +454,7 @@ class ArtifactsComponent(ServerComponent):
                     offset=offset,
                     embed_meta=embed_meta,
                 )
-                items: list[dict[str, Any]] = []
-                for artifact in artifacts:
-                    if isinstance(artifact, ArtifactEnvelope):
-                        items.append(
-                            self._serialize_artifact(
-                                artifact.artifact, artifact.consumptions
-                            )
-                        )
-                    else:
-                        items.append(self._serialize_artifact(artifact))
+                items = await self._serialize_many(artifacts, thumbnails=thumbs)
                 return ArtifactListResponse(
                     items=items,
                     pagination={"limit": limit, "offset": offset, "total": total},
@@ -477,14 +497,7 @@ class ArtifactsComponent(ServerComponent):
                     ),
                 )
                 paged_slice = candidates[local_offset : local_offset + limit]
-                items: list[dict[str, Any]] = []
-                for item in paged_slice:
-                    if isinstance(item, ArtifactEnvelope):
-                        items.append(
-                            self._serialize_artifact(item.artifact, item.consumptions)
-                        )
-                    else:
-                        items.append(self._serialize_artifact(item))
+                items = await self._serialize_many(paged_slice, thumbnails=thumbs)
                 return ArtifactListResponse(
                     items=items,
                     pagination={
@@ -510,16 +523,7 @@ class ArtifactsComponent(ServerComponent):
             total = len(visible_artifacts)
             paged_slice = visible_artifacts[offset : offset + limit]
 
-            items = []
-            for artifact in paged_slice:
-                if isinstance(artifact, ArtifactEnvelope):
-                    items.append(
-                        self._serialize_artifact(
-                            artifact.artifact, artifact.consumptions
-                        )
-                    )
-                else:
-                    items.append(self._serialize_artifact(artifact))
+            items = await self._serialize_many(paged_slice, thumbnails=thumbs)
 
             return ArtifactListResponse(
                 items=items,
@@ -612,7 +616,11 @@ class ArtifactsComponent(ServerComponent):
             self._join_path(self.config.prefix, "artifacts/{artifact_id}"),
             tags=self.config.tags,
         )
-        async def get_artifact(artifact_id: UUID, request: Request) -> dict[str, Any]:
+        async def get_artifact(
+            artifact_id: UUID,
+            request: Request,
+            images: Literal["full", "thumbnails"] = Query("full"),
+        ) -> dict[str, Any]:
             artifact = await orchestrator.store.get(artifact_id)
             if artifact is None:
                 raise HTTPException(status_code=404, detail="artifact not found")
@@ -625,4 +633,8 @@ class ArtifactsComponent(ServerComponent):
                 )
                 if not allowed:
                     raise HTTPException(status_code=404, detail="artifact not found")
+            if images == "thumbnails":  # thumbnails decode images: off the event loop
+                return await asyncio.to_thread(
+                    self._serialize_artifact, artifact, thumbnails=True
+                )
             return self._serialize_artifact(artifact)

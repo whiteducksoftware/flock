@@ -86,7 +86,7 @@ const App: React.FC = () => {
         });
 
         // Fetch correlation IDs for filter dropdown
-        const artifactResponse = await fetchArtifacts({ limit: 200, embedMeta: true });
+        const artifactResponse = await fetchArtifacts({ limit: 200, embedMeta: true, images: 'thumbnails' });
         if (artifactResponse.items.length > 0) {
           const correlationMetadata = new Map<string, { correlation_id: string; first_seen: number; artifact_count: number; run_count: number }>();
           artifactResponse.items.forEach((item) => {

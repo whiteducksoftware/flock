@@ -8,6 +8,7 @@
  */
 
 import type { ArtifactSummary } from '../types/filters';
+import type { ImageSummary } from '../utils/imageFields';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
@@ -63,6 +64,7 @@ export interface ArtifactListItem {
   version?: number;
   consumptions?: ArtifactConsumption[];
   consumed_by?: string[];
+  images?: ImageSummary[]; // with images=thumbnails: previews; the payload describes images
 }
 
 export interface ArtifactConsumption {
@@ -97,6 +99,7 @@ export interface ArtifactQueryOptions {
   limit?: number;
   offset?: number;
   embedMeta?: boolean;
+  images?: 'thumbnails'; // thumbnails instead of full image data
 }
 
 export interface ErrorResponse {
@@ -274,9 +277,28 @@ const buildArtifactQuery = (options: ArtifactQueryOptions): string => {
   if (options.embedMeta) {
     params.append('embed_meta', 'true');
   }
+  if (options.images) {
+    params.append('images', options.images);
+  }
 
   return params.toString();
 };
+
+/** One artifact with its full payload (including image data), visibility applied. */
+export async function fetchArtifact(artifactId: string): Promise<ArtifactListItem> {
+  const response = await fetch(`${BASE_URL}/v1/artifacts/${encodeURIComponent(artifactId)}`, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({
+      error: 'Unknown error',
+      message: 'Failed to fetch artifact',
+    }));
+    throw new ApiError(response.status, errorData);
+  }
+  return response.json();
+}
 
 export async function fetchArtifacts(options: ArtifactQueryOptions = {}): Promise<ArtifactListResponse> {
   const query = buildArtifactQuery(options);

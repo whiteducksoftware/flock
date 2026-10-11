@@ -10,6 +10,8 @@ the full images.
 from __future__ import annotations
 
 import hashlib
+import json
+import threading
 from collections import OrderedDict
 from typing import Any
 
@@ -19,6 +21,7 @@ from flock.core.image import Image, describe_image_data
 THUMB_SIDE = 160
 _CACHE_SIZE = 1024
 _cache: OrderedDict[bytes, str] = OrderedDict()
+_cache_lock = threading.Lock()
 
 
 def is_image_data(value: Any) -> bool:
@@ -31,18 +34,46 @@ def is_image_data(value: Any) -> bool:
     )
 
 
-def find_images(value: Any, path: str = "") -> list[tuple[str, str]]:
-    """``(field path, data URL)`` of every image in a payload, in order."""
+def _json_key(key: Any) -> str:
+    """A dict key as it appears in the JSON payload (True -> "true", None -> "null")."""
+    if isinstance(key, str):
+        return key
+    if key is None or isinstance(key, bool):
+        return json.dumps(key)
+    return str(key)
+
+
+def _locate_images(
+    value: Any, keys: tuple[str | int, ...] = ()
+) -> list[tuple[list[str | int], str]]:
+    """``(key segments, data URL)`` of every image in a payload, in order."""
     if is_image_data(value):
-        return [(path, value["url"])]
-    found: list[tuple[str, str]] = []
+        return [(list(keys), value["url"])]
+    found: list[tuple[list[str | int], str]] = []
     if isinstance(value, dict):
         for key, item in value.items():
-            found += find_images(item, f"{path}.{key}" if path else str(key))
+            found += _locate_images(item, (*keys, _json_key(key)))
     elif isinstance(value, list | tuple):
         for index, item in enumerate(value):
-            found += find_images(item, f"{path}[{index}]")
+            found += _locate_images(item, (*keys, index))
     return found
+
+
+def _path_label(keys: list[str | int]) -> str:
+    """``album.pages[1]`` for display; ``keys`` is the unambiguous form."""
+    label = ""
+    for key in keys:
+        if isinstance(key, int):
+            label += f"[{key}]"
+        else:
+            label += f".{key}" if label else key
+    return label
+
+
+def find_images(value: Any, path: str = "") -> list[tuple[str, str]]:
+    """``(field path, data URL)`` of every image in a payload, in order."""
+    prefix = (path,) if path else ()
+    return [(_path_label([*prefix, *keys]), url) for keys, url in _locate_images(value)]
 
 
 def describe(url: str) -> str:
@@ -63,32 +94,41 @@ def compact(value: Any) -> Any:
 
 def thumbnail(url: str) -> str | None:
     """A data URL of the image scaled to at most ``THUMB_SIDE`` px (cached)."""
-    key = hashlib.blake2b(url.encode("ascii"), digest_size=16).digest()
-    cached = _cache.get(key)
-    if cached is not None:
-        _cache.move_to_end(key)
-        return cached
+    # utf-8: image-like values from plain dicts need not be ASCII
+    key = hashlib.blake2b(url.encode("utf-8"), digest_size=16).digest()
+    with _cache_lock:  # thumbnails are also built in worker threads
+        cached = _cache.get(key)
+        if cached is not None:
+            _cache.move_to_end(key)
+            return cached
     try:
         thumb = Image.from_bytes(Image(url=url).to_bytes(), max_side=THUMB_SIDE).url
     except Exception:  # unreadable image data: show no preview
         return None
-    _cache[key] = thumb
-    if len(_cache) > _CACHE_SIZE:
-        _cache.popitem(last=False)
+    with _cache_lock:
+        _cache[key] = thumb
+        if len(_cache) > _CACHE_SIZE:
+            _cache.popitem(last=False)
     return thumb
+
+
+def _decoded_size(encoded: str) -> int:
+    """Bytes a base64 string decodes to (padding excluded)."""
+    return len(encoded) * 3 // 4 - (len(encoded) - len(encoded.rstrip("=")))
 
 
 def image_summaries(payload: Any) -> list[dict[str, Any]]:
     """Dashboard data for each image in ``payload``."""
     summaries = []
-    for path, url in find_images(payload):
+    for keys, url in _locate_images(payload):
         thumb = thumbnail(url)
         if thumb is None:
             continue
         summaries.append({
-            "path": path,
+            "path": _path_label(keys),
+            "keys": keys,  # segments: unambiguous for keys with dots or brackets
             "mime": url[5 : url.index(";")],
-            "bytes": round(len(url.split(",", 1)[1]) * 3 / 4),
+            "bytes": _decoded_size(url.split(",", 1)[1]),
             "thumb": thumb,
         })
     return summaries

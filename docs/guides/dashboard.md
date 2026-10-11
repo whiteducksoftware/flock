@@ -281,6 +281,8 @@ Time 4: Pizza artifact appears in Blackboard View
 
 ![Publish panel: a caption and a chosen picture with its preview](../assets/images/image-inputs/image-publish-panel.png)
 
+**Images in the dashboard:** graph nodes, the message detail window, the message history and the historical blackboard show images as thumbnails, with field, type and size. Click a thumbnail to load the full image. It is fetched only then, through the artifact endpoint, which applies the artifact's visibility. Graph snapshots and live WebSocket events never carry full image data.
+
 ### Agent Details Panel
 
 **Monitor individual agent execution:**

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { imageFieldKind, fileToImageUrl, outputType } from './imageFields';
+import { imageFieldKind, fileToImageUrl, outputType, valueAtKeys } from './imageFields';
 
 const schema = {
   $defs: {
@@ -49,5 +49,16 @@ describe('outputType', () => {
     expect(outputType('image/webp')).toBe('image/png');
     expect(outputType('image/jpeg')).toBe('image/jpeg');
     expect(outputType('image/bmp')).toBe('image/jpeg');
+  });
+});
+
+describe('valueAtKeys', () => {
+  it('follows key segments, including keys with dots', () => {
+    const payload = { picture: { url: 'a' }, album: { pages: [{ url: 'b' }, { url: 'c' }] }, views: { 'front.view': { url: 'd' } } };
+
+    expect(valueAtKeys(payload, ['picture'])).toEqual({ url: 'a' });
+    expect(valueAtKeys(payload, ['album', 'pages', 1])).toEqual({ url: 'c' });
+    expect(valueAtKeys(payload, ['views', 'front.view'])).toEqual({ url: 'd' });
+    expect(valueAtKeys(payload, ['album', 'missing', 3])).toBeUndefined();
   });
 });

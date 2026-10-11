@@ -85,7 +85,8 @@ class MessagePublishedEvent(BaseModel):
     produced_by: str  # agent.name or "external"
 
     # Content
-    payload: dict[str, Any]  # Full artifact.payload
+    payload: dict[str, Any]  # artifact.payload; image data replaced by a description
+    images: list[dict[str, Any]] | None = None  # thumbnails of the payload's images
 
     # Access control
     visibility: VisibilitySpec

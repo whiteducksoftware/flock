@@ -79,3 +79,17 @@ export async function fileToImageUrl(file: File, maxSide: number = MAX_SIDE): Pr
     return original;
   }
 }
+
+/** Small preview of an image in a payload, as the server sends it with images=thumbnails. */
+export interface ImageSummary {
+  path: string; // for display, e.g. "album.pages[1]"
+  keys?: (string | number)[]; // the same location as unambiguous key segments
+  mime: string;
+  bytes: number;
+  thumb: string; // data URL, at most 160 px
+}
+
+/** The value at key segments such as ["album", "pages", 1] (keys may contain dots). */
+export function valueAtKeys(payload: any, keys: (string | number)[]): any {
+  return keys.reduce((value, key) => (value == null ? undefined : value[key]), payload);
+}

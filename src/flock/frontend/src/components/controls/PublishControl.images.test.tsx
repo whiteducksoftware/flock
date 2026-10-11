@@ -1,9 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import PublishControl from './PublishControl';
 
 const mockFetch = vi.fn();
-globalThis.fetch = mockFetch;
 
 const imageDef = {
   type: 'object',
@@ -103,6 +102,11 @@ describe('PublishControl image fields', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetch.mockReset();
+    vi.stubGlobal('fetch', mockFetch);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('shows an image picker instead of a text box for an Image field', async () => {

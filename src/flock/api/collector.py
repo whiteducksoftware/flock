@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from pydantic import PrivateAttr
 
+from flock.api.thumbnails import compact, image_summaries
 from flock.components.agent import AgentComponent
 from flock.components.server.models.events import (
     AgentActivatedEvent,
@@ -278,13 +279,18 @@ class DashboardEventCollector(AgentComponent):
                 run.produced_artifacts.append(artifact_id)
             await self._update_agent_snapshot_locked(agent)
 
+        # Thumbnails decode images: off the event loop
+        images = await asyncio.to_thread(image_summaries, artifact.payload)
+
         # Create and store event
         event = MessagePublishedEvent(
             correlation_id=correlation_id,
             artifact_id=str(artifact.id),
             artifact_type=artifact.type,
             produced_by=artifact.produced_by,
-            payload=artifact.payload,
+            # Every client gets this event: images as description and thumbnails
+            payload=compact(artifact.payload),
+            images=images or None,
             visibility=visibility_spec,
             tags=list(artifact.tags) if artifact.tags else [],
             partition_key=artifact.partition_key,

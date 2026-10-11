@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import PublishControl from './PublishControl';
 import { fileToImageUrl } from '../../utils/imageFields';
@@ -9,7 +9,6 @@ vi.mock('../../utils/imageFields', async (importOriginal) => ({
 }));
 
 const mockFetch = vi.fn();
-globalThis.fetch = mockFetch;
 
 const imageDef = { type: 'object', properties: { url: { type: 'string' } }, 'x-flock-image': true };
 const types = [
@@ -55,6 +54,11 @@ describe('PublishControl image conversions that finish late', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetch.mockReset();
+    vi.stubGlobal('fetch', mockFetch);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('drops a conversion that finishes after the artifact type changed', async () => {

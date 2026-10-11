@@ -1,5 +1,6 @@
 """Trace-relate API routes."""
 
+import asyncio
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -9,6 +10,7 @@ import duckdb
 from fastapi import HTTPException
 from pydantic import Field
 
+from flock.api.thumbnails import compact, image_summaries
 from flock.api.websocket import WebSocketManager
 from flock.components.server.base import ServerComponent, ServerComponentConfig
 from flock.core.store import FilterConfig
@@ -415,7 +417,8 @@ class TracingComponent(ServerComponent):
                         "id": str(artifact.id),
                         "type": artifact.type,
                         "direction": "published",
-                        "payload": artifact.payload,
+                        "payload": compact(artifact.payload),
+                        "_raw": artifact.payload,
                         "timestamp": artifact.created_at.isoformat(),
                         "correlation_id": str(artifact.correlation_id)
                         if artifact.correlation_id
@@ -435,7 +438,8 @@ class TracingComponent(ServerComponent):
                         "id": str(envelope.artifact.id),
                         "type": envelope.artifact.type,
                         "direction": "consumed",
-                        "payload": envelope.artifact.payload,
+                        "payload": compact(envelope.artifact.payload),
+                        "_raw": envelope.artifact.payload,
                         "timestamp": envelope.artifact.created_at.isoformat(),
                         "correlation_id": str(envelope.artifact.correlation_id)
                         if envelope.artifact.correlation_id
@@ -447,6 +451,13 @@ class TracingComponent(ServerComponent):
                     for consumption in envelope.consumptions
                     if consumption.consumer == node_id
                 ])
+                # Thumbnails decode images: build them off the event loop
+                raw_payloads = [message.pop("_raw") for message in messages]
+                summaries = await asyncio.to_thread(
+                    lambda: [image_summaries(raw) for raw in raw_payloads]
+                )
+                for message, images in zip(messages, summaries, strict=True):
+                    message["images"] = images or None
                 # Sort by timestamp (most recent first)
                 messages.sort(
                     key=lambda m: m.get("consumed_at", m["timestamp"]),

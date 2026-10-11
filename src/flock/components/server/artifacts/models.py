@@ -28,6 +28,13 @@ class ArtifactBase(BaseModel):
     partition_key: str | None = Field(None, description="Optional partition key")
     tags: list[str] = Field(default_factory=list, description="List of tags")
     version: int = Field(description="Artifact version number")
+    images: list[dict[str, Any]] | None = Field(
+        None,
+        description=(
+            "With images=thumbnails: path, mime type, size and a small preview of "
+            "each image; the payload then describes images instead of holding them"
+        ),
+    )
 
 
 class ConsumptionRecord(BaseModel):

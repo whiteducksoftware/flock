@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useGraphStore } from '../../store/graphStore';
+import ImageThumbnails from '../common/ImageThumbnails';
+import type { ImageSummary } from '../../utils/imageFields';
 
 interface MessageHistoryTabProps {
   nodeId: string;
@@ -11,6 +13,7 @@ interface MessageHistoryEntry {
   type: string;
   direction: 'consumed' | 'published';
   payload: any;
+  images?: ImageSummary[]; // previews; the payload describes images
   timestamp: number;
   correlationId: string | null;
   produced_by?: string;
@@ -51,6 +54,7 @@ const MessageHistoryTab: React.FC<MessageHistoryTabProps> = ({ nodeId, nodeType:
           type: msg.type,
           direction: msg.direction,
           payload: msg.payload,
+          images: msg.images ?? undefined,
           timestamp: new Date(msg.consumed_at || msg.timestamp).getTime(),
           correlationId: msg.correlation_id,
           produced_by: msg.produced_by,
@@ -96,6 +100,7 @@ const MessageHistoryTab: React.FC<MessageHistoryTabProps> = ({ nodeId, nodeType:
             type: msg.type,
             direction: msg.direction,
             payload: msg.payload,
+          images: msg.images ?? undefined,
             timestamp: new Date(msg.consumed_at || msg.timestamp).getTime(),
             correlationId: msg.correlation_id,
             produced_by: msg.produced_by,
@@ -359,6 +364,7 @@ const MessageHistoryTab: React.FC<MessageHistoryTabProps> = ({ nodeId, nodeType:
                       >
                         {formatPayload(msg.payload)}
                       </pre>
+                      {msg.images && <ImageThumbnails artifactId={msg.id} images={msg.images} />}
                     </td>
                   </tr>
                 </React.Fragment>
