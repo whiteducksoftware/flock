@@ -10,10 +10,11 @@ import { fetchAgents, fetchArtifactTypes, type Agent, type ArtifactType } from '
 import { applyThemeByName } from '../../services/themeApplicator';
 import { fetchTheme } from '../../services/themeService';
 import { useFilterStore } from '../../store/filterStore';
+import { useGraphStore } from '../../store/graphStore';
 import { useSettingsStore } from '../../store/settingsStore';
 import { useUIStore, type VisualizationMode } from '../../store/uiStore';
 import { isMac } from '../../utils/keys';
-import { withCanvas } from '../graph/canvasCommands';
+import { withAgent, withCanvas } from '../graph/canvasCommands';
 import { Icon } from '../icons/Icon';
 import { type PaletteCommands, type PaletteGroup, type PaletteItem, buildItems, search } from './palette';
 import styles from './CommandPalette.module.css';
@@ -35,14 +36,15 @@ const commandsFor = (onShowShortcuts: () => void): PaletteCommands => ({
     useUIStore.getState().unfocus();
     withCanvas((canvas) => canvas.show(name));
   },
+  // From the Blackboard: once the Flow has the agent on its board (it clears an unfold or focus of an agent it lacks)
   unfoldAgent: (name) => {
     toFlow();
     useUIStore.getState().unfocus();
-    useUIStore.getState().unfold(name);
+    withAgent(name, () => useUIStore.getState().unfold(name));
   },
   focusAgent: (name) => {
     toFlow();
-    useUIStore.getState().focus(name);
+    withAgent(name, () => useUIStore.getState().focus(name));
   },
   filterType: (name) => useFilterStore.getState().setArtifactTypes([name]),
   publishType: (name) => {
@@ -99,6 +101,8 @@ const CommandPalette: React.FC<{ onShowShortcuts: () => void }> = ({ onShowShort
   const dockOpen = useUIStore((state) => state.dockOpen);
   const theme = useSettingsStore((state) => state.appearance.theme);
   const runs = useFilterStore((state) => state.availableCorrelationIds);
+  // Whether an agent runs comes from the runs going on (the agents list says ready or waiting)
+  const inFlight = useGraphStore((state) => state.inFlight);
   const timeRange = useFilterStore((state) => state.timeRange.preset);
   const hasFilters = useFilterStore(
     (state) =>
@@ -130,8 +134,9 @@ const CommandPalette: React.FC<{ onShowShortcuts: () => void }> = ({ onShowShort
 
   const commands = useMemo(() => commandsFor(onShowShortcuts), [onShowShortcuts]);
   const results = useMemo(() => {
+    const running = new Set([...inFlight.values()].map((run) => run.agent));
     const items = buildItems({
-      agents,
+      agents: agents.map((agent) => ({ name: agent.name, running: running.has(agent.name) })),
       types,
       runs,
       now: Date.now(),
@@ -144,7 +149,7 @@ const CommandPalette: React.FC<{ onShowShortcuts: () => void }> = ({ onShowShort
       do: commands,
     });
     return search(items, query);
-  }, [agents, types, runs, mode, autoArrange, dockOpen, theme, timeRange, hasFilters, commands, query]);
+  }, [agents, inFlight, types, runs, mode, autoArrange, dockOpen, theme, timeRange, hasFilters, commands, query]);
 
   // A new query starts at the top; a shorter list keeps the active one inside it
   useEffect(() => setActiveIndex(0), [query]);

@@ -83,6 +83,18 @@ describe('App keyboard shortcuts', () => {
     expect(useSettingsStore.getState().ui.showFilters).toBe(false);
   });
 
+  it('does not open the palette over the keyboard shortcuts', async () => {
+    render(<App />);
+    // The bootstrap connects last; nothing of it may outlive the test
+    await waitFor(() => expect(client.connect).toHaveBeenCalled());
+    press('/');
+    await screen.findByText('Keyboard Shortcuts');
+
+    press('k');
+
+    expect(useUIStore.getState().paletteOpen).toBe(false);
+  });
+
   it('does not open the palette over the publish composer', async () => {
     render(<App />);
     // The bootstrap connects last; nothing of it may outlive the test

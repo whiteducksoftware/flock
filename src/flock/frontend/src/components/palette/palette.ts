@@ -63,7 +63,8 @@ export interface PaletteCommands {
 }
 
 export interface PaletteContext {
-  agents: { name: string; status?: string }[];
+  /** The agents, and whether a run of theirs goes on now */
+  agents: { name: string; running?: boolean }[];
   types: ArtifactType[];
   runs: CorrelationIdMetadata[];
   now: number;
@@ -169,7 +170,7 @@ export function buildItems(ctx: PaletteContext): PaletteItem[] {
     id: `agent:${agent.name}`,
     group: 'Agents',
     label: agent.name,
-    detail: agent.status === 'running' ? 'running' : undefined,
+    detail: agent.running ? 'running' : undefined,
     actions: [
       { label: 'Show', run: () => act.showAgent(agent.name) },
       { label: 'Unfold', run: () => act.unfoldAgent(agent.name) },

@@ -215,3 +215,6 @@ Each entry says what was decided, why, and where it landed.
 - **The canvas registers its commands** (`canvasCommands.ts`) while it is mounted; a command for an unmounted canvas waits for the next one.
 - **Two fixes the palette needed:** the board's refresh kept no selection (a selected node lost it within a second), and a layout set the nodes of its render over changes made since; it now sets positions only.
 - **The lanes keep showing running runs of other correlations under a correlation filter** (a bug from #565, found in the live check); it gets its own fix.
+- **Unfold and Focus wait for their agent like Show** (review), and **the newest request wins** (review): a command still waiting for the Flow's board is dropped when another comes.
+- **"running" next to an agent comes from the runs going on** (review): `/api/agents` reports ready or waiting, never running.
+- **Ctrl+K does not open the palette over the keyboard shortcuts** (review); the shortcuts dialog becomes a real modal in #569.

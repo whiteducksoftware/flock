@@ -29,7 +29,6 @@ import {
 } from '../../services/layout';
 import { usePersistence } from '../../hooks/usePersistence';
 import {
-  AUTO_LAYOUT_DEBOUNCE_MS,
   clearDebouncedAutoLayout,
   getEdgeIdSet,
   getNodeIdSet,
@@ -38,7 +37,7 @@ import {
   scheduleDebouncedAutoLayout,
 } from './autoLayoutTrigger';
 import { MOVE_MS, motionMs } from './animatePositions';
-import { registerCanvas, whenOnBoard } from './canvasCommands';
+import { SETTLE_MS, registerCanvas, whenOnBoard } from './canvasCommands';
 import { fromControl } from './nodeClick';
 import { useUnfoldLayout } from './useUnfoldLayout';
 
@@ -369,9 +368,9 @@ const GraphCanvas: React.FC = () => {
           fit: () => void fitView({ padding: 0.1, duration: motionMs(300) }),
           layout: (layoutMode) => applyLayoutRef.current(layoutMode),
           // A board that just mounted loads its agents and lays them out first
-          show: (nodeId) => whenOnBoard(nodeId, () => showNode(nodeId), AUTO_LAYOUT_DEBOUNCE_MS + 100),
+          show: (nodeId) => whenOnBoard(nodeId, () => showNode(nodeId), SETTLE_MS),
         },
-        AUTO_LAYOUT_DEBOUNCE_MS + 100,
+        SETTLE_MS,
       ),
     // The React Flow functions are stable, showNode uses only them
     // eslint-disable-next-line react-hooks/exhaustive-deps

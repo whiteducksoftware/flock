@@ -9,8 +9,8 @@ const type = (name: string, fields: string[] = ['a']): ArtifactType => ({
 
 const context = (overrides: Partial<PaletteContext> = {}): PaletteContext => ({
   agents: [
-    { name: 'triage', status: 'idle' },
-    { name: 'billing_team', status: 'running' },
+    { name: 'triage', running: false },
+    { name: 'billing_team', running: true },
   ],
   types: [
     type('app.SupportTicket', ['ticket_id', 'title']),
@@ -96,6 +96,8 @@ describe('buildItems', () => {
     expect(labels(items.filter((item) => item.group === 'Runs'))).toEqual(['b20c9a8e', '4e7b1c2d']);
     expect(find(items, 'b20c9a8e').detail).toBe('2 artifacts · 1 m ago');
     expect(find(items, 'SupportTicket').detail).toBe('2 fields');
+    expect(find(items, 'billing_team').detail).toBe('running');
+    expect(find(items, 'triage').detail).toBeUndefined();
   });
 
   it('gives agents, types and runs their actions, Enter first', () => {

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Node } from '@xyflow/react';
 import { useGraphStore } from '../../store/graphStore';
-import { type CanvasCommands, registerCanvas, whenOnBoard, withCanvas } from './canvasCommands';
+import { type CanvasCommands, registerCanvas, whenOnBoard, withAgent, withCanvas } from './canvasCommands';
 
 const commands = (): CanvasCommands => ({
   zoomIn: vi.fn(),
@@ -56,6 +56,20 @@ describe('canvasCommands', () => {
     vi.advanceTimersByTime(600);
 
     expect(canvas.show).toHaveBeenCalledTimes(1);
+    unregister();
+  });
+
+  it('drops a waiting command when a newer one comes first', () => {
+    vi.useFakeTimers();
+    withCanvas((c) => c.show('triage'));
+    const canvas = commands();
+    const unregister = registerCanvas(canvas, 600);
+
+    // The board is there before the wait is over: the newer request runs, the older one never
+    withCanvas((c) => c.show('urgency'));
+    vi.advanceTimersByTime(600);
+
+    expect(vi.mocked(canvas.show).mock.calls).toEqual([['urgency']]);
     unregister();
   });
 
@@ -124,5 +138,44 @@ describe('whenOnBoard', () => {
     vi.advanceTimersByTime(1000);
 
     expect(run).not.toHaveBeenCalled();
+  });
+});
+
+describe('withAgent', () => {
+  const agent = (id: string) => ({ id, type: 'agent', data: {}, position: { x: 0, y: 0 } }) as Node;
+
+  afterEach(() => {
+    vi.useRealTimers();
+    useGraphStore.setState({ nodes: [] });
+  });
+
+  it('runs once the agent is on the board, unless a newer request came meanwhile', () => {
+    vi.useFakeTimers();
+    const older = vi.fn();
+    const newer = vi.fn();
+
+    withAgent('triage', older);
+    withAgent('urgency', newer);
+    useGraphStore.setState({ nodes: [agent('triage'), agent('urgency')] });
+    vi.advanceTimersByTime(1000);
+
+    expect(older).not.toHaveBeenCalled();
+    expect(newer).toHaveBeenCalledTimes(1);
+  });
+
+  it('drops a show that still waits for its agent when a newer request comes', () => {
+    vi.useFakeTimers();
+    const canvas = commands();
+    vi.mocked(canvas.show).mockImplementation((id) => whenOnBoard(id, () => shown.push(id), 600));
+    const shown: string[] = [];
+    const unregister = registerCanvas(canvas);
+
+    withCanvas((c) => c.show('triage'));
+    withAgent('urgency', () => shown.push('unfold urgency'));
+    useGraphStore.setState({ nodes: [agent('triage'), agent('urgency')] });
+    vi.advanceTimersByTime(1000);
+
+    expect(shown).toEqual(['unfold urgency']);
+    unregister();
   });
 });

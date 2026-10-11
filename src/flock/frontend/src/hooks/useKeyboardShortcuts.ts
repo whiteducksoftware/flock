@@ -42,10 +42,11 @@ export const useKeyboardShortcuts = (config: KeyboardShortcutConfig = {}) => {
       // Check for modifier key (Ctrl on Windows/Linux, Cmd on Mac)
       const modifier = event.ctrlKey || event.metaKey;
 
-      // Ctrl+K or Cmd+K: Open or close the palette (not over another modal dialog)
+      // Ctrl+K or Cmd+K: Open or close the palette (not over another modal dialog
+      // or the keyboard shortcuts, which is not one yet)
       if (modifier && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'k') {
         const { paletteOpen, openPalette, closePalette } = useUIStore.getState();
-        if (!paletteOpen && document.querySelector('[aria-modal="true"]')) return;
+        if (!paletteOpen && document.querySelector('[aria-modal="true"], .keyboard-shortcuts-overlay')) return;
         event.preventDefault();
         if (paletteOpen) closePalette();
         else openPalette();

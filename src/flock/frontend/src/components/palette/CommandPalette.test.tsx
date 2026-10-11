@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import type { Node } from '@xyflow/react';
 import { useFilterStore } from '../../store/filterStore';
+import { useGraphStore } from '../../store/graphStore';
 import { useSettingsStore } from '../../store/settingsStore';
 import { useUIStore } from '../../store/uiStore';
 import CommandPalette from './CommandPalette';
@@ -9,7 +11,7 @@ vi.mock('../../services/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../services/api')>()),
   fetchAgents: vi.fn(async () => [
     { name: 'triage', description: '', status: 'idle', subscriptions: ['app.SupportTicket'], output_types: [] },
-    { name: 'billing_team', description: '', status: 'running', subscriptions: [], output_types: [] },
+    { name: 'billing_team', description: '', status: 'ready', subscriptions: [], output_types: [] },
   ]),
   fetchArtifactTypes: vi.fn(async () => [
     { name: 'app.SupportTicket', schema: { type: 'object', properties: { title: { type: 'string' } } } },
@@ -31,6 +33,11 @@ describe('CommandPalette', () => {
       dockOpen: false,
     });
     useSettingsStore.getState().resetToDefaults();
+    // The Flow's board with its agents; billing_team runs
+    useGraphStore.setState({
+      nodes: ['triage', 'billing_team'].map((id) => ({ id, type: 'agent', data: {}, position: { x: 0, y: 0 } }) as Node),
+      inFlight: new Map([['run-1', { agent: 'billing_team', types: [], artifacts: [] }]]),
+    });
     useFilterStore.setState({
       correlationId: null,
       availableCorrelationIds: [
@@ -99,6 +106,30 @@ describe('CommandPalette', () => {
 
     expect(useUIStore.getState().unfoldedNodeId).toBe('triage');
     expect(useUIStore.getState().paletteOpen).toBe(false);
+  });
+
+  it('unfolds an agent from the Blackboard once the Flow has it on its board', async () => {
+    useUIStore.setState({ mode: 'blackboard' });
+    useGraphStore.setState({ nodes: [] }); // the Blackboard's artifacts, no agents
+    render(<CommandPalette onShowShortcuts={() => {}} />);
+    await screen.findByRole('group', { name: 'Agents' });
+
+    fireEvent.change(input(), { target: { value: 'triage' } });
+    key('Enter', { shiftKey: true });
+    expect(useUIStore.getState().mode).toBe('agent');
+    expect(useUIStore.getState().unfoldedNodeId).toBeNull();
+
+    // The Flow's snapshot arrives; once its board settled the agent unfolds
+    useGraphStore.setState({ nodes: [{ id: 'triage', type: 'agent', data: {}, position: { x: 0, y: 0 } } as Node] });
+    await waitFor(() => expect(useUIStore.getState().unfoldedNodeId).toBe('triage'), { timeout: 2000 });
+  });
+
+  it('says which agents run now, from the runs going on', async () => {
+    render(<CommandPalette onShowShortcuts={() => {}} />);
+    await screen.findByRole('group', { name: 'Agents' });
+
+    expect(screen.getByRole('option', { name: /billing_team/ }).textContent).toContain('running');
+    expect(screen.getByRole('option', { name: /^triage/ }).textContent).not.toContain('running');
   });
 
   it('filters by a run found by the start of its ID', async () => {
