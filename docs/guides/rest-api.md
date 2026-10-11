@@ -48,6 +48,34 @@ Content-Type: application/json
 
 ---
 
+#### Publish Artifact with Images
+
+`Image` fields hold a base64 data URL, so the JSON endpoint accepts them like any other field: `{"picture": {"url": "data:image/jpeg;base64,..."}}`. Anything that is not inline image data, such as an `https://` URL or a file path, is rejected; Flock never fetches images.
+
+To upload files instead, use `multipart/form-data`:
+
+```http
+POST /api/v1/artifacts/upload
+Content-Type: multipart/form-data
+
+type=YourArtifactType
+payload={"caption": "a red square"}     # JSON object with the other fields (optional)
+picture=@red.png                        # one file part per Image field, named after the field
+```
+
+```bash
+curl -F type=Photo -F 'payload={"caption": "a red square"}' \
+     -F picture=@red.png http://localhost:8344/api/v1/artifacts/upload
+```
+
+- **Files:** name each part after the field or its alias, and repeat the name for a `list[Image]` field. Accepted formats are JPEG, PNG, GIF, WebP and BMP. A request carries at most 20 files and needs a `Content-Length` header (411 otherwise). Its size is checked before the body is parsed, and an oversized request returns 413.
+- **Limits and checks:** a file may have at most 20 MB and 50 million pixels. The pixel count is checked before the file is decoded. An oversized file returns HTTP 413; a file that is not a supported image, or that is sent for a field that is not an `Image` field, returns 400.
+- **Re-encoding:** each file is processed like `Image.from_bytes()`. It is scaled down to 1024 px and re-encoded, which drops metadata such as GPS positions.
+- **Metadata:** `visibility` (a JSON object, as in the JSON body), `tags` (a JSON array of strings) and `partition_key` (text) are optional form fields; without `visibility` the artifact is public.
+- **Response:** `{"status": "accepted"}`, as for the JSON endpoint.
+
+---
+
 #### Publish Artifact (Sync)
 ```http
 POST /api/v1/artifacts/sync

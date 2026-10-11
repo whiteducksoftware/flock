@@ -273,10 +273,13 @@ Time 4: Pizza artifact appears in Blackboard View
 ```
 
 **Form generation is automatic:**
-- String fields → Text inputs
-- Int fields → Number inputs
-- List fields → Multi-input
-- Nested models → Collapsible sections
+- String fields → text inputs (text areas for long text)
+- Numbers → number inputs, booleans → checkboxes, enums → selects
+- Lists of strings or numbers → one item per line
+- `Image` fields → a picture picker with previews (several pictures for `list[Image]`). Pictures are scaled to 1024 px and re-encoded in the browser and again on the server, which drops metadata such as GPS positions. Publish waits until all chosen pictures have been processed.
+- Other nested models cannot be entered in the form yet ([#438](https://github.com/whiteducksoftware/flock/issues/438)); publish them through the REST API.
+
+![Publish panel: a caption and a chosen picture with its preview](../assets/images/image-inputs/image-publish-panel.png)
 
 ### Agent Details Panel
 

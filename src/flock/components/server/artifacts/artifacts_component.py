@@ -1,5 +1,6 @@
 """ServerComponent used to interact with artifacts on the Blackboard."""
 
+import json
 from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any
@@ -7,8 +8,10 @@ from uuid import UUID, uuid4
 
 from fastapi import HTTPException, Query
 from pydantic import Field
+from starlette.datastructures import UploadFile as StarletteUploadFile
 from starlette.requests import Request
 
+from flock.api import image_uploads
 from flock.components.server.artifacts.models import (
     ArtifactListResponse,
     ArtifactPublishRequest,
@@ -237,6 +240,92 @@ class ArtifactsComponent(ServerComponent):
         # No - op
         pass
 
+    @staticmethod
+    def _upload_metadata(controls: dict[str, str]) -> tuple[Any, set[str] | None]:
+        """Visibility and tags of an upload: JSON text parts, as in the JSON body."""
+        visibility = None
+        if controls.get("visibility"):
+            try:
+                visibility = deserialize_visibility(
+                    json.loads(controls["visibility"]), strict=True
+                )
+            except Exception as exc:
+                raise HTTPException(
+                    status_code=400, detail=f"Invalid 'visibility': {exc}"
+                ) from exc
+        tags = None
+        if controls.get("tags"):
+            try:
+                parsed = json.loads(controls["tags"])
+            except json.JSONDecodeError as exc:
+                raise HTTPException(
+                    status_code=400, detail=f"Invalid 'tags': {exc}"
+                ) from exc
+            if not (
+                isinstance(parsed, list) and all(isinstance(t, str) for t in parsed)
+            ):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid 'tags': expected a JSON array of strings",
+                )
+            tags = set(parsed) or None
+        return visibility, tags
+
+    async def _publish_upload(self, form, orchestrator) -> ArtifactPublishResponse:
+        # Control values come from text parts only: a file part may be named
+        # like them (an artifact can have a field called "type" or "payload")
+        controls = {
+            name: value
+            for name, value in form.multi_items()
+            if isinstance(value, str)
+            and name in ("type", "payload", "visibility", "tags", "partition_key")
+        }
+        artifact_type = controls.get("type")
+        if not artifact_type:
+            raise HTTPException(status_code=400, detail="'type' is required.")
+        try:
+            payload = json.loads(controls.get("payload") or "{}")
+        except json.JSONDecodeError as exc:
+            raise HTTPException(
+                status_code=400, detail=f"'payload' is not valid JSON: {exc}"
+            ) from exc
+        if not isinstance(payload, dict):
+            raise HTTPException(
+                status_code=400, detail="'payload' must be a JSON object."
+            )
+        try:
+            model = type_registry.resolve(type_registry.resolve_name(artifact_type))
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        visibility, tags = self._upload_metadata(controls)
+
+        try:
+            # Each file is checked and re-encoded as it is read, so raw uploads
+            # are not held all at once.
+            images: dict[str, list] = {}
+            for name, value in form.multi_items():
+                if not isinstance(value, StarletteUploadFile):
+                    continue
+                image_uploads.check_image_field(model, name)
+                data = await value.read(image_uploads.MAX_IMAGE_BYTES + 1)
+                key = image_uploads.payload_key(model, name)  # name or alias
+                images.setdefault(key, []).append(
+                    image_uploads.image_from_upload(name, data)
+                )
+            payload = image_uploads.place_images(model, payload, images)
+            await orchestrator.publish(
+                {"type": artifact_type, "payload": payload},
+                correlation_id=str(uuid4()),
+                visibility=visibility,
+                tags=tags,
+                partition_key=controls.get("partition_key") or None,
+            )
+        except image_uploads.UploadError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return ArtifactPublishResponse(status="accepted")
+
     def register_routes(self, app, orchestrator):
         @app.post(
             self._join_path(self.config.prefix, "artifacts"),
@@ -263,6 +352,43 @@ class ArtifactsComponent(ServerComponent):
             except Exception as exc:  # pragma: no cover - FastAPI converts
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
             return ArtifactPublishResponse(status="accepted")
+
+        @app.post(
+            self._join_path(self.config.prefix, "artifacts/upload"),
+            response_model=ArtifactPublishResponse,
+            tags=self.config.tags,
+        )
+        async def publish_artifact_upload(request: Request) -> ArtifactPublishResponse:
+            """Publish an artifact whose ``Image`` fields are uploaded as files.
+
+            ``multipart/form-data`` with ``type`` (the artifact type), an optional
+            ``payload`` (JSON object with the other fields) and one file part per
+            ``Image`` field, named after the field; repeat the name for a
+            ``list[Image]`` field. Files must be JPEG, PNG, GIF, WebP or BMP; they
+            are re-encoded like ``Image.from_bytes``.
+            """
+            # Bound the request before Starlette spools it: per-file checks only
+            # happen after parsing.
+            content_length = request.headers.get("content-length")
+            if content_length is None:
+                raise HTTPException(
+                    status_code=411, detail="Uploads need a Content-Length header."
+                )
+            if int(content_length) > image_uploads.max_request_bytes():
+                raise HTTPException(
+                    status_code=413,
+                    detail=(
+                        "Upload request is too large: at most "
+                        f"{image_uploads.MAX_UPLOAD_FILES} images per request."
+                    ),
+                )
+            form = await request.form(
+                max_files=image_uploads.MAX_UPLOAD_FILES, max_fields=20
+            )
+            try:
+                return await self._publish_upload(form, orchestrator)
+            finally:
+                await form.close()  # spooled uploads, also after an error
 
         @app.get(
             self._join_path(self.config.prefix, "artifacts"),

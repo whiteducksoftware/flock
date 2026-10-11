@@ -1270,7 +1270,7 @@ async def test_publish_artifact_validation_error(async_client, mocker):
         },
     )
 
-    assert response.status_code == 500  # Changed from 422 to 500
+    assert response.status_code == 422  # no longer swallowed into a 500
     assert "Validation error" in response.json()["detail"]
 
 

@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from pydantic import BaseModel, Field, ValidationError
 
 from flock.api.graph_builder import GraphAssembler
+from flock.api import image_uploads
 from flock.api.websocket import WebSocketManager
 from flock.components.server.base import ServerComponent, ServerComponentConfig
 from flock.components.server.models.events import MessagePublishedEvent, VisibilitySpec
@@ -270,6 +271,13 @@ class ControlRoutesComponent(ServerComponent):
                 # Validate content against Pydantic schema
                 try:
                     instance = model_class(**content)
+                    # Pictures from the browser are re-encoded here too: scaled,
+                    # checked and stripped of metadata, whatever the client did
+                    instance = image_uploads.reencode_images(instance)
+                except image_uploads.UploadError as ex:
+                    raise HTTPException(
+                        status_code=ex.status_code, detail=str(ex)
+                    ) from ex
                 except ValidationError as ex:
                     logger.exception(
                         f"ControlRoutesComponent: failed to validate body for type '{artifact_type}': {ex!s}"
@@ -305,6 +313,8 @@ class ControlRoutesComponent(ServerComponent):
                     "correlation_id": str(artifact.correlation_id),
                     "published_at": artifact.created_at.isoformat(),
                 }
+            except HTTPException:
+                raise  # validation and upload errors keep their status
             except KeyError as ke:
                 logger.exception(
                     f"ControlRoutesComponent: Unknown artifact type: {artifact_type}"
