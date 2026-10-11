@@ -51,9 +51,14 @@ def _hard_split(
     while end - start > max_chars:
         cut = text.rfind(" ", start + 1, start + max_chars + 1)
         cut = cut if cut > start else start + max_chars
-        spans.append((start, cut))
-        start = cut + 1 if text[cut : cut + 1] == " " else cut
-    if start < end:  # a trailing space leaves nothing
+        stop = cut
+        while stop > start and text[stop - 1].isspace():  # no trailing blanks
+            stop -= 1
+        spans.append((start, stop))
+        start = cut
+        while start < end and text[start].isspace():  # skip the whole separator
+            start += 1
+    if start < end:  # trailing blanks leave nothing
         spans.append((start, end))
     return spans
 
@@ -65,6 +70,8 @@ def split_sections(text: str, max_chars: int) -> list[tuple[int, int]]:
     paragraph longer than the limit is split on its own. A text without
     content is one empty section.
     """
+    if max_chars <= 0:
+        raise ValueError(f"max_chars must be positive, got {max_chars}")
     sections: list[tuple[int, int]] = []
     current: tuple[int, int] | None = None
     for start, end in _paragraphs(text):
