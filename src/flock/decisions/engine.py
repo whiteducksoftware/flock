@@ -219,7 +219,7 @@ class DecisionEngine(EngineComponent):
                         f"Decision model '{provider.label}' does not accept images; "
                         "use providers with image support (openai/, local/ with a "
                         "vision model) for inputs with Image fields, also in "
-                        "escalate=."
+                        "escalate= and models=."
                     )
 
         started = time.perf_counter()

@@ -795,7 +795,7 @@ type VoteState = 'agrees' | 'differs' | 'unsure';
 const VOTE_STYLE: Record<VoteState, { background: string; color: string; title: string }> = {
   agrees: { background: '#ede9fe', color: VIOLET_TEXT, title: 'Firm vote for the decision' },
   differs: { background: '#fef3c7', color: '#b45309', title: 'Firm vote that did not carry' },
-  unsure: { background: '#f5f5f4', color: '#78716c', title: 'No vote: below the threshold or refused' },
+  unsure: { background: '#f5f5f4', color: '#57534e', title: 'No vote: below the threshold or refused' },
 };
 
 function checklistVoteState(vote: Record<string, string>, results: Record<string, string>): VoteState {
