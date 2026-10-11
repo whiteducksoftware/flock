@@ -25,6 +25,11 @@ class Sections(BaseModel):
     max_chars: int = Field(
         default=4000, gt=0, description="Longest section, in characters"
     )
+    max_sections: int = Field(
+        default=100,
+        gt=0,
+        description="Most sections per text; a longer text fails before any request",
+    )
 
 
 def _paragraphs(text: str) -> list[tuple[int, int]]:
@@ -48,7 +53,8 @@ def _hard_split(
         cut = cut if cut > start else start + max_chars
         spans.append((start, cut))
         start = cut + 1 if text[cut : cut + 1] == " " else cut
-    spans.append((start, end))
+    if start < end:  # a trailing space leaves nothing
+        spans.append((start, end))
     return spans
 
 

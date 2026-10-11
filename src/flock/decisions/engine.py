@@ -95,6 +95,8 @@ def _trivial_answer(candidates: dict[str, str]) -> DecisionAnswer:
 
 logger = get_logger(__name__)
 
+# Section requests of one question set that run at the same time
+SECTION_CONCURRENCY = 8
 # Seconds a cancelled shadow gets to stop before the decision moves on
 SHADOW_STOP_GRACE = 1.0
 # Shadows that ignored cancellation, referenced until they end
@@ -469,8 +471,21 @@ class DecisionEngine(EngineComponent):
         states = state if isinstance(state, list) else [state]
         size = self.questions_per_request
         chunks = [wire[i : i + size] for i in range(0, len(wire), size)]
+        # Sections can mean many requests: at most SECTION_CONCURRENCY at once
+        limit = (
+            asyncio.Semaphore(SECTION_CONCURRENCY) if isinstance(state, list) else None
+        )
+
+        async def request(
+            section: str, chunk: list[DecisionQuestion]
+        ) -> dict[str, DecisionAnswer]:
+            if limit is None:
+                return await provider.decide_many(section, chunk, images)
+            async with limit:
+                return await provider.decide_many(section, chunk, images)
+
         requests = [
-            asyncio.ensure_future(provider.decide_many(section, chunk, images))
+            asyncio.ensure_future(request(section, chunk))
             for section in states
             for chunk in chunks
         ]
@@ -513,9 +528,22 @@ class DecisionEngine(EngineComponent):
             for index, answer in enumerate(answers)
             if not answer.refused and answer.choice is not None
         ]
+        refused = [
+            (index, answer)
+            for index, answer in enumerate(answers)
+            if answer.refused or answer.choice is None
+        ]
         if not answered:  # every section refused
-            return 0, answers[0]
-        return max(answered, key=lambda pair: strength(pair[1]))
+            return refused[0]
+        best = max(answered, key=lambda pair: strength(pair[1]))
+        if (
+            question.item is not None
+            and refused
+            and self._item_result(strength(best[1])) != "yes"
+        ):
+            # No section shows the item and one refused: not every section says no
+            return refused[0]
+        return best
 
     def _section_states(
         self, artifacts: list[Artifact]
@@ -532,6 +560,12 @@ class DecisionEngine(EngineComponent):
         (holder,) = holders
         text = holder.payload[field]
         spans = split_sections(text, self.sections.max_chars)
+        if len(spans) > self.sections.max_sections:
+            raise ValueError(
+                f"The field '{field}' makes {len(spans)} sections, more than "
+                f"max_sections={self.sections.max_sections}; raise max_chars or "
+                "max_sections."
+            )
         states = []
         for start, end in spans:
             part = holder.model_copy(
