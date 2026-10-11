@@ -37,7 +37,7 @@ const TimelineDock: React.FC = () => {
 
   if (!open) {
     return (
-      <footer aria-label="Timeline" className={styles.bar}>
+      <footer aria-label="Timeline" className={styles.collapsed}>
         <div className={styles.summary}>
           <span className={styles.title}>Activity</span>
           <span className={`mono num ${styles.faint}`}>
@@ -113,7 +113,7 @@ const TimelineDock: React.FC = () => {
           <Icon name="chevronDown" size={15} />
         </button>
       </div>
-      <div id={`${tabIds}-panel`} role="tabpanel" aria-labelledby={`${tabIds}-${tab}`} className={styles.body}>
+      <div id={`${tabIds}-panel`} role="tabpanel" aria-labelledby={`${tabIds}-${tab}`} tabIndex={0} className={styles.body}>
         {/* Keyed by the search, so a trace link opens on its correlation */}
         {tab === 'traces' && <TraceModuleJaeger key={traceSearch} views={['timeline', 'statistics']} search={traceSearch} />}
         {tab === 'history' && <HistoricalArtifactsModule />}

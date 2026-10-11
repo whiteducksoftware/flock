@@ -46,6 +46,8 @@ const GraphCanvas: React.FC = () => {
   const { getIntersectingNodes, screenToFlowPosition, getViewport, setViewport } = useReactFlow();
 
   const mode = useUIStore((state) => state.mode);
+  // With the timeline dock expanded the board is a strip of chips: no dock or minimap on it
+  const dockOpen = useUIStore((state) => state.dockOpen);
   const openDetailWindow = useUIStore((state) => state.openDetailWindow);
   const autoLayoutEnabled = useUIStore((state) => state.autoLayoutEnabled);
   const setAutoLayoutEnabled = useUIStore((state) => state.setAutoLayoutEnabled);
@@ -452,15 +454,17 @@ const GraphCanvas: React.FC = () => {
         style={{ backgroundColor: 'var(--board)' }}
       >
         <Background color="var(--dot)" bgColor="var(--board)" gap={22} size={1.3} />
-        <MiniMap />
+        {!dockOpen && <MiniMap />}
       </ReactFlow>
 
-      <CanvasDock
-        layout={autoLayoutMode}
-        autoArrange={autoLayoutEnabled}
-        onLayout={(mode) => applyLayout(mode)}
-        onAutoArrange={setAutoLayoutEnabled}
-      />
+      {!dockOpen && (
+        <CanvasDock
+          layout={autoLayoutMode}
+          autoArrange={autoLayoutEnabled}
+          onLayout={(mode) => applyLayout(mode)}
+          onAutoArrange={setAutoLayoutEnabled}
+        />
+      )}
 
       <FocusStage onOpenTrace={openTrace} />
     </div>

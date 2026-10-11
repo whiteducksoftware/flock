@@ -1,3 +1,4 @@
+import { shortTypeName } from '../../utils/typeName';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchArtifactSummary, fetchArtifacts, type ArtifactListItem, type ArtifactQueryOptions } from '../../services/api';
 import { useFilterStore } from '../../store/filterStore';
@@ -346,7 +347,7 @@ const HistoricalArtifactsModule: React.FC = () => {
                         }}
                       >
                         <span>{row.timestamp}</span>
-                        <span>{row.type}</span>
+                        <span title={row.type}>{shortTypeName(row.type)}</span>
                         <span>{row.producedBy}</span>
                         <span>{row.correlationId}</span>
                         <span>{row.tags}</span>
