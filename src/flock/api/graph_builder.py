@@ -108,8 +108,8 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         )
 
         if request.view_mode == "agent":
-            # Which decisions a person answered, for the deciders' review queues
-            reviews, _ = await self._decision_links(artifacts, filter_config)
+            # Which unsure decisions a person answered, for the deciders' review queues
+            reviews = await self._reviews_of_unsure(artifacts, filter_config)
             nodes = self._build_agent_nodes(
                 artifacts,
                 produced_metrics,
@@ -171,6 +171,27 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             limit=0,  # all of them
         )
         return [item for item in found if isinstance(item, Artifact)]
+
+    async def _reviews_of_unsure(
+        self, artifacts: Mapping[str, GraphArtifact], filters: FilterConfig
+    ) -> dict[str, dict[str, Any]]:
+        """Reviews of the unsure decisions in view, also those outside the view.
+        Reads nothing when no decision in view waits for a person."""
+        unsure = {
+            artifact.artifact_id: artifact
+            for artifact in artifacts.values()
+            if is_decision_type(artifact.artifact_type)
+            and needs_review(artifact.payload)
+        }
+        if not unsure:
+            return {}
+        later = await self._published_since(
+            {artifact.artifact_type for artifact in unsure.values()},
+            min(artifact.published_at for artifact in unsure.values()),
+            filters,
+        )
+        reviews = reviews_by_decision((a.payload, a.produced_by) for a in later)
+        return {k: v for k, v in reviews.items() if k in unsure}
 
     async def _decision_links(
         self, artifacts: Mapping[str, GraphArtifact], filters: FilterConfig

@@ -108,3 +108,24 @@ async def test_sure_decisions_and_checklists_need_no_review():
     decider = await _decider(assembler)
     assert decider["needsReview"] == []
     assert decider["needsReviewCount"] == 0
+
+
+async def test_a_view_without_unsure_decisions_reads_no_history(monkeypatch):
+    flock, assembler = await _flock(
+        lambda agent: agent.decides(
+            GraphQueueRoute, model=FakeDecider({"billing": 0.95, "tech": 0.05})
+        )
+    )
+    await flock.publish(GraphQueueTicket(ticket_id="T-1", subject="Charged twice"))
+    await flock.run_until_idle()
+    reads: list[set[str]] = []
+    published_since = assembler._published_since
+
+    async def spy(type_names, since, filters, produced_by=None):
+        reads.append(set(type_names))
+        return await published_since(type_names, since, filters, produced_by)
+
+    monkeypatch.setattr(assembler, "_published_since", spy)
+
+    assert (await _decider(assembler))["needsReview"] == []
+    assert reads == []
