@@ -347,7 +347,7 @@ const AgentNode = memo(({ data, selected }: NodeProps) => {
                   justifyContent: 'center',
                   borderRadius: 'var(--radius-full)',
                   background: isFlashing ? 'var(--color-success)' : 'var(--color-success-bg)',
-                  color: isFlashing ? 'var(--color-text-on-primary)' : 'var(--color-success-light)',
+                  color: isFlashing ? 'var(--on-sure)' : 'var(--color-success-light)',
                   fontSize: '12px',
                   fontWeight: 700,
                   padding: '0 var(--spacing-2)',

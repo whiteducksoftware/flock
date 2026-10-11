@@ -8,6 +8,7 @@
  */
 
 import React, { useState } from 'react';
+import { resetToDefaultTheme } from '../../services/themeApplicator';
 import { useSettingsStore } from '../../store/settingsStore';
 import GraphSettings from './GraphSettings';
 import AppearanceSettings from './AppearanceSettings';
@@ -29,6 +30,7 @@ const SettingsPanel: React.FC = () => {
   const handleReset = () => {
     if (confirm('Reset all settings to defaults? This cannot be undone.')) {
       resetToDefaults();
+      resetToDefaultTheme(); // the store's default theme, applied
     }
   };
 

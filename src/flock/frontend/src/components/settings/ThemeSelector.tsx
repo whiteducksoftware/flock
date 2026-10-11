@@ -8,8 +8,15 @@
 import React, { useState, useEffect } from 'react';
 import { useSettingsStore } from '../../store/settingsStore';
 import { fetchThemeList, fetchTheme, POPULAR_THEMES } from '../../services/themeService';
-import { applyTheme, resetToDefaultTheme } from '../../services/themeApplicator';
+import {
+  applyThemeByName,
+  BUILT_IN_THEMES,
+  builtInTheme,
+  resetToDefaultTheme,
+} from '../../services/themeApplicator';
 import { TerminalTheme } from '../../types/theme';
+
+const THEME_LABELS: Record<'graphite' | 'paper', string> = { graphite: 'Graphite', paper: 'Paper' };
 
 const ThemeSelector: React.FC = () => {
   const [themes, setThemes] = useState<string[]>([]);
@@ -45,17 +52,12 @@ const ThemeSelector: React.FC = () => {
   const handleThemeSelect = async (themeName: string) => {
     try {
       setError(null);
-      // Handle default theme (doesn't need API fetch)
-      if (themeName === 'default') {
-        resetToDefaultTheme();
-        setTheme('default');
+      // Only the latest choice applies and is stored (null: a newer one won)
+      const applied = await applyThemeByName(themeName, document.documentElement, fetchTheme, false);
+      if (applied !== null) {
+        setTheme(applied);
         setPreviewTheme(null);
-        return;
       }
-      const theme = await fetchTheme(themeName);
-      applyTheme(theme);
-      setTheme(themeName);
-      setPreviewTheme(null);
     } catch (err) {
       setError(`Failed to load theme "${themeName}"`);
       console.error('Theme application error:', err);
@@ -63,16 +65,17 @@ const ThemeSelector: React.FC = () => {
   };
 
   const handleThemePreview = async (themeName: string) => {
+    // Graphite and Paper apply on click; a hover would leave them applied
+    if (builtInTheme(themeName)) return;
     try {
-      // Handle default theme (doesn't need API fetch)
-      if (themeName === 'default') {
-        resetToDefaultTheme();
-        setPreviewTheme(null);
-        return;
-      }
-      const theme = await fetchTheme(themeName);
-      setPreviewTheme(theme);
-      applyTheme(theme);
+      let loaded: TerminalTheme | null = null;
+      const applied = await applyThemeByName(
+        themeName,
+        document.documentElement,
+        async (name) => (loaded = await fetchTheme(name)),
+        false
+      );
+      if (applied !== null) setPreviewTheme(loaded);
     } catch (err) {
       console.error('Theme preview error:', err);
     }
@@ -80,20 +83,16 @@ const ThemeSelector: React.FC = () => {
 
   const handleResetTheme = () => {
     resetToDefaultTheme();
-    setTheme('default');
+    setTheme('graphite');
     setPreviewTheme(null);
   };
 
-  // Always include "default" theme at the beginning
-  const allThemes = ['default', ...themes];
-
-  const filteredThemes = allThemes.filter((theme) =>
-    theme.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
+  const query = searchQuery.toLowerCase();
+  const builtInThemes = BUILT_IN_THEMES.filter((theme) => theme.includes(query));
+  const filteredThemes = themes.filter((theme) => theme.toLowerCase().includes(query));
   const popularThemes = filteredThemes.filter((theme) => POPULAR_THEMES.includes(theme));
-  const defaultTheme = filteredThemes.includes('default') ? ['default'] : [];
-  const otherThemes = filteredThemes.filter((theme) => !POPULAR_THEMES.includes(theme) && theme !== 'default');
+  const otherThemes = filteredThemes.filter((theme) => !POPULAR_THEMES.includes(theme));
+  const currentBuiltIn = builtInTheme(currentTheme);
 
   return (
     <div>
@@ -150,9 +149,9 @@ const ThemeSelector: React.FC = () => {
               justifyContent: 'space-between',
             }}>
               <span style={{ color: 'var(--color-text-primary)' }}>
-                {currentTheme === 'default' ? 'Default (Flock)' : currentTheme}
+                {currentBuiltIn ? THEME_LABELS[currentBuiltIn] : currentTheme}
               </span>
-              {currentTheme !== 'default' && (
+              {currentBuiltIn !== 'graphite' && (
                 <button
                   onClick={handleResetTheme}
                   style={{
@@ -171,28 +170,31 @@ const ThemeSelector: React.FC = () => {
             </div>
           </div>
 
-          {/* Default Theme - Always first */}
-          {defaultTheme.length > 0 && (
+          {/* Built-in themes - always first */}
+          {builtInThemes.length > 0 && (
             <div className="settings-field">
-              <label className="settings-label">Built-in Theme</label>
+              <label className="settings-label">Built-in Themes</label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--gap-xs)' }}>
-                <button
-                  onClick={() => handleThemeSelect('default')}
-                  onMouseEnter={() => handleThemePreview('default')}
-                  style={{
-                    padding: 'var(--space-component-sm)',
-                    background: currentTheme === 'default' ? 'var(--color-primary-500)' : 'var(--color-bg-elevated)',
-                    border: 'var(--border-default)',
-                    borderRadius: 'var(--radius-md)',
-                    color: currentTheme === 'default' ? 'white' : 'var(--color-text-primary)',
-                    fontSize: 'var(--font-size-body-sm)',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    transition: 'var(--transition-all)',
-                  }}
-                >
-                  Default (Flock)
-                </button>
+                {builtInThemes.map((theme) => (
+                  <button
+                    key={theme}
+                    onClick={() => handleThemeSelect(theme)}
+                    onMouseEnter={() => handleThemePreview(theme)}
+                    style={{
+                      padding: 'var(--space-component-sm)',
+                      background: currentBuiltIn === theme ? 'var(--invert)' : 'var(--color-bg-elevated)',
+                      border: 'var(--border-default)',
+                      borderRadius: 'var(--radius-md)',
+                      color: currentBuiltIn === theme ? 'var(--on-invert)' : 'var(--color-text-primary)',
+                      fontSize: 'var(--font-size-body-sm)',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'var(--transition-all)',
+                    }}
+                  >
+                    {THEME_LABELS[theme]}
+                  </button>
+                ))}
               </div>
             </div>
           )}
@@ -209,10 +211,10 @@ const ThemeSelector: React.FC = () => {
                     onMouseEnter={() => handleThemePreview(theme)}
                     style={{
                       padding: 'var(--space-component-sm)',
-                      background: currentTheme === theme ? 'var(--color-primary-500)' : 'var(--color-bg-elevated)',
+                      background: currentTheme === theme ? 'var(--invert)' : 'var(--color-bg-elevated)',
                       border: 'var(--border-default)',
                       borderRadius: 'var(--radius-md)',
-                      color: currentTheme === theme ? 'white' : 'var(--color-text-primary)',
+                      color: currentTheme === theme ? 'var(--on-invert)' : 'var(--color-text-primary)',
                       fontSize: 'var(--font-size-body-sm)',
                       cursor: 'pointer',
                       textAlign: 'left',
@@ -249,10 +251,10 @@ const ThemeSelector: React.FC = () => {
                     onMouseEnter={() => handleThemePreview(theme)}
                     style={{
                       padding: 'var(--space-component-sm)',
-                      background: currentTheme === theme ? 'var(--color-primary-500)' : 'var(--color-bg-elevated)',
+                      background: currentTheme === theme ? 'var(--invert)' : 'var(--color-bg-elevated)',
                       border: 'var(--border-default)',
                       borderRadius: 'var(--radius-sm)',
-                      color: currentTheme === theme ? 'white' : 'var(--color-text-primary)',
+                      color: currentTheme === theme ? 'var(--on-invert)' : 'var(--color-text-primary)',
                       fontSize: 'var(--font-size-body-sm)',
                       cursor: 'pointer',
                       textAlign: 'left',
@@ -266,7 +268,7 @@ const ThemeSelector: React.FC = () => {
             </div>
           )}
 
-          {filteredThemes.length === 0 && !loading && (
+          {builtInThemes.length + filteredThemes.length === 0 && !loading && (
             <div style={{
               padding: 'var(--space-component-md)',
               textAlign: 'center',

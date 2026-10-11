@@ -96,7 +96,7 @@ const DEFAULT_SETTINGS: Omit<SettingsState, keyof ReturnType<typeof createAction
     nodeShadow: 'medium',
     showStatusPulse: true,
     compactNodeView: false,
-    theme: 'default',
+    theme: 'graphite',
   },
 
   advanced: {
