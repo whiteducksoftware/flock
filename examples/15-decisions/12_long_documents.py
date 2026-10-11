@@ -143,6 +143,8 @@ async def main_cli() -> None:
             for control, result in decision.results.items():
                 if result == "UNSURE":
                     unsure += 1
+                    # An unsure answer about a shown control is a miss
+                    fn += truth_org[control] == "yes"
                     continue
                 yes += result == "yes"
                 no += result == "no"
@@ -155,6 +157,7 @@ async def main_cli() -> None:
             f"{name:<10} {requests:>8} {yes:>5} {no:>5} {unsure:>4}  "
             f"{tp / max(1, tp + fp):>9.2f}  {tp / max(1, tp + fn):>6.2f}"
         )
+    print("(recall counts an unsure answer about a shown control as missed)")
 
     # Where one manual shows its controls
     _, sample = next(

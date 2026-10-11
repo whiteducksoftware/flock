@@ -183,6 +183,7 @@ async def main_cli():
             expected = truth[doc_id][control]
             if result == "UNSURE":
                 totals["unsure"] += 1
+                totals["fn"] += expected == "yes"  # an unsure shown control is missed
                 continue
             agree += result == expected
             key = ("t" if result == expected else "f") + (
@@ -201,7 +202,8 @@ async def main_cli():
     tp, fp, fn = totals["tp"], totals["fp"], totals["fn"]
     print(
         f"\nAll answers: precision {tp / max(1, tp + fp):.2f}, recall {tp / max(1, tp + fn):.2f} "
-        f"for 'implemented'; {totals['unsure']} answers below the threshold"
+        f"for 'implemented' (unsure counts as missed); {totals['unsure']} answers "
+        "below the threshold"
     )
 
 

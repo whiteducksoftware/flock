@@ -138,6 +138,7 @@ async def main_cli() -> None:
         for control, result in results.items():
             if result == "UNSURE":
                 totals["unsure"] += 1
+                totals["fn"] += expected[org][control] == "yes"  # missed
                 continue
             agree += result == expected[org][control]
             if result == "yes":
@@ -153,7 +154,8 @@ async def main_cli() -> None:
     tp, fp, fn = totals["tp"], totals["fp"], totals["fn"]
     print(
         f"\nCoverage 'shown': precision {tp / max(1, tp + fp):.2f}, recall "
-        f"{tp / max(1, tp + fn):.2f}; {totals['unsure']} controls still unsure"
+        f"{tp / max(1, tp + fn):.2f} (unsure counts as missed); "
+        f"{totals['unsure']} controls still unsure"
     )
 
 

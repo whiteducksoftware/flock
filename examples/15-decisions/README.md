@@ -133,11 +133,11 @@ uv run examples/15-decisions/05_compliance_checklist.py
 **What You'll See (Microsoft-Decision-1, threshold 0.8):**
 ```
 document                                       outcome   yes   no   ?  agrees  latency
-doc_01 Information Security Policy             failed     12   82   6   94/94    995 ms
-doc_10 Internal Audit Report: ISMS             failed     29   65   6   90/94    829 ms
-doc_16 Backup and Recovery Concept             failed      9   90   1   94/99    554 ms
+doc_01 Information Security Policy             failed     13   81   6   93/94   1032 ms
+doc_10 Internal Audit Report: ISMS             failed     29   65   6   90/94    885 ms
+doc_16 Backup and Recovery Concept             failed      9   90   1   94/99    608 ms
 ...
-All answers: precision 0.75, recall 1.00 for 'implemented'; 161 answers below the threshold
+All answers: precision 0.75, recall 0.99 for 'implemented' (unsure counts as missed); 166 answers below the threshold
 ```
 
 Every document fails some controls: a single policy or procedure never covers the whole catalog.
@@ -340,12 +340,12 @@ Set `USE_DASHBOARD = True` to watch the coverage agent count passed and failed o
 **What You'll See (2026-10-11, Microsoft-Decision-1):**
 ```
 organisation               docs  yes   no   ?  truth yes  agrees
-Alder Grid Energy             2   21   71   8         17   88/92
-Brightwater Logistics         2   26   65   9         27   90/91
+Alder Grid Energy             2   21   70   9         17   87/91
+Brightwater Logistics         2   27   64   9         27   89/91
 ...
-Verdant Rail                  2   39   52   9         30   82/91
+Verdant Rail                  2   40   52   8         30   82/92
 
-Coverage 'shown': precision 0.79, recall 1.00; 110 controls still unsure
+Coverage 'shown': precision 0.78, recall 0.99 (unsure counts as missed); 104 controls still unsure
 ```
 
 ## 12_long_documents.py
@@ -355,7 +355,7 @@ Builds one security manual per organisation from the compliance documents and ch
 **Key Concepts:**
 - `.decides(Controls, sections=Sections(field="text", max_chars=MAX_CHARS))`
 - `decision.sections`: `field`, `spans` and `answered_by` per item
-- Sections cost one request each; on documents that fit, the whole is more precise
+- Sections cost one request each; on documents that fit, the whole is more precise and sections find a few more controls
 
 **Run:**
 ```bash
@@ -366,14 +366,15 @@ uv run examples/15-decisions/12_long_documents.py
 **What You'll See (2026-10-11, Microsoft-Decision-1):**
 ```
 decider    requests   yes    no    ?  precision  recall
-whole            12   269   826  105       0.87    0.98
-sectioned        51   320   765  115       0.74    1.00
+whole            12   267   827  106       0.87    0.96
+sectioned        51   320   763  117       0.75    0.99
+(recall counts an unsure answer about a shown control as missed)
 
 Brightwater Logistics: 4093 characters in 7 sections
   section 1 [0:162] 'Information Security Policy'
       shows -
   section 2 [164:847] '1. Governance'
-      shows gov_01, gov_03, gov_06, gov_07, gov_08, dev_01
+      shows gov_01, gov_03, gov_06, gov_07, gov_08
   ...
   section 7 [3340:4093] '4. Access control'
       shows acc_02, acc_05, acc_06, acc_07, acc_10, acc_11, ops_02
