@@ -515,6 +515,30 @@ class DashboardEventCollector(AgentComponent):
             for record in records[:limit]
         ]
 
+    async def active_runs(self) -> list[dict[str, Any]]:
+        """The runs going on now, oldest first, with what their start event
+        named: a dashboard that connects meanwhile learns of them here."""
+        async with self._graph_lock:
+            records = [
+                record
+                for record in self._run_registry.values()
+                if record.status == "active"
+            ]
+        oldest = datetime.min.replace(tzinfo=UTC)
+        records.sort(key=lambda r: r.started_at or oldest)
+        return [
+            {
+                "run_id": record.run_id,
+                "agent_name": record.agent_name,
+                "correlation_id": record.correlation_id or None,
+                "consumed_artifacts": list(record.consumed_artifacts),
+                "start_time": record.started_at.isoformat()
+                if record.started_at
+                else None,
+            }
+            for record in records
+        ]
+
     async def snapshot_agent_registry(self) -> dict[str, AgentSnapshot]:
         """Return a snapshot of all known agents (active and inactive)."""
         await self.load_persistent_snapshots()
