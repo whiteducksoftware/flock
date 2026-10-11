@@ -33,13 +33,18 @@ class Sections(BaseModel):
 
 
 def _paragraphs(text: str) -> list[tuple[int, int]]:
+    """Spans of the paragraphs, without their surrounding whitespace."""
     spans, start = [], 0
-    for match in _PARAGRAPH_BREAK.finditer(text):
-        if match.start() > start:
-            spans.append((start, match.start()))
-        start = match.end()
-    if start < len(text):
-        spans.append((start, len(text)))
+    for match in [*_PARAGRAPH_BREAK.finditer(text), None]:
+        end = match.start() if match else len(text)
+        while start < end and text[start].isspace():
+            start += 1
+        while end > start and text[end - 1].isspace():
+            end -= 1
+        if start < end:
+            spans.append((start, end))
+        if match:
+            start = match.end()
     return spans
 
 

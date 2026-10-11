@@ -74,6 +74,11 @@ def test_a_trailing_space_makes_no_empty_section():
     assert split_sections("aa   bb", max_chars=2) == [(0, 2), (5, 7)]
 
 
+def test_leading_whitespace_makes_no_empty_section():
+    assert split_sections("\nabc", max_chars=1) == [(1, 2), (2, 3), (3, 4)]
+    assert split_sections("  x\n\n  y  ", max_chars=100) == [(2, 8)]
+
+
 def test_split_sections_needs_a_positive_limit():
     with pytest.raises(ValueError, match="max_chars"):
         split_sections("text", max_chars=0)
