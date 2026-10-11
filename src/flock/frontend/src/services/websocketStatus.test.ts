@@ -42,7 +42,58 @@ describe('WebSocketClient agent status', () => {
     expect(useGraphStore.getState().streamingTokens.get('billing')).toEqual([]);
   });
 
-  it('remembers what a starting run consumed', () => {
+  it('drops the streaming preview of a run that ended without publishing it', () => {
+    vi.useFakeTimers();
+    const client = new WebSocketClient('ws://test/ws');
+    const preview = (id: string, producedBy: string, correlationId: string) => ({
+      id,
+      type: 'message',
+      position: { x: 0, y: 0 },
+      data: { artifactType: 'TeamReply', producedBy, correlationId, isStreaming: true },
+    });
+    useGraphStore.setState({ nodes: [preview('p1', 'billing', 'c-1'), preview('p2', 'billing', 'c-2')] as never });
+
+    receive(client, 'agent_error', { agent_name: 'billing', correlation_id: 'c-1', agent_status: 'error' });
+
+    expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual(['p2']);
+  });
+
+  it('drops only the preview of the run that ended, when the agent runs twice in a run', () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    useGraphStore.setState({ viewMode: 'blackboard', nodes: [] });
+    const client = new WebSocketClient('ws://test/ws');
+    const token = (artifact_id: string, run_id: string) =>
+      receive(client, 'streaming_output', {
+        agent_name: 'billing',
+        correlation_id: 'c-1',
+        run_id,
+        artifact_id,
+        artifact_type: 'TeamReply',
+        output_type: 'llm_token',
+        content: 'Hi',
+        sequence: 1,
+      });
+    token('a-1', 'r-1');
+    token('a-2', 'r-2');
+
+    receive(client, 'agent_completed', { agent_name: 'billing', correlation_id: 'c-1', run_id: 'r-1', agent_status: 'running' });
+
+    expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual(['a-2']);
+  });
+
+  it('knows a run that consumed nothing (a direct invocation, a timer) is running', () => {
+    vi.useFakeTimers();
+    const client = new WebSocketClient('ws://test/ws');
+
+    receive(client, 'agent_activated', { agent_name: 'digest', run_id: 'r-9', consumed_types: [], consumed_artifacts: [], correlation_id: 'c-9' });
+    expect(useGraphStore.getState().inFlight.get('r-9')).toEqual({ agent: 'digest', types: [], artifacts: [], correlationId: 'c-9' });
+
+    receive(client, 'agent_completed', { agent_name: 'digest', run_id: 'r-9', agent_status: 'idle' });
+    expect(useGraphStore.getState().inFlight.has('r-9')).toBe(false);
+  });
+
+  it('remembers what a starting run consumed, and its run', () => {
     vi.useFakeTimers();
     const client = new WebSocketClient('ws://test/ws');
 
@@ -51,11 +102,13 @@ describe('WebSocketClient agent status', () => {
       run_id: 'r-1',
       consumed_types: ['Decision[app.Route]'],
       consumed_artifacts: ['d-1'],
+      correlation_id: 'c-1',
     });
     expect(useGraphStore.getState().inFlight.get('r-1')).toEqual({
       agent: 'billing',
       types: ['Decision[app.Route]'],
       artifacts: ['d-1'],
+      correlationId: 'c-1',
     });
   });
 

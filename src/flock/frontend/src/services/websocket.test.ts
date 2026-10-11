@@ -74,6 +74,47 @@ describe('WebSocketClient reconnects', () => {
     vi.restoreAllMocks();
   });
 
+  it('ignores the answer about running runs that a reconnect superseded', async () => {
+    const answers: ((response: Response) => void)[] = [];
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((resolve) => answers.push(resolve))));
+    const client = new WebSocketClient('ws://test/ws');
+    client.connect();
+    socket(0).open();
+    // The connection drops and comes back before the first answer is in
+    socket(0).fail();
+    await vi.advanceTimersByTimeAsync(5_000);
+    socket(1).open();
+    answers[1]!(new Response(JSON.stringify({ runs: [] })));
+    answers[0]!(new Response(JSON.stringify({ runs: [{ run_id: 'r-old', agent_name: 'triage', correlation_id: 'c-1', consumed_artifacts: [] }] })));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(useGraphStore.getState().inFlight.size).toBe(0);
+  });
+
+  it('learns of the runs going on when it connects, but not of runs that ended meanwhile', async () => {
+    let answer!: (response: Response) => void;
+    const fetch = vi.fn(() => new Promise<Response>((resolve) => (answer = resolve)));
+    vi.stubGlobal('fetch', fetch);
+    const client = new WebSocketClient('ws://test/ws');
+    client.connect();
+    socket(0).open();
+    expect(fetch).toHaveBeenCalledWith('/api/runs/active');
+
+    // r-6 ends before the answer is in
+    (client as unknown as { handleMessage: (event: MessageEvent) => void }).handleMessage(
+      new MessageEvent('message', {
+        data: JSON.stringify({ event_type: 'agent_completed', data: { agent_name: 'urgency', run_id: 'r-6', agent_status: 'idle' } }),
+      }),
+    );
+    const run = (run_id: string, agent_name: string) => ({ run_id, agent_name, correlation_id: 'c-1', consumed_artifacts: ['t-1'], start_time: '2026-10-11T11:59:58+00:00' });
+    answer(new Response(JSON.stringify({ runs: [run('r-5', 'triage'), run('r-6', 'urgency')] })));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect([...useGraphStore.getState().inFlight.entries()]).toEqual([
+      ['r-5', { agent: 'triage', types: [], artifacts: ['t-1'], correlationId: 'c-1' }],
+    ]);
+  });
+
   it('schedules a retry after a failed connection and says when', () => {
     const client = new WebSocketClient('ws://test/ws');
     client.connect();

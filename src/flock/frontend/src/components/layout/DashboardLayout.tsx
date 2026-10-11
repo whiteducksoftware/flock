@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import GraphCanvas from '../graph/GraphCanvas';
-import DetailWindowContainer from '../details/DetailWindowContainer';
+import Blackboard from '../blackboard/Blackboard';
 import PublishControl from '../controls/PublishControl';
 import SettingsPanel from '../settings/SettingsPanel';
 import KeyboardShortcutsDialog from '../common/KeyboardShortcutsDialog';
 import { useSettingsStore } from '../../store/settingsStore';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
+import { useBoardData } from '../../hooks/useBoardData';
 import BoardStates from '../graph/BoardStates';
 import TimelineDock from '../timeline/TimelineDock';
 import { useUIStore } from '../../store/uiStore';
@@ -15,6 +16,10 @@ import './DashboardLayout.css';
 
 const DashboardLayout: React.FC = () => {
   const dockOpen = useUIStore((state) => state.dockOpen);
+  const mode = useUIStore((state) => state.mode);
+
+  // The board's data, for the view and the filters
+  useBoardData();
 
   // UI visibility from settings store
   const showControls = useSettingsStore((state) => state.ui.showControls);
@@ -37,17 +42,19 @@ const DashboardLayout: React.FC = () => {
         <main className="graph-container">
           {/* With the timeline dock expanded the board keeps a strip of chips */}
           <div className={`board-area${dockOpen ? ' docked' : ''}`}>
-            <ReactFlowProvider>
-              <GraphCanvas />
-            </ReactFlowProvider>
+            {/* The Flow is a graph; the Blackboard lays its runs out as lanes */}
+            {mode === 'agent' ? (
+              <ReactFlowProvider>
+                <GraphCanvas />
+              </ReactFlowProvider>
+            ) : (
+              <Blackboard />
+            )}
             <BoardStates onPublish={() => setShowControls(true)} />
           </div>
           <TimelineDock />
         </main>
       </div>
-
-      {/* Detail Windows */}
-      <DetailWindowContainer />
 
       {/* Publish Control Panel - Slides in from right */}
       {showControls && <PublishControl />}

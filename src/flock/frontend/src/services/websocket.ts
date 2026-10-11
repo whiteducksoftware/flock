@@ -17,6 +17,10 @@ export class WebSocketClient {
   private reconnectAttempt = 0;
   // A connection was lost; the next one refreshes the board
   private connectionLost = false;
+  /** Runs that ended since the page last asked which runs go on: a late answer must not bring them back */
+  private endedRuns = new Set<string>();
+  /** Which ask is the latest: an answer to one a reconnect superseded is dropped */
+  private seedGeneration = 0;
   private maxReconnectDelay = 30000; // 30 seconds
   private connectionTimeout: number | null = null;
   private connectionTimeoutMs = 10000; // 10 seconds
@@ -166,6 +170,30 @@ export class WebSocketClient {
     }
   }
 
+  private seedActiveRuns(): void {
+    this.endedRuns.clear();
+    const generation = ++this.seedGeneration;
+    fetch('/api/runs/active')
+      .then((response) => (response.ok ? response.json() : null))
+      .then(
+        (data: { runs?: { run_id: string; agent_name: string; correlation_id: string | null; consumed_artifacts?: string[] }[] } | null) => {
+          // An older server answers without the endpoint; a newer ask answers for now
+          if (!Array.isArray(data?.runs) || generation !== this.seedGeneration) return;
+          useGraphStore.getState().seedInFlight(
+            data.runs
+              .filter((run) => !this.endedRuns.has(run.run_id))
+              .map((run) => ({
+                runId: run.run_id,
+                agent: run.agent_name,
+                artifacts: run.consumed_artifacts ?? [],
+                correlationId: run.correlation_id ?? null,
+              })),
+          );
+        },
+      )
+      .catch(() => {});
+  }
+
   private setupEventHandlers(): void {
     // Handler for agent_activated: create/update agent in graph AND create Run
     this.on('agent_activated', (data) => {
@@ -177,7 +205,9 @@ export class WebSocketClient {
       // Update real-time status (fast, local)
       useGraphStore.getState().updateAgentStatus(data.agent_name, 'running');
       // What this run works on: the edges carrying these types are in flight
-      useGraphStore.getState().setInFlight(data.run_id, data.agent_name, data.consumed_types ?? [], data.consumed_artifacts ?? []);
+      useGraphStore
+        .getState()
+        .setInFlight(data.run_id, data.agent_name, data.consumed_types ?? [], data.consumed_artifacts ?? [], data.correlation_id ?? null);
 
       // Schedule debounced refresh (batches within 500ms, then fetches backend snapshot)
       this.scheduleGraphRefresh();
@@ -250,6 +280,7 @@ export class WebSocketClient {
             agent_name: data.agent_name,
             correlation_id: data.correlation_id,
             artifact_type: data.artifact_type,  // Phase 6: Artifact type name for node header
+            run_id: data.run_id,
           }
         );
 
@@ -272,8 +303,11 @@ export class WebSocketClient {
       useGraphStore.getState().updateAgentStatus(data.agent_name, status);
       // Another run of it goes on: its ticker stays
       if (status !== 'running') useGraphStore.getState().updateStreamingTokens(data.agent_name, []);
+      // A stream it never published is no artifact
+      useGraphStore.getState().dropStreamingPreviews(data.agent_name, data.correlation_id ?? null, data.run_id ?? null);
       // This run is done; another one keeps its own types in flight
       useGraphStore.getState().setInFlight(data.run_id, data.agent_name, null);
+      this.endedRuns.add(data.run_id);
       // A newer run failed: the snapshot says what (lastError)
       if (status === 'error') this.scheduleGraphRefresh();
 
@@ -289,7 +323,10 @@ export class WebSocketClient {
       useGraphStore.getState().updateAgentStatus(data.agent_name, status);
       // A failed run's tokens are not the next run's; another run of it keeps the ticker
       if (status !== 'running') useGraphStore.getState().updateStreamingTokens(data.agent_name, []);
+      // The failed run's stream is no artifact
+      useGraphStore.getState().dropStreamingPreviews(data.agent_name, data.correlation_id ?? null, data.run_id ?? null);
       useGraphStore.getState().setInFlight(data.run_id, data.agent_name, null);
+      this.endedRuns.add(data.run_id);
       // The snapshot says what failed (lastError)
       this.scheduleGraphRefresh();
 
@@ -457,12 +494,15 @@ export class WebSocketClient {
             inFlight: new Map(),
             runTails: new Map(),
           });
+          useGraphStore.getState().dropStreamingPreviews();
           this.scheduleGraphRefresh();
           // The counts missed those artifacts too
           fetchArtifactSummary()
             .then((summary) => useFilterStore.getState().setSummary(summary))
             .catch((error) => console.error('[WebSocket] Summary refresh failed:', error));
         }
+        // A page hears of a run from its start event only: ask which runs go on now
+        this.seedActiveRuns();
         this.reconnectAttempt = 0;
         this.flushBuffer();
         if (this.enableHeartbeat) {

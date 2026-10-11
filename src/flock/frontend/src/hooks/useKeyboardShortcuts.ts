@@ -145,9 +145,10 @@ export const useKeyboardShortcuts = (config: KeyboardShortcutConfig = {}) => {
         if (config.onCloseWindows) {
           config.onCloseWindows();
         } else {
-          // Priority: panels, then focus mode, the timeline dock, the unfolded node, artifact windows
+          // Priority: panels, then focus mode, the timeline dock, what the view unfolded
+          // (an agent on the Flow, an artifact card on the Blackboard)
           const { showSettings, showFilters, showControls } = useSettingsStore.getState().ui;
-          const { detailWindows, unfoldedNodeId, focusedNodeId, dockOpen } = useUIStore.getState();
+          const { mode, unfoldedNodeId, unfoldedArtifactId, focusedNodeId, dockOpen } = useUIStore.getState();
 
           if (showSettings) {
             event.preventDefault();
@@ -164,14 +165,12 @@ export const useKeyboardShortcuts = (config: KeyboardShortcutConfig = {}) => {
           } else if (dockOpen) {
             event.preventDefault();
             useUIStore.getState().closeDock();
-          } else if (unfoldedNodeId) {
+          } else if (mode === 'blackboard' && unfoldedArtifactId) {
+            event.preventDefault();
+            useUIStore.getState().foldArtifact();
+          } else if (mode === 'agent' && unfoldedNodeId) {
             event.preventDefault();
             useUIStore.getState().fold();
-          } else if (detailWindows.size > 0) {
-            event.preventDefault();
-            // Close all detail windows
-            detailWindows.clear();
-            useUIStore.setState({ detailWindows: new Map() });
           }
         }
         return;

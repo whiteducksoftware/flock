@@ -51,8 +51,11 @@ const HistoricalArtifactsModule: React.FC = () => {
   const summary = useFilterStore((state) => state.summary);
 
   const [artifacts, setArtifacts] = useState<ArtifactListItem[]>([]);
-  const [nextOffset, setNextOffset] = useState(0);
   const [total, setTotal] = useState(0);
+  // The store keeps artifacts oldest first, so the newest page is its last. This is
+  // the offset of the oldest artifact loaded; new artifacts go to the end, so it holds.
+  const olderThan = useRef(0);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedArtifactId, setSelectedArtifactId] = useState<string | null>(null);
@@ -66,17 +69,20 @@ const HistoricalArtifactsModule: React.FC = () => {
     [artifacts, selectedArtifactId]
   );
 
-  const hasMore = total > nextOffset;
-
   useEffect(() => {
     if (selectedArtifactId && !artifacts.some((artifact) => artifact.id === selectedArtifactId)) {
       setSelectedArtifactId(null);
     }
   }, [artifacts, selectedArtifactId]);
 
+  // The time bounds of the first page: "the last 10 minutes" moves on, and
+  // older pages' offsets hold only for the bounds they were counted in
+  const bounds = useRef<{ from?: string; to?: string }>({});
+
   const buildQueryOptions = useCallback(
-    (offset: number): ArtifactQueryOptions => {
-      const range = resolveTimeRangeToIso(timeRange);
+    (offset: number, fresh = false): ArtifactQueryOptions => {
+      if (fresh) bounds.current = resolveTimeRangeToIso(timeRange);
+      const range = bounds.current;
       return {
         types: selectedArtifactTypes,
         producers: selectedProducers,
@@ -127,12 +133,28 @@ const HistoricalArtifactsModule: React.FC = () => {
     async (reset: boolean) => {
       setLoading(true);
       try {
-        const offset = reset ? 0 : nextOffset;
-        const queryOptions = buildQueryOptions(offset);
-        const response = await fetchArtifacts(queryOptions);
+        let offset = 0;
+        let queryOptions = buildQueryOptions(0, reset);
+        let response;
+        if (reset) {
+          // The first page says how many there are; the newest are the last ones
+          response = await fetchArtifacts(queryOptions);
+          if (response.pagination.total > PAGE_SIZE) {
+            offset = response.pagination.total - PAGE_SIZE;
+            queryOptions = buildQueryOptions(offset);
+            response = await fetchArtifacts(queryOptions);
+          }
+        } else {
+          offset = Math.max(0, olderThan.current - PAGE_SIZE);
+          queryOptions = { ...buildQueryOptions(offset), limit: olderThan.current - offset };
+          response = await fetchArtifacts(queryOptions);
+        }
 
-        setArtifacts((prev) => (reset ? response.items : [...prev, ...response.items]));
-        setNextOffset(offset + response.pagination.limit);
+        // Newest first
+        const page = [...response.items].reverse();
+        setArtifacts((prev) => (reset ? page : [...prev, ...page]));
+        olderThan.current = offset;
+        setHasMore(offset > 0);
         setTotal(response.pagination.total);
         setError(null);
 
@@ -156,7 +178,7 @@ const HistoricalArtifactsModule: React.FC = () => {
         setLoading(false);
       }
     },
-    [buildQueryOptions, mergeCorrelationMetadata, nextOffset, setSummary]
+    [buildQueryOptions, mergeCorrelationMetadata, setSummary]
   );
 
   useEffect(() => {
@@ -179,12 +201,12 @@ const HistoricalArtifactsModule: React.FC = () => {
     [artifacts]
   );
 
-  const handleLoadMore = () => {
+  const handleLoadMore = useCallback(() => {
     if (!loading && hasMore) {
       lastAutoLoadIndex.current = -1;
       loadArtifacts(false);
     }
-  };
+  }, [hasMore, loadArtifacts, loading]);
   const listHeight = useMemo(() => Math.max(MIN_VISIBLE_ITEMS, Math.min(rows.length || MIN_VISIBLE_ITEMS, 12)) * ITEM_HEIGHT, [rows.length]);
 
   useEffect(() => {
@@ -195,8 +217,11 @@ const HistoricalArtifactsModule: React.FC = () => {
 
     const handleScroll = () => {
       const totalItems = rows.length;
+      // The same range is the same state: a new object would render again, and run this again
+      const show = (start: number, end: number) =>
+        setVirtualRange((range) => (range.start === start && range.end === end ? range : { start, end }));
       if (totalItems === 0) {
-        setVirtualRange({ start: 0, end: MIN_VISIBLE_ITEMS });
+        show(0, MIN_VISIBLE_ITEMS);
         return;
       }
 
@@ -204,7 +229,7 @@ const HistoricalArtifactsModule: React.FC = () => {
       const viewportHeight = container.clientHeight;
       const startIndex = Math.max(0, Math.floor(scrollTop / ITEM_HEIGHT) - 5);
       const endIndex = Math.min(totalItems, Math.ceil((scrollTop + viewportHeight) / ITEM_HEIGHT) + 5);
-      setVirtualRange({ start: startIndex, end: endIndex });
+      show(startIndex, endIndex);
 
       if (hasMore && !loading && endIndex >= totalItems - 5 && lastAutoLoadIndex.current !== endIndex) {
         lastAutoLoadIndex.current = endIndex;

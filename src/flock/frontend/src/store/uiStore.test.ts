@@ -24,7 +24,9 @@ describe('uiStore', () => {
     useUIStore.setState({
       mode: 'agent',
       selectedNodeIds: new Set(),
-      detailWindows: new Map(),
+      unfoldedArtifactId: null,
+      blackboardView: 'lanes',
+      needsReviewOnly: false,
       layoutDirection: 'TB',
       autoLayoutEnabled: true,
       autoLayoutMode: 'hierarchical-horizontal',
@@ -88,15 +90,19 @@ describe('uiStore', () => {
     expect(useUIStore.getState().unfoldedNodeId).toBeNull();
   });
 
-  it('saves neither the unfolded node nor open windows', () => {
+  it('saves the view and the Blackboard view\'s mode, not what is unfolded or filtered', () => {
     useUIStore.getState().unfold('triage');
-    useUIStore.getState().openDetailWindow('artifact-1');
+    useUIStore.getState().unfoldArtifact('artifact-1');
+    useUIStore.getState().setNeedsReviewOnly(true);
     useUIStore.getState().setMode('blackboard');
+    useUIStore.getState().setBlackboardView('table');
 
     const saved = JSON.stringify(memoryStorage.get('ui-storage'));
     expect(saved).toContain('blackboard');
+    expect(saved).toContain('"blackboardView":"table"');
     expect(saved).not.toContain('triage');
     expect(saved).not.toContain('artifact-1');
+    expect(saved).not.toContain('needsReviewOnly');
   });
 
   it('drops the windows an older dashboard saved', async () => {
@@ -108,8 +114,7 @@ describe('uiStore', () => {
     await (useUIStore as any).persist.rehydrate();
 
     expect(useUIStore.getState().mode).toBe('blackboard');
-    expect(useUIStore.getState().detailWindows).toBeInstanceOf(Map);
-    expect(useUIStore.getState().detailWindows.size).toBe(0);
+    expect('detailWindows' in useUIStore.getState()).toBe(false);
   });
 
   it('should set mode to blackboard', () => {
@@ -140,16 +145,13 @@ describe('uiStore', () => {
     expect(useUIStore.getState().selectedNodeIds.size).toBe(0);
   });
 
-  it('should open and close detail windows', () => {
-    useUIStore.getState().openDetailWindow('node-1');
+  it('unfolds one artifact card at a time, and folds it', () => {
+    useUIStore.getState().unfoldArtifact('artifact-1');
+    useUIStore.getState().unfoldArtifact('artifact-2');
+    expect(useUIStore.getState().unfoldedArtifactId).toBe('artifact-2');
 
-    let windows = useUIStore.getState().detailWindows;
-    expect(windows.size).toBe(1);
-    expect(windows.get('node-1')?.nodeId).toBe('node-1');
-
-    useUIStore.getState().closeDetailWindow('node-1');
-    windows = useUIStore.getState().detailWindows;
-    expect(windows.size).toBe(0);
+    useUIStore.getState().foldArtifact();
+    expect(useUIStore.getState().unfoldedArtifactId).toBeNull();
   });
 
   it('should default auto-layout preferences correctly', () => {

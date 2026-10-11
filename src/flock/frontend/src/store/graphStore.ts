@@ -33,8 +33,8 @@ const RUN_TAIL_CHARS = 160;
 interface GraphState {
   // Real-time WebSocket state (overlaid on backend snapshot)
   agentStatus: Map<string, string>;
-  /** Per running run, its agent and what it consumed: the types (edges in flight) and artifact IDs */
-  inFlight: Map<string, { agent: string; types: string[]; artifacts: string[] }>;
+  /** Per running run, its agent and what it consumed: the types (edges in flight) and artifact IDs; its run (correlation) */
+  inFlight: Map<string, { agent: string; types: string[]; artifacts: string[]; correlationId?: string | null }>;
   /** Per running run, the end of its streamed output (an agent's ticker mixes its runs) */
   runTails: Map<string, string>;
   streamingTokens: Map<string, string[]>;
@@ -44,6 +44,8 @@ interface GraphState {
   nodes: Node[];
   edges: Edge[];
   statistics: GraphStatistics | null;
+  /** The blackboard view holds the newest artifacts only (the server's limit) */
+  truncated: boolean;
 
   // UI state
   events: Message[];
@@ -66,8 +68,12 @@ interface GraphState {
 
   // Actions - Real-time WebSocket updates
   updateAgentStatus: (agentId: string, status: string) => void;
-  setInFlight: (runId: string, agentId: string, types: string[] | null, artifacts?: string[]) => void;
+  setInFlight: (runId: string, agentId: string, types: string[] | null, artifacts?: string[], correlationId?: string | null) => void;
   appendRunTail: (runId: string, text: string) => void;
+  /** Runs going on when the page connected, which it heard no start event of (their types are not known) */
+  seedInFlight: (runs: { runId: string; agent: string; artifacts: string[]; correlationId: string | null }[]) => void;
+  /** Drops the streaming previews of a run (all of them without arguments) */
+  dropStreamingPreviews: (agent?: string, correlationId?: string | null, runId?: string | null) => void;
   updateStreamingTokens: (agentId: string, tokens: string[]) => void;
   updateAgentLogicOperations: (agentId: string, logicOps: AgentLogicOperations[]) => void; // Phase 1.3
   addEvent: (message: Message) => void;
@@ -155,6 +161,7 @@ export const useGraphStore = create<GraphState>()(
       nodes: [],
       edges: [],
       statistics: null,
+      truncated: false,
       events: [],
       viewMode: 'agent',
       savedPositions: new Map(),
@@ -230,24 +237,40 @@ export const useGraphStore = create<GraphState>()(
         set({ isLoading: true, error: null, viewMode: 'blackboard' });
 
         try {
-          // Load saved positions from IndexedDB first
-          await get().loadSavedPositions();
-
           const request = buildGraphRequest('blackboard');
           const snapshot: GraphSnapshot = await fetchGraphSnapshot(request);
 
-          const { savedPositions, nodes: currentNodes, agentStatus, streamingTokens, agentLogicOperations } = get();
-
-          // Merge positions: saved > current > backend > random
-          const mergedNodes = mergeNodePositions(snapshot.nodes, savedPositions, currentNodes);
-
-          // Overlay real-time WebSocket state (primarily for message streaming)
-          const finalNodes = overlayWebSocketState(mergedNodes, agentStatus, streamingTokens, agentLogicOperations);
+          // The lanes place artifacts themselves (no positions); an artifact
+          // that still streams is not on the record yet and stays, if the
+          // board's filters let it through (it has no tags yet)
+          const known = new Set(snapshot.nodes.map((node) => node.id));
+          const filters = request.filters;
+          const timeRange = useFilterStore.getState().timeRange;
+          const lastMinutes = { last5min: 5, last10min: 10, last1hour: 60 }[timeRange.preset as string];
+          const from =
+            timeRange.preset === 'custom'
+              ? boundOf(timeRange.start)
+              : lastMinutes !== undefined
+                ? Date.now() - lastMinutes * 60_000
+                : undefined;
+          const to = timeRange.preset === 'custom' ? boundOf(timeRange.end) : undefined;
+          const passes = (data: Record<string, any>) =>
+            (from === undefined || (data.timestamp ?? 0) >= from) &&
+            (to === undefined || (data.timestamp ?? 0) <= to) &&
+            (!filters.correlation_id || data.correlationId === filters.correlation_id) &&
+            (filters.artifactTypes.length === 0 || filters.artifactTypes.includes(data.artifactType)) &&
+            (filters.producers.length === 0 || filters.producers.includes(data.producedBy)) &&
+            filters.tags.length === 0 &&
+            (filters.visibility.length === 0 || filters.visibility.includes(data.visibilityKind ?? 'Public'));
+          const streaming = get().nodes.filter(
+            (node) => node.type === 'message' && node.data.isStreaming && !known.has(node.id) && passes(node.data),
+          );
 
           set({
-            nodes: finalNodes,
+            nodes: [...(snapshot.nodes as Node[]), ...streaming],
             edges: snapshot.edges as Edge[],
             statistics: snapshot.statistics,
+            truncated: snapshot.truncated,
             isLoading: false,
           });
 
@@ -306,16 +329,47 @@ export const useGraphStore = create<GraphState>()(
       },
 
       // Real-time WebSocket update actions
-      setInFlight: (runId, agentId, types, artifacts = []) => {
+      setInFlight: (runId, agentId, types, artifacts = [], correlationId = null) => {
         set((state) => {
           const inFlight = new Map(state.inFlight);
-          if (types && types.length > 0) inFlight.set(runId, { agent: agentId, types, artifacts });
+          // A run that consumed nothing (a direct invocation, a timer) runs too; null ends it
+          if (types !== null) inFlight.set(runId, { agent: agentId, types, artifacts, correlationId });
           else inFlight.delete(runId);
           // A run that ends takes its output's tail along
           if (types !== null || !state.runTails.has(runId)) return { inFlight };
           const runTails = new Map(state.runTails);
           runTails.delete(runId);
           return { inFlight, runTails };
+        });
+      },
+
+      dropStreamingPreviews: (agent, correlationId, runId) => {
+        // A preview that knows its run goes with that run only; the agent may run again in the same workflow
+        const ofRun = (data: Record<string, any>) => !runId || !data.runId || data.runId === runId;
+        set((state) => {
+          const nodes = state.nodes.filter(
+            (node) =>
+              !(
+                node.type === 'message' &&
+                node.data.isStreaming &&
+                (agent === undefined || node.data.producedBy === agent) &&
+                (correlationId === undefined || (node.data.correlationId ?? null) === correlationId) &&
+                ofRun(node.data)
+              ),
+          );
+          return nodes.length === state.nodes.length ? {} : { nodes };
+        });
+      },
+
+      seedInFlight: (runs) => {
+        set((state) => {
+          const fresh = runs.filter((run) => !state.inFlight.has(run.runId));
+          if (fresh.length === 0) return {};
+          const inFlight = new Map(state.inFlight);
+          for (const run of fresh) {
+            inFlight.set(run.runId, { agent: run.agent, types: [], artifacts: run.artifacts, correlationId: run.correlationId });
+          }
+          return { inFlight };
         });
       },
 
@@ -455,6 +509,8 @@ export const useGraphStore = create<GraphState>()(
                 tags: [],
                 visibilityKind: 'Public',
                 correlationId: eventData?.correlation_id || '',
+                // The run streaming it: when the run ends, its preview goes
+                runId: eventData?.run_id ?? null,
               },
             };
             return { nodes: [...state.nodes, newNode] };

@@ -1,70 +1,17 @@
 import { describe, it, expect, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { ReactFlowProvider } from '@xyflow/react';
-import MessageNode from './MessageNode';
+import ArtifactBody from './ArtifactBody';
 import { useGraphStore } from '../../store/graphStore';
-import { NodeProps } from '@xyflow/react';
 
-// UI Optimization Migration (Phase 4.1 - Spec 002): MessageNodeData removed, use Record<string, any>
-type MessageNodeData = Record<string, any>;
+/** An artifact node's data, as the board's snapshot carries it */
+type ArtifactData = Record<string, any>;
 
-describe('MessageNode', () => {
-  const createNodeProps = (data: MessageNodeData, selected = false): NodeProps =>
-    ({
-      id: 'msg-1',
-      data,
-      selected,
-      type: 'message',
-      isConnectable: true,
-      dragging: false,
-      zIndex: 0,
-      selectable: true,
-      deletable: true,
-      draggable: true,
-    }) as unknown as NodeProps;
+describe('ArtifactBody', () => {
 
-  it('should render artifact type', () => {
-    const data: MessageNodeData = {
-      artifactType: 'Movie',
-      payloadPreview: '{"title": "Test Movie"}',
-      payload: { title: 'Test Movie' },
-      producedBy: 'movie',
-      consumedBy: ['tagline'],
-      timestamp: Date.now(),
-    };
 
-    render(
-      <ReactFlowProvider>
-        <MessageNode {...createNodeProps(data)} />
-      </ReactFlowProvider>
-    );
-    expect(screen.getByText('Movie')).toBeInTheDocument();
-  });
-
-  it('should render produced by', () => {
-    const data: MessageNodeData = {
-      artifactType: 'Movie',
-      payloadPreview: '{"title": "Test Movie"}',
-      payload: { title: 'Test Movie' },
-      producedBy: 'movie',
-      consumedBy: [],
-      timestamp: Date.now(),
-    };
-
-    render(
-      <ReactFlowProvider>
-        <MessageNode {...createNodeProps(data)} />
-      </ReactFlowProvider>
-    );
-    // Text is split across elements: <div>by: <span>movie</span></div>
-    // Use getByText with function matcher to find text across elements
-    expect(screen.getByText((_content, element) => {
-      return element?.textContent === 'by: movie';
-    })).toBeInTheDocument();
-  });
 
   it('should render a decision as probability bars', () => {
-    const data: MessageNodeData = {
+    const data: ArtifactData = {
       artifactType: 'Decision[__main__.Route]',
       payload: { choice: 'billing' },
       producedBy: 'triage',
@@ -83,9 +30,7 @@ describe('MessageNode', () => {
     };
 
     render(
-      <ReactFlowProvider>
-        <MessageNode {...createNodeProps(data)} />
-      </ReactFlowProvider>
+      <ArtifactBody id="msg-1" data={data} />
     );
     const options = screen.getAllByTestId('decision-option');
     expect(options.map((o) => o.dataset.option)).toEqual(['billing', 'tech', 'shipping']);
@@ -96,7 +41,7 @@ describe('MessageNode', () => {
   });
 
   it('should mark an unsure decision and its best guess', () => {
-    const data: MessageNodeData = {
+    const data: ArtifactData = {
       artifactType: 'Decision[__main__.Route]',
       payload: { choice: 'UNSURE' },
       producedBy: 'triage',
@@ -115,9 +60,7 @@ describe('MessageNode', () => {
     };
 
     render(
-      <ReactFlowProvider>
-        <MessageNode {...createNodeProps(data)} />
-      </ReactFlowProvider>
+      <ArtifactBody id="msg-1" data={data} />
     );
     expect(screen.getByText(/UNSURE/)).toBeInTheDocument();
     const options = screen.getAllByTestId('decision-option');
@@ -126,7 +69,7 @@ describe('MessageNode', () => {
   });
 
   it('should show image thumbnails for image fields', () => {
-    const data: MessageNodeData = {
+    const data: ArtifactData = {
       artifactType: 'Swatch',
       payload: { name: 'red one', photo: '🖼 image/jpeg · 4 KB' },
       producedBy: 'external',
@@ -136,16 +79,15 @@ describe('MessageNode', () => {
     };
 
     render(
-      <ReactFlowProvider>
-        <MessageNode {...createNodeProps(data)} />
-      </ReactFlowProvider>
+      <ArtifactBody id="msg-1" data={data} />
     );
     expect(screen.getByAltText('photo')).toHaveAttribute('src', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');
-    expect(screen.getByText(/photo · image\/jpeg · 4 KB/)).toBeInTheDocument();
+    // A click opens the image viewer
+    expect(screen.getByRole('button', { name: 'Open photo' })).toBeInTheDocument();
   });
 
   it('should show the decided image next to the probability bars', () => {
-    const data: MessageNodeData = {
+    const data: ArtifactData = {
       artifactType: 'Decision[__main__.Color]',
       payload: { choice: 'red' },
       producedBy: 'painter',
@@ -165,15 +107,13 @@ describe('MessageNode', () => {
     };
 
     render(
-      <ReactFlowProvider>
-        <MessageNode {...createNodeProps(data)} />
-      </ReactFlowProvider>
+      <ArtifactBody id="msg-1" data={data} />
     );
     expect(screen.getByAltText('decided image')).toHaveAttribute('src', 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==');
     expect(screen.getAllByTestId('decision-option')).toHaveLength(2);
   });
 
-  const decisionNode = (decision: Record<string, unknown>): MessageNodeData => ({
+  const decisionNode = (decision: Record<string, unknown>): ArtifactData => ({
     artifactType: `Decision[__main__.${decision.question}]`,
     payload: { choice: decision.choice },
     producedBy: 'triage',
@@ -184,10 +124,7 @@ describe('MessageNode', () => {
 
   it('should render a yes/no decision as one split bar with the unsure zone', () => {
     render(
-      <ReactFlowProvider>
-        <MessageNode
-          {...createNodeProps(
-            decisionNode({
+      <ArtifactBody id="msg-1" data={decisionNode({
               question: 'Urgent',
               kind: 'yesno',
               choice: 'yes',
@@ -199,10 +136,7 @@ describe('MessageNode', () => {
               latencyMs: 170,
               score: null,
               refused: false,
-            })
-          )}
-        />
-      </ReactFlowProvider>
+            })} />
     );
     expect(screen.getByText('◆ Urgent: yes')).toBeInTheDocument();
     const bar = screen.getByTestId('decision-yesno');
@@ -214,10 +148,7 @@ describe('MessageNode', () => {
 
   it('should render a scale decision as ordered levels with the weighted score', () => {
     render(
-      <ReactFlowProvider>
-        <MessageNode
-          {...createNodeProps(
-            decisionNode({
+      <ArtifactBody id="msg-1" data={decisionNode({
               question: 'Anger',
               kind: 'scale',
               choice: 'angry',
@@ -230,10 +161,7 @@ describe('MessageNode', () => {
               latencyMs: 300,
               score: 2.2,
               refused: false,
-            })
-          )}
-        />
-      </ReactFlowProvider>
+            })} />
     );
     const options = screen.getAllByTestId('decision-option');
     expect(options.map((o) => o.dataset.option)).toEqual(['calm', 'annoyed', 'angry', 'furious']);
@@ -244,10 +172,7 @@ describe('MessageNode', () => {
 
   it('should show a refused decision without bars', () => {
     render(
-      <ReactFlowProvider>
-        <MessageNode
-          {...createNodeProps(
-            decisionNode({
+      <ArtifactBody id="msg-1" data={decisionNode({
               question: 'Urgent',
               kind: 'yesno',
               choice: 'UNSURE',
@@ -259,10 +184,7 @@ describe('MessageNode', () => {
               latencyMs: 250,
               score: null,
               refused: true,
-            })
-          )}
-        />
-      </ReactFlowProvider>
+            })} />
     );
     expect(screen.getByText('◆ Urgent: refused')).toBeInTheDocument();
     expect(screen.queryByTestId('decision-yesno')).not.toBeInTheDocument();
@@ -271,10 +193,7 @@ describe('MessageNode', () => {
 
   it('should render a checklist decision as a grid of item results', () => {
     render(
-      <ReactFlowProvider>
-        <MessageNode
-          {...createNodeProps(
-            decisionNode({
+      <ArtifactBody id="msg-1" data={decisionNode({
               question: 'Controls',
               kind: 'checklist',
               choice: 'failed',
@@ -289,10 +208,7 @@ describe('MessageNode', () => {
               latencyMs: 560,
               score: null,
               refused: false,
-            })
-          )}
-        />
-      </ReactFlowProvider>
+            })} />
     );
     expect(screen.getByText('◆ Controls: failed · 1 yes · 1 no · 2 unsure')).toBeInTheDocument();
     const cells = screen.getAllByTestId('checklist-cell');
@@ -306,10 +222,7 @@ describe('MessageNode', () => {
 
   it('should show tournament rounds above the final probabilities', () => {
     render(
-      <ReactFlowProvider>
-        <MessageNode
-          {...createNodeProps(
-            decisionNode({
+      <ArtifactBody id="msg-1" data={decisionNode({
               question: 'Control',
               kind: 'choice',
               choice: 'c_42',
@@ -325,10 +238,7 @@ describe('MessageNode', () => {
               latencyMs: 900,
               score: null,
               refused: false,
-            })
-          )}
-        />
-      </ReactFlowProvider>
+            })} />
     );
     const rounds = screen.getAllByTestId('tournament-round');
     expect(rounds.map((r) => r.textContent)).toEqual([
@@ -342,10 +252,7 @@ describe('MessageNode', () => {
     const probabilities: Record<string, number> = { c_42: 0.9, c_07: 0.05 };
     for (let i = 0; i < 98; i++) probabilities[`x_${i}`] = 0.05 / 98;
     render(
-      <ReactFlowProvider>
-        <MessageNode
-          {...createNodeProps(
-            decisionNode({
+      <ArtifactBody id="msg-1" data={decisionNode({
               question: 'Control',
               kind: 'choice',
               choice: 'c_42',
@@ -357,10 +264,7 @@ describe('MessageNode', () => {
               latencyMs: 180,
               score: null,
               refused: false,
-            })
-          )}
-        />
-      </ReactFlowProvider>
+            })} />
     );
     const options = screen.getAllByTestId('decision-option');
     expect(options).toHaveLength(8);
@@ -370,10 +274,7 @@ describe('MessageNode', () => {
 
   it('should open the tournament bracket from the decision card', () => {
     render(
-      <ReactFlowProvider>
-        <MessageNode
-          {...createNodeProps(
-            decisionNode({
+      <ArtifactBody id="msg-1" data={decisionNode({
               question: 'Control',
               kind: 'choice',
               choice: 'c_42',
@@ -398,10 +299,7 @@ describe('MessageNode', () => {
               latencyMs: 400,
               score: null,
               refused: false,
-            })
-          )}
-        />
-      </ReactFlowProvider>
+            })} />
     );
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /bracket/i }));
@@ -412,10 +310,7 @@ describe('MessageNode', () => {
 
   it('should name how many candidates a restricted decision chose among', () => {
     render(
-      <ReactFlowProvider>
-        <MessageNode
-          {...createNodeProps(
-            decisionNode({
+      <ArtifactBody id="msg-1" data={decisionNode({
               question: 'Control',
               kind: 'choice',
               choice: 'sup_05',
@@ -428,20 +323,14 @@ describe('MessageNode', () => {
               latencyMs: 150,
               score: null,
               refused: false,
-            })
-          )}
-        />
-      </ReactFlowProvider>
+            })} />
     );
     expect(screen.getByText(/among 3 candidates/)).toBeInTheDocument();
   });
 
   it('should show the escalation trail of a decision answered one tier up', () => {
     render(
-      <ReactFlowProvider>
-        <MessageNode
-          {...createNodeProps(
-            decisionNode({
+      <ArtifactBody id="msg-1" data={decisionNode({
               question: 'Route',
               kind: 'choice',
               choice: 'billing',
@@ -458,10 +347,7 @@ describe('MessageNode', () => {
               latencyMs: 700,
               score: null,
               refused: false,
-            })
-          )}
-        />
-      </ReactFlowProvider>
+            })} />
     );
     const attempts = screen.getAllByTestId('escalation-attempt');
     expect(attempts.map((a) => a.textContent)).toEqual(['fast · billing 0.60', 'medium · refused']);
@@ -470,10 +356,7 @@ describe('MessageNode', () => {
 
   it('should fall back to the confidence when an attempt has no probability for its choice', () => {
     render(
-      <ReactFlowProvider>
-        <MessageNode
-          {...createNodeProps(
-            decisionNode({
+      <ArtifactBody id="msg-1" data={decisionNode({
               question: 'Route',
               kind: 'choice',
               choice: 'billing',
@@ -487,20 +370,14 @@ describe('MessageNode', () => {
               latencyMs: 700,
               score: null,
               refused: false,
-            })
-          )}
-        />
-      </ReactFlowProvider>
+            })} />
     );
     expect(screen.getByTestId('escalation-attempt')).toHaveTextContent('custom · tech 0.55');
   });
 
   it('should count the escalated items of a checklist attempt', () => {
     render(
-      <ReactFlowProvider>
-        <MessageNode
-          {...createNodeProps(
-            decisionNode({
+      <ArtifactBody id="msg-1" data={decisionNode({
               question: 'Controls',
               kind: 'checklist',
               choice: 'passed',
@@ -517,10 +394,7 @@ describe('MessageNode', () => {
               latencyMs: 400,
               score: null,
               refused: false,
-            })
-          )}
-        />
-      </ReactFlowProvider>
+            })} />
     );
     expect(screen.getByTestId('escalation-attempt')).toHaveTextContent('fast · 1 unsure');
     expect(screen.getByTestId('escalation-attempt')).toHaveAttribute('title', expect.stringContaining('backup'));
@@ -528,10 +402,7 @@ describe('MessageNode', () => {
 
   it('should show every vote of an ensemble decision', () => {
     render(
-      <ReactFlowProvider>
-        <MessageNode
-          {...createNodeProps(
-            decisionNode({
+      <ArtifactBody id="msg-1" data={decisionNode({
               question: 'Route',
               kind: 'choice',
               choice: 'billing',
@@ -549,10 +420,7 @@ describe('MessageNode', () => {
               latencyMs: 300,
               score: null,
               refused: false,
-            })
-          )}
-        />
-      </ReactFlowProvider>
+            })} />
     );
     const votes = screen.getAllByTestId('decision-vote');
     expect(votes.map((v) => v.textContent)).toEqual(['a · billing 0.95', 'b · tech 0.92', 'c · tech 0.80', 'd · refused']);
@@ -578,20 +446,14 @@ describe('MessageNode', () => {
 
   it('should show where the shadow model would have routed differently', () => {
     render(
-      <ReactFlowProvider>
-        <MessageNode
-          {...createNodeProps(
-            shadowedDecision({
+      <ArtifactBody id="msg-1" data={shadowedDecision({
               model: 'candidate',
               choice: 'tech',
               best_guess: 'tech',
               probabilities: { billing: 0.1, tech: 0.9 },
               confidence: 0.9,
               refused: false,
-            })
-          )}
-        />
-      </ReactFlowProvider>
+            })} />
     );
     const shadow = screen.getByTestId('decision-shadow');
     expect(shadow).toHaveTextContent('shadow candidate · tech 0.90');
@@ -600,29 +462,21 @@ describe('MessageNode', () => {
 
   it('should show an unsure shadow with its best guess', () => {
     render(
-      <ReactFlowProvider>
-        <MessageNode
-          {...createNodeProps(
-            shadowedDecision({
+      <ArtifactBody id="msg-1" data={shadowedDecision({
               model: 'candidate',
               choice: 'UNSURE',
               best_guess: 'billing',
               probabilities: { billing: 0.6, tech: 0.4 },
               confidence: 0.6,
               refused: false,
-            })
-          )}
-        />
-      </ReactFlowProvider>
+            })} />
     );
     expect(screen.getByTestId('decision-shadow')).toHaveTextContent('shadow candidate · UNSURE (billing 0.60)');
   });
 
   it('should show a failed shadow with its error', () => {
     render(
-      <ReactFlowProvider>
-        <MessageNode {...createNodeProps(shadowedDecision({ model: 'candidate', error: 'TimeoutError: no reply' }))} />
-      </ReactFlowProvider>
+      <ArtifactBody id="msg-1" data={shadowedDecision({ model: 'candidate', error: 'TimeoutError: no reply' })} />
     );
     const shadow = screen.getByTestId('decision-shadow');
     expect(shadow).toHaveTextContent('shadow candidate · error');
@@ -631,10 +485,7 @@ describe('MessageNode', () => {
 
   it('should name the section a long-document decision came from', () => {
     render(
-      <ReactFlowProvider>
-        <MessageNode
-          {...createNodeProps(
-            decisionNode({
+      <ArtifactBody id="msg-1" data={decisionNode({
               question: 'Topic',
               kind: 'choice',
               choice: 'backup',
@@ -647,20 +498,14 @@ describe('MessageNode', () => {
               latencyMs: 100,
               score: null,
               refused: false,
-            })
-          )}
-        />
-      </ReactFlowProvider>
+            })} />
     );
     expect(screen.getByText(/3 sections of text · from section 2/)).toBeInTheDocument();
   });
 
   it('should name an item threshold on its checklist cell', () => {
     render(
-      <ReactFlowProvider>
-        <MessageNode
-          {...createNodeProps(
-            decisionNode({
+      <ArtifactBody id="msg-1" data={decisionNode({
               question: 'Controls',
               kind: 'checklist',
               choice: 'UNSURE',
@@ -676,10 +521,7 @@ describe('MessageNode', () => {
               latencyMs: 100,
               score: null,
               refused: false,
-            })
-          )}
-        />
-      </ReactFlowProvider>
+            })} />
     );
     expect(screen.getByRole('img', { name: 'mfa · yes · p 0.75 · threshold 0.70' })).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'logs · UNSURE · p 0.75' })).toBeInTheDocument();
@@ -687,10 +529,7 @@ describe('MessageNode', () => {
 
   it('should name the section of each checklist item', () => {
     render(
-      <ReactFlowProvider>
-        <MessageNode
-          {...createNodeProps(
-            decisionNode({
+      <ArtifactBody id="msg-1" data={decisionNode({
               question: 'Controls',
               kind: 'checklist',
               choice: 'passed',
@@ -706,10 +545,7 @@ describe('MessageNode', () => {
               latencyMs: 100,
               score: null,
               refused: false,
-            })
-          )}
-        />
-      </ReactFlowProvider>
+            })} />
     );
     expect(screen.getByRole('img', { name: 'backup · yes · p 0.96 · section 2' })).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'logs · refused · section 2' })).toBeInTheDocument();
@@ -739,9 +575,7 @@ describe('MessageNode', () => {
     const refreshSpy = vi.spyOn(useGraphStore.getState(), 'scheduleRefresh').mockImplementation(() => {});
     try {
       render(
-        <ReactFlowProvider>
-          <MessageNode {...createNodeProps(unsureRoute())} />
-        </ReactFlowProvider>
+        <ArtifactBody id="msg-1" data={unsureRoute()} />
       );
       // Options by probability; the best guess first
       const buttons = screen.getAllByRole('button', { name: /^Review as / });
@@ -763,13 +597,7 @@ describe('MessageNode', () => {
 
   it('should offer the question options to review a refused decision', () => {
     render(
-      <ReactFlowProvider>
-        <MessageNode
-          {...createNodeProps(
-            unsureRoute({ bestGuess: null, probabilities: {}, refused: true, options: ['billing', 'tech'] })
-          )}
-        />
-      </ReactFlowProvider>
+      <ArtifactBody id="msg-1" data={unsureRoute({ bestGuess: null, probabilities: {}, refused: true, options: ['billing', 'tech'] })} />
     );
     const buttons = screen.getAllByRole('button', { name: /^Review as / });
     expect(buttons.map((b) => b.textContent)).toEqual(['billing', 'tech']);
@@ -777,13 +605,7 @@ describe('MessageNode', () => {
 
   it('should offer the options a sparse answer left out', () => {
     render(
-      <ReactFlowProvider>
-        <MessageNode
-          {...createNodeProps(
-            unsureRoute({ probabilities: { billing: 0.6 }, options: ['billing', 'tech', 'shipping'] })
-          )}
-        />
-      </ReactFlowProvider>
+      <ArtifactBody id="msg-1" data={unsureRoute({ probabilities: { billing: 0.6 }, options: ['billing', 'tech', 'shipping'] })} />
     );
     const buttons = screen.getAllByRole('button', { name: /^Review as / });
     expect(buttons.map((b) => b.textContent)).toEqual(['billing', 'tech', 'shipping']);
@@ -791,9 +613,7 @@ describe('MessageNode', () => {
 
   it('should show the review of a reviewed decision instead of the controls', () => {
     render(
-      <ReactFlowProvider>
-        <MessageNode {...createNodeProps(unsureRoute({ review: { choice: 'tech', by: 'alice' } }))} />
-      </ReactFlowProvider>
+      <ArtifactBody id="msg-1" data={unsureRoute({ review: { choice: 'tech', by: 'alice' } })} />
     );
     expect(screen.getByTestId('decision-review')).toHaveTextContent('reviewed as tech by alice');
     expect(screen.queryAllByRole('button', { name: /^Review as / })).toHaveLength(0);
@@ -801,13 +621,7 @@ describe('MessageNode', () => {
 
   it('should name the decision a review replaces', () => {
     render(
-      <ReactFlowProvider>
-        <MessageNode
-          {...createNodeProps(
-            unsureRoute({ choice: 'tech', bestGuess: 'tech', probabilities: { tech: 1 }, model: 'alice', reviewOf: 'abcdef12-3456-7890' })
-          )}
-        />
-      </ReactFlowProvider>
+      <ArtifactBody id="msg-1" data={unsureRoute({ choice: 'tech', bestGuess: 'tech', probabilities: { tech: 1 }, model: 'alice', reviewOf: 'abcdef12-3456-7890' })} />
     );
     expect(screen.getByText(/review of abcdef12/)).toBeInTheDocument();
     expect(screen.queryAllByRole('button', { name: /^Review as / })).toHaveLength(0);
@@ -815,9 +629,7 @@ describe('MessageNode', () => {
 
   it('should show a coverage as a checklist grid for its group', () => {
     render(
-      <ReactFlowProvider>
-        <MessageNode
-          {...createNodeProps({
+      <ArtifactBody id="msg-1" data={{
             artifactType: 'Coverage[__main__.Controls]',
             payload: { group: 'acme' },
             producedBy: 'coverage',
@@ -835,9 +647,7 @@ describe('MessageNode', () => {
               probabilities: {},
               refusedItems: [],
             },
-          })}
-        />
-      </ReactFlowProvider>
+          }} />
     );
     const card = screen.getByTestId('coverage-card');
     expect(card).toHaveTextContent('Controls coverage of acme: UNSURE');
@@ -848,9 +658,7 @@ describe('MessageNode', () => {
 
   it('should show an explanation as text instead of JSON', () => {
     render(
-      <ReactFlowProvider>
-        <MessageNode
-          {...createNodeProps({
+      <ArtifactBody id="msg-1" data={{
             artifactType: 'flock.decisions.explain.Explanation',
             payload: { explanation: 'Both a crash and a charge.' },
             producedBy: 'explainer',
@@ -862,9 +670,7 @@ describe('MessageNode', () => {
               model: 'openai/gpt-4.1',
               questions: ['Route'],
             },
-          })}
-        />
-      </ReactFlowProvider>
+          }} />
     );
     const card = screen.getByTestId('explanation-card');
     expect(card).toHaveTextContent('Explains Route');
@@ -875,10 +681,7 @@ describe('MessageNode', () => {
 
   it('should show the explanation of a decision on its card', () => {
     render(
-      <ReactFlowProvider>
-        <MessageNode
-          {...createNodeProps(
-            decisionNode({
+      <ArtifactBody id="msg-1" data={decisionNode({
               question: 'Route',
               kind: 'choice',
               choice: 'UNSURE',
@@ -896,10 +699,7 @@ describe('MessageNode', () => {
               latencyMs: 100,
               score: null,
               refused: false,
-            })
-          )}
-        />
-      </ReactFlowProvider>
+            })} />
     );
     const note = screen.getByTestId('decision-explanation');
     expect(note).toHaveTextContent('explainer: Both a crash and a charge.');
@@ -914,10 +714,7 @@ describe('MessageNode', () => {
 
   it('should summarize the checklist votes of an ensemble', () => {
     render(
-      <ReactFlowProvider>
-        <MessageNode
-          {...createNodeProps(
-            decisionNode({
+      <ArtifactBody id="msg-1" data={decisionNode({
               question: 'Controls',
               kind: 'checklist',
               choice: 'UNSURE',
@@ -937,10 +734,7 @@ describe('MessageNode', () => {
               latencyMs: 400,
               score: null,
               refused: false,
-            })
-          )}
-        />
-      </ReactFlowProvider>
+            })} />
     );
     const votes = screen.getAllByTestId('decision-vote');
     expect(votes[0]).toHaveTextContent('a · 1 yes · 1 no');
@@ -950,10 +744,7 @@ describe('MessageNode', () => {
 
   it('should count an all-unsure checklist vote as no vote, even when every result is unsure', () => {
     render(
-      <ReactFlowProvider>
-        <MessageNode
-          {...createNodeProps(
-            decisionNode({
+      <ArtifactBody id="msg-1" data={decisionNode({
               question: 'Controls',
               kind: 'checklist',
               choice: 'UNSURE',
@@ -969,10 +760,7 @@ describe('MessageNode', () => {
               latencyMs: 400,
               score: null,
               refused: false,
-            })
-          )}
-        />
-      </ReactFlowProvider>
+            })} />
     );
     expect(screen.getByTestId('decision-vote')).toHaveAttribute('data-vote', 'unsure');
   });
