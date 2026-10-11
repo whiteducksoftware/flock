@@ -12,7 +12,7 @@ Supports BatchSpec-based batching:
 from __future__ import annotations
 
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 
@@ -58,13 +58,16 @@ class BatchAccumulator:
 
         return False  # Not ready to flush yet
 
+    def elapsed_seconds(self) -> float:
+        """Seconds since the batch started, on the clock its timeout uses."""
+        return time.monotonic() - self._started
+
     def is_timeout_expired(self) -> bool:
         """Check if timeout has expired since batch started."""
         if self.batch_spec.timeout is None:
             return False
 
-        elapsed = time.monotonic() - self._started
-        return elapsed >= self.batch_spec.timeout.total_seconds()
+        return self.elapsed_seconds() >= self.batch_spec.timeout.total_seconds()
 
     def get_artifacts(self) -> list[Artifact]:
         """Get all artifacts in batch."""
@@ -129,7 +132,7 @@ class BatchEngine:
         if batch_key not in self.batches:
             self.batches[batch_key] = BatchAccumulator(
                 batch_spec=subscription.batch,
-                created_at=datetime.now(),
+                created_at=datetime.now(UTC),
             )
 
         accumulator = self.batches[batch_key]
@@ -167,7 +170,7 @@ class BatchEngine:
         if batch_key not in self.batches:
             self.batches[batch_key] = BatchAccumulator(
                 batch_spec=subscription.batch,
-                created_at=datetime.now(),
+                created_at=datetime.now(UTC),
             )
 
         accumulator = self.batches[batch_key]
