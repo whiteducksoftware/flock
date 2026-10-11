@@ -43,6 +43,7 @@ from flock.application.types import (
     WorkflowResult,
     WorkflowStatus,
 )
+from flock.core.artifacts import model_from_payload
 from flock.core.conditions import bind_correlation
 from flock.core.visibility import AgentIdentity
 from flock.logging.logging import get_logger
@@ -211,7 +212,7 @@ class _Workflow:
             )
             return
         try:
-            value = model.model_validate(artifact.payload)
+            value = model_from_payload(model, artifact.payload)
         except ValidationError:
             self._fail(FailureCode.INTERNAL_ERROR, artifact.produced_by, fatal=True)
             return

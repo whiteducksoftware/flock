@@ -5,6 +5,8 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
+from flock.core.artifacts import model_from_payload
+
 
 class ArtifactValidator:
     """Validates artifacts against predicates.
@@ -44,7 +46,7 @@ class ArtifactValidator:
         """
         try:
             # Validate against model
-            model_instance = model_cls(**artifact.payload)
+            model_instance = model_from_payload(model_cls, artifact.payload)
 
             # Apply predicate if provided
             if predicate and not predicate(model_instance):

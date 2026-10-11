@@ -29,7 +29,7 @@ from grpc import (
 from opentelemetry import trace
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from flock.core.artifacts import Artifact
+from flock.core.artifacts import Artifact, model_from_payload
 from flock.core.store import (
     AgentSnapshotRecord,
     ArtifactEnvelope,
@@ -1052,7 +1052,7 @@ class DaprStateBlackboardStore(BlackboardStore):
             logger.debug(
                 f"Returning {len(artifacts)} artifact(s) of type '{artifact_type.__name__}'"
             )
-            return [artifact_type(**a.payload) for a in artifacts]  # type: ignore[return-value]
+            return [model_from_payload(artifact_type, a.payload) for a in artifacts]
 
     # ── consumption records ──────────────────────────────────────────
 

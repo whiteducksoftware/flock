@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
@@ -11,6 +12,18 @@ from pydantic import BaseModel, Field, SerializeAsAny, field_validator, model_va
 from flock.core.visibility import AfterVisibility, Visibility, ensure_visibility
 from flock.registry import type_registry
 from flock.utils.time_utils import as_utc
+
+
+def model_from_payload[M: BaseModel](
+    model_cls: type[M], payload: Mapping[str, Any]
+) -> M:
+    """A payload as an instance of its model.
+
+    Payloads are stored with ``model_dump()``, which writes field names, while a
+    model validates by alias unless it sets ``populate_by_name``; field names are
+    accepted here, aliases still are.
+    """
+    return model_cls.model_validate(payload, by_name=True)
 
 
 class Artifact(BaseModel):
@@ -80,7 +93,7 @@ class ArtifactSpec(BaseModel):
         version: int = 1,
         artifact_id: UUID | None = None,  # Phase 6: Optional pre-generated ID
     ) -> Artifact:
-        payload_model = self.model(**data)
+        payload_model = model_from_payload(self.model, data)
         artifact_kwargs = {
             "type": self.type_name,
             "payload": payload_model.model_dump(),
@@ -110,4 +123,5 @@ __all__ = [
     "Artifact",
     "ArtifactEnvelope",
     "ArtifactSpec",
+    "model_from_payload",
 ]
