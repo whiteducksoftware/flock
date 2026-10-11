@@ -65,6 +65,8 @@ const ThemeSelector: React.FC = () => {
   };
 
   const handleThemePreview = async (themeName: string) => {
+    // Graphite and Paper apply on click; a hover would leave them applied
+    if (builtInTheme(themeName)) return;
     try {
       let loaded: TerminalTheme | null = null;
       const applied = await applyThemeByName(

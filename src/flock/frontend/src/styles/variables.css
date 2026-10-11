@@ -20,35 +20,36 @@
   --color-bg-overlay: var(--surface-3);
   --color-bg-float: var(--surface-3);
 
-  /* Former brand scales: neutral now; color only ever means something */
+  /* Former brand scales: neutral now; color only ever means something. The
+     fill steps (400-700) are the primary pair, --invert with --on-invert text. */
   --color-primary-50: var(--surface-3);
   --color-primary-100: var(--surface-3);
   --color-primary-200: var(--line-2);
   --color-primary-300: var(--text-3);
-  --color-primary-400: var(--text-2);
-  --color-primary-500: var(--text-2);
-  --color-primary-600: var(--text-2);
-  --color-primary-700: var(--text-3);
+  --color-primary-400: var(--invert);
+  --color-primary-500: var(--invert);
+  --color-primary-600: var(--invert);
+  --color-primary-700: var(--invert);
   --color-primary-800: var(--surface-3);
   --color-primary-900: var(--surface-2);
   --color-secondary-50: var(--surface-3);
   --color-secondary-100: var(--surface-3);
   --color-secondary-200: var(--line-2);
   --color-secondary-300: var(--text-3);
-  --color-secondary-400: var(--text-2);
-  --color-secondary-500: var(--text-2);
-  --color-secondary-600: var(--text-2);
-  --color-secondary-700: var(--text-3);
+  --color-secondary-400: var(--invert);
+  --color-secondary-500: var(--invert);
+  --color-secondary-600: var(--invert);
+  --color-secondary-700: var(--invert);
   --color-secondary-800: var(--surface-3);
   --color-secondary-900: var(--surface-2);
   --color-tertiary-50: var(--surface-3);
   --color-tertiary-100: var(--surface-3);
   --color-tertiary-200: var(--line-2);
   --color-tertiary-300: var(--text-3);
-  --color-tertiary-400: var(--text-2);
-  --color-tertiary-500: var(--text-2);
-  --color-tertiary-600: var(--text-2);
-  --color-tertiary-700: var(--text-3);
+  --color-tertiary-400: var(--invert);
+  --color-tertiary-500: var(--invert);
+  --color-tertiary-600: var(--invert);
+  --color-tertiary-700: var(--invert);
   --color-tertiary-800: var(--surface-3);
   --color-tertiary-900: var(--surface-2);
 
@@ -69,7 +70,7 @@
   --color-error-bg: var(--error-soft);
   --color-error-border: color-mix(in srgb, var(--error) 40%, transparent);
   --color-info-light: var(--text-2);
-  --color-info: var(--text-2);
+  --color-info: var(--invert); /* a fill under --color-text-on-primary */
   --color-info-dark: var(--text-3);
   --color-info-bg: var(--surface-3);
   --color-info-border: var(--line-2);

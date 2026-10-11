@@ -61,6 +61,15 @@ describe('ThemeSelector', () => {
     expect(useSettingsStore.getState().appearance.theme).toBe('paper');
   });
 
+  it('does not apply a built-in theme on hover', async () => {
+    render(<ThemeSelector />);
+    await waitFor(() => expect(screen.getByText('Built-in Themes')).toBeTruthy());
+
+    fireEvent.mouseEnter(screen.getByRole('button', { name: 'Paper' }));
+
+    expect(document.documentElement.dataset.theme).toBe('graphite');
+  });
+
   it('shows a theme stored by the old dashboard as Graphite', async () => {
     useSettingsStore.getState().setTheme('default');
 
