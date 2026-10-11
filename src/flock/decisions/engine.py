@@ -23,6 +23,7 @@ from flock.decisions.providers import (
     DecisionProvider,
     DecisionQuestion,
 )
+from flock.decisions.sections import Sections, split_sections
 from flock.decisions.tournament import Tournament
 from flock.logging.logging import get_logger
 from flock.registry import RegistryError, type_registry
@@ -127,6 +128,8 @@ class _Trail:
         self.votes: dict[str, list[tuple[str, DecisionAnswer]]] = {}
         # The firm answer the vote reached, None when it did not
         self.verdicts: dict[str, str | None] = {}
+        # Sections: the section whose answer was kept
+        self.sections: dict[str, int] = {}
 
     def label(self, name: str, default: str) -> str:
         return self.labels.get(name, default)
@@ -219,6 +222,10 @@ class DecisionEngine(EngineComponent):
         default=None,
         description="Answers every question too; recorded, never routed",
     )
+    sections: Sections | None = Field(
+        default=None,
+        description="Splits a long text field into sections decided one by one",
+    )
     shadow_timeout: float = Field(
         default=10.0,
         gt=0,
@@ -246,6 +253,9 @@ class DecisionEngine(EngineComponent):
         wire = self._wire_questions(candidates)
 
         state, images = prepare_state(inputs.artifacts)
+        spans: list[tuple[int, int]] = []
+        if self.sections is not None:
+            state, spans = self._section_states(inputs.artifacts)
         if images:
             for provider in (self.provider, *self.escalation, *self.ensemble):
                 if not provider.supports_images:
@@ -294,6 +304,14 @@ class DecisionEngine(EngineComponent):
                     question, wire, answers, subject_ids, latency_ms, trail
                 )
                 decision.shadow = shadow_record
+                decision.sections = self._sections_record(
+                    spans,
+                    {
+                        q.item: trail.sections[q.name]
+                        for q in wire
+                        if q.group == question.__name__ and q.name in trail.sections
+                    },
+                )
                 if candidates is not None:
                     decision.candidates = list(candidates)
                 artifacts.append(
@@ -333,6 +351,10 @@ class DecisionEngine(EngineComponent):
                     _attempt(label, vote) for label, vote in trail.votes.get(name, [])
                 ],
                 shadow=shadow_record,
+                sections=self._sections_record(
+                    spans,
+                    {name: trail.sections[name]} if name in trail.sections else {},
+                ),
                 latency_ms=latency_ms,
             )
             artifacts.append(
@@ -347,7 +369,7 @@ class DecisionEngine(EngineComponent):
 
     async def _answers(
         self,
-        state: str,
+        state: str | list[str],
         wire: list[DecisionQuestion],
         images: list[Image],
         candidates: dict[str, str] | None,
@@ -371,12 +393,12 @@ class DecisionEngine(EngineComponent):
             return {}, []
         if self.ensemble:
             return await self._vote(state, wire, images, trail), []
-        answers = await self._ask(state, wire, images)
+        answers = await self._ask(state, wire, images, answered_by=trail.sections)
         await self._escalate(state, wire, answers, images, trail)
         return answers, []
 
     async def _shadow_answers(
-        self, state: str, wire: list[DecisionQuestion], images: list[Image]
+        self, state: str | list[str], wire: list[DecisionQuestion], images: list[Image]
     ) -> tuple[dict[str, DecisionAnswer], float] | str:
         """The shadow's answers and latency, or the error that stopped it."""
         assert self.shadow is not None
@@ -431,17 +453,25 @@ class DecisionEngine(EngineComponent):
 
     async def _ask(
         self,
-        state: str,
+        state: str | list[str],
         wire: list[DecisionQuestion],
         images: list[Image],
         provider: DecisionProvider | None = None,
+        answered_by: dict[str, int] | None = None,
     ) -> dict[str, DecisionAnswer]:
-        """Ask ``wire`` in concurrent requests of at most ``questions_per_request``."""
+        """Ask ``wire`` in concurrent requests of at most ``questions_per_request``.
+
+        With sections (``state`` is a list), every section is asked and each
+        question keeps the strongest section answer; ``answered_by`` records
+        which section that was.
+        """
         provider = provider or self.provider
+        states = state if isinstance(state, list) else [state]
         size = self.questions_per_request
         chunks = [wire[i : i + size] for i in range(0, len(wire), size)]
         requests = [
-            asyncio.ensure_future(provider.decide_many(state, chunk, images))
+            asyncio.ensure_future(provider.decide_many(section, chunk, images))
+            for section in states
             for chunk in chunks
         ]
         try:
@@ -452,11 +482,81 @@ class DecisionEngine(EngineComponent):
                 request.cancel()
             await asyncio.gather(*requests, return_exceptions=True)
             raise
-        return {name: answer for reply in replies for name, answer in reply.items()}
+        per_section: list[dict[str, DecisionAnswer]] = [{} for _ in states]
+        for index, reply in enumerate(replies):
+            per_section[index // len(chunks)].update(reply)
+        if not isinstance(state, list):
+            return per_section[0]
+        combined: dict[str, DecisionAnswer] = {}
+        for question in wire:
+            section, answer = self._best_section(
+                question, [answers[question.name] for answers in per_section]
+            )
+            combined[question.name] = answer
+            if answered_by is not None:
+                answered_by[question.name] = section
+        return combined
+
+    def _best_section(
+        self, question: DecisionQuestion, answers: list[DecisionAnswer]
+    ) -> tuple[int, DecisionAnswer]:
+        """The section answer to keep: the most probable yes for a checklist
+        item (yes if any section shows it), else the most confident answer."""
+
+        def strength(answer: DecisionAnswer) -> float:
+            if question.item is not None:
+                return answer.probabilities.get("yes", 0.0)
+            return answer.probabilities.get(answer.choice, answer.confidence or 0.0)
+
+        answered = [
+            (index, answer)
+            for index, answer in enumerate(answers)
+            if not answer.refused and answer.choice is not None
+        ]
+        if not answered:  # every section refused
+            return 0, answers[0]
+        return max(answered, key=lambda pair: strength(pair[1]))
+
+    def _section_states(
+        self, artifacts: list[Artifact]
+    ) -> tuple[list[str], list[tuple[int, int]]]:
+        """One state per section of the split field, and the sections' spans."""
+        assert self.sections is not None
+        field = self.sections.field
+        holders = [a for a in artifacts if isinstance(a.payload.get(field), str)]
+        if len(holders) != 1:
+            raise ValueError(
+                f"sections= splits the text field '{field}' of one input; "
+                f"{len(holders)} inputs have it."
+            )
+        (holder,) = holders
+        text = holder.payload[field]
+        spans = split_sections(text, self.sections.max_chars)
+        states = []
+        for start, end in spans:
+            part = holder.model_copy(
+                update={"payload": {**holder.payload, field: text[start:end]}}
+            )
+            states.append(
+                prepare_state([part if a is holder else a for a in artifacts])[0]
+            )
+        return states, spans
+
+    def _sections_record(
+        self, spans: list[tuple[int, int]], answered_by: dict[str, int]
+    ) -> dict[str, Any] | None:
+        """The split field, its sections' spans and the section per answer."""
+        if self.sections is None:
+            return None
+        return {
+            "field": self.sections.field,
+            "spans": [list(span) for span in spans],
+            "answered_by": answered_by,
+        }
 
     async def _escalate(
         self,
-        state: str,
+        state: str | list[str],
         wire: list[DecisionQuestion],
         answers: dict[str, DecisionAnswer],
         images: list[Image],
@@ -468,7 +568,9 @@ class DecisionEngine(EngineComponent):
             unsure = [q for q in wire if not self._settled(q, answers[q.name])]
             if not unsure:
                 break
-            replies = await self._ask(state, unsure, images, provider=provider)
+            replies = await self._ask(
+                state, unsure, images, provider=provider, answered_by=trail.sections
+            )
             for question in unsure:
                 earlier = answers[question.name]
                 label = earlier.model or trail.label(question.name, self.provider.label)
