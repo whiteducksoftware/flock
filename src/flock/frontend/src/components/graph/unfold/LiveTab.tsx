@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { getWebSocketClient } from '../../../services/websocket';
 import styles from './Unfolded.module.css';
 
@@ -15,19 +15,26 @@ export interface StreamEvent {
 const same = (a: StreamEvent, b: StreamEvent) =>
   a.run_id === b.run_id && a.sequence === b.sequence && a.output_type === b.output_type && a.content === b.content;
 
+/** The tab shows at most this much of the latest output. */
+export const MAX_LIVE_CHARS = 100_000;
+
 /** Tokens run on as text; logs, stdout and stderr get lines of their own. */
+const join = (text: string, event: StreamEvent): string => {
+  if (event.output_type === 'llm_token') return text + event.content;
+  return `${text && !text.endsWith('\n') ? `${text}\n` : text}${event.content}\n`;
+};
+
+const latestOf = (text: string): string => (text.length > MAX_LIVE_CHARS ? `…${text.slice(-MAX_LIVE_CHARS)}` : text);
+
+/** The text of a history, its latest part. */
 export function streamText(events: StreamEvent[]): string {
   let text = '';
-  for (const event of events) {
-    if (event.output_type === 'llm_token') {
-      text += event.content;
-    } else {
-      if (text && !text.endsWith('\n')) text += '\n';
-      text += `${event.content}\n`;
-    }
-  }
-  return text;
+  for (const event of events) text = join(text, event);
+  return latestOf(text);
 }
+
+/** The text with one more event, without rebuilding it from all events. */
+export const appendStream = (text: string, event: StreamEvent): string => latestOf(join(text, event));
 
 /**
  * The agent's output as it streams: the server's history, then live
@@ -35,7 +42,8 @@ export function streamText(events: StreamEvent[]): string {
  * switching tabs never repeats output. Follows the end while scrolled there.
  */
 const LiveTab: React.FC<{ agent: string; running: boolean }> = ({ agent, running }) => {
-  const [events, setEvents] = useState<StreamEvent[] | null>(null);
+  // The text so far; events are appended, never kept (a history can hold 100,000s)
+  const [text, setText] = useState<string | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const scroller = useRef<HTMLDivElement | null>(null);
   const following = useRef(true);
@@ -47,7 +55,7 @@ const LiveTab: React.FC<{ agent: string; running: boolean }> = ({ agent, running
     const onEvent = (event: StreamEvent) => {
       if (event.agent_name !== agent) return;
       if (early) early.push(event);
-      else setEvents((previous) => [...(previous ?? []), event]);
+      else setText((previous) => appendStream(previous ?? '', event));
     };
     const client = getWebSocketClient();
     client.on('streaming_output', onEvent);
@@ -67,7 +75,7 @@ const LiveTab: React.FC<{ agent: string; running: boolean }> = ({ agent, running
         const history = data.events ?? [];
         const pending = early ?? [];
         early = null;
-        setEvents([...history, ...pending.filter((event) => !history.some((known) => same(known, event)))]);
+        setText(streamText([...history, ...pending.filter((event) => !history.some((known) => same(known, event)))]));
       });
 
     return () => {
@@ -76,7 +84,6 @@ const LiveTab: React.FC<{ agent: string; running: boolean }> = ({ agent, running
     };
   }, [agent]);
 
-  const text = useMemo(() => streamText(events ?? []), [events]);
 
   // Follow the end, unless the reader scrolled up (scrollIntoView would move the board)
   useLayoutEffect(() => {
@@ -97,9 +104,9 @@ const LiveTab: React.FC<{ agent: string; running: boolean }> = ({ agent, running
   return (
     <div ref={scroller} data-testid="live">
       {historyError && <div className={`${styles.faint} ${styles.failed}`}>{historyError}</div>}
-      {events === null ? (
+      {text === null ? (
         <div className={styles.empty}>Loading output…</div>
-      ) : events.length === 0 ? (
+      ) : text === '' ? (
         !historyError && <div className={styles.empty}>No output yet</div>
       ) : (
         <pre className={`mono ${styles.live}`}>

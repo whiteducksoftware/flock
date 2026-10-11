@@ -188,6 +188,32 @@ describe('UnfoldedAgent', () => {
     vi.useRealTimers();
   });
 
+  it('keeps the newest runs when an older read answers last', async () => {
+    const answers: ((runs: unknown) => void)[] = [];
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            answers.push((runs) => resolve(new Response(JSON.stringify({ runs }))));
+          }),
+      ),
+    );
+    renderAgent();
+    // A poll starts a second read while the first is still out
+    await act(async () => {
+      vi.advanceTimersByTime(3100);
+    });
+    expect(answers).toHaveLength(2);
+
+    await act(async () => answers[1]!(RUNS.runs));
+    await act(async () => answers[0]!([]));
+
+    expect(screen.getByRole('tab', { name: 'Runs 3' })).toBeTruthy();
+    vi.useRealTimers();
+  });
+
   it('shows the history, newest first, and opens a payload', async () => {
     serve({
       '/api/agents/billing_team/runs': RUNS,

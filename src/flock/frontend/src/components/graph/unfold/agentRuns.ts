@@ -58,20 +58,24 @@ export function useAgentRuns(
 
   useEffect(() => {
     let current = true;
-    const read = () =>
-      fetch(`/api/agents/${encodeURIComponent(agent)}/runs`)
+    // Polls can overlap; only the latest read may answer
+    let latest = 0;
+    const read = () => {
+      const version = ++latest;
+      return fetch(`/api/agents/${encodeURIComponent(agent)}/runs`)
         .then((response) => {
           if (!response.ok) throw new Error(`The runs could not be read (${response.status})`);
           return response.json();
         })
         .then((data: { runs?: ApiRun[] }) => {
-          if (!current) return;
+          if (!current || version !== latest) return;
           setRuns((data.runs ?? []).map(toRun));
           setError(null);
         })
         .catch((reason: unknown) => {
-          if (current) setError(reason instanceof Error ? reason.message : String(reason));
+          if (current && version === latest) setError(reason instanceof Error ? reason.message : String(reason));
         });
+    };
     read();
     const timer = status === 'running' ? window.setInterval(read, RUNS_POLL_MS) : undefined;
     return () => {

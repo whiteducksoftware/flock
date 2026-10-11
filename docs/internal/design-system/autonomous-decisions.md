@@ -111,7 +111,7 @@ Each entry says what was decided, why, and where it landed.
 - **Artifact detail windows stay** until artifact cards unfold in the Blackboard view (#565); they open with a double-click and are no longer saved.
 - **Removed with the agent windows:** the three tabs, the stream store, and their tests, which tested mock components defined in the test files rather than the tabs.
 - **Tabs:**
-  - Live starts from the server's streaming history on every opening and adds live events it does not have yet, so reopening never repeats output (the old tab appended the history again each time); it follows the end while scrolled there, without a switch.
+  - Live starts from the server's streaming history on every opening and adds live events it does not have yet, so reopening never repeats output (the old tab appended the history again each time); it follows the end while scrolled there, without a switch. It keeps the text, not the events, and shows the latest 100,000 characters: a history can hold 100,000s of events.
   - History reloads when the agent's counts change; Runs and the Overview reload when its status or counts change, and every 3 s while it runs, since a busy agent's runs start and end while it stays `running`.
   - The Overview sums tokens and cost over the runs the server lists (the latest 50, labelled so); unpriced runs add tokens, not cost.
   - Traces reads the agent's latest five runs from a new endpoint, `/api/traces/agents/{name}` (`Agent.execute` spans by `agent.name` and the spans below them, #597, PR #598), since `/api/traces` returns the whole trace database; "Open in the trace viewer" stays until the timeline dock (#564).

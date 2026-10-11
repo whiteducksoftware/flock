@@ -56,6 +56,18 @@ describe('useKeyboardShortcuts: unfolding', () => {
     expect(useUIStore.getState().unfoldedNodeId).toBeNull();
   });
 
+  it('leaves Space to elements that act as buttons', () => {
+    const row = document.createElement('div');
+    row.setAttribute('role', 'button');
+    row.tabIndex = 0;
+    document.body.appendChild(row);
+    row.focus();
+
+    press(' ');
+
+    expect(useUIStore.getState().unfoldedNodeId).toBeNull();
+  });
+
   it('leaves Esc to a dialog that handled it', () => {
     useUIStore.getState().unfold('intake');
     // As the image and help dialogs do: on window, in the capture phase

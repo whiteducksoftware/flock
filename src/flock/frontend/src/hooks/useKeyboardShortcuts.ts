@@ -21,7 +21,8 @@ const unfoldTarget = (): string | null => {
 };
 
 /** Focus where Space means something else: typing, pressing a button, a tab, a dialog. */
-const SPACE_TAKEN = 'input, textarea, select, button, a[href], [contenteditable="true"], [role="tab"], [role="dialog"]';
+const SPACE_TAKEN =
+  'input, textarea, select, button, a[href], [contenteditable="true"], [role="button"], [role="tab"], [role="dialog"]';
 
 /**
  * Custom hook for managing global keyboard shortcuts
