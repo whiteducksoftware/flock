@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 from pydantic import BaseModel, Field, field_serializer
 
 from flock.components.agent import EngineComponent
-from flock.core.artifacts import Artifact
+from flock.core.artifacts import Artifact, model_from_payload
 from flock.engines.dspy.artifact_materializer import DSPyArtifactMaterializer
 from flock.engines.dspy.image_inputs import ensure_vision_support
 from flock.engines.dspy.signature_builder import DSPySignatureBuilder
@@ -723,7 +723,7 @@ class DSPyEngine(EngineComponent):
         if schema is None:
             return data
         try:
-            return schema(**data).model_dump()
+            return model_from_payload(schema, data).model_dump()
         except Exception:
             return data
 

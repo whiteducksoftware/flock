@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from flock.core.artifacts import Artifact
+from flock.core.artifacts import Artifact, model_from_payload
 from flock.core.fan_out import FanOutRange
 from flock.logging.logging import get_logger
 from flock.registry import type_registry
@@ -138,7 +138,7 @@ class OutputProcessor:
                 filtered = []
                 for a in matching_artifacts:
                     # Reconstruct Pydantic model from payload dict
-                    model_instance = model_cls(**a.payload)
+                    model_instance = model_from_payload(model_cls, a.payload)
                     if output_decl.filter_predicate(model_instance):
                         filtered.append(a)
                 matching_artifacts = filtered
@@ -154,7 +154,7 @@ class OutputProcessor:
                     # Single predicate
                     for artifact in matching_artifacts:
                         # Reconstruct Pydantic model from payload dict
-                        model_instance = model_cls(**artifact.payload)
+                        model_instance = model_from_payload(model_cls, artifact.payload)
                         if not output_decl.validate_predicate(model_instance):
                             raise ValueError(
                                 f"Validation failed for {output_decl.spec.type_name} "
@@ -164,7 +164,7 @@ class OutputProcessor:
                     # List of (callable, error_msg) tuples
                     for artifact in matching_artifacts:
                         # Reconstruct Pydantic model from payload dict
-                        model_instance = model_cls(**artifact.payload)
+                        model_instance = model_from_payload(model_cls, artifact.payload)
                         for check, error_msg in output_decl.validate_predicate:
                             if not check(model_instance):
                                 raise ValueError(
@@ -185,7 +185,9 @@ class OutputProcessor:
                 elif callable(visibility):
                     # Dynamic visibility based on artifact content
                     # Reconstruct Pydantic model from payload dict
-                    model_instance = model_cls(**artifact_from_engine.payload)
+                    model_instance = model_from_payload(
+                        model_cls, artifact_from_engine.payload
+                    )
                     visibility = visibility(model_instance)
 
                 # Override metadata visibility

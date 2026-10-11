@@ -7,7 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from flock.core.artifacts import Artifact
+from flock.core.artifacts import Artifact, model_from_payload
 
 
 class EvalInputs(BaseModel):
@@ -38,7 +38,7 @@ class EvalInputs(BaseModel):
         """
         if not self.artifacts:
             return None
-        return model_cls(**self.artifacts[0].payload)
+        return model_from_payload(model_cls, self.artifacts[0].payload)
 
     def all_as(self, model_cls: type[BaseModel]) -> list[BaseModel]:
         """Extract all artifacts as model instances.
@@ -54,7 +54,10 @@ class EvalInputs(BaseModel):
             >>> for task in tasks:
             ...     # Process each task
         """
-        return [model_cls(**artifact.payload) for artifact in self.artifacts]
+        return [
+            model_from_payload(model_cls, artifact.payload)
+            for artifact in self.artifacts
+        ]
 
 
 class EvalResult(BaseModel):

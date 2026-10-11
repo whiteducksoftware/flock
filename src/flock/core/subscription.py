@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from pydantic import BaseModel
 
+from flock.core.artifacts import model_from_payload
 from flock.registry import type_registry
 
 
@@ -302,7 +303,7 @@ class Subscription:
 
         # Evaluate where predicates on typed payloads
         model_cls = type_registry.resolve(artifact.type)
-        payload = model_cls(**artifact.payload)
+        payload = model_from_payload(model_cls, artifact.payload)
         ref = self.choices.get(artifact.type)
         if ref is not None and not ref.matches(payload):
             return False

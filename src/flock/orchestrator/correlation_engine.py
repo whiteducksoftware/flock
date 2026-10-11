@@ -151,10 +151,11 @@ class CorrelationEngine:
         join_spec: JoinSpec = subscription.join
 
         # Parse artifact payload to extract correlation key
+        from flock.core.artifacts import model_from_payload
         from flock.registry import type_registry
 
         model_cls = type_registry.resolve(artifact.type)
-        payload_instance = model_cls(**artifact.payload)
+        payload_instance = model_from_payload(model_cls, artifact.payload)
 
         try:
             correlation_key = join_spec.by(payload_instance)
