@@ -190,16 +190,25 @@ async def test_refused_checklist_items_are_named(llm):
     assert (case.refused, case.refused_items) == (False, ["backup"])
 
 
-async def test_a_trigger_without_a_decision_is_not_explained(llm):
-    flock = Flock("openai/gpt-4.1")
-    explainer = flock.agent("explainer").consumes(ExplainRoute.UNSURE).explains()
-    explainer.consumes(ExplainTicket)  # an OR trigger without a decision
+async def test_an_execution_without_a_decision_is_not_explained(llm):
+    from flock.core.artifacts import Artifact
+    from flock.decisions.explain import ExplainEngine
+    from flock.utils.runtime import Context, EvalInputs
 
-    await flock.publish(ExplainTicket(text="charged twice"))
-    await flock.run_until_idle()
+    agent = Flock("openai/gpt-4.1").agent("explainer").agent
+    ticket = Artifact(
+        type=type_registry.name_for(ExplainTicket),
+        payload={"text": "charged twice"},
+        produced_by="external",
+    )
 
+    # e.g. a timer run: no decision in the context
+    result = await ExplainEngine().evaluate(
+        agent, Context(task_id="t"), EvalInputs(artifacts=[ticket]), None
+    )
+
+    assert result.artifacts == []
     assert llm == []
-    assert await _artifacts(flock, Explanation) == []
 
 
 def test_explains_rejects_subscriptions_without_decisions():
@@ -297,6 +306,33 @@ def test_a_batched_subscription_cannot_be_added_to_an_explainer_later():
 
     with pytest.raises(ValueError, match="batch"):
         builder.consumes(ExplainRoute.billing, batch=BatchSpec(size=2))
+
+
+async def test_the_question_text_actually_asked_reaches_the_explainer(llm):
+    flock = Flock("openai/gpt-4.1")
+    flock.agent("triage").consumes(ExplainTicket).decides(
+        ExplainRoute,
+        model=FakeDecider({"billing": 0.55, "tech": 0.45}),
+        threshold=0.8,
+        instructions="Which department owns this ticket?",
+    )
+    flock.agent("explainer").consumes(ExplainRoute.UNSURE).explains()
+
+    await flock.publish(ExplainTicket(text="charged twice"))
+    await flock.run_until_idle()
+
+    (inputs,) = llm
+    (case,) = DecisionsToExplain(**inputs.artifacts[1].payload).decisions
+    assert case.question == "Which department owns this ticket?"
+
+
+def test_a_plain_decision_subscription_cannot_be_added_to_an_explainer_later():
+    builder = (
+        Flock("openai/gpt-4.1").agent("x").consumes(ExplainRoute.UNSURE).explains()
+    )
+
+    with pytest.raises(ValueError, match="handle"):
+        builder.consumes(Decision.of(ExplainUrgent))  # another question's decisions
 
 
 def test_explains_rejects_batched_subscriptions():
