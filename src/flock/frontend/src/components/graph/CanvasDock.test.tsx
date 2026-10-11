@@ -89,6 +89,33 @@ describe('CanvasDock', () => {
     expect(document.activeElement).toBe(screen.getByRole('button', { name: /Layout/ }));
   });
 
+  it('closes the menu when the keyboard focus leaves it, so its Esc reaches no menu', () => {
+    renderDock();
+    fireEvent.click(screen.getByRole('button', { name: /Layout/ }));
+    expect(screen.getByRole('menu')).toBeTruthy();
+
+    // Tab moves on to Auto-arrange
+    const next = screen.getByRole('switch', { name: 'Auto-arrange' });
+    act(() => next.focus());
+    expect(screen.queryByRole('menu')).toBeNull();
+    expect(document.activeElement).toBe(next);
+  });
+
+  it('closes the menu with Shift+Tab back to its button, and with a click on that button', () => {
+    renderDock();
+    const button = screen.getByRole('button', { name: /Layout/ });
+
+    fireEvent.click(button);
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Tab', shiftKey: true });
+    expect(screen.queryByRole('menu')).toBeNull();
+
+    // A click takes the focus to the button first, then toggles it
+    fireEvent.click(button);
+    act(() => button.focus());
+    fireEvent.click(button);
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
   it('switches auto-arrange', () => {
     const { onAutoArrange } = renderDock({ autoArrange: false });
     const toggle = screen.getByRole('switch', { name: 'Auto-arrange' });
