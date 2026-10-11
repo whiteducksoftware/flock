@@ -204,6 +204,23 @@ async def test_an_escalated_checklist_names_the_model_the_server_reported():
     assert decision["model"] == "strong-2026-10"
 
 
+def test_a_single_tier_may_be_a_bare_model_string(monkeypatch):
+    tiers = {"fast": _route(0.6, "fast"), "strong": _route(0.97, "strong")}
+    monkeypatch.setattr(
+        "flock.decisions.providers.resolve_provider",
+        lambda model: tiers.get(model, model),
+    )
+    agent = (
+        Flock()
+        .agent("triage")
+        .consumes(EscTicket)
+        .decides(EscRoute, model="fast", escalate="strong")
+    )
+
+    (engine,) = agent.agent.engines
+    assert [provider.label for provider in engine.escalation] == ["strong"]
+
+
 async def test_escalation_and_tournaments_cannot_be_combined():
     flock = Flock()
 
