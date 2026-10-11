@@ -1054,11 +1054,10 @@ const ChecklistGrid = memo(({ decision }: { decision: DecisionInfo }) => {
         const result = results[item] ?? UNSURE;
         const p = decision.probabilities[item];
         const section = decision.sections?.answeredBy[item];
+        const where = section !== undefined ? ` · section ${section + 1}` : '';
         const title = refused.has(item)
-          ? `${item} · refused`
-          : `${item} · ${result}${p !== undefined ? ` · p ${p.toFixed(2)}` : ''}${
-              section !== undefined ? ` · section ${section + 1}` : ''
-            }`;
+          ? `${item} · refused${where}`
+          : `${item} · ${result}${p !== undefined ? ` · p ${p.toFixed(2)}` : ''}${where}`;
         return (
           <span
             key={item}

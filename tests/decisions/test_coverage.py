@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from flock.core import Flock
 from flock.core.visibility import PrivateVisibility
-from flock.decisions import UNSURE, Checklist, Choice, FakeDecider
+from flock.decisions import UNSURE, Checklist, Choice, Decision, FakeDecider
 from flock.decisions.coverage import Coverage
 from flock.registry import flock_type, type_registry
 
@@ -204,6 +204,66 @@ def test_a_callable_key_works_for_alias_only_models():
     )
 
     assert engine._key(subject) == "acme"
+
+
+async def test_history_without_its_subject_is_skipped():
+    from flock.core.context_provider import FilterConfig, FilteredContextProvider
+
+    flock = Flock()
+    flock.agent("audit").consumes(CovDocument).decides(
+        CovControls, model=FakeDecider({"CovControls": by_text}), threshold=0.9
+    )
+    decision_type = type_registry.name_for(Decision.of(CovControls))
+    # The context shows decisions but not the documents they are about
+    flock.agent("coverage").consumes(CovControls.ANY).with_context(
+        FilteredContextProvider(FilterConfig(type_names={decision_type}))
+    ).aggregates(by="org")
+    for text in ("access policy", "backup runbook"):
+        await flock.publish(CovDocument(org="acme", text=text))
+        await flock.run_until_idle()
+
+    errors = [a for a in await flock.store.list() if "WorkflowError" in a.type]
+    assert errors == []
+    assert len(await _coverages(flock)) == 2
+
+
+def test_direct_only_subscriptions_cannot_aggregate():
+    with pytest.raises(ValueError, match="direct"):
+        Flock().agent("x").consumes(CovControls.ANY, mode="direct").aggregates(by="org")
+    builder = Flock().agent("y").consumes(CovControls.ANY).aggregates(by="org")
+    with pytest.raises(ValueError, match="direct"):
+        builder.consumes(CovControls.failed, mode="direct")
+
+
+@flock_type
+class CovNote(BaseModel):
+    org: str
+    note: str
+
+
+async def test_explicit_visibility_covers_decisions_about_mixed_subjects():
+    flock = Flock()
+    # One decision about a private document and a public note of the same org
+    flock.agent("audit").consumes(CovDocument, CovNote).decides(
+        CovControls,
+        model=FakeDecider({"CovControls": by_text}),
+        threshold=0.9,
+        visibility=PrivateVisibility(agents={"coverage"}),
+    )
+    flock.agent("coverage").consumes(CovControls.ANY).aggregates(
+        by="org", visibility=PrivateVisibility(agents={"ciso"})
+    )
+    await flock.publish(
+        CovDocument(org="acme", text="access policy"),
+        visibility=PrivateVisibility(agents={"audit", "coverage"}),
+    )
+    await flock.publish(CovNote(org="acme", note="reviewed"))
+    await flock.run_until_idle()
+
+    errors = [a for a in await flock.store.list() if "WorkflowError" in a.type]
+    assert errors == []
+    (coverage,) = await _coverages(flock)
+    assert coverage.visibility.agents == {"ciso"}
 
 
 async def test_coverage_keeps_the_documents_visibility():

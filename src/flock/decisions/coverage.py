@@ -127,6 +127,11 @@ def outcome(results: dict[str, str]) -> str:
     return PASSED
 
 
+def _subjects_known(payload: dict[str, Any], known: dict[str, Artifact]) -> bool:
+    subject_ids = payload.get("subject_ids") or []
+    return bool(subject_ids) and all(sid in known for sid in subject_ids)
+
+
 class _Entry(BaseModel):
     """One decision in a group."""
 
@@ -134,15 +139,18 @@ class _Entry(BaseModel):
 
     subject_ids: list[str]
     results: dict[str, str]
-    visibility: Visibility
+    # The subjects' common visibility; not needed with an explicit one
+    visibility: Visibility | None
 
 
 class AggregateEngine(EngineComponent):
     """Combines a checklist's decisions per group into :class:`Coverage`.
 
     Every execution adds its decision to the group, merges the decisions in
-    the visible history (so a restart with a persistent store loses nothing)
-    and publishes the group's coverage. Groups are updated one at a time.
+    its context that its subscriptions would receive (with the default context
+    provider all visible ones, so a restart with a persistent store loses
+    nothing) and publishes the group's coverage. Groups are updated one at a
+    time.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -177,7 +185,12 @@ class AggregateEngine(EngineComponent):
         async with self._lock:
             # History, e.g. after a restart: only decisions that reach this agent
             for artifact in ctx.artifacts:
-                if artifact.type == decision_type and self._reaches(agent, artifact):
+                if (
+                    artifact.type == decision_type
+                    and self._reaches(agent, artifact)
+                    # A narrower context may leave out a decision's subject
+                    and _subjects_known(artifact.payload, known)
+                ):
                     self._add(str(artifact.id), artifact.payload, known)
             groups = [
                 self._add(item["id"], item["payload"], known) for item in triggering
@@ -219,7 +232,7 @@ class AggregateEngine(EngineComponent):
         self._groups.setdefault(group, {})[decision_id] = _Entry(
             subject_ids=[str(subject.id) for subject in subjects],
             results=dict(payload.get("results") or {}),
-            visibility=inherited_visibility(subjects),
+            visibility=None if self.visibility is not None else self._common(subjects),
         )
         return group
 
@@ -230,6 +243,17 @@ class AggregateEngine(EngineComponent):
             subscription.accepts_events() and subscription.matches(artifact)
             for subscription in agent.subscriptions
         )
+
+    @staticmethod
+    def _common(subjects: list[Artifact]) -> Visibility:
+        try:
+            return inherited_visibility(subjects)
+        except ValueError:
+            raise ValueError(
+                "The subjects of a decision carry different visibilities; pass "
+                "visibility= to .aggregates() to choose the coverage's "
+                "readership explicitly."
+            ) from None
 
     def _key(self, subject: Artifact) -> str:
         if callable(self.by):
@@ -270,7 +294,9 @@ class AggregateEngine(EngineComponent):
     def _readership(self, group: str, entries: dict[str, _Entry]) -> Visibility:
         if self.visibility is not None:
             return self.visibility.model_copy(deep=True)
-        first, *rest = [entry.visibility for entry in entries.values()]
+        first, *rest = [
+            entry.visibility for entry in entries.values() if entry.visibility
+        ]
         reference = first.model_dump(mode="json")
         if any(v.model_dump(mode="json") != reference for v in rest):
             raise ValueError(
