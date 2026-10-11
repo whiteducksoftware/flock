@@ -330,6 +330,29 @@ def aggregator_info(
     }
 
 
+# Fields that name what an artifact is about, in the order they are taken
+_TITLE_FIELDS = ("title", "subject", "name", "question", "summary")
+
+
+def title_of(payload: Mapping[str, Any] | None, limit: int = 120) -> str | None:
+    """A short name for an artifact: a field that names it, else its first text."""
+    if not payload:
+        return None
+    texts = [payload.get(field) for field in _TITLE_FIELDS] + list(payload.values())
+    text = next((t for t in texts if isinstance(t, str) and t.strip()), None)
+    return text[:limit] if text is not None else None
+
+
+def needs_review(payload: Mapping[str, Any]) -> bool:
+    """An unsure decision routes to a person; a checklist's unsure items are
+    its results, and a review is a person's answer itself."""
+    return (
+        payload.get("choice") == UNSURE
+        and payload.get("kind", "choice") != "checklist"
+        and not payload.get("review_of")
+    )
+
+
 def reviews_by_decision(
     reviews: Iterable[tuple[Mapping[str, Any], str | None]],
 ) -> dict[str, dict[str, Any]]:
@@ -357,5 +380,7 @@ __all__ = [
     "is_coverage_type",
     "is_decision_type",
     "is_explanation_type",
+    "needs_review",
     "reviews_by_decision",
+    "title_of",
 ]
