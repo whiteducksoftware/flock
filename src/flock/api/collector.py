@@ -370,7 +370,7 @@ class DashboardEventCollector(AgentComponent):
             for artifact_id in artifacts_produced:
                 if artifact_id not in run.produced_artifacts:
                     run.produced_artifacts.append(artifact_id)
-            self._agent_status[agent.name] = "error" if failed else "idle"
+            self._agent_status[agent.name] = self._derived_status_locked(agent.name)
             await self._update_agent_snapshot_locked(agent)
 
         # A failed run was announced as agent_error; agent_completed would undo it
@@ -426,12 +426,28 @@ class DashboardEventCollector(AgentComponent):
             run.error_type = error_type
             run.completed_at = datetime.now(UTC)
             run.duration_ms = duration_ms
-            self._agent_status[agent.name] = "error"
+            self._agent_status[agent.name] = self._derived_status_locked(agent.name)
             await self._update_agent_snapshot_locked(agent)
 
         # Broadcast via WebSocket if manager is configured
         if self._websocket_manager:
             await self._websocket_manager.broadcast(event)
+
+    def _derived_status_locked(self, agent_name: str) -> str:
+        """An agent is running while any of its runs is; otherwise its most
+        recently started run says whether it failed (runs can end out of order)."""
+        runs = [
+            (index, run)
+            for index, run in enumerate(self._run_registry.values())
+            if run.agent_name == agent_name
+        ]
+        if any(run.status == "active" for _, run in runs):
+            return "running"
+        if not runs:
+            return "idle"
+        oldest = datetime.min.replace(tzinfo=UTC)
+        _, latest = max(runs, key=lambda item: (item[1].started_at or oldest, item[0]))
+        return "error" if latest.status == "error" else "idle"
 
     async def snapshot_graph_state(self) -> GraphState:
         """Return a thread-safe snapshot of runs, consumptions, and agent status."""

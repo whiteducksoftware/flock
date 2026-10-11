@@ -353,9 +353,17 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 "name": agent.name,
                 "status": agent_status.get(agent.name, "idle"),
                 "subscriptions": subscriptions,
-                # Each subscription's types: an AND gate or join has several
+                # Each subscription's types, repeated as often as it needs them:
+                # an AND gate or join has several, .consumes(A, A, A) three As
                 "subscriptionGroups": [
-                    sorted(sub.type_names) for sub in agent.subscriptions
+                    sorted(
+                        name
+                        for name, count in (
+                            sub.type_counts or dict.fromkeys(sub.type_names, 1)
+                        ).items()
+                        for _ in range(count)
+                    )
+                    for sub in agent.subscriptions
                 ],
                 "outputTypes": output_types,
                 "sentCount": produced.total if produced else 0,

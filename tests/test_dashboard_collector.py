@@ -609,3 +609,48 @@ async def test_collector_as_agent_component(orchestrator):
     event_types = [type(event).__name__ for event in collector.events]
     assert "AgentActivatedEvent" in event_types
     assert "AgentCompletedEvent" in event_types
+
+
+def _run_context(orchestrator) -> Context:
+    return Context(
+        board=orchestrator.store,
+        orchestrator=orchestrator,
+        task_id=f"task-{uuid4()}",
+        state={},
+        correlation_id=str(uuid4()),
+    )
+
+
+async def _status(collector) -> str:
+    return (await collector.snapshot_graph_state()).agent_status["test_agent"]
+
+
+@pytest.mark.asyncio
+async def test_a_newer_failed_run_outlasts_an_older_success(
+    collector, test_agent, orchestrator
+):
+    older, newer = _run_context(orchestrator), _run_context(orchestrator)
+    await collector.on_pre_consume(test_agent, older, [])
+    await collector.on_pre_consume(test_agent, newer, [])
+
+    await collector.on_error(test_agent, newer, RuntimeError("boom"))
+    await collector.on_terminate(test_agent, newer)
+    await collector.on_terminate(test_agent, older)  # finishes last, but started first
+
+    assert await _status(collector) == "error"
+
+
+@pytest.mark.asyncio
+async def test_an_agent_with_a_run_still_going_is_running(
+    collector, test_agent, orchestrator
+):
+    older, newer = _run_context(orchestrator), _run_context(orchestrator)
+    await collector.on_pre_consume(test_agent, older, [])
+    await collector.on_pre_consume(test_agent, newer, [])
+
+    await collector.on_error(test_agent, older, RuntimeError("boom"))
+    await collector.on_terminate(test_agent, older)
+    assert await _status(collector) == "running"
+
+    await collector.on_terminate(test_agent, newer)
+    assert await _status(collector) == "idle"

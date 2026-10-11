@@ -621,6 +621,10 @@ async def test_agent_cards_get_their_subscription_groups():
     orchestrator.agent("pager").consumes(GroupTicket, GroupUrgent).consumes(
         GroupNote
     ).publishes(GroupNote)
+    # Three of a kind
+    orchestrator.agent("triplets").consumes(GroupNote, GroupNote, GroupNote).publishes(
+        GroupTicket
+    )
 
     collector = DashboardEventCollector(store=orchestrator.store)
     assembler = GraphAssembler(orchestrator.store, collector, orchestrator)
@@ -632,6 +636,8 @@ async def test_agent_cards_get_their_subscription_groups():
         sorted([name(GroupTicket), name(GroupUrgent)]),
         [name(GroupNote)],
     ]
+    (triplets,) = [node for node in snapshot.nodes if node.id == "triplets"]
+    assert triplets.data["subscriptionGroups"] == [[name(GroupNote)] * 3]
 
 
 @pytest.mark.asyncio
