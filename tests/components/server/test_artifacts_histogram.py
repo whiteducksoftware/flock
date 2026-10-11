@@ -93,6 +93,39 @@ async def test_the_store_applies_the_filters(store):
     assert errors == [0, 0]
 
 
+async def test_artifacts_on_a_bucket_edge_count_in_the_later_bucket(store):
+    for offset in (
+        timedelta(microseconds=59_999_900),  # just before the first edge
+        timedelta(minutes=1),  # on it
+        timedelta(minutes=2, microseconds=1),  # just after the second
+    ):
+        await store.publish(
+            Artifact(
+                type="HistogramItem",
+                payload={"n": 1},
+                produced_by="producer",
+                created_at=START + offset,
+            )
+        )
+
+    counts, _ = await store.artifact_histogram(
+        FilterConfig(start=START, end=END), buckets=4
+    )
+
+    assert counts == [1, 1, 1, 0]
+
+
+async def test_errors_count_by_their_resolved_type(store):
+    # The registry accepts the simple name, as the SQLite store resolves it
+    await store.publish(_item(0.5, type_name="WorkflowError"))
+
+    _, errors = await store.artifact_histogram(
+        FilterConfig(start=START, end=END), buckets=4
+    )
+
+    assert errors == [1, 0, 0, 0]
+
+
 def _client(enforce_visibility: bool, orchestrator: Flock) -> TestClient:
     app = FastAPI()
 

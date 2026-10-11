@@ -712,17 +712,24 @@ class SQLiteBlackboardStore(BlackboardStore):
         self, filters: FilterConfig, *, buckets: int
     ) -> tuple[list[int], list[int]]:
         """Artifacts and workflow errors per time bucket, grouped in SQL."""
-        from flock.storage.histogram import workflow_error_type
+        from flock.storage.histogram import EPOCH, MICROSECOND, workflow_error_type
 
         _check_histogram_range(filters, buckets)
         start = as_utc(filters.start)
-        width = (as_utc(filters.end) - start).total_seconds() / buckets
+        span = (as_utc(filters.end) - start) // MICROSECOND
         conn = await self._get_connection()
         where_clause, params = self._build_filters(filters)
+        # Whole microseconds, as flock.storage.histogram buckets (julianday()
+        # rounds): created_at holds as_utc(...).isoformat(), seconds in its
+        # first 19 characters and microseconds after a dot
         query = f"""
             SELECT
-                CAST((julianday(created_at) - julianday(?)) * 86400.0 / ? AS INTEGER)
-                    AS bucket,
+                ((CAST(strftime('%s', substr(created_at, 1, 19)) AS INTEGER)
+                    * 1000000
+                  + CASE WHEN substr(created_at, 20, 1) = '.'
+                        THEN CAST(substr(created_at, 21, 6) AS INTEGER)
+                        ELSE 0 END
+                  - ?) * ? / ?) AS bucket,
                 COUNT(*) AS artifacts,
                 SUM(CASE WHEN COALESCE(canonical_type, type) = ? THEN 1 ELSE 0 END)
                     AS errors
@@ -731,7 +738,14 @@ class SQLiteBlackboardStore(BlackboardStore):
             GROUP BY bucket
         """  # nosec B608 - the WHERE clause is built from bound parameters
         cursor = await conn.execute(
-            query, (start.isoformat(), width, workflow_error_type(), *params)
+            query,
+            (
+                (start - EPOCH) // MICROSECOND,
+                buckets,
+                span,
+                workflow_error_type(),
+                *params,
+            ),
         )
         rows = await cursor.fetchall()
         await cursor.close()

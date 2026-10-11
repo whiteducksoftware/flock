@@ -237,7 +237,7 @@ GET /api/v1/artifacts/histogram?from=2026-10-11T12:00:00Z&to=2026-10-11T13:00:00
 }
 ```
 
-`counts` holds the artifacts per bucket, oldest first; `errors` holds the workflow errors among them. An artifact at the very end of the range counts in the last bucket. The histogram counts only what the caller may see, like the other artifact endpoints. SQLite groups in SQL; the in-memory and Dapr stores count in Python.
+`counts` holds the artifacts per bucket, oldest first; `errors` holds the workflow errors among them. An artifact on the edge between two buckets counts in the later one, and one at the very end of the range in the last bucket. The histogram counts only what the caller may see, like the other artifact endpoints. SQLite groups in SQL; the in-memory and Dapr stores count in Python.
 
 **Use case:** Activity over time, such as the dashboard's timeline.
 

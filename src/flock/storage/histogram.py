@@ -1,23 +1,30 @@
 """Artifacts per time bucket, for the dashboard's activity histogram.
 
 The range from ``start`` to ``end`` is split into ``buckets`` equal buckets;
-an artifact created exactly at ``end`` counts in the last one. Workflow errors
-are counted a second time, on their own, so the timeline can mark them.
+an artifact on an edge counts in the later bucket, and one created exactly at
+``end`` in the last. Buckets are computed in whole microseconds, as the SQLite
+store does in SQL, so every store puts an artifact in the same bucket. Workflow
+errors are counted a second time, on their own, so the timeline can mark them.
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterable
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
 from flock.core.artifacts import Artifact
+from flock.registry import type_registry
 from flock.utils.time_utils import as_utc
+from flock.utils.type_resolution import TypeResolutionHelper
+
+
+EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
+MICROSECOND = timedelta(microseconds=1)
 
 
 def workflow_error_type() -> str:
     """The registered type name of ``WorkflowError``."""
     from flock.models.system_artifacts import WorkflowError
-    from flock.registry import type_registry
 
     return type_registry.name_for(WorkflowError)
 
@@ -29,8 +36,9 @@ def bucket_of(
     created_at, start, end = as_utc(created_at), as_utc(start), as_utc(end)
     if created_at < start or created_at > end:
         return None
-    width = (end - start).total_seconds() / buckets
-    return min(int((created_at - start).total_seconds() // width), buckets - 1)
+    offset = (created_at - start) // MICROSECOND
+    span = (end - start) // MICROSECOND
+    return min(offset * buckets // span, buckets - 1)
 
 
 def bucket_artifacts(
@@ -45,9 +53,17 @@ def bucket_artifacts(
         if index is None:
             continue
         counts[index] += 1
-        if artifact.type == error_type:
+        # Resolved like the SQLite store's canonical_type
+        resolved = TypeResolutionHelper.safe_resolve(type_registry, artifact.type)
+        if resolved == error_type:
             errors[index] += 1
     return counts, errors
 
 
-__all__ = ["bucket_artifacts", "bucket_of", "workflow_error_type"]
+__all__ = [
+    "EPOCH",
+    "MICROSECOND",
+    "bucket_artifacts",
+    "bucket_of",
+    "workflow_error_type",
+]
