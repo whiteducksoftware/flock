@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import time
 from collections import Counter
@@ -244,6 +245,9 @@ class DecisionEngine(EngineComponent):
         except BaseException:
             if shadowed is not None:
                 shadowed.cancel()
+                # Wait until the shadow has stopped, not only asked it to
+                with contextlib.suppress(asyncio.CancelledError):
+                    await shadowed
             raise
         latency_ms = round((time.perf_counter() - started) * 1000, 3)
         shadow = await shadowed if shadowed is not None else None
