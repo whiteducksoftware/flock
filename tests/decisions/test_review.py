@@ -194,6 +194,11 @@ async def test_a_reviewer_cannot_share_an_agents_name():
     # A review by "tech" would never reach the tech agent (no self-triggering)
     with pytest.raises(ValueError, match="agent"):
         await flock.review(unsure.id, choice="tech", reviewer="tech")
+    # An unknown id is still unknown, whatever the reviewer's name
+    with pytest.raises(LookupError):
+        await flock.review(
+            "00000000-0000-0000-0000-000000000000", choice="tech", reviewer="tech"
+        )
 
 
 async def test_checklists_cannot_be_reviewed_yet():
