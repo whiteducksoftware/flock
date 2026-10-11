@@ -66,6 +66,26 @@ describe('useUnfoldLayout', () => {
     expect(reveal).toHaveBeenCalledWith({ x: 400, y: 0, ...UNFOLDED_SIZE });
   });
 
+  it('makes room from a card size when the node was never measured as a card', () => {
+    // It only rendered as a chip; its element is unfolded by now
+    cardSizes.delete('triage');
+    renderHook(() =>
+      useUnfoldLayout({
+        mode: 'grid',
+        collectDimensions: () =>
+          Object.fromEntries(
+            useGraphStore.getState().nodes.map((node) => [node.id, node.id === 'triage' ? UNFOLDED_SIZE : CARD]),
+          ),
+        relayout,
+      }),
+    );
+
+    act(() => useUIStore.getState().unfold('triage'));
+
+    expect(positions().billing!.x).toBeGreaterThan(800);
+    expect(positions().urgency!.y).toBeGreaterThan(300);
+  });
+
   it('puts every node back when it folds', () => {
     render();
     act(() => useUIStore.getState().unfold('triage'));

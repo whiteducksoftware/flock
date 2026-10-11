@@ -40,6 +40,7 @@ import {
   hasNewNodeAdditions,
   scheduleDebouncedAutoLayout,
 } from './autoLayoutTrigger';
+import { MOVE_MS, motionMs } from './animatePositions';
 import { useUnfoldLayout } from './useUnfoldLayout';
 
 const GraphCanvas: React.FC = () => {
@@ -367,7 +368,7 @@ const GraphCanvas: React.FC = () => {
       };
       const dx = shift(box.x + x / zoom, box.width, pane.width);
       const dy = shift(box.y + y / zoom, box.height, pane.height);
-      if (dx || dy) setViewport({ x: x + dx, y: y + dy, zoom }, { duration: 200 });
+      if (dx || dy) setViewport({ x: x + dx, y: y + dy, zoom }, { duration: motionMs(MOVE_MS) });
     },
     [getViewport, setViewport],
   );
@@ -385,7 +386,7 @@ const GraphCanvas: React.FC = () => {
 
   // Auto-zoom handler
   const handleAutoZoom = useCallback(() => {
-    fitView({ padding: 0.1, duration: 300 });
+    fitView({ padding: 0.1, duration: motionMs(300) });
     setContextMenu(null);
     setShowModuleSubmenu(false);
   }, [fitView]);

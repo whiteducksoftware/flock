@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { XYPosition } from '@xyflow/react';
-import { animatePositions } from './animatePositions';
+import { animatePositions, motionMs } from './animatePositions';
 
 const from = new Map<string, XYPosition>([['triage', { x: 0, y: 0 }]]);
 const to = new Map<string, XYPosition>([['triage', { x: 100, y: 200 }]]);
@@ -36,6 +36,12 @@ describe('animatePositions', () => {
     vi.advanceTimersByTime(300);
 
     expect(apply).toHaveBeenCalledTimes(calls);
+  });
+
+  it('gives other movements (the board panning) no duration for people who ask for less motion', () => {
+    expect(motionMs(200)).toBe(200);
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(prefers-reduced-motion: reduce)' }));
+    expect(motionMs(200)).toBe(0);
   });
 
   it('jumps there for people who ask for less motion', () => {

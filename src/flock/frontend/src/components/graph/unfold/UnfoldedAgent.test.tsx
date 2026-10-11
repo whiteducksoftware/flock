@@ -249,6 +249,16 @@ describe('UnfoldedAgent', () => {
     await waitFor(() => expect(screen.getByTestId('live').textContent).toBe('We have refunded▍'));
   });
 
+  it('says when the output so far could not be read, and still streams', async () => {
+    serve({ '/api/agents/billing_team/runs': RUNS });
+    renderAgent();
+    fireEvent.click(screen.getByRole('tab', { name: 'Live' }));
+
+    await waitFor(() => expect(screen.getByTestId('live').textContent).toContain('could not be read (404)'));
+    act(() => emit('streaming_output', token('refunded', 2)));
+    expect(screen.getByTestId('live').textContent).toContain('refunded');
+  });
+
   it('keeps a live event that came before the history once', async () => {
     let answer: (value: Response) => void = () => {};
     vi.stubGlobal(

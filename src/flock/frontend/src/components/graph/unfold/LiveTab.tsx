@@ -36,6 +36,7 @@ export function streamText(events: StreamEvent[]): string {
  */
 const LiveTab: React.FC<{ agent: string; running: boolean }> = ({ agent, running }) => {
   const [events, setEvents] = useState<StreamEvent[] | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const scroller = useRef<HTMLDivElement | null>(null);
   const following = useRef(true);
 
@@ -52,8 +53,15 @@ const LiveTab: React.FC<{ agent: string; running: boolean }> = ({ agent, running
     client.on('streaming_output', onEvent);
 
     fetch(`/api/streaming-history/${encodeURIComponent(agent)}`)
-      .then((response) => (response.ok ? response.json() : { events: [] }))
-      .catch(() => ({ events: [] }))
+      .then((response) => {
+        if (!response.ok) throw new Error(`The output so far could not be read (${response.status})`);
+        return response.json();
+      })
+      .catch((reason: unknown) => {
+        // Live events still come; the tab says what is missing
+        if (current) setHistoryError(reason instanceof Error ? reason.message : String(reason));
+        return { events: [] };
+      })
       .then((data: { events?: StreamEvent[] }) => {
         if (!current) return;
         const history = data.events ?? [];
@@ -88,10 +96,11 @@ const LiveTab: React.FC<{ agent: string; running: boolean }> = ({ agent, running
 
   return (
     <div ref={scroller} data-testid="live">
+      {historyError && <div className={`${styles.faint} ${styles.failed}`}>{historyError}</div>}
       {events === null ? (
         <div className={styles.empty}>Loading output…</div>
       ) : events.length === 0 ? (
-        <div className={styles.empty}>No output yet</div>
+        !historyError && <div className={styles.empty}>No output yet</div>
       ) : (
         <pre className={`mono ${styles.live}`}>
           {text}

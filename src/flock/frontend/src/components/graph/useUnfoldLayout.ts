@@ -63,9 +63,10 @@ export function useUnfoldLayout(options: UnfoldLayoutOptions): void {
     const base = before.current;
     const { mode, nodeSpacing, rankSpacing, collectDimensions } = latest.current;
     const dimensions = collectDimensions();
-    // Its element is unfolded by now; making room starts from the card
+    // Its element is unfolded by now; making room starts from the card (a default one if it never was a card)
     const card = cardSizes.get(unfoldedNodeId);
     if (card) dimensions[unfoldedNodeId] = card;
+    else delete dimensions[unfoldedNodeId];
 
     const targets = unfoldedPositions(
       nodes.map((node) => ({ ...node, position: base.get(node.id) ?? node.position })),

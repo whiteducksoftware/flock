@@ -6,6 +6,9 @@ export const MOVE_MS = 200;
 const prefersLessMotion = (): boolean =>
   typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+/** A movement's duration, none for people who ask for less motion (the board panning, fitting). */
+export const motionMs = (ms: number): number => (prefersLessMotion() ? 0 : ms);
+
 /**
  * Moves nodes from `from` to `to` in `duration` ms, easing out, handing
  * every frame's positions to `apply`; at once for people who ask for less
