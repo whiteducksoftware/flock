@@ -353,6 +353,10 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 "name": agent.name,
                 "status": agent_status.get(agent.name, "idle"),
                 "subscriptions": subscriptions,
+                # Each subscription's types: an AND gate or join has several
+                "subscriptionGroups": [
+                    sorted(sub.type_names) for sub in agent.subscriptions
+                ],
                 "outputTypes": output_types,
                 "sentCount": produced.total if produced else 0,
                 "recvCount": consumed.total if consumed else 0,
@@ -368,6 +372,8 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 "isOpenClawAgent": is_openclaw_agent,
                 "engineTag": self._engine_tag(agent),
             }
+            if node_data["status"] == "error":
+                node_data["lastError"] = self._last_error(agent.name, graph_state.runs)
 
             # Decision agents and choice subscribers
             decision = decider_info(
@@ -496,6 +502,25 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             existing_names.add(name)
 
         return nodes
+
+    @staticmethod
+    def _last_error(name: str, runs: list[GraphRun]) -> dict[str, Any] | None:
+        """The agent's latest failed run, for the error row of its card."""
+        failed = [
+            run for run in runs if run.agent_name == name and run.status == "error"
+        ]
+        if not failed:
+            return None
+        oldest = datetime.min.replace(tzinfo=UTC)
+        run = max(failed, key=lambda r: r.completed_at or r.started_at or oldest)
+        at = run.completed_at or run.started_at
+        return {
+            "type": run.error_type,
+            "message": run.error_message,
+            "at": at.isoformat() if at else None,
+            "correlationId": run.correlation_id,
+            "runId": run.run_id,
+        }
 
     @staticmethod
     def _engine_tag(agent: object) -> str | None:

@@ -141,6 +141,7 @@ class GraphRun(BaseModel):
     completed_at: datetime | None = Field(default=None, alias="completedAt")
     metrics: dict[str, Any] = Field(default_factory=dict)
     error_message: str | None = Field(default=None, alias="errorMessage")
+    error_type: str | None = Field(default=None, alias="errorType")
 
 
 class GraphState(BaseModel):

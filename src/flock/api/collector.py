@@ -54,6 +54,7 @@ class RunRecord:
     completed_at: datetime | None = None
     metrics: dict[str, Any] = field(default_factory=dict)
     error_message: str | None = None
+    error_type: str | None = None
 
     def to_graph_run(self) -> GraphRun:
         status = (
@@ -71,6 +72,7 @@ class RunRecord:
             completed_at=self.completed_at,
             metrics=dict(self.metrics),
             error_message=self.error_message,
+            error_type=self.error_type,
         )
 
 
@@ -357,8 +359,10 @@ class DashboardEventCollector(AgentComponent):
                 correlation_id=correlation_id,
                 ensure_started=True,
             )
-            # on_terminate follows on_error too: a failed run stays an error
-            if run.status != "error":
+            # on_terminate follows on_error too: a failed run stays an error,
+            # and so does its agent until it runs again
+            failed = run.status == "error"
+            if not failed:
                 run.status = "completed"
                 run.duration_ms = duration_ms
                 run.completed_at = datetime.now(UTC)
@@ -366,11 +370,11 @@ class DashboardEventCollector(AgentComponent):
             for artifact_id in artifacts_produced:
                 if artifact_id not in run.produced_artifacts:
                     run.produced_artifacts.append(artifact_id)
-            self._agent_status[agent.name] = "idle"
+            self._agent_status[agent.name] = "error" if failed else "idle"
             await self._update_agent_snapshot_locked(agent)
 
-        # Broadcast via WebSocket if manager is configured
-        if self._websocket_manager:
+        # A failed run was announced as agent_error; agent_completed would undo it
+        if self._websocket_manager and not failed:
             await self._websocket_manager.broadcast(event)
 
     async def on_error(self, agent: "Agent", ctx: Context, error: Exception) -> None:
@@ -419,6 +423,7 @@ class DashboardEventCollector(AgentComponent):
             )
             run.status = "error"
             run.error_message = error_message
+            run.error_type = error_type
             run.completed_at = datetime.now(UTC)
             run.duration_ms = duration_ms
             self._agent_status[agent.name] = "error"
@@ -473,6 +478,7 @@ class DashboardEventCollector(AgentComponent):
                     "artifacts_produced": len(record.produced_artifacts),
                 },
                 "error_message": record.error_message,
+                "error_type": record.error_type,
             }
             for record in records[:limit]
         ]
