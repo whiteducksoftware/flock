@@ -35,7 +35,7 @@ await flock.publish(ProductPhoto(sku="A-17", photo=Image.from_file("a17.jpg")))
 
 | Limit | Value | Checked |
 |---|---|---|
-| Decoded size | 20 MB | When an `Image` is created; for `Artifact` objects published directly, at publish time |
+| Decoded size | 20 MB | When an `Image` is created, and again before any artifact is stored |
 | Pixels | 50 million (e.g. 8660 x 5773) | From the image header, before decoding |
 | Source | Inline `data:image/...;base64,...` only | URLs and file paths are rejected |
 | Uploads per request (REST) | 20 files | Before the request body is parsed |
@@ -44,7 +44,7 @@ The limits hold on every publish path:
 
 - **Models:** `flock.publish(ProductPhoto(...))` validates the `Image` field when the model is created.
 - **Dicts:** `flock.publish({"type": ..., "payload": ...})` validates the payload against the registered model.
-- **Artifacts:** an `Artifact` object published directly has its inline image data checked against the same limits.
+- **Everything else:** before any artifact is stored, its inline image data is checked against the same limits. This covers `Artifact` objects published directly, component publishes, agent outputs and models changed after they were created.
 - **REST:** `POST /api/v1/artifacts` (JSON) and `POST /api/v1/artifacts/upload` (multipart; see the [REST API guide](rest-api.md#publish-artifact-with-images)).
 - **Dashboard:** the publish panel. The server re-encodes those pictures as well.
 

@@ -167,3 +167,39 @@ async def test_the_allowed_agent_gets_the_image(private_photo):
 
     assert detail.status_code == 200
     assert detail.json()["payload"]["picture"]["url"] == url
+
+
+async def test_sibling_keys_do_not_hide_an_oversized_image(tiny_bound):
+    flock = Flock()
+    artifact = Artifact(
+        type="TaggedPicture",
+        payload={"shot": {"url": _noisy_url(), "label": "front"}},
+        produced_by="external",
+    )
+
+    with pytest.raises(ValueError, match="larger than"):
+        await flock.publish(artifact)
+
+
+async def test_board_handle_publishes_enforce_the_bound(tiny_bound):
+    from flock.core.orchestrator import BoardHandle
+
+    flock = Flock()
+    artifact = Artifact(
+        type=type_registry.name_for(BoundPhoto),
+        payload={"caption": "x", "picture": {"url": _noisy_url()}},
+        produced_by="component",
+    )
+
+    with pytest.raises(ValueError, match="larger than"):
+        await BoardHandle(flock).publish(artifact)
+    assert await flock.store.list() == []
+
+
+async def test_a_mutated_model_is_checked_when_published(tiny_bound):
+    flock = Flock()
+    photo = BoundPhoto(caption="x", picture=Image(url=_png_url((8, 8))))
+    photo.picture.url = _noisy_url()  # bypasses validation
+
+    with pytest.raises(ValueError, match="larger than"):
+        await flock.publish(photo)

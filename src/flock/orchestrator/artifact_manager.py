@@ -80,6 +80,9 @@ class ArtifactManager:
         self._scoped_correlation_id = correlation_id
 
     async def _persist(self, artifact: Artifact) -> None:
+        # Every way into the store passes here (publish, component and agent
+        # outputs): inline images keep the limits of Image fields
+        check_inline_images(artifact.payload)
         scoped = self._scoped_correlation_id
         if scoped is not None and artifact.correlation_id != scoped:
             if artifact.correlation_id is not None:
@@ -140,9 +143,7 @@ class ArtifactManager:
         """
         # Handle different input types
         if isinstance(obj, Artifact):
-            # Already an artifact - publish as-is, but inline images keep the
-            # limits that models enforce when they are created
-            check_inline_images(obj.payload)
+            # Already an artifact - publish as-is
             artifact = obj
         elif isinstance(obj, BaseModel):
             # BaseModel instance - get type from registry

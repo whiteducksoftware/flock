@@ -168,18 +168,19 @@ class Image(BaseModel):
 def check_inline_images(value: Any) -> None:
     """Raise ``ValueError`` if a payload holds inline image data over the limits.
 
-    Models validate their ``Image`` fields when they are created; this covers
-    payloads that are published without a model (``Artifact`` objects). Only
-    valid image data URLs (``{"url": "data:image/...;base64,..."}``) are checked;
-    other values are left alone.
+    Models validate their ``Image`` fields when they are created, but a payload
+    can also arrive without that check (``Artifact`` objects, component
+    publishes, a model changed after creation), so every artifact is checked
+    before it is stored. Only valid image data URLs under a ``url`` key are
+    checked; other values are left alone.
     """
     if isinstance(value, dict):
         url = value.get("url")
-        if len(value) == 1 and isinstance(url, str) and _DATA_URL.match(url):
+        if isinstance(url, str) and _DATA_URL.match(url):
             Image(url=url)  # size and pixel limits; ValidationError is a ValueError
-            return
-        for item in value.values():
-            check_inline_images(item)
+        for key, item in value.items():
+            if key != "url":  # sibling keys may hold more images
+                check_inline_images(item)
     elif isinstance(value, list | tuple):
         for item in value:
             check_inline_images(item)
