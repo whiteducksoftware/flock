@@ -152,6 +152,63 @@ async def test_a_checklist_case_carries_the_item_results(llm):
     assert case.options["backup"] == "Backups are tested"
 
 
+async def test_a_restricted_decision_shows_only_its_candidates(llm):
+    flock = Flock("openai/gpt-4.1")
+    flock.agent("triage").consumes(ExplainTicket).decides(
+        ExplainControls,
+        model=FakeDecider({"ExplainControls": {"backup": 0.6}}),
+        threshold=0.9,
+        options=lambda ctx: ["backup"],
+    )
+    flock.agent("explainer").consumes(ExplainControls.UNSURE).explains()
+
+    await flock.publish(ExplainTicket(text="policy"))
+    await flock.run_until_idle()
+
+    (inputs,) = llm
+    case = DecisionToExplain(**inputs.artifacts[1].payload)
+    assert case.options == {"backup": "Backups are tested"}
+
+
+async def test_refused_checklist_items_are_named(llm):
+    flock = Flock("openai/gpt-4.1")
+    flock.agent("audit").consumes(ExplainTicket).decides(
+        ExplainControls,
+        model=FakeDecider(
+            {"ExplainControls": {"mfa": 0.97, "backup": 0.5}},
+            refuse={"ExplainControls.backup"},
+        ),
+        threshold=0.9,
+    )
+    flock.agent("explainer").consumes(ExplainControls.UNSURE).explains()
+
+    await flock.publish(ExplainTicket(text="policy"))
+    await flock.run_until_idle()
+
+    (inputs,) = llm
+    case = DecisionToExplain(**inputs.artifacts[1].payload)
+    assert (case.refused, case.refused_items) == (False, ["backup"])
+
+
+async def test_a_trigger_without_a_decision_is_not_explained(llm):
+    flock = Flock("openai/gpt-4.1")
+    explainer = flock.agent("explainer").consumes(ExplainRoute.UNSURE).explains()
+    explainer.consumes(ExplainTicket)  # an OR trigger without a decision
+
+    await flock.publish(ExplainTicket(text="charged twice"))
+    await flock.run_until_idle()
+
+    assert llm == []
+    assert await _artifacts(flock, Explanation) == []
+
+
+def test_explains_rejects_subscriptions_without_decisions():
+    with pytest.raises(ValueError, match="explains"):
+        Flock("openai/gpt-4.1").agent("x").consumes(ExplainRoute.UNSURE).consumes(
+            ExplainTicket
+        ).explains()
+
+
 def test_explains_needs_a_decision_subscription():
     with pytest.raises(ValueError, match="explains"):
         Flock("openai/gpt-4.1").agent("x").consumes(ExplainTicket).explains()

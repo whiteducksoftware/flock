@@ -1026,10 +1026,11 @@ class AgentBuilder:
         """
         from flock.decisions.explain import ExplainEngine, Explanation
 
-        if not any(subscription.choices for subscription in self._agent.subscriptions):
+        subscriptions = self._agent.subscriptions
+        if not subscriptions or not all(s.choices for s in subscriptions):
             raise ValueError(
                 f"Agent '{self._agent.name}': .explains() explains decisions; "
-                "subscribe to a decision handle first, e.g. "
+                "subscribe only to decision handles, e.g. "
                 ".consumes(Route.UNSURE)."
             )
         if self._agent.engines:

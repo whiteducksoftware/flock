@@ -54,6 +54,10 @@ class DecisionToExplain(BaseModel):
     results: dict[str, str] | None = Field(
         default=None, description="Checklists: yes, no or UNSURE per item"
     )
+    refused_items: list[str] = Field(
+        default_factory=list,
+        description="Checklists: items the decision model refused to answer",
+    )
 
 
 @flock_type
@@ -88,6 +92,9 @@ def decision_case(decision_type: str, payload: dict[str, Any]) -> DecisionToExpl
     """The question, options and answer of a decision payload."""
     question = choice_of(type_registry.resolve(decision_type))
     options = dict(question.__options__) if question is not None else {}
+    if payload.get("candidates") is not None:  # restricted at runtime (options=)
+        candidates = set(payload["candidates"])
+        options = {name: text for name, text in options.items() if name in candidates}
     text = question.__question__ if question is not None else payload.get("question")
     return DecisionToExplain(
         question=text or payload.get("question", ""),
@@ -98,6 +105,7 @@ def decision_case(decision_type: str, payload: dict[str, Any]) -> DecisionToExpl
         threshold=payload.get("threshold"),
         refused=bool(payload.get("refused")),
         results=dict(payload["results"]) if payload.get("results") else None,
+        refused_items=list(payload.get("refused_items") or []),
     )
 
 
@@ -116,6 +124,8 @@ class ExplainEngine(DSPyEngine):
         self, agent: Any, ctx: Context, inputs: EvalInputs, output_group: Any
     ) -> EvalResult:
         decisions = (ctx.state or {}).get("__decisions__") or []
+        if not decisions:  # another trigger: nothing to explain or link to
+            return EvalResult(artifacts=[], state=dict(inputs.state))
         cases = [
             Artifact(
                 type=type_registry.name_for(DecisionToExplain),
