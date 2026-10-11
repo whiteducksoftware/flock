@@ -99,7 +99,8 @@ def decider_info(
     of the decided image), a question also holds ``samples``: the latest image
     thumbnails per option with the chosen option's probability. Scale
     questions carry the ``meanScore`` of their decisions, questions with
-    refusals their ``refused`` count.
+    refusals their ``refused`` count. With escalation, ``escalate`` lists the
+    models asked after the decider's own, in order.
     """
     from flock.decisions.engine import DecisionEngine
 
@@ -122,6 +123,8 @@ def decider_info(
             "groupSize": engine.tournament.group_size,
             "keep": engine.tournament.keep,
         }
+    if engine.escalation:
+        info["escalate"] = [provider.label for provider in engine.escalation]
     return info
 
 
@@ -170,6 +173,9 @@ def decision_view(
         view["rounds"] = list(payload["rounds"])
     if payload.get("candidates") is not None:
         view["candidates"] = list(payload["candidates"])
+    if payload.get("attempts"):
+        view["tier"] = payload.get("tier", 0)
+        view["attempts"] = list(payload["attempts"])
     if view["kind"] == "checklist":
         view["items"] = levels or list(payload.get("results") or {})
         view["results"] = dict(payload.get("results") or {})

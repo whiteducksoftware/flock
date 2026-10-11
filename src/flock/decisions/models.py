@@ -57,6 +57,17 @@ class Decision(BaseModel):
         "groups, survivors and the top candidates of every group per round",
     )
     model: str = Field(description="Decision model that answered")
+    tier: int = Field(
+        default=0,
+        description="Escalation tier that answered: 0 is the decider's model, "
+        "1 the first model in escalate=, and so on",
+    )
+    attempts: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Answers of lower tiers that were not firm, oldest first: "
+        "model, choice, probabilities, confidence, refused (checklists: model "
+        "and the results of the escalated items)",
+    )
     latency_ms: float | None = Field(
         default=None, description="Round trip of the decision request"
     )
