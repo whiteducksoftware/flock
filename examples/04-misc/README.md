@@ -286,6 +286,20 @@ uv run 04-misc/09_azure_default_credential.py
 - App Service / Container Apps / Functions with Managed Identity
 - Enterprise deployments that forbid stored API keys
 
+### 10 - Dashboard Triage Demo 🎫
+**Feature:** Every dashboard state, without API keys
+
+The ticket triage of the dashboard design: `triage` and `urgency` decide with a `FakeDecider` that takes a moment, four teams stream canned replies token by token through a scripted engine, `pager` waits for an AND gate, `follow_up_desk` joins replies with follow-ups, `weekly_report` batches replies, `crm_sync` fails every third time, and `digest` runs on a timer. Unsure tickets wait for a review on their decision card. No API keys, no network.
+
+```bash
+uv run 04-misc/10_dashboard_triage_demo.py              # http://localhost:8344
+uv run 04-misc/10_dashboard_triage_demo.py --port 8345  # a second dashboard, for A/B
+```
+
+**Use Cases:**
+- Looking at the dashboard and taking screenshots with live data
+- Comparing two dashboard versions on the same flock
+
 ---
 
 ## 🎓 When to Use These Examples
@@ -301,6 +315,7 @@ uv run 04-misc/09_azure_default_credential.py
 | **07 - Logging Configuration** | Debugging, production logging setup |
 | **08 - Local Transformers** | Offline/local inference with Hugging Face models |
 | **09 - Azure DefaultAzureCredential** | Azure OpenAI with Entra ID / Managed Identity auth |
+| **10 - Dashboard Triage Demo** | Every dashboard state without API keys, screenshots, A/B |
 
 ## 🔑 Key Features Demonstrated
 
