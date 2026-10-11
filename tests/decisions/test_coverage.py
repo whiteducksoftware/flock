@@ -235,6 +235,37 @@ def test_direct_only_subscriptions_cannot_aggregate():
         builder.consumes(CovControls.failed, mode="direct")
 
 
+@flock_type
+class CovNote(BaseModel):
+    org: str
+    note: str
+
+
+async def test_explicit_visibility_covers_decisions_about_mixed_subjects():
+    flock = Flock()
+    # One decision about a private document and a public note of the same org
+    flock.agent("audit").consumes(CovDocument, CovNote).decides(
+        CovControls,
+        model=FakeDecider({"CovControls": by_text}),
+        threshold=0.9,
+        visibility=PrivateVisibility(agents={"coverage"}),
+    )
+    flock.agent("coverage").consumes(CovControls.ANY).aggregates(
+        by="org", visibility=PrivateVisibility(agents={"ciso"})
+    )
+    await flock.publish(
+        CovDocument(org="acme", text="access policy"),
+        visibility=PrivateVisibility(agents={"audit", "coverage"}),
+    )
+    await flock.publish(CovNote(org="acme", note="reviewed"))
+    await flock.run_until_idle()
+
+    errors = [a for a in await flock.store.list() if "WorkflowError" in a.type]
+    assert errors == []
+    (coverage,) = await _coverages(flock)
+    assert coverage.visibility.agents == {"ciso"}
+
+
 async def test_coverage_keeps_the_documents_visibility():
     flock = _flock()
     private = PrivateVisibility(agents={"audit", "coverage"})

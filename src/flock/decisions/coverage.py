@@ -139,7 +139,8 @@ class _Entry(BaseModel):
 
     subject_ids: list[str]
     results: dict[str, str]
-    visibility: Visibility
+    # The subjects' common visibility; not needed with an explicit one
+    visibility: Visibility | None
 
 
 class AggregateEngine(EngineComponent):
@@ -231,7 +232,7 @@ class AggregateEngine(EngineComponent):
         self._groups.setdefault(group, {})[decision_id] = _Entry(
             subject_ids=[str(subject.id) for subject in subjects],
             results=dict(payload.get("results") or {}),
-            visibility=inherited_visibility(subjects),
+            visibility=None if self.visibility is not None else self._common(subjects),
         )
         return group
 
@@ -242,6 +243,17 @@ class AggregateEngine(EngineComponent):
             subscription.accepts_events() and subscription.matches(artifact)
             for subscription in agent.subscriptions
         )
+
+    @staticmethod
+    def _common(subjects: list[Artifact]) -> Visibility:
+        try:
+            return inherited_visibility(subjects)
+        except ValueError:
+            raise ValueError(
+                "The subjects of a decision carry different visibilities; pass "
+                "visibility= to .aggregates() to choose the coverage's "
+                "readership explicitly."
+            ) from None
 
     def _key(self, subject: Artifact) -> str:
         if callable(self.by):
@@ -282,7 +294,9 @@ class AggregateEngine(EngineComponent):
     def _readership(self, group: str, entries: dict[str, _Entry]) -> Visibility:
         if self.visibility is not None:
             return self.visibility.model_copy(deep=True)
-        first, *rest = [entry.visibility for entry in entries.values()]
+        first, *rest = [
+            entry.visibility for entry in entries.values() if entry.visibility
+        ]
         reference = first.model_dump(mode="json")
         if any(v.model_dump(mode="json") != reference for v in rest):
             raise ValueError(
