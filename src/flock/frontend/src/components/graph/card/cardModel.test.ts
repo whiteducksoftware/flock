@@ -102,6 +102,17 @@ describe('portRows', () => {
     ]);
   });
 
+  it('shows subscriptions to the same handles once, as the server counts them by type', () => {
+    // .consumes(Route.billing).consumes(Route.shipping): one label and one count for Decision[Route]
+    const rows = portRows({
+      subscriptionGroups: [['Decision[app.Route]'], ['Decision[app.Route]']],
+      typeLabels: { 'Decision[app.Route]': '◆ Route.billing | Route.shipping' },
+      receivedByType: { 'Decision[app.Route]': 5 },
+    });
+
+    expect(rows.map((row: PortRow) => [row.dir, row.label, row.count])).toEqual([['in', 'Route.billing | Route.shipping', 5]]);
+  });
+
   it('counts a type a subscription needs several times once, with how many', () => {
     const rows = portRows({ subscriptionGroups: [['app.Note', 'app.Note', 'app.Note']], receivedByType: {} });
 

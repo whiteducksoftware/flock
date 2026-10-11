@@ -160,7 +160,15 @@ const JoinBox: React.FC<{ wait: NonNullable<ReturnType<typeof joinWait>> }> = ({
           </span>
         )}
       </div>
-      <div className={styles.track} title={`${wait.collected} of ${wait.required}`}>
+      <div
+        className={styles.track}
+        title={`${wait.collected} of ${wait.required}`}
+        role="progressbar"
+        aria-label={`Join ${wait.key}`}
+        aria-valuemin={0}
+        aria-valuemax={wait.required}
+        aria-valuenow={wait.collected}
+      >
         <span className={styles.filled} style={{ width: `${share * 100}%` }} />
         <span className="hatch" style={{ width: `${(1 - share) * 100}%` }} />
       </div>

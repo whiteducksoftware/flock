@@ -565,7 +565,8 @@ describe('AgentNode', () => {
 
     it('keeps two subscriptions to the same type apart', () => {
       const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
-      renderCard({ subscriptionGroups: [['app.Ticket'], ['app.Ticket']], receivedByType: { 'app.Ticket': 2 } });
+      // One subscription takes a ticket, the other two at once
+      renderCard({ subscriptionGroups: [['app.Ticket'], ['app.Ticket', 'app.Ticket']], receivedByType: { 'app.Ticket': 2 } });
 
       expect(screen.getAllByTitle('app.Ticket')).toHaveLength(2);
       // React warns about duplicate keys on the console
@@ -602,6 +603,10 @@ describe('AgentNode', () => {
 
       expect(screen.getByTitle('app.CustomerScore').textContent).toBe('joinCustomerScore0');
       expect(screen.getByTestId('join-wait').textContent).toBe('9c340:24');
+      // The bar's progress is readable without seeing it
+      const progress = screen.getByRole('progressbar', { name: 'Join 9c34' });
+      expect(progress.getAttribute('aria-valuenow')).toBe('1');
+      expect(progress.getAttribute('aria-valuemax')).toBe('2');
     });
 
     it('shows a batch being collected, one cell per item', () => {

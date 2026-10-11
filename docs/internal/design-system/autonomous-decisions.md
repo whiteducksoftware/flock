@@ -70,6 +70,7 @@ Each entry says what was decided, why, and where it landed.
 - **"In flight" means:** a run of the edge's target agent consumed that type (`consumed_types` of `agent_activated`) and has not ended. Runs are tracked by `run_id`, so one ending leaves a concurrent run's edges moving.
   - A dashboard that connects while a run is under way shows that run's edges still, until the next activation; its status dot is right. Seeding them from the snapshot needs the active runs' types from the server, and a snapshot that arrives after a run's `agent_completed` would keep that run in flight for good. The edge animation setting now means "animate edges in flight"; the global always-on animation is gone.
 - **A subscription that needs a type several times** (`.consumes(A, A, A)`) shows one row with `×3`.
+- **Subscriptions that would show the same row show it once.** The server labels and counts by type, so `.consumes(Route.billing).consumes(Route.shipping)` reads `◆ Route.billing | Route.shipping` with one count. A row per handle needs counts per subscription from the server.
 - **Decision handles about the same subject read `AND`** (`pager`: `Route.tech AND Urgent.yes`), although they correlate like a join under the hood; `JOIN` is kept for joins by a key.
 - **The demo does not record traces,** so the error row's trace viewer opens empty there; the link carries the run's correlation ID.
 - **The chip shows the received count** as its one count.

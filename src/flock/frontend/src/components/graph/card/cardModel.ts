@@ -130,7 +130,9 @@ const row = (
  * (JOIN when the subscription joins by a key; decision handles about the same
  * subject correlate like a join but read as AND); types received outside a
  * subscription are IN too; outputs are OUT. A decider's Decision output is
- * left out, its summary stands for it.
+ * left out, its summary stands for it. Subscriptions that would show the same
+ * row show it once: the server labels and counts by type, so
+ * `.consumes(Route.billing).consumes(Route.shipping)` is one row for both.
  */
 export function portRows(data: AgentData): PortRow[] {
   const labels = data.typeLabels ?? {};
@@ -148,7 +150,9 @@ export function portRows(data: AgentData): PortRow[] {
     const joined = joins.has(index) && !handles;
     [...times.entries()].forEach(([type, count], position) => {
       const dir = position === 0 ? 'in' : joined ? 'join' : 'and';
-      rows.push(row(dir, type, labels, received, count));
+      if (!rows.some((other) => other.dir === dir && other.type === type && other.times === count)) {
+        rows.push(row(dir, type, labels, received, count));
+      }
       shown.add(type);
     });
   });
