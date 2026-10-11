@@ -116,6 +116,23 @@ describe('graphStore - NEW Simplified Architecture', () => {
       expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual(['a-1']);
     });
 
+    it('keep a generic type name whole: its commas are not between types', () => {
+      vi.mocked(useFilterStore.getState).mockReturnValue({
+        correlationId: null,
+        timeRange: { preset: 'all' },
+        selectedArtifactTypes: ['app.Pair[str, int]'],
+        selectedProducers: [],
+        selectedTags: [],
+        selectedVisibility: [],
+      } as any);
+
+      stream('a-1', 'c-1', 'writer', 'app.Pair[str, int]');
+      stream('a-2', 'c-1', 'writer', 'app.Pair[str, int], app.Note');
+      stream('a-3', 'c-1', 'writer', 'app.Pair[str, bool]');
+
+      expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual(['a-1', 'a-2']);
+    });
+
     it('follow the type, producer and tag filters', () => {
       const filters = { correlationId: null, timeRange: { preset: 'all' }, selectedVisibility: [] };
       vi.mocked(useFilterStore.getState).mockReturnValue({

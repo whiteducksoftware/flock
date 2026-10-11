@@ -117,6 +117,28 @@ function convertTimeRange(range: { preset: string; start?: number; end?: number 
  * Build GraphRequest from current filter state
  */
 /**
+ * The types of a streamed artifact: an agent that publishes several streams
+ * under all of them ("app.A, app.B"); a comma inside brackets belongs to a
+ * generic type's name ("app.Pair[str, int]").
+ */
+export function streamedTypes(label: string): string[] {
+  const types: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < label.length; i += 1) {
+    const char = label[i];
+    if (char === '[') depth += 1;
+    else if (char === ']') depth -= 1;
+    else if (char === ',' && depth === 0) {
+      types.push(label.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  types.push(label.slice(start).trim());
+  return types.filter(Boolean);
+}
+
+/**
  * Whether an artifact the board did not load passes the board's filters: a
  * streaming preview, which has no tags yet (a tag filter keeps it out).
  */
@@ -135,11 +157,8 @@ function previewFilter(): (data: Record<string, any>) => boolean {
     (from === undefined || (data.timestamp ?? 0) >= from) &&
     (to === undefined || (data.timestamp ?? 0) <= to) &&
     (!filters.correlation_id || data.correlationId === filters.correlation_id) &&
-    // An agent that publishes several types streams under all of them ("app.A, app.B")
     (filters.artifactTypes.length === 0 ||
-      String(data.artifactType ?? '')
-        .split(', ')
-        .some((type) => filters.artifactTypes.includes(type))) &&
+      streamedTypes(String(data.artifactType ?? '')).some((type) => filters.artifactTypes.includes(type))) &&
     (filters.producers.length === 0 || filters.producers.includes(data.producedBy)) &&
     filters.tags.length === 0 &&
     (filters.visibility.length === 0 || filters.visibility.includes(data.visibilityKind ?? 'Public'));
