@@ -241,6 +241,39 @@ class ControlRoutesComponent(ServerComponent):
             return {"backend_version": backend_version, "package_name": "flock"}
 
         @app.post(
+            self._join_path(
+                self.config.prefix, "control/decisions/{decision_id}/review"
+            ),
+            tags=self.config.tags,
+        )
+        async def review_decision(
+            decision_id: str, body: dict[str, Any] | None = None
+        ) -> dict[str, str]:
+            """Confirm or override a decision as a person.
+
+            Request body: ``{"choice": "<option>", "reviewer": "<name>"}``, both
+            optional; without a choice, the decision's best guess is confirmed.
+            The review is published as a decision by the reviewer and routes
+            like any other; the dashboard's graph picks it up.
+            """
+            body = body or {}
+            try:
+                artifact = await orchestrator.review(
+                    decision_id,
+                    choice=body.get("choice"),
+                    reviewer=body.get("reviewer") or "human",
+                )
+            except LookupError as ex:
+                raise HTTPException(status_code=404, detail=str(ex)) from ex
+            except ValueError as ex:
+                raise HTTPException(status_code=422, detail=str(ex)) from ex
+            return {
+                "artifact_id": str(artifact.id),
+                "choice": artifact.payload["choice"],
+                "correlation_id": str(artifact.correlation_id),
+            }
+
+        @app.post(
             self._join_path(self.config.prefix, "control/publish"),
             tags=self.config.tags,
         )

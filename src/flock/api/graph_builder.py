@@ -45,6 +45,7 @@ from flock.decisions.graph import (
     is_coverage_type,
     is_decision_type,
     is_explanation_type,
+    reviews_by_decision,
 )
 from flock.decisions.models import choice_of
 from flock.logging.auto_trace import AutoTracedMeta
@@ -427,6 +428,11 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             for artifact in artifacts.values()
             if is_explanation_type(artifact.artifact_type)
         )
+        reviewed = reviews_by_decision(
+            (artifact.payload, artifact.produced_by)
+            for artifact in sorted(artifacts.values(), key=lambda a: a.published_at)
+            if is_decision_type(artifact.artifact_type)
+        )
 
         for artifact in artifacts.values():
             # Image data is shipped as thumbnails; the JSON view gets a description,
@@ -459,6 +465,8 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                     node_data["decision"]["explanation"] = explained[
                         artifact.artifact_id
                     ]
+                if artifact.artifact_id in reviewed:
+                    node_data["decision"]["review"] = reviewed[artifact.artifact_id]
             elif is_explanation_type(artifact.artifact_type):
                 node_data["explanation"] = explanation_view(artifact.payload)
             elif is_coverage_type(artifact.artifact_type):

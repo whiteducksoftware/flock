@@ -87,6 +87,10 @@ class Decision(BaseModel):
         "choice, best_guess, results, refused_items, latency_ms); model and "
         "error when the shadow failed",
     )
+    review_of: str | None = Field(
+        default=None,
+        description="Id of the decision a person confirmed or overrode with this one",
+    )
     sections: dict[str, Any] | None = Field(
         default=None,
         description="Long documents: the split text field, the sections' spans "

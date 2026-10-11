@@ -203,6 +203,8 @@ def decision_view(
         view["votes"] = list(payload["votes"])
     if payload.get("shadow"):
         view["shadow"] = dict(payload["shadow"])
+    if payload.get("review_of"):
+        view["reviewOf"] = payload["review_of"]
     if payload.get("sections"):
         sections = payload["sections"]
         view["sections"] = {
@@ -320,6 +322,21 @@ def aggregator_info(
     }
 
 
+def reviews_by_decision(
+    reviews: Iterable[tuple[Mapping[str, Any], str | None]],
+) -> dict[str, dict[str, Any]]:
+    """Decision id -> the latest review of it, from ``(payload, producer)``
+    pairs of decisions in publication order."""
+    by_decision: dict[str, dict[str, Any]] = {}
+    for payload, producer in reviews:
+        if payload.get("review_of"):
+            by_decision[str(payload["review_of"])] = {
+                "choice": payload.get("choice"),
+                "by": producer,
+            }
+    return by_decision
+
+
 __all__ = [
     "aggregator_info",
     "choice_type_labels",
@@ -332,4 +349,5 @@ __all__ = [
     "is_coverage_type",
     "is_decision_type",
     "is_explanation_type",
+    "reviews_by_decision",
 ]
