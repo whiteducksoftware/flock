@@ -166,6 +166,8 @@ export class IndexedDBService {
    * `onBlocked` is told and the deletion waits for that tab to close.
    */
   async deleteDatabase(onBlocked?: () => void): Promise<void> {
+    // A connection still opening would open after the close below
+    await this.opening?.catch(() => {});
     this.close();
     if (typeof indexedDB === 'undefined') return;
     await new Promise<void>((resolve, reject) => {
@@ -302,6 +304,8 @@ export class IndexedDBService {
       });
 
       this.available = true;
+      // Let go when another tab deletes or upgrades the database
+      if (this.db) this.db.onversionchange = () => this.close();
       console.log('[IndexedDB] Database initialized:', DB_NAME, 'version', DB_VERSION);
     } catch (error) {
       console.error('[IndexedDB] Initialization failed, using in-memory fallback:', error);

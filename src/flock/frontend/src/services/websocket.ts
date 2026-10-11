@@ -433,6 +433,12 @@ export class WebSocketClient {
         // Back after a lost connection: what was published meanwhile never arrived
         if (this.connectionLost) {
           this.connectionLost = false;
+          // Live states from before the outage are stale; the snapshot says how things stand
+          useGraphStore.setState({
+            agentStatus: new Map(),
+            streamingTokens: new Map(),
+            agentLogicOperations: new Map(),
+          });
           this.scheduleGraphRefresh();
           // The counts missed those artifacts too
           fetchArtifactSummary()

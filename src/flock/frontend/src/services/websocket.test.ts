@@ -67,6 +67,8 @@ describe('WebSocketClient reconnects', () => {
   });
 
   afterEach(() => {
+    // A test's setState would carry its spies into the next test
+    useGraphStore.setState(useGraphStore.getInitialState(), true);
     vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -202,6 +204,28 @@ describe('WebSocketClient reconnects', () => {
 
     // Artifacts published while offline never counted
     expect(fetchArtifactSummary).toHaveBeenCalledOnce();
+    client.disconnect();
+  });
+
+  it('forgets the live states from before an outage', () => {
+    vi.spyOn(useGraphStore.getState(), 'refreshCurrentView').mockResolvedValue();
+    const client = new WebSocketClient('ws://test/ws');
+    client.connect();
+    socket(0).open();
+    // triage was running when the connection dropped, and finished meanwhile
+    useGraphStore.setState({
+      agentStatus: new Map([['triage', 'running']]),
+      streamingTokens: new Map([['triage', ['Hel', 'lo']]]),
+    });
+    socket(0).fail();
+    vi.advanceTimersByTime(1000);
+
+    socket(1).open();
+
+    // The refreshed snapshot says how things stand now
+    expect(useGraphStore.getState().agentStatus.size).toBe(0);
+    expect(useGraphStore.getState().streamingTokens.size).toBe(0);
+    vi.advanceTimersByTime(1000); // the refresh
     client.disconnect();
   });
 

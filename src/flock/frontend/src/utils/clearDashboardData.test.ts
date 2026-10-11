@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { indexedDBService } from '../services/indexeddb';
+import { IndexedDBService, indexedDBService } from '../services/indexeddb';
 import { useGraphStore } from '../store/graphStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { clearDashboardData } from './clearDashboardData';
@@ -62,6 +62,29 @@ describe('clearDashboardData', () => {
 
     expect(onBlocked).not.toHaveBeenCalled();
     expect(reload).toHaveBeenCalledOnce();
+  });
+
+  it('clears while the dashboard is still opening its database', async () => {
+    indexedDBService.close();
+    void indexedDBService.initialize(); // still opening
+    const onBlocked = vi.fn();
+    const reload = vi.fn();
+
+    await clearDashboardData(reload, onBlocked);
+
+    expect(onBlocked).not.toHaveBeenCalled();
+    expect(reload).toHaveBeenCalledOnce();
+  });
+
+  it('has another dashboard tab let go of the database', async () => {
+    const otherTab = new IndexedDBService();
+    await otherTab.initialize();
+    const onBlocked = vi.fn();
+
+    await clearDashboardData(() => {}, onBlocked);
+
+    expect(onBlocked).not.toHaveBeenCalled();
+    expect(await databases()).not.toContain('flock_dashboard_v1');
   });
 
   it('stops and says so when the database cannot be deleted', async () => {
