@@ -5,8 +5,10 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+from collections import Counter
 from collections.abc import Callable, Iterable
-from typing import TYPE_CHECKING, Any
+from dataclasses import replace
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import ConfigDict, Field
 
@@ -89,16 +91,44 @@ def _trivial_answer(candidates: dict[str, str]) -> DecisionAnswer:
     return DecisionAnswer(only, {only: 1.0}, confidence=1.0)
 
 
+VOTES = ("majority", "unanimous", "mean")
+
+
 class _Trail:
-    """Which tier answered each wire question, and the answers before it."""
+    """How each wire question was answered: the escalation tier and the
+    answers before it, or an ensemble's votes and their verdict."""
 
     def __init__(self) -> None:
         self.tiers: dict[str, int] = {}
         self.labels: dict[str, str] = {}
         self.attempts: dict[str, list[tuple[str, DecisionAnswer]]] = {}
+        self.votes: dict[str, list[tuple[str, DecisionAnswer]]] = {}
+        # The firm answer the vote reached, None when it did not
+        self.verdicts: dict[str, str | None] = {}
 
     def label(self, name: str, default: str) -> str:
         return self.labels.get(name, default)
+
+
+def _mean_answer(answers: list[DecisionAnswer], label: str) -> DecisionAnswer:
+    """The answers of an ensemble averaged; refusals are left out."""
+    valid = [a for a in answers if not a.refused and a.choice is not None]
+    if not valid:
+        return DecisionAnswer(choice=None, probabilities={}, model=label, refused=True)
+    options = dict.fromkeys(option for a in valid for option in a.probabilities)
+    probabilities = {
+        option: sum(a.probabilities.get(option, 0.0) for a in valid) / len(valid)
+        for option in options
+    }
+    choice = max(probabilities, key=probabilities.__getitem__)
+    scores = [a.score for a in valid if a.score is not None]
+    return DecisionAnswer(
+        choice=choice,
+        probabilities=probabilities,
+        confidence=probabilities[choice],
+        model=label,
+        score=sum(scores) / len(scores) if scores else None,
+    )
 
 
 def _attempt(label: str, answer: DecisionAnswer) -> dict[str, Any]:
@@ -128,6 +158,8 @@ class DecisionEngine(EngineComponent):
     the decision's ``rounds`` records them. With ``escalation``, questions (and
     checklist items) that are not firm are asked again by the next provider;
     a decision records the ``tier`` that answered and the earlier ``attempts``.
+    With ``ensemble``, every provider answers every question and ``vote``
+    decides; a decision records the ``votes``.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -148,6 +180,16 @@ class DecisionEngine(EngineComponent):
         default_factory=list,
         description="Providers asked in order about what the previous one was "
         "not sure about",
+    )
+    ensemble: list[DecisionProvider] = Field(
+        default_factory=list,
+        description="Providers that all answer every question (instead of "
+        "provider); vote combines their answers",
+    )
+    vote: Literal["majority", "unanimous", "mean"] = Field(
+        default="majority",
+        description="majority: more than half of the ensemble gives the same firm "
+        "answer; unanimous: all of it; mean: the threshold applies to the mean",
     )
     enable_context: bool = Field(
         default=False, description="Decisions are made on the inputs only"
@@ -171,13 +213,13 @@ class DecisionEngine(EngineComponent):
 
         state, images = prepare_state(inputs.artifacts)
         if images:
-            for provider in (self.provider, *self.escalation):
+            for provider in (self.provider, *self.escalation, *self.ensemble):
                 if not provider.supports_images:
                     raise ValueError(
                         f"Decision model '{provider.label}' does not accept images; "
                         "use providers with image support (openai/, local/ with a "
                         "vision model) for inputs with Image fields, also in "
-                        "escalate=."
+                        "escalate= and models=."
                     )
 
         started = time.perf_counter()
@@ -189,13 +231,17 @@ class DecisionEngine(EngineComponent):
             and (len(candidates) < 2)
         ):
             # Nothing to rank: no candidates is UNSURE, a single one wins
-            answers = {self.questions[0].__name__: _trivial_answer(candidates)}
+            # No model was asked, so an ensemble has no votes
+            answer = replace(_trivial_answer(candidates), model=self._label)
+            answers = {self.questions[0].__name__: answer}
         elif self.tournament is not None:
             answer, rounds = await self._run_tournament(state, images, candidates)
             answers = {self.questions[0].__name__: answer}
+        elif wire and self.ensemble:
+            answers = await self._vote(state, wire, images, trail)
         elif wire:
             answers = await self._ask(state, wire, images)
-            trail = await self._escalate(state, wire, answers, images)
+            await self._escalate(state, wire, answers, images, trail)
         else:
             answers = {}
         latency_ms = round((time.perf_counter() - started) * 1000, 3)
@@ -221,8 +267,12 @@ class DecisionEngine(EngineComponent):
                 continue
             answer = answers[question.__name__]
             name = question.__name__
+            if name in trail.verdicts:
+                choice = trail.verdicts[name] or UNSURE
+            else:
+                choice = answer.choice if self._firm(answer) else UNSURE
             decision = model(
-                choice=answer.choice if self._firm(answer) else UNSURE,
+                choice=choice,
                 best_guess=answer.choice,
                 probabilities=answer.probabilities,
                 confidence=answer.confidence,
@@ -237,6 +287,9 @@ class DecisionEngine(EngineComponent):
                 attempts=[
                     _attempt(label, earlier)
                     for label, earlier in trail.attempts.get(name, [])
+                ],
+                votes=[
+                    _attempt(label, vote) for label, vote in trail.votes.get(name, [])
                 ],
                 latency_ms=latency_ms,
             )
@@ -272,9 +325,10 @@ class DecisionEngine(EngineComponent):
         wire: list[DecisionQuestion],
         answers: dict[str, DecisionAnswer],
         images: list[Image],
-    ) -> _Trail:
-        """Ask what is not firm again, one tier up; ``answers`` is updated."""
-        trail = _Trail()
+        trail: _Trail,
+    ) -> None:
+        """Ask what is not firm again, one tier up; ``answers`` and ``trail``
+        are updated."""
         for tier, provider in enumerate(self.escalation, start=1):
             unsure = [q for q in wire if not self._settled(q, answers[q.name])]
             if not unsure:
@@ -287,7 +341,72 @@ class DecisionEngine(EngineComponent):
                 answers[question.name] = replies[question.name]
                 trail.tiers[question.name] = tier
                 trail.labels[question.name] = provider.label
-        return trail
+
+    async def _vote(
+        self,
+        state: str,
+        wire: list[DecisionQuestion],
+        images: list[Image],
+        trail: _Trail,
+    ) -> dict[str, DecisionAnswer]:
+        """Ask every provider of the ensemble; the mean answers, with the
+        votes and verdicts in ``trail``."""
+        replies = await asyncio.gather(
+            *(self._ask(state, wire, images, provider=p) for p in self.ensemble)
+        )
+        label = " + ".join(
+            next((r[q.name].model for q in wire if r[q.name].model), p.label)
+            for p, r in zip(self.ensemble, replies, strict=True)
+        )
+        answers: dict[str, DecisionAnswer] = {}
+        for question in wire:
+            ballot = [
+                (reply[question.name].model or provider.label, reply[question.name])
+                for provider, reply in zip(self.ensemble, replies, strict=True)
+            ]
+            combined = _mean_answer([answer for _, answer in ballot], label)
+            verdict = self._verdict(question, combined, [a for _, a in ballot])
+            if verdict is not None and question.item is None:
+                # The best guess is the option voted for
+                combined = replace(
+                    combined,
+                    choice=verdict,
+                    confidence=combined.probabilities.get(verdict),
+                )
+            trail.votes[question.name] = ballot
+            trail.verdicts[question.name] = verdict
+            answers[question.name] = combined
+        return answers
+
+    def _verdict(
+        self,
+        question: DecisionQuestion,
+        combined: DecisionAnswer,
+        ballot: list[DecisionAnswer],
+    ) -> str | None:
+        """The firm answer of the vote, None when the vote reached none."""
+        if self.vote == "mean":
+            return self._firm_value(question, combined)
+        votes = Counter(
+            value
+            for value in (self._firm_value(question, answer) for answer in ballot)
+            if value is not None
+        )
+        if not votes:
+            return None
+        value, count = votes.most_common(1)[0]
+        needed = len(ballot) if self.vote == "unanimous" else len(ballot) // 2 + 1
+        return value if count >= needed else None
+
+    def _firm_value(
+        self, question: DecisionQuestion, answer: DecisionAnswer
+    ) -> str | None:
+        """One answer's firm value: the choice, or a checklist item's yes or no."""
+        if not self._settled(question, answer):
+            return None
+        if question.item is None:
+            return answer.choice
+        return self._item_result(answer.probabilities.get("yes", 0.0))
 
     def _settled(self, question: DecisionQuestion, answer: DecisionAnswer) -> bool:
         """A firm answer: a checklist item's result, else the threshold."""
@@ -478,7 +597,10 @@ class DecisionEngine(EngineComponent):
                 refused.append(item)
                 continue
             probabilities[item] = answer.probabilities.get("yes", 0.0)
-            results[item] = self._item_result(probabilities[item])
+            if item_question.name in trail.verdicts:
+                results[item] = trail.verdicts[item_question.name] or UNSURE
+            else:
+                results[item] = self._item_result(probabilities[item])
 
         if not results:
             outcome = UNSURE  # no items to check
@@ -508,6 +630,17 @@ class DecisionEngine(EngineComponent):
                     if earlier.refused or earlier.choice is None
                     else self._item_result(earlier.probabilities.get("yes", 0.0))
                 )
+        # Ensembles: every model's result per item, in the order of the models
+        votes: list[dict[str, Any]] = []
+        for item_question in items:
+            for index, (label, vote) in enumerate(
+                trail.votes.get(item_question.name, [])
+            ):
+                while len(votes) <= index:
+                    votes.append({"model": label, "results": {}})
+                votes[index]["results"][item_question.item] = (
+                    self._firm_value(item_question, vote) or UNSURE
+                )
         # The model the top tier reported, else its configured label
         top_label = next(
             (
@@ -526,11 +659,19 @@ class DecisionEngine(EngineComponent):
             refused=bool(results) and len(refused) == len(results),
             threshold=self.threshold,
             subject_ids=subject_ids,
-            model=top_label or (models[0] if models else self.provider.label),
+            model=top_label or (models[0] if models else self._label),
             tier=tier,
             attempts=attempts,
+            votes=votes,
             latency_ms=latency_ms,
         )
+
+    @property
+    def _label(self) -> str:
+        """The configured model name: the provider's, or an ensemble's joined."""
+        if self.ensemble:
+            return " + ".join(provider.label for provider in self.ensemble)
+        return self.provider.label
 
     def _firm(self, answer: DecisionAnswer) -> bool:
         if answer.refused or answer.choice is None:
@@ -541,4 +682,10 @@ class DecisionEngine(EngineComponent):
         return top is not None and top >= self.threshold
 
 
-__all__ = ["DecisionEngine", "inherited_visibility", "prepare_state", "render_state"]
+__all__ = [
+    "VOTES",
+    "DecisionEngine",
+    "inherited_visibility",
+    "prepare_state",
+    "render_state",
+]

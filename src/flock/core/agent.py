@@ -753,6 +753,8 @@ class AgentBuilder:
         tournament: Any | None = None,
         options: Callable[[Context], Iterable[str]] | None = None,
         escalate: str | Sequence[str | Any] | None = None,
+        models: Sequence[str | Any] | None = None,
+        vote: str | None = None,
     ) -> AgentBuilder:
         """Answer questions about each input with a decision model.
 
@@ -786,6 +788,14 @@ class AgentBuilder:
                 tier was unsure about. A decision records the ``tier`` that answered and the
                 earlier ``attempts``; still unsure after the last tier, it routes
                 to ``UNSURE`` as usual.
+            models: Several decision models (instead of ``model``) that answer
+                every question; ``vote`` combines their answers. A decision
+                records every model's answer in ``votes``, and its
+                ``probabilities`` are the mean over the models that answered.
+            vote: How ``models`` decide: ``"majority"`` (default) needs more
+                than half of the models to give the same firm answer (with
+                ``threshold`` applied per model), ``"unanimous"`` all of them,
+                and ``"mean"`` applies ``threshold`` to the mean probabilities.
             options: Restricts the single Choice or Checklist to a subset of its
                 options for each execution: a callable that receives the
                 context (``ctx.decisions`` holds the decisions that triggered
@@ -805,7 +815,7 @@ class AgentBuilder:
             >>> # Several questions, one request
             >>> triage.decides(Route, Urgent, Anger, model="azure/decision-1")
         """
-        from flock.decisions.engine import DecisionEngine
+        from flock.decisions.engine import VOTES, DecisionEngine
         from flock.decisions.providers import resolve_provider
 
         if not questions:
@@ -829,13 +839,43 @@ class AgentBuilder:
             )
         from flock.decisions.choice import MAX_OPTIONS
 
+        # One model, not a sequence of characters
         if isinstance(escalate, str):
-            escalate = [escalate]  # one tier, not a sequence of characters
+            escalate = [escalate]
+        if isinstance(models, str):
+            models = [models]
         if escalate and tournament is not None:
             raise ValueError(
                 f"Agent '{self._agent.name}': escalate= is not supported together "
                 "with tournament= yet."
             )
+        if vote is not None and not models:
+            raise ValueError(
+                f"Agent '{self._agent.name}': vote= combines the answers of "
+                "models=; pass several models."
+            )
+        if models is not None:
+            if model is not None:
+                raise ValueError(
+                    f"Agent '{self._agent.name}': pass either model= or models=, "
+                    "not both."
+                )
+            if len(models) < 2:
+                raise ValueError(
+                    f"Agent '{self._agent.name}': models= needs at least two "
+                    "decision models; use model= for one."
+                )
+            if vote not in (None, *VOTES):
+                raise ValueError(
+                    f"Agent '{self._agent.name}': vote= must be one of "
+                    f"{', '.join(repr(v) for v in VOTES)}, got {vote!r}."
+                )
+            for name, value in (("escalate=", escalate), ("tournament=", tournament)):
+                if value:
+                    raise ValueError(
+                        f"Agent '{self._agent.name}': models= is not supported "
+                        f"together with {name} yet."
+                    )
         if tournament is not None:
             if len(questions) != 1 or questions[0].__kind__ != "choice":
                 raise ValueError(
@@ -899,6 +939,7 @@ class AgentBuilder:
             )
         model = (
             model
+            or (models[0] if models else None)
             or getattr(self._orchestrator, "decision_model", None)
             or os.getenv("DEFAULT_DECISION_MODEL")
         )
@@ -928,6 +969,8 @@ class AgentBuilder:
             tournament=tournament,
             options=options,
             escalation=[with_budget(tier) for tier in escalate or ()],
+            ensemble=[with_budget(member) for member in models or ()],
+            vote=vote or "majority",
         )
         self.publishes(*(Decision.of(question) for question in questions))
         for output in self._agent.output_groups[-1].outputs:

@@ -345,5 +345,29 @@ describe('AgentNode', () => {
     );
     expect(screen.getByText(/fast › medium › strong/)).toBeInTheDocument();
   });
+
+  it('should show the models and the vote of an ensemble decider', () => {
+    const data: AgentNodeData = {
+      name: 'triage',
+      status: 'idle',
+      subscriptions: ['Ticket'],
+      sentCount: 1,
+      recvCount: 1,
+      decision: {
+        model: 'a',
+        threshold: 0.9,
+        ensemble: ['a', 'b', 'c'],
+        vote: 'majority',
+        questions: [{ name: 'Route', kind: 'choice', options: ['billing', 'tech'], counts: { billing: 1, tech: 0 } }],
+      },
+    };
+
+    render(
+      <ReactFlowProvider>
+        <AgentNode {...createNodeProps(data)} />
+      </ReactFlowProvider>
+    );
+    expect(screen.getByText(/majority of a \+ b \+ c/)).toBeInTheDocument();
+  });
 });
 

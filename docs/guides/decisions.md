@@ -209,6 +209,7 @@ Each decision is a `Decision.of(<question>)` artifact, for example `Decision.of(
 | `subject_ids` | Ids of the artifacts the decision is about |
 | `model` | The model that answered (as reported by the provider) |
 | `tier`, `attempts` | [Escalation](#escalation-cascades): the tier that answered (0 is the decider's model) and the earlier tiers' answers |
+| `votes` | [Ensembles](#ensembles-and-voting): every model's answer |
 | `latency_ms` | Round trip of the decision request (shared by all questions of the request) |
 
 ### Tournaments for large choices
@@ -399,6 +400,61 @@ In the dashboard, a decider lists its cascade after its model (`azure/decision-1
   &nbsp;&nbsp;
   <img alt="Still unsure after the last tier: UNSURE with best guess biology" src="../../assets/images/decisions/decision-escalation-card-unsure.png" width="340">
 </p>
+
+### Ensembles and voting
+
+`models=` asks several decision models instead of one, and `vote=` decides:
+
+```python
+flock.agent("sorter").consumes(Paper).decides(
+    ResearchField,
+    models=["azure/decision-1", "jev/jev-latest", "openai/gpt-6-luna"],
+    vote="majority",
+    threshold=0.8,
+)
+flock.agent("inbox").consumes(ResearchField.UNSURE).publishes(Parked)
+```
+
+Every model answers every question, concurrently. A model's answer is a vote for its choice when it is firm: at or above `threshold` and not refused.
+
+| `vote=` | Firm when |
+|---|---|
+| `"majority"` (default) | more than half of the models vote for the same answer |
+| `"unanimous"` | every model votes for the same answer |
+| `"mean"` | the mean probability of the most probable answer reaches `threshold` |
+
+Anything else, disagreement included, routes to `UNSURE`. A refusal is no vote and counts against a majority; when every model refuses, the decision is refused. Checklist items are voted one by one, each with its own result.
+
+The decision's `probabilities` are the mean over the models that answered, its `best_guess` is the answer voted for (or the most probable on average), and `model` joins the models' names (`microsoft-decision-1 + jev-1.13.0 + gpt-6-luna`). `votes` lists every model's answer in the order of `models=`: `model`, `choice`, `probabilities`, `confidence` and `refused`; for a Checklist, the `model` and its result per item.
+
+With `options=`, a question left with one candidate or none is decided without asking any model, so its `votes` stay empty. `models=` replaces `model=` and needs at least two models; every model gets its own share of `decision_rate_limit` and must accept images when the inputs hold an `Image`. It cannot be combined with `escalate=` or `tournament=` yet.
+
+On the 100 arXiv abstracts (threshold 0.8, one run per vote on 2026-10-11, [`08_voting.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/08_voting.py)), each model alone and the three votes over the same three models:
+
+| | Firm | Agree with arXiv | Of the firm ones |
+|---|---|---|---|
+| Microsoft-Decision-1 alone | 87 | 81 | 93 % |
+| Jev alone | 89 | 82 | 92 % |
+| `gpt-6-luna` alone | 95 | 91 | 96 % |
+| `vote="majority"` | 89 | 84 | 94 % |
+| `vote="mean"` | 84 | 81 | 96 % |
+| `vote="unanimous"` | 80 | 78 | 98 % |
+
+A vote trades coverage for precision: the unanimous vote sorted fewer papers, and almost all of them correctly. In this task one model is clearly stronger, and `gpt-6-luna` alone sorts more papers at about the same precision as the majority. An ensemble pays off when no model is clearly best, when a wrong firm answer costs more than a review, or when disagreement between models should be visible as its own branch. It costs one request per model.
+
+In the dashboard, a decider names its vote and models (`majority of azure/decision-1 + jev/jev-latest + openai/gpt-6-luna`), and a decision shows every model's vote: violet for a firm vote for the decision, amber for a firm vote that did not carry, grey for no vote (below the threshold or refused).
+
+<p align="center">
+  <img alt="An ensemble decider: majority of three decision models, and the inbox for papers the vote did not settle" src="../../assets/images/decisions/decision-voting-agent-view.png" width="900">
+</p>
+
+<p align="center">
+  <img alt="A voted decision: two firm votes for machine_learning carry it, one firm vote for economics does not" src="../../assets/images/decisions/decision-voting-card.png" width="440">
+  &nbsp;&nbsp;
+  <img alt="No majority: only gpt-6-luna voted firmly, so the decision is UNSURE with best guess computer_vision" src="../../assets/images/decisions/decision-voting-card-unsure.png" width="440">
+</p>
+
+The mean bar of the chosen option can sit below the threshold marker on a majority decision: the threshold applies to each model's vote, not to the mean.
 
 ## Visibility
 
@@ -591,4 +647,4 @@ They judge well when the answer can be read off the supplied state: routing, int
 
 ## Example
 
-[`examples/15-decisions/01_ticket_triage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/01_ticket_triage.py) routes support tickets with Microsoft-Decision-1 (or any other provider) and sends ambiguous tickets to a supervisor. [`02_arxiv_race.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/02_arxiv_race.py) races an LLM against the available decision models on 100 arXiv abstracts. [`03_color_sorter.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/03_color_sorter.py) sorts generated shapes into color bins from their images. [`04_question_types.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/04_question_types.py) asks a choice, a yes/no and a scale question about every ticket in one request. [`05_compliance_checklist.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/05_compliance_checklist.py) checks 24 fictional security documents against 100 controls and compares the answers with ground truth. [`06_control_mapping_tournament.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/06_control_mapping_tournament.py) maps evidence sentences to one of the 100 controls in three ways: a single choice, a tournament and a screening network. [`07_escalation.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/07_escalation.py) sorts the arXiv abstracts with a cascade of two decision models and shows which tier answered each paper.
+[`examples/15-decisions/01_ticket_triage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/01_ticket_triage.py) routes support tickets with Microsoft-Decision-1 (or any other provider) and sends ambiguous tickets to a supervisor. [`02_arxiv_race.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/02_arxiv_race.py) races an LLM against the available decision models on 100 arXiv abstracts. [`03_color_sorter.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/03_color_sorter.py) sorts generated shapes into color bins from their images. [`04_question_types.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/04_question_types.py) asks a choice, a yes/no and a scale question about every ticket in one request. [`05_compliance_checklist.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/05_compliance_checklist.py) checks 24 fictional security documents against 100 controls and compares the answers with ground truth. [`06_control_mapping_tournament.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/06_control_mapping_tournament.py) maps evidence sentences to one of the 100 controls in three ways: a single choice, a tournament and a screening network. [`07_escalation.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/07_escalation.py) sorts the arXiv abstracts with a cascade of two decision models and shows which tier answered each paper. [`08_voting.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/08_voting.py) lets three decision models vote on them and compares each model with the ensemble.
