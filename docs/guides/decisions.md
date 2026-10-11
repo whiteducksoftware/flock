@@ -387,6 +387,16 @@ Coverage is published per decision, so the latest coverage of a group is the cur
 
 On the 24 documents of 12 organisations from the compliance example ([`11_coverage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/11_coverage.py), Microsoft-Decision-1, threshold 0.8), the coverage per organisation agrees with the ground truth on 80 to 91 of the decided controls; "shown" has recall 1.00 and precision 0.79, and 110 of the 1,200 controls stay unsure.
 
+In the dashboard, the aggregating agent counts its groups by their latest outcome, and a coverage shows as a checklist grid for its group. No organisation shows all 100 controls, so every coverage fails; the grid shows which controls each organisation covers:
+
+<p align="center">
+  <img alt="audit decides a checklist per document; coverage combines them by organisation: 12 groups, all failed" src="../../assets/images/decisions/decision-coverage-agent-view.png" width="900">
+</p>
+
+<p align="center">
+  <img alt="Coverage of Verdant Rail over two documents: 39 controls yes, 52 no, 9 unsure" src="../../assets/images/decisions/decision-coverage-card.png" width="560">
+</p>
+
 ## Thresholds and the UNSURE branch
 
 With `threshold=0.8` the decision is firm only when the chosen option's probability is at least 0.8. Otherwise `choice` is `UNSURE` and only `Route.UNSURE` subscribers run, typically an LLM agent or a human-in-the-loop step. This is a confidence-gated cascade: keep the confident verdicts, escalate the rest.
