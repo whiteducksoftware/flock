@@ -7,10 +7,12 @@ any other decision, and reviewed decisions double as labels for calibration.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 from uuid import UUID
 
 from flock.core.artifacts import Artifact
+from flock.core.visibility import AfterVisibility, Visibility
 from flock.decisions.models import choice_of
 from flock.registry import RegistryError, type_registry
 
@@ -79,10 +81,26 @@ async def review_decision(
             type=original.type,
             payload=reviewed.model_dump(mode="json"),
             produced_by=reviewer,
-            visibility=original.visibility.model_copy(deep=True),
+            visibility=_remaining(original.visibility, original.created_at),
             correlation_id=original.correlation_id,
         )
     )
+
+
+def _remaining(visibility: Visibility, created_at: datetime) -> Visibility:
+    """The visibility with each embargo shortened by the time already passed.
+
+    A copied ``AfterVisibility`` would count its ttl again from the review's
+    creation; the review keeps the reviewed decision's end of embargo instead.
+    """
+    copy = visibility.model_copy(deep=True)
+    created = created_at if created_at.tzinfo else created_at.replace(tzinfo=UTC)
+    elapsed = datetime.now(UTC) - created
+    current = copy
+    while isinstance(current, AfterVisibility):
+        current.ttl = max(timedelta(0), current.ttl - elapsed)
+        current = current.then
+    return copy
 
 
 __all__ = ["review_decision"]
