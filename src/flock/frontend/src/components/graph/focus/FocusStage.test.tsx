@@ -139,6 +139,16 @@ describe('FocusStage', () => {
     expect(within(contract).getByLabelText('Publishes').textContent).toContain('TeamReplyreply?str · Short answer');
   });
 
+  it('moves between its tabs with the arrow keys', () => {
+    render(<FocusStage onOpenTrace={() => {}} />);
+    expect(screen.getAllByRole('tab').map((tab) => tab.tabIndex)).toEqual([0, -1, -1, -1, -1]);
+
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Live' }), { key: 'ArrowLeft' });
+
+    expect(screen.getByRole('tab', { name: 'Traces' }).getAttribute('aria-selected')).toBe('true');
+    expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Traces' }));
+  });
+
   it('returns to the board with its back button, and ends when the node leaves the board', () => {
     const { rerender } = render(<FocusStage onOpenTrace={() => {}} />);
     fireEvent.click(screen.getByRole('button', { name: /Board/ }));

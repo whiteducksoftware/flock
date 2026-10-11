@@ -8,6 +8,7 @@ import { useGraphStore } from '../../../store/graphStore';
 import { useUIStore } from '../../../store/uiStore';
 import { Icon } from '../../icons/Icon';
 import { Tag } from '../AgentNode';
+import { nextTab } from '../tabKeys';
 import { type AgentData, formatAgo, tagOf } from '../card/cardModel';
 import type { DeciderInfo } from '../DecisionDisplay';
 import { useAgentRuns } from '../unfold/agentRuns';
@@ -35,14 +36,13 @@ type FocusData = AgentData & { description?: string | null; model?: string | nul
 
 const dotClass = (status: string | undefined) => `sdot ${status === 'running' ? 'run' : status === 'error' ? 'err' : ''}`;
 
-/** The seconds since `at`, ticking while `active`. */
-const useSince = (at: string | null, active: boolean): number | null => {
+/** The seconds since `at`, ticking while the stage is open. */
+const useSince = (at: string | null): number | null => {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    if (!active) return;
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
-  }, [active]);
+  }, []);
   return at ? Math.max(0, (now - Date.parse(at)) / 1000) : null;
 };
 
@@ -80,7 +80,7 @@ const Stage: React.FC<StageProps> = ({ id, data, nodes, edges, onOpenTrace }) =>
   const { runs, error } = useAgentRuns(id, data.status, messagesCount);
   const { messages } = useMessageHistory(id, messagesCount);
   const active = runs?.find((run) => run.status === 'active');
-  const since = useSince(active?.startedAt ?? runs?.[0]?.startedAt ?? null, status === 'running');
+  const since = useSince(active?.startedAt ?? runs?.[0]?.startedAt ?? null);
   const lineage = lineageOf(id, nodes, edges);
   const tag = tagOf(data);
   const decider = data.decision as DeciderInfo | undefined;
@@ -120,7 +120,11 @@ const Stage: React.FC<StageProps> = ({ id, data, nodes, edges, onOpenTrace }) =>
           <span className={styles.divider} />
           <span className={dotClass(data.status)} role="img" aria-label={status === 'error' ? 'failed' : status} />
           <h1 className={styles.name}>{data.name ?? id}</h1>
-          {tag && <Tag tag={tag} />}
+          {tag && (
+            <span className={styles.tagSlot}>
+              <Tag tag={tag} />
+            </span>
+          )}
           {model && <span className={`mono ${styles.model}`}>{model}</span>}
           <span className={styles.activity} data-status={status}>
             {activity}
@@ -191,8 +195,20 @@ const Stage: React.FC<StageProps> = ({ id, data, nodes, edges, onOpenTrace }) =>
               id={`${tabIds}-${key}`}
               aria-selected={tab === key}
               aria-controls={`${tabIds}-panel`}
+              tabIndex={tab === key ? 0 : -1}
               className={styles.tab}
               onClick={() => setTab(key)}
+              onKeyDown={(event) => {
+                const next = nextTab(
+                  TABS.map((entry) => entry.key),
+                  tab,
+                  event.key,
+                );
+                if (!next) return;
+                event.preventDefault();
+                setTab(next);
+                document.getElementById(`${tabIds}-${next}`)?.focus();
+              }}
             >
               {label}
               {counts[key] !== undefined && ' '}
