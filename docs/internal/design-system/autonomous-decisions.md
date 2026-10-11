@@ -92,13 +92,16 @@ Each entry says what was decided, why, and where it landed.
 
 ### #561 Unfold a node in place
 
-- **Backend prerequisite on `main`:** agent nodes carry `description` and `model`, the model resolved as the agent gets it at run time (#592, PR #593).
+- **Backend prerequisites on `main`:**
+  - agent nodes carry `description` and `model`, the model resolved as the agent gets it at run time (#592, PR #593);
+  - the dashboard read its traces from `.flock/` next to the installed package while the tracer writes to the working directory, and looked for the file only at startup; it now reads the working directory's file on every request (#594, PR #595). Until then the trace viewer, and the Traces tab, showed nothing.
 - **One node is unfolded at a time,** as the issue proposed. It stays unfolded when the board zooms out to chips; it is what the reader looks at.
 - **Making room:**
   - a hierarchical layout reruns with the unfolded size (the design's rule);
   - circular, grid and random arrangements keep their shape and get room inserted: what lies right of the card moves right by the width it gains, what lies below moves down, so nothing that was apart overlaps;
   - the unfolded node keeps its top-left corner, so it opens where it was clicked;
   - folding puts every node back, animated like the unfolding.
+  - the board then pans as little as it takes to show all of the unfolded node (24 px margin, no zoom); a card at the edge used to unfold under the header.
 - **Positions while a node is unfolded are not saved,** and snapshot refreshes keep them (they win over the saved ones). Moving a node meanwhile lasts until the node folds. Nodes that arrive meanwhile wait for the fold, which then lays the board out anew.
 - **Keys:**
   - Space and Ctrl+Shift+D unfold or fold the focused agent, else the selected one, else the unfolded one; Space is left to buttons, fields, tabs and dialogs that have the focus.
