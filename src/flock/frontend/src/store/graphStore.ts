@@ -70,6 +70,8 @@ interface GraphState {
   updateAgentStatus: (agentId: string, status: string) => void;
   setInFlight: (runId: string, agentId: string, types: string[] | null, artifacts?: string[], correlationId?: string | null) => void;
   appendRunTail: (runId: string, text: string) => void;
+  /** Runs going on when the page connected, which it heard no start event of (their types are not known) */
+  seedInFlight: (runs: { runId: string; agent: string; artifacts: string[]; correlationId: string | null }[]) => void;
   /** Drops the streaming previews of an agent's run (all of them without arguments) */
   dropStreamingPreviews: (agent?: string, correlationId?: string | null) => void;
   updateStreamingTokens: (agentId: string, tokens: string[]) => void;
@@ -341,6 +343,18 @@ export const useGraphStore = create<GraphState>()(
               ),
           );
           return nodes.length === state.nodes.length ? {} : { nodes };
+        });
+      },
+
+      seedInFlight: (runs) => {
+        set((state) => {
+          const fresh = runs.filter((run) => !state.inFlight.has(run.runId));
+          if (fresh.length === 0) return {};
+          const inFlight = new Map(state.inFlight);
+          for (const run of fresh) {
+            inFlight.set(run.runId, { agent: run.agent, types: [], artifacts: run.artifacts, correlationId: run.correlationId });
+          }
+          return { inFlight };
         });
       },
 

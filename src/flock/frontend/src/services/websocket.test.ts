@@ -74,6 +74,30 @@ describe('WebSocketClient reconnects', () => {
     vi.restoreAllMocks();
   });
 
+  it('learns of the runs going on when it connects, but not of runs that ended meanwhile', async () => {
+    let answer!: (response: Response) => void;
+    const fetch = vi.fn(() => new Promise<Response>((resolve) => (answer = resolve)));
+    vi.stubGlobal('fetch', fetch);
+    const client = new WebSocketClient('ws://test/ws');
+    client.connect();
+    socket(0).open();
+    expect(fetch).toHaveBeenCalledWith('/api/runs/active');
+
+    // r-6 ends before the answer is in
+    (client as unknown as { handleMessage: (event: MessageEvent) => void }).handleMessage(
+      new MessageEvent('message', {
+        data: JSON.stringify({ event_type: 'agent_completed', data: { agent_name: 'urgency', run_id: 'r-6', agent_status: 'idle' } }),
+      }),
+    );
+    const run = (run_id: string, agent_name: string) => ({ run_id, agent_name, correlation_id: 'c-1', consumed_artifacts: ['t-1'], start_time: '2026-10-11T11:59:58+00:00' });
+    answer(new Response(JSON.stringify({ runs: [run('r-5', 'triage'), run('r-6', 'urgency')] })));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect([...useGraphStore.getState().inFlight.entries()]).toEqual([
+      ['r-5', { agent: 'triage', types: [], artifacts: ['t-1'], correlationId: 'c-1' }],
+    ]);
+  });
+
   it('schedules a retry after a failed connection and says when', () => {
     const client = new WebSocketClient('ws://test/ws');
     client.connect();

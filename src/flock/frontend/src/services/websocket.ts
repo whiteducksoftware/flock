@@ -17,6 +17,8 @@ export class WebSocketClient {
   private reconnectAttempt = 0;
   // A connection was lost; the next one refreshes the board
   private connectionLost = false;
+  /** Runs that ended since the page last asked which runs go on: a late answer must not bring them back */
+  private endedRuns = new Set<string>();
   private maxReconnectDelay = 30000; // 30 seconds
   private connectionTimeout: number | null = null;
   private connectionTimeoutMs = 10000; // 10 seconds
@@ -166,6 +168,29 @@ export class WebSocketClient {
     }
   }
 
+  private seedActiveRuns(): void {
+    this.endedRuns.clear();
+    fetch('/api/runs/active')
+      .then((response) => (response.ok ? response.json() : null))
+      .then(
+        (data: { runs?: { run_id: string; agent_name: string; correlation_id: string | null; consumed_artifacts?: string[] }[] } | null) => {
+          // An older server answers without the endpoint
+          if (!Array.isArray(data?.runs)) return;
+          useGraphStore.getState().seedInFlight(
+            data.runs
+              .filter((run) => !this.endedRuns.has(run.run_id))
+              .map((run) => ({
+                runId: run.run_id,
+                agent: run.agent_name,
+                artifacts: run.consumed_artifacts ?? [],
+                correlationId: run.correlation_id ?? null,
+              })),
+          );
+        },
+      )
+      .catch(() => {});
+  }
+
   private setupEventHandlers(): void {
     // Handler for agent_activated: create/update agent in graph AND create Run
     this.on('agent_activated', (data) => {
@@ -278,6 +303,7 @@ export class WebSocketClient {
       useGraphStore.getState().dropStreamingPreviews(data.agent_name, data.correlation_id ?? null);
       // This run is done; another one keeps its own types in flight
       useGraphStore.getState().setInFlight(data.run_id, data.agent_name, null);
+      this.endedRuns.add(data.run_id);
       // A newer run failed: the snapshot says what (lastError)
       if (status === 'error') this.scheduleGraphRefresh();
 
@@ -296,6 +322,7 @@ export class WebSocketClient {
       // The failed run's stream is no artifact
       useGraphStore.getState().dropStreamingPreviews(data.agent_name, data.correlation_id ?? null);
       useGraphStore.getState().setInFlight(data.run_id, data.agent_name, null);
+      this.endedRuns.add(data.run_id);
       // The snapshot says what failed (lastError)
       this.scheduleGraphRefresh();
 
@@ -470,6 +497,8 @@ export class WebSocketClient {
             .then((summary) => useFilterStore.getState().setSummary(summary))
             .catch((error) => console.error('[WebSocket] Summary refresh failed:', error));
         }
+        // A page hears of a run from its start event only: ask which runs go on now
+        this.seedActiveRuns();
         this.reconnectAttempt = 0;
         this.flushBuffer();
         if (this.enableHeartbeat) {
