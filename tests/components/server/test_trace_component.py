@@ -271,6 +271,55 @@ class TestAgentTraces:
         )
         assert response.json() == []
 
+    async def test_finds_an_agent_whose_name_has_a_slash(
+        self, app, orchestrator, agent_runs_db
+    ):
+        conn = duckdb.connect(str(agent_runs_db))
+        conn.execute(
+            """
+            INSERT INTO spans (
+                trace_id, span_id, parent_id, name, service, operation,
+                kind, start_time, end_time, duration_ms, status_code,
+                status_description, attributes, events, links, resource
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            _span(
+                "t5", "s1", None, "Agent.execute", 500, {"agent.name": "team/billing"}
+            ),
+        )
+        conn.close()
+
+        response = await self._get(
+            app,
+            orchestrator,
+            agent_runs_db,
+            "/api/plugin/traces/agents/team%2Fbilling",
+        )
+
+        assert [span["context"]["span_id"] for span in response.json()] == ["s1"]
+
+    async def test_reads_off_the_event_loop(
+        self, app, orchestrator, agent_runs_db, monkeypatch
+    ):
+        import asyncio
+
+        import flock.components.server.traces.trace_component as module
+
+        threads = []
+        original = asyncio.to_thread
+
+        async def to_thread(func, *args):
+            threads.append(func.__name__)
+            return await original(func, *args)
+
+        monkeypatch.setattr(module.asyncio, "to_thread", to_thread)
+        response = await self._get(
+            app, orchestrator, agent_runs_db, "/api/plugin/traces/agents/billing_team"
+        )
+
+        assert response.status_code == 200
+        assert threads == ["read_agent_traces"]
+
     async def test_keeps_the_number_of_runs_in_bounds(
         self, app, orchestrator, agent_runs_db
     ):
