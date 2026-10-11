@@ -412,4 +412,27 @@ describe('AgentNode', () => {
     expect(summary).toHaveTextContent('Controls by organisation (any)');
     expect(summary).toHaveTextContent('1 passed · 10 failed · 1 unsure');
   });
+
+  it('should count the item thresholds of a calibrated checklist decider', () => {
+    const data: AgentNodeData = {
+      name: 'audit',
+      status: 'idle',
+      subscriptions: ['Document'],
+      sentCount: 1,
+      recvCount: 1,
+      decision: {
+        model: 'fast',
+        threshold: 0.8,
+        itemThresholds: { mfa: 0.7, logs: 0.9 },
+        questions: [{ name: 'Controls', kind: 'checklist', options: ['mfa', 'logs'], counts: {} }],
+      },
+    };
+
+    render(
+      <ReactFlowProvider>
+        <AgentNode {...createNodeProps(data)} />
+      </ReactFlowProvider>
+    );
+    expect(screen.getByText(/2 item thresholds/)).toBeInTheDocument();
+  });
 });

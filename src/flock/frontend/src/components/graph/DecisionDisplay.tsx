@@ -44,6 +44,7 @@ export interface DeciderInfo {
   ensemble?: string[]; // models that all answer every question (instead of `model`)
   vote?: string; // how the ensemble decides: majority, unanimous or mean
   shadow?: { model: string; compared: number; agree: number }; // shadow model and its agreement
+  itemThresholds?: Record<string, number>; // checklist items with their own threshold
 }
 
 export interface ShadowAnswer {
@@ -550,6 +551,11 @@ export const DeciderOptions = memo(({ decider }: { decider: DeciderInfo }) => {
           ? `${decider.vote} of ${decider.ensemble.join(' + ')}`
           : [decider.model, ...(decider.escalate ?? [])].join(' › ')}
         {decider.threshold !== null ? ` · threshold ${decider.threshold.toFixed(2)}` : ''}
+        {decider.itemThresholds ? (
+          <span title={Object.entries(decider.itemThresholds).map(([item, t]) => `${item} ${t.toFixed(2)}`).join(', ')}>
+            {` · ${Object.keys(decider.itemThresholds).length} item thresholds`}
+          </span>
+        ) : null}
         {decider.shadow ? (
           <div data-testid="decider-shadow" title="Decisions where the shadow model chose the same as the decider">
             {`shadow ${decider.shadow.model} · agrees ${decider.shadow.agree}/${decider.shadow.compared}`}
