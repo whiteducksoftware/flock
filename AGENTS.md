@@ -268,6 +268,7 @@ for name, service, ms, status, error in conn.execute(
 
 - **Build flow:** the first `serve(dashboard=True)` builds the frontend (`npm run build` in `src/flock/frontend`) into `src/flock/api/static/`, which is gitignored, and serves it on port 8344. Never commit a frontend build: a UI change consists of the source in `src/flock/frontend/src`, tests and the version bump.
 - **Manual check:** run `uv run python examples/04-misc/02-dashboard-edge-cases.py` and open `http://localhost:8344` with a browser tool such as playwright-mcp.
+  For every state at once (decisions, streaming, joins, batches, timers, failures) without API keys, run `uv run python examples/04-misc/10_dashboard_triage_demo.py` (`--port 8345` for a second dashboard).
   1. The title is "🦆🐓 Flock 🐤🐧", the WebSocket status is "Connected", and the views are "Agent View" and "Blackboard View".
   2. Publish an artifact from the publish panel. Agents should go from idle to running to idle, and counters and edges should update live.
   3. Auto Layout is in the right-click menu of the canvas (hierarchical, circular, grid, random).
