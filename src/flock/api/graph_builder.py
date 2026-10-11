@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
@@ -550,21 +551,22 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 return kind
         return None
 
-    @staticmethod
-    def _model(agent: object) -> str | None:
+    def _model(self, agent: object) -> str | None:
         """The model the agent's engine runs on, for its card.
 
-        An agent without engines runs on the default DSPy engine with the
-        flock's model, and so does an engine whose ``model`` is unset. An
-        engine without a ``model`` attribute (a decider's, a scripted one)
-        names none.
+        As ``Agent._resolve_engines`` sets it up at run time: an agent without
+        engines runs on the default DSPy engine with the flock's model (or
+        ``DEFAULT_MODEL``, else ``openai/gpt-4.1``), and an engine whose
+        ``model`` is unset gets the flock's model. An engine without a
+        ``model`` attribute (a decider's, a scripted one) names none.
         """
+        flock_model = getattr(self._orchestrator, "model", None)
         engines = getattr(agent, "engines", None) or []
         if not engines:
-            return getattr(agent, "model", None)
+            return flock_model or os.getenv("DEFAULT_MODEL", "openai/gpt-4.1")
         for engine in engines:
             if hasattr(engine, "model"):
-                return engine.model or getattr(agent, "model", None)
+                return engine.model or flock_model
         return None
 
     @staticmethod

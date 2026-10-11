@@ -615,7 +615,7 @@ async def test_agent_cards_get_their_description_and_model():
     class ScriptedEngine(EngineComponent):
         pass
 
-    orchestrator = Flock("openai/gpt-4.1")
+    orchestrator = Flock("azure/gpt-5")
     orchestrator.agent("writer").description("Writes replies").consumes(
         ModelCardTicket
     ).publishes(ModelCardReply)
@@ -631,6 +631,8 @@ async def test_agent_cards_get_their_description_and_model():
     orchestrator.agent("triage").consumes(ModelCardTicket).decides(
         ModelCardRoute, model=FakeDecider({"billing": 0.9, "tech": 0.1})
     )
+    # Registered directly, not through the builder
+    orchestrator.register_agent(Agent("direct", orchestrator=orchestrator))
     await orchestrator.store.publish(
         Artifact(
             type="ModelCardTicket",
@@ -649,8 +651,9 @@ async def test_agent_cards_get_their_description_and_model():
     assert data["writer"]["description"] == "Writes replies"
     assert data["tuned"]["description"] is None
     # No engine of its own, or an engine without a model: the flock's model
-    assert data["writer"]["model"] == "openai/gpt-4.1"
-    assert data["unset"]["model"] == "openai/gpt-4.1"
+    assert data["writer"]["model"] == "azure/gpt-5"
+    assert data["unset"]["model"] == "azure/gpt-5"
+    assert data["direct"]["model"] == "azure/gpt-5"
     assert data["tuned"]["model"] == "azure/gpt-4.1-mini"
     # An engine that names no model, and a decider (its decision model is in its decider info)
     assert data["scripted"]["model"] is None
