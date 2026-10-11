@@ -723,9 +723,9 @@ class SQLiteBlackboardStore(BlackboardStore):
         span = (as_utc(filters.end) - start) // MICROSECOND
         conn = await self._get_connection()
         where_clause, params = self._build_filters(filters)
-        # Whole microseconds, as flock.storage.histogram buckets (julianday()
-        # rounds): created_at holds as_utc(...).isoformat(), seconds in its
-        # first 19 characters and microseconds after a dot
+        # Integer microseconds, as flock.storage.histogram buckets, so no
+        # floating point moves an edge: created_at holds as_utc(...).isoformat(),
+        # seconds in its first 19 characters and microseconds after a dot
         query = f"""
             SELECT
                 ((CAST(strftime('%s', substr(created_at, 1, 19)) AS INTEGER)
