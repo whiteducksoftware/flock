@@ -13,6 +13,16 @@ export type AutoLayoutMode =
 
 export type BlackboardView = 'lanes' | 'table';
 
+/** A short message at the bottom of the board, with an optional action. */
+export interface ToastMessage {
+  message: string;
+  /** The tooltip of the message, e.g. a full run ID */
+  title?: string;
+  /** A second, fainter line */
+  detail?: string;
+  action?: { label: string; onClick: () => void };
+}
+
 interface UIState {
   // Visualization mode
   mode: VisualizationMode;
@@ -52,6 +62,11 @@ interface UIState {
   foldArtifact: () => void;
   needsReviewOnly: boolean;
   setNeedsReviewOnly: (on: boolean) => void;
+
+  // The toast, one at a time; it closes itself (not saved)
+  toast: ToastMessage | null;
+  showToast: (toast: ToastMessage) => void;
+  dismissToast: () => void;
 
   // Layout preferences
   layoutDirection: 'TB' | 'LR';
@@ -109,6 +124,10 @@ export const useUIStore = create<UIState>()(
         foldArtifact: () => set({ unfoldedArtifactId: null }),
         needsReviewOnly: false,
         setNeedsReviewOnly: (on: boolean) => set({ needsReviewOnly: on }),
+
+        toast: null,
+        showToast: (toast: ToastMessage) => set({ toast }),
+        dismissToast: () => set({ toast: null }),
 
         layoutDirection: 'TB',
         setLayoutDirection: (direction: 'TB' | 'LR') => set({ layoutDirection: direction }),
