@@ -706,6 +706,11 @@ class AgentBuilder:
                 # Dict without explicit threshold: add semantic_threshold
                 semantic_param = {**semantic_match, "threshold": semantic_threshold}
 
+        if batch is not None and self._is_explainer():
+            raise ValueError(
+                f"Agent '{self._agent.name}': .explains() explains one subject's "
+                "decisions at a time; batch subscriptions are not supported."
+            )
         # Semantic matching: pass semantic_match parameter to Subscription
         # which will parse it into TextPredicate objects
         subscription = Subscription(

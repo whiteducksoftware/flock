@@ -32,7 +32,6 @@ DEFAULT_INSTRUCTIONS = (
 )
 
 
-@flock_type
 class DecisionToExplain(BaseModel):
     """A decision as the explaining LLM sees it."""
 
@@ -58,6 +57,19 @@ class DecisionToExplain(BaseModel):
     refused_items: list[str] = Field(
         default_factory=list,
         description="Checklists: items the decision model refused to answer",
+    )
+
+
+@flock_type
+class DecisionsToExplain(BaseModel):
+    """The decisions that triggered an explaining agent, in one input.
+
+    One artifact for all of them: the DSPy engine passes a single input per
+    type to the LLM.
+    """
+
+    decisions: list[DecisionToExplain] = Field(
+        description="The decisions to explain, about the same subject"
     )
 
 
@@ -113,8 +125,8 @@ def decision_case(decision_type: str, payload: dict[str, Any]) -> DecisionToExpl
 class ExplainEngine(DSPyEngine):
     """Asks an LLM to explain the decisions that triggered the agent.
 
-    The LLM gets the decided artifacts and one :class:`DecisionToExplain` per
-    decision; the published :class:`Explanation` is linked to the decisions
+    The LLM gets the decided artifacts and :class:`DecisionsToExplain` with one
+    :class:`DecisionToExplain` per decision; the published :class:`Explanation` is linked to the decisions
     and keeps the subjects' visibility.
     """
 
@@ -133,18 +145,18 @@ class ExplainEngine(DSPyEngine):
         if not decisions:  # another trigger: nothing to explain or link to
             return EvalResult(artifacts=[], state=dict(inputs.state))
         visibility = self._readership(inputs.artifacts)  # before the LLM is paid
-        cases = [
-            Artifact(
-                type=type_registry.name_for(DecisionToExplain),
-                payload=decision_case(item["type"], item["payload"]).model_dump(
-                    mode="json"
-                ),
-                produced_by=agent.name,
-            )
-            for item in decisions
-        ]
+        cases = DecisionsToExplain(
+            decisions=[
+                decision_case(item["type"], item["payload"]) for item in decisions
+            ]
+        )
+        case_artifact = Artifact(
+            type=type_registry.name_for(DecisionsToExplain),
+            payload=cases.model_dump(mode="json"),
+            produced_by=agent.name,
+        )
         augmented = EvalInputs(
-            artifacts=[*inputs.artifacts, *cases], state=dict(inputs.state)
+            artifacts=[*inputs.artifacts, case_artifact], state=dict(inputs.state)
         )
         result = await super().evaluate(agent, ctx, augmented, output_group)
 
@@ -175,4 +187,10 @@ class ExplainEngine(DSPyEngine):
             ) from None
 
 
-__all__ = ["DecisionToExplain", "ExplainEngine", "Explanation", "decision_case"]
+__all__ = [
+    "DecisionToExplain",
+    "DecisionsToExplain",
+    "ExplainEngine",
+    "Explanation",
+    "decision_case",
+]

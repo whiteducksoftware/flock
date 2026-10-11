@@ -685,7 +685,13 @@ describe('MessageNode', () => {
     );
     const note = screen.getByTestId('decision-explanation');
     expect(note).toHaveTextContent('explainer: Both a crash and a charge.');
-    expect(note).toHaveAttribute('title', expect.stringContaining('Which came first.'));
+    expect(note).not.toHaveTextContent('Which came first.');
+    // The whole explanation opens with a focusable control, not only on hover
+    const toggle = screen.getByRole('button', { name: 'Show the whole explanation' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(toggle);
+    expect(note).toHaveTextContent('Would settle it: Which came first.');
+    expect(screen.getByRole('button', { name: 'Show less of the explanation' })).toHaveAttribute('aria-expanded', 'true');
   });
 
   it('should summarize the checklist votes of an ensemble', () => {

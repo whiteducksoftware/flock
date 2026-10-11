@@ -921,20 +921,40 @@ export const ExplanationCard = memo(({ explanation }: { explanation: Explanation
 ExplanationCard.displayName = 'ExplanationCard';
 
 /** The latest explanation of a decision, shown on the decision's card. */
-const ExplanationNote = memo(({ explanation }: { explanation: NonNullable<DecisionInfo['explanation']> }) => (
-  <div
-    data-testid="decision-explanation"
-    title={[explanation.explanation, explanation.missing ? `Would settle it: ${explanation.missing}` : '', explanation.model]
-      .filter(Boolean)
-      .join('\n\n')}
-    style={{ ...NOTE_STYLE, maxWidth: '420px', padding: '4px 8px', borderLeft: `3px solid ${DECISION_COLOR}`, background: '#f5f3ff' }}
-  >
-    {/* Clamped inside the padding, so no part of a fourth line shows */}
-    <div style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-      {`💬 ${explanation.by ?? explanation.model}: ${explanation.explanation}`}
+const ExplanationNote = memo(({ explanation }: { explanation: NonNullable<DecisionInfo['explanation']> }) => {
+  const [open, setOpen] = useState(false);
+  const text = `💬 ${explanation.by ?? explanation.model}: ${explanation.explanation}`;
+  return (
+    <div
+      data-testid="decision-explanation"
+      style={{ ...NOTE_STYLE, maxWidth: '420px', padding: '4px 8px', borderLeft: `3px solid ${DECISION_COLOR}`, background: '#f5f3ff' }}
+    >
+      {open ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <div>{text}</div>
+          {explanation.missing ? <div style={{ color: '#b45309' }}>{`Would settle it: ${explanation.missing}`}</div> : null}
+          <div style={{ fontSize: '10px', color: STONE, fontFamily: 'monospace' }}>{explanation.model}</div>
+        </div>
+      ) : (
+        // Clamped inside the padding, so no part of a fourth line shows
+        <div style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{text}</div>
+      )}
+      <button
+        type="button"
+        className="nodrag nopan"
+        aria-expanded={open}
+        aria-label={open ? 'Show less of the explanation' : 'Show the whole explanation'}
+        onClick={(event) => {
+          event.stopPropagation();
+          setOpen(!open);
+        }}
+        style={{ marginTop: '2px', padding: 0, border: 'none', background: 'none', color: VIOLET_TEXT, fontSize: '10px', fontWeight: 700, cursor: 'pointer' }}
+      >
+        {open ? 'less' : 'more'}
+      </button>
     </div>
-  </div>
-));
+  );
+});
 ExplanationNote.displayName = 'ExplanationNote';
 
 /** Escalation: the lower tiers that were not sure, then the model that answered. */

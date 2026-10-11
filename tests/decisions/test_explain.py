@@ -7,8 +7,8 @@ from pydantic import BaseModel
 
 from flock.core import Flock
 from flock.core.visibility import PrivateVisibility
-from flock.decisions import UNSURE, Checklist, Choice, Decision, FakeDecider
-from flock.decisions.explain import DecisionToExplain, Explanation
+from flock.decisions import UNSURE, Checklist, Choice, Decision, FakeDecider, YesNo
+from flock.decisions.explain import DecisionsToExplain, Explanation
 from flock.engines.dspy_engine import DSPyEngine
 from flock.registry import flock_type, type_registry
 from flock.utils.runtime import EvalResult
@@ -98,9 +98,9 @@ async def test_the_llm_sees_the_subject_and_the_decision(llm):
     types = [a.type for a in inputs.artifacts]
     assert types == [
         type_registry.name_for(ExplainTicket),
-        type_registry.name_for(DecisionToExplain),
+        type_registry.name_for(DecisionsToExplain),
     ]
-    case = DecisionToExplain(**inputs.artifacts[1].payload)
+    (case,) = DecisionsToExplain(**inputs.artifacts[1].payload).decisions
     assert case.question == "Which team should handle this ticket?"
     assert case.options == {
         "billing": "Charges, invoices, refunds",
@@ -147,7 +147,7 @@ async def test_a_checklist_case_carries_the_item_results(llm):
     await flock.run_until_idle()
 
     (inputs,) = llm
-    case = DecisionToExplain(**inputs.artifacts[1].payload)
+    (case,) = DecisionsToExplain(**inputs.artifacts[1].payload).decisions
     assert case.results == {"mfa": "yes", "backup": UNSURE}
     assert case.options["backup"] == "Backups are tested"
 
@@ -166,7 +166,7 @@ async def test_a_restricted_decision_shows_only_its_candidates(llm):
     await flock.run_until_idle()
 
     (inputs,) = llm
-    case = DecisionToExplain(**inputs.artifacts[1].payload)
+    (case,) = DecisionsToExplain(**inputs.artifacts[1].payload).decisions
     assert case.options == {"backup": "Backups are tested"}
 
 
@@ -186,7 +186,7 @@ async def test_refused_checklist_items_are_named(llm):
     await flock.run_until_idle()
 
     (inputs,) = llm
-    case = DecisionToExplain(**inputs.artifacts[1].payload)
+    (case,) = DecisionsToExplain(**inputs.artifacts[1].payload).decisions
     assert (case.refused, case.refused_items) == (False, ["backup"])
 
 
@@ -253,6 +253,50 @@ async def test_explains_visibility_sets_the_readership(llm):
 
     (explanation,) = await _artifacts(flock, Explanation)
     assert explanation.visibility.agents == {"auditor"}
+
+
+class ExplainUrgent(YesNo):
+    """Does the customer need an answer today?"""
+
+
+async def test_every_decision_of_an_and_handle_reaches_the_llm(llm):
+    flock = Flock("openai/gpt-4.1")
+    flock.agent("triage").consumes(ExplainTicket).decides(
+        ExplainRoute,
+        ExplainUrgent,
+        model=FakeDecider({
+            "ExplainRoute": {"billing": 0.55, "tech": 0.45},
+            "ExplainUrgent": {"yes": 0.6, "no": 0.4},
+        }),
+        threshold=0.8,
+    )
+    flock.agent("explainer").consumes(
+        ExplainRoute.UNSURE, ExplainUrgent.UNSURE
+    ).explains()
+
+    await flock.publish(ExplainTicket(text="charged twice, need it fixed today?"))
+    await flock.run_until_idle()
+
+    (inputs,) = llm
+    cases = DecisionsToExplain(**inputs.artifacts[1].payload).decisions
+    # The decisions arrive in any order
+    assert sorted(case.question for case in cases) == [
+        "Does the customer need an answer today?",
+        "Which team should handle this ticket?",
+    ]
+    (explanation,) = await _artifacts(flock, Explanation)
+    assert sorted(explanation.payload["questions"]) == ["ExplainRoute", "ExplainUrgent"]
+
+
+def test_a_batched_subscription_cannot_be_added_to_an_explainer_later():
+    from flock.core.subscription import BatchSpec
+
+    builder = (
+        Flock("openai/gpt-4.1").agent("x").consumes(ExplainRoute.UNSURE).explains()
+    )
+
+    with pytest.raises(ValueError, match="batch"):
+        builder.consumes(ExplainRoute.billing, batch=BatchSpec(size=2))
 
 
 def test_explains_rejects_batched_subscriptions():
