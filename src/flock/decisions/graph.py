@@ -214,10 +214,48 @@ def decision_view(
     return view
 
 
+def is_explanation_type(type_name: str) -> bool:
+    """True for the type name of :class:`~flock.decisions.explain.Explanation`."""
+    from flock.decisions.explain import Explanation
+
+    return type_name == type_registry.name_for(Explanation)
+
+
+def explanation_view(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Explanation fields for the dashboard's explanation artifact view."""
+    return {
+        "explanation": payload.get("explanation", ""),
+        "missing": payload.get("missing"),
+        "model": payload.get("model", ""),
+        "questions": list(payload.get("questions") or []),
+    }
+
+
+def explanations_by_decision(
+    explanations: Iterable[tuple[Mapping[str, Any], str | None]],
+) -> dict[str, dict[str, Any]]:
+    """Decision id -> the latest explanation of it, from ``(payload, producer)``
+    pairs in publication order."""
+    by_decision: dict[str, dict[str, Any]] = {}
+    for payload, producer in explanations:
+        view = {
+            "explanation": payload.get("explanation", ""),
+            "missing": payload.get("missing"),
+            "model": payload.get("model", ""),
+            "by": producer,
+        }
+        for decision_id in payload.get("decision_ids") or []:
+            by_decision[str(decision_id)] = view
+    return by_decision
+
+
 __all__ = [
     "choice_type_labels",
     "decider_info",
     "decision_label",
     "decision_view",
+    "explanation_view",
+    "explanations_by_decision",
     "is_decision_type",
+    "is_explanation_type",
 ]
