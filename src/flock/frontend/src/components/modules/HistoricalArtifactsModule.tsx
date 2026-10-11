@@ -16,25 +16,18 @@ type HistoricalArtifactsModuleProps = {
   context: ModuleContext;
 };
 
+// "The last N minutes" bounds the start only: artifacts stamped after the
+// browser's clock reading (another clock, a publish racing the request) still show
 const resolveTimeRangeToIso = (range: TimeRangeSelection): { from?: string; to?: string } => {
   const now = Date.now();
   if (range.preset === 'last5min') {
-    return {
-      from: new Date(now - 5 * 60 * 1000).toISOString(),
-      to: new Date(now).toISOString(),
-    };
+    return { from: new Date(now - 5 * 60 * 1000).toISOString() };
   }
   if (range.preset === 'last10min') {
-    return {
-      from: new Date(now - 10 * 60 * 1000).toISOString(),
-      to: new Date(now).toISOString(),
-    };
+    return { from: new Date(now - 10 * 60 * 1000).toISOString() };
   }
   if (range.preset === 'last1hour') {
-    return {
-      from: new Date(now - 60 * 60 * 1000).toISOString(),
-      to: new Date(now).toISOString(),
-    };
+    return { from: new Date(now - 60 * 60 * 1000).toISOString() };
   }
   if (range.preset === 'custom' && range.start && range.end) {
     return {
