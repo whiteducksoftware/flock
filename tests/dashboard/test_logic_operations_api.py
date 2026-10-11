@@ -22,6 +22,7 @@ Related:
   - Dashboard service: src/flock/dashboard/service.py
 """
 
+import time
 from datetime import UTC, datetime, timedelta
 from unittest.mock import Mock
 from uuid import uuid4
@@ -452,11 +453,9 @@ def test_get_batch_state_timeout_based():
     batch_spec = BatchSpec(timeout=timedelta(seconds=30))
     batch_key = (agent_name, subscription_index)
 
-    # Create batch accumulator 18 seconds ago
-    accumulator = BatchAccumulator(
-        batch_spec=batch_spec,
-        created_at=datetime.now(UTC) - timedelta(seconds=18),
-    )
+    # Create batch accumulator 18 seconds ago, on the clock its timeout uses
+    accumulator = BatchAccumulator(batch_spec=batch_spec, created_at=datetime.now(UTC))
+    accumulator._started -= 18
     # Add at least one artifact (empty batches return None)
     artifact = Artifact(
         id=uuid4(),
@@ -502,11 +501,9 @@ def test_get_batch_state_dual_condition():
     batch_spec = BatchSpec(size=25, timeout=timedelta(seconds=30))
     batch_key = (agent_name, subscription_index)
 
-    # Create batch with 10 artifacts, 12 seconds ago
-    accumulator = BatchAccumulator(
-        batch_spec=batch_spec,
-        created_at=datetime.now(UTC) - timedelta(seconds=12),
-    )
+    # Create batch with 10 artifacts, 12 seconds ago on the clock its timeout uses
+    accumulator = BatchAccumulator(batch_spec=batch_spec, created_at=datetime.now(UTC))
+    accumulator._started -= 12
     for i in range(10):
         artifact = Artifact(
             id=uuid4(),
@@ -536,6 +533,47 @@ def test_get_batch_state_dual_condition():
 
     # Prediction: Neither close to triggering, so "unknown"
     assert result["will_flush"] in ["unknown", "on_size", "on_timeout"]
+
+
+@pytest.fixture
+def host_at_utc_plus_2(monkeypatch):
+    """The host's local time is two hours ahead of UTC."""
+    monkeypatch.setenv("TZ", "TEST-2")  # POSIX: local = UTC + 2 h
+    time.tzset()
+    yield
+    monkeypatch.undo()
+    time.tzset()
+
+
+@pytest.mark.skipif(not hasattr(time, "tzset"), reason="time.tzset is POSIX only")
+def test_get_batch_state_outside_utc(host_at_utc_plus_2):
+    """
+    GIVEN: a host two hours ahead of UTC, and a batch the engine just started
+    WHEN: _get_batch_state() is called
+    THEN: the batch has its whole timeout left, and created_at says it is UTC (#590)
+    """
+    from flock.components.server.control.helpers import _get_batch_state
+
+    engine = BatchEngine()
+    batch_spec = BatchSpec(timeout=timedelta(seconds=60))
+    engine.add_artifact(
+        artifact=Artifact(
+            id=uuid4(),
+            type="Email",
+            payload={"subject": "Test", "body": "test"},
+            produced_by="mailer",
+            visibility=PublicVisibility(),
+        ),
+        subscription=Mock(agent_name="email_processor", batch=batch_spec),
+        subscription_index=0,
+    )
+
+    result = _get_batch_state(engine, "email_processor", 0, batch_spec)
+
+    assert result is not None
+    assert 0 <= result["elapsed_seconds"] < 2
+    assert 58 <= result["timeout_remaining_seconds"] <= 60
+    assert datetime.fromisoformat(result["created_at"]).utcoffset() == timedelta(0)
 
 
 def test_get_batch_state_group_count():

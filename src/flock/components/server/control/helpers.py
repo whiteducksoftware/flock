@@ -148,12 +148,8 @@ def _get_batch_state(
     if not accumulator or not accumulator.artifacts:
         return None
 
-    now = datetime.now(UTC)
-    # Ensure accumulator.created_at is timezone-aware
-    created_at = accumulator.created_at
-    if created_at.tzinfo is None:
-        created_at = created_at.replace(tzinfo=UTC)
-    elapsed = (now - created_at).total_seconds()
+    # On the clock the timeout uses; created_at is for display
+    elapsed = accumulator.elapsed_seconds()
 
     # Calculate items collected (needed for all batch types)
     items_collected = len(accumulator.artifacts)
