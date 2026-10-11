@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest';
 import type { Edge, Node } from '@xyflow/react';
 import { lineageOf } from './lineage';
 
-const agent = (id: string, outputTypes: string[] = []): Node => ({
+const agent = (id: string, outputTypes: string[] = [], typeLabels?: Record<string, string>): Node => ({
   id,
   type: 'agent',
   position: { x: 0, y: 0 },
-  data: { name: id, outputTypes },
+  data: { name: id, outputTypes, typeLabels },
 });
 const flow = (source: string, target: string, messageType: string, decisionChoice?: string): Edge => ({
   id: `${source}-${target}-${messageType}-${decisionChoice ?? ''}`,
@@ -20,8 +20,8 @@ const flow = (source: string, target: string, messageType: string, decisionChoic
 const nodes = [
   agent('external', ['app.SupportTicket']),
   agent('triage', ['Decision[app.Route]']),
-  agent('billing_team', ['app.TeamReply']),
-  agent('supervisor', ['app.TeamReply']),
+  agent('billing_team', ['app.TeamReply'], { 'Decision[app.Route]': '◆ Route.billing' }),
+  agent('supervisor', ['app.TeamReply'], { 'Decision[app.Route]': '◆ Route.UNSURE' }),
   agent('crm_sync', ['app.CrmRecord']),
 ];
 const edges = [
@@ -70,7 +70,7 @@ describe('lineageOf', () => {
   it('keeps a decision label the server already qualified (yes/no, scale, checklist)', () => {
     const escalation = [
       agent('triage', ['Decision[app.Escalate]']),
-      agent('pager', ['app.Page']),
+      agent('pager', ['app.Page'], { 'Decision[app.Escalate]': '◆ Escalate.yes' }),
     ];
     const lineage = lineageOf('pager', escalation, [flow('triage', 'pager', 'Decision[app.Escalate]', 'Escalate.yes')]);
 
@@ -78,10 +78,22 @@ describe('lineageOf', () => {
   });
 
   it('qualifies an option that has dots of its own (Choice.from_options ids)', () => {
-    const controls = [agent('mapper', ['Decision[app.Control]']), agent('auditor', ['app.Finding'])];
+    const controls = [agent('mapper', ['Decision[app.Control]']), agent('auditor', ['app.Finding'], { 'Decision[app.Control]': '◆ Control.ORP.1.A1' })];
     const lineage = lineageOf('auditor', controls, [flow('mapper', 'auditor', 'Decision[app.Control]', 'ORP.1.A1')]);
 
     expect(lineage.upstream).toEqual([{ node: 'mapper', label: 'Control.ORP.1.A1', decision: true }]);
+  });
+
+  it('shows a consumer of the decision itself the decider, not the subject', () => {
+    // Decision.of(Route): its edges carry the option too, but no handle label
+    const audit = [...nodes, agent('audit', ['app.Entry'])];
+    const lineage = lineageOf('audit', audit, [
+      ...edges,
+      flow('triage', 'audit', 'Decision[app.Route]', 'billing'),
+      flow('triage', 'audit', 'Decision[app.Route]', 'UNSURE'),
+    ]);
+
+    expect(lineage.upstream).toEqual([{ node: 'triage', label: 'Route', decision: true }]);
   });
 
   it('shows what a source sent, consumed or not', () => {

@@ -71,6 +71,21 @@ const serve = () =>
           ],
         },
         '/api/streaming-history/billing_team': { events: [] },
+        // The running run took a decision; the handle delivers its subject
+        '/api/v1/artifacts/d-1': {
+          id: 'd-1',
+          type: 'flock.decisions.Decision[app.Route]',
+          payload: { choice: 'billing', subject_ids: ['t-2'] },
+          created_at: '2026-10-11T12:01:10Z',
+          correlation_id: '5d21bbbb',
+        },
+        '/api/v1/artifacts/t-2': {
+          id: 't-2',
+          type: 'app.SupportTicket',
+          payload: { subject: 'Charged twice' },
+          created_at: '2026-10-11T12:01:08Z',
+          correlation_id: '5d21bbbb',
+        },
         '/api/artifact-types': {
           artifact_types: [
             { name: 'app.SupportTicket', schema: { properties: { subject: { type: 'string' } }, required: ['subject'] } },
@@ -86,7 +101,11 @@ const serve = () =>
 describe('FocusStage', () => {
   beforeEach(() => {
     serve();
-    useGraphStore.setState({ nodes, edges });
+    useGraphStore.setState({
+      nodes,
+      edges,
+      inFlight: new Map([['7c1e04aa', { agent: 'billing_team', types: ['Decision[app.Route]'], artifacts: ['d-1'] }]]),
+    });
     useUIStore.setState({ focusedNodeId: 'billing_team' });
   });
 
@@ -122,7 +141,9 @@ describe('FocusStage', () => {
   it('shows what it works on next to the stream, and earlier runs', async () => {
     render(<FocusStage onOpenTrace={() => {}} />);
 
-    expect(await screen.findByText('Refund not received')).toBeTruthy();
+    // The running run's subject, not the last run's input from the history
+    expect(await screen.findByText('Charged twice')).toBeTruthy();
+    expect(screen.queryByText('Refund not received')).toBeNull();
     expect(screen.getByText('…Hi, thanks')).toBeTruthy();
     fireEvent.click(await screen.findByRole('button', { name: /e81a77/ }));
     expect(screen.getByRole('tab', { name: /Runs/ }).getAttribute('aria-selected')).toBe('true');
@@ -135,6 +156,21 @@ describe('FocusStage', () => {
     render(<FocusStage onOpenTrace={() => {}} />);
 
     expect(await screen.findByText('Waiting for output')).toBeTruthy();
+  });
+
+  it('says when the running run\'s input is not known, and shows the last input once idle', async () => {
+    // A run that started before the dashboard connected
+    useGraphStore.setState({ inFlight: new Map() });
+    const { unmount } = render(<FocusStage onOpenTrace={() => {}} />);
+    expect(await screen.findByText('Not known for this run')).toBeTruthy();
+    expect(screen.queryByText('Refund not received')).toBeNull();
+    unmount();
+
+    useGraphStore.setState({
+      nodes: nodes.map((node) => (node.id === 'billing_team' ? { ...node, data: { ...node.data, status: 'idle' } } : node)),
+    });
+    render(<FocusStage onOpenTrace={() => {}} />);
+    expect(await screen.findByText('Refund not received')).toBeTruthy();
   });
 
   it('says how long ago an idle agent\'s last run ended', async () => {
@@ -159,7 +195,7 @@ describe('FocusStage', () => {
   it('reads the history once for Live and History, and lets the keyboard into its tab panel', async () => {
     const fetch = vi.mocked(globalThis.fetch);
     render(<FocusStage onOpenTrace={() => {}} />);
-    await screen.findByText('Refund not received');
+    await screen.findByText('Charged twice');
 
     fireEvent.click(screen.getByRole('tab', { name: /History/ }));
     await screen.findByTestId('history');

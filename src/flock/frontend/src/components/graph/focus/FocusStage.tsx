@@ -21,6 +21,7 @@ import ContractTab from './ContractTab';
 import FocusLive from './FocusLive';
 import { lineageOf } from './lineage';
 import styles from './Focus.module.css';
+import { useSince } from './useSince';
 
 type FocusTab = 'live' | 'history' | 'runs' | 'contract' | 'traces';
 
@@ -35,16 +36,6 @@ const TABS: { key: FocusTab; label: string }[] = [
 type FocusData = AgentData & { description?: string | null; model?: string | null; sentCount?: number };
 
 const dotClass = (status: string | undefined) => `sdot ${status === 'running' ? 'run' : status === 'error' ? 'err' : ''}`;
-
-/** The seconds since `at`, ticking while the stage is open. */
-const useSince = (at: string | null): number | null => {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
-  return at ? Math.max(0, (now - Date.parse(at)) / 1000) : null;
-};
 
 interface FocusStageProps {
   /** Opens the trace viewer on a correlation */
