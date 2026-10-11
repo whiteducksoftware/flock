@@ -20,6 +20,7 @@ from flock.engines.dspy.streaming_executor import DSPyStreamingExecutor
 from flock.logging.logging import get_logger
 from flock.registry import type_registry
 from flock.utils.runtime import EvalInputs, EvalResult
+from flock.utils.usage import merge_usage
 
 
 logger = get_logger(__name__)
@@ -481,7 +482,9 @@ class DSPyEngine(EngineComponent):
 
         adapter_to_use = self.adapter or ChatAdapter()
 
-        with dspy_mod.context(lm=lm, adapter=adapter_to_use):
+        # track_usage: the prediction carries the tokens of every LM call
+        # (also streamed ones; DSPy then asks for the usage in the stream)
+        with dspy_mod.context(lm=lm, adapter=adapter_to_use, track_usage=True):
             program = self._choose_program(dspy_mod, signature, combined_tools)
 
             # Detect if there's already an active Rich Live context
@@ -614,7 +617,13 @@ class DSPyEngine(EngineComponent):
         logs.extend(f"dspy.error={message}" for message in errors)
 
         result_artifacts = artifacts if artifacts else list(inputs.artifacts)
-        return EvalResult(artifacts=result_artifacts, state=state, logs=logs)
+        metrics: dict[str, Any] = {}
+        get_usage = getattr(raw_result, "get_lm_usage", None)
+        usage = get_usage() if callable(get_usage) else None
+        merge_usage(metrics, usage if isinstance(usage, Mapping) else None)
+        return EvalResult(
+            artifacts=result_artifacts, state=state, logs=logs, metrics=metrics
+        )
 
     # ------------------------------------------------------------------
     # Helpers mirroring the design engine

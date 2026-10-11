@@ -292,7 +292,7 @@ Time 4: Pizza artifact appears in Blackboard View
 3. **Three tabs available:**
    - **Live Output** - Stream tokens as they generate
    - **Message History** - Past executions and outputs
-   - **Run Status** - Current state and metrics
+   - **Run Status** - Current state and metrics, including the tokens and cost of each run ([Token usage and cost](../reference/configuration.md#token-usage-and-cost))
 
 **Live Output features:**
 - Real-time token streaming via WebSocket

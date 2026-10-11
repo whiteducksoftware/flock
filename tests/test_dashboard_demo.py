@@ -6,6 +6,7 @@ from __future__ import annotations
 import importlib.util
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -82,3 +83,26 @@ def test_the_demo_can_run_for_hours(demo):
     assert isinstance(flock._default_context_provider, EmptyContextProvider)
     (digest,) = [agent for agent in flock.agents if agent.name == "digest"]
     assert isinstance(digest.context_provider, DefaultContextProvider)
+
+
+async def test_demo_runs_report_tokens_and_a_cost(demo):
+    from flock.components.agent import AgentComponent
+
+    class Metrics(AgentComponent):
+        seen: Any = None  # not a dict field: pydantic would copy it
+
+        async def on_terminate(self, agent, ctx):
+            self.seen[agent.name] = dict(ctx.state.get("metrics", {}))
+
+    seen: dict = {}
+    flock = demo.build_flock(token_seconds=0, decide_seconds=0, digest_every=None)
+    for agent in flock.agents:
+        if agent.name in ("triage", "billing_team"):
+            agent._add_utilities([Metrics(seen=seen)])
+
+    await flock.publish(demo.ticket(1))  # "Refund not received": billing
+    await flock.run_until_idle()
+
+    for name in ("triage", "billing_team"):
+        assert seen[name]["tokens_used"] > 0
+        assert seen[name]["cost_usd"] > 0

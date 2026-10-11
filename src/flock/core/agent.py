@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime, time, timedelta
 from typing import TYPE_CHECKING, Any
 
+from opentelemetry import trace
 from pydantic import BaseModel
 
 # Phase 5B: Import builder modules
@@ -31,6 +32,7 @@ from flock.logging.logging import get_logger
 from flock.models.system_artifacts import TimerTick
 from flock.registry import function_registry, type_registry
 from flock.utils.runtime import Context, EvalInputs, EvalResult
+from flock.utils.usage import USAGE, merge_usage, run_metrics
 
 
 # How long several choice handles wait for decisions about the same subject
@@ -254,6 +256,7 @@ class Agent(metaclass=AutoTracedMeta):
                     # Create empty OutputGroup for engines that may have side effects
                     empty_group = OutputGroup(outputs=[], group_description=None)
                     result = await self._run_engines(ctx, eval_inputs, empty_group)
+                    self._record_usage(ctx, result)
                     # Run post_evaluate hooks for utility components (e.g., metrics)
                     result = await self._run_post_evaluate(ctx, eval_inputs, result)
                     # Utility agents return empty list (no outputs declared)
@@ -271,6 +274,7 @@ class Agent(metaclass=AutoTracedMeta):
                         result = await self._run_engines(
                             group_ctx, eval_inputs, output_group
                         )
+                        self._record_usage(ctx, result)
 
                         result = await self._run_post_evaluate(
                             group_ctx, eval_inputs, result
@@ -294,6 +298,20 @@ class Agent(metaclass=AutoTracedMeta):
                 raise
             finally:
                 await self._run_terminate(ctx)
+
+    def _record_usage(self, ctx: Context, result: EvalResult) -> None:
+        """Add the tokens an evaluation used to the run's metrics, and price them."""
+        usage = result.metrics.get(USAGE)
+        if not usage:
+            return
+        metrics = ctx.state.setdefault("metrics", {})
+        merge_usage(metrics, usage)
+        totals = run_metrics(metrics[USAGE], self._orchestrator.model_prices)
+        metrics.update(totals)
+        span = trace.get_current_span()
+        span.set_attribute("flock.usage.tokens", totals["tokens_used"])
+        if totals["cost_usd"] is not None:
+            span.set_attribute("flock.usage.cost_usd", totals["cost_usd"])
 
     async def _get_mcp_tools(self, ctx: Context) -> list[Callable]:
         """Delegate to MCPIntegration module."""

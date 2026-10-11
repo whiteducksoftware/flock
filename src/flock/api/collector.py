@@ -434,6 +434,42 @@ class DashboardEventCollector(AgentComponent):
             consumptions=consumptions, runs=runs, agent_status=agent_status
         )
 
+    async def agent_runs(
+        self, agent_name: str, limit: int = 50
+    ) -> list[dict[str, Any]]:
+        """The agent's runs, newest first, with their metrics (tokens and cost
+        among them), as the dashboard's run status reads them."""
+        async with self._graph_lock:
+            records = [
+                record
+                for record in self._run_registry.values()
+                if record.agent_name == agent_name
+            ]
+        oldest = datetime.min.replace(tzinfo=UTC)
+        records.sort(
+            key=lambda r: r.started_at or r.completed_at or oldest, reverse=True
+        )
+        return [
+            {
+                "run_id": record.run_id,
+                "correlation_id": record.correlation_id or None,
+                "start_time": record.started_at.isoformat()
+                if record.started_at
+                else None,
+                "end_time": record.completed_at.isoformat()
+                if record.completed_at
+                else None,
+                "duration_ms": record.duration_ms,
+                "status": record.status,
+                "metrics": {
+                    **record.metrics,
+                    "artifacts_produced": len(record.produced_artifacts),
+                },
+                "error_message": record.error_message,
+            }
+            for record in records[:limit]
+        ]
+
     async def snapshot_agent_registry(self) -> dict[str, AgentSnapshot]:
         """Return a snapshot of all known agents (active and inactive)."""
         await self.load_persistent_snapshots()
