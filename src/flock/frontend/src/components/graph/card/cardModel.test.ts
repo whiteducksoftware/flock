@@ -198,6 +198,21 @@ describe('waits', () => {
     expect(wait).toEqual({ collected: 3, target: 5, secondsLeft: 24 });
   });
 
+  it('has no countdown for a batch without a timeout', () => {
+    const sizeOnly = (remaining: number | null | undefined) => ({
+      subscription_index: 0,
+      subscription_types: [],
+      batch: { strategy: 'size', size: 5 },
+      waiting_state: {
+        is_waiting: true,
+        batch_state: { items_collected: 2, items_target: 5, timeout_remaining_seconds: remaining },
+      },
+    });
+
+    expect(batchWait([sizeOnly(null)], age)?.secondsLeft).toBeNull();
+    expect(batchWait([sizeOnly(undefined)], age)?.secondsLeft).toBeNull();
+  });
+
   it('has nothing to show when nothing waits', () => {
     expect(joinWait([], age)).toBeNull();
     expect(batchWait([{ subscription_index: 0, subscription_types: [], waiting_state: { is_waiting: false } }], age)).toBeNull();

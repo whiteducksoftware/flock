@@ -59,7 +59,8 @@ export interface LogicOperation {
       items_collected: number;
       items_target: number | null;
       timeout_seconds?: number;
-      timeout_remaining_seconds?: number;
+      /** null or missing for a batch without a timeout */
+      timeout_remaining_seconds?: number | null;
     };
   };
 }
@@ -249,7 +250,7 @@ export function batchWait(operations: LogicOperation[], age: number): BatchWait 
     return {
       collected: batch.items_collected,
       target: batch.items_target,
-      secondsLeft: remaining === undefined ? null : remaining - age,
+      secondsLeft: remaining === null || remaining === undefined ? null : remaining - age,
     };
   }
   return null;
