@@ -706,9 +706,8 @@ class AgentBuilder:
                 # Dict without explicit threshold: add semantic_threshold
                 semantic_param = {**semantic_match, "threshold": semantic_threshold}
 
-        if self._is_explainer() and (
-            batch is not None or not all(isinstance(t, ChoiceRef) for t in types)
-        ):
+        # types are decision models by now; choice_refs holds the handles
+        if self._is_explainer() and (batch is not None or not choice_refs):
             raise ValueError(
                 f"Agent '{self._agent.name}': .explains() explains one subject's "
                 "decisions at a time; add only decision handle subscriptions "

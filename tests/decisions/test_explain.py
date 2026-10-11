@@ -335,6 +335,16 @@ def test_a_plain_decision_subscription_cannot_be_added_to_an_explainer_later():
         builder.consumes(Decision.of(ExplainUrgent))  # another question's decisions
 
 
+def test_another_handle_can_be_added_to_an_explainer_later():
+    builder = (
+        Flock("openai/gpt-4.1").agent("x").consumes(ExplainRoute.UNSURE).explains()
+    )
+
+    builder.consumes(ExplainUrgent.UNSURE)
+
+    assert len(builder.agent.subscriptions) == 2
+
+
 def test_explains_rejects_batched_subscriptions():
     from flock.core.subscription import BatchSpec
 
