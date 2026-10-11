@@ -745,6 +745,20 @@ describe('MessageNode', () => {
     expect(buttons.map((b) => b.textContent)).toEqual(['billing', 'tech']);
   });
 
+  it('should offer the options a sparse answer left out', () => {
+    render(
+      <ReactFlowProvider>
+        <MessageNode
+          {...createNodeProps(
+            unsureRoute({ probabilities: { billing: 0.6 }, options: ['billing', 'tech', 'shipping'] })
+          )}
+        />
+      </ReactFlowProvider>
+    );
+    const buttons = screen.getAllByRole('button', { name: /^Review as / });
+    expect(buttons.map((b) => b.textContent)).toEqual(['billing', 'tech', 'shipping']);
+  });
+
   it('should show the review of a reviewed decision instead of the controls', () => {
     render(
       <ReactFlowProvider>
