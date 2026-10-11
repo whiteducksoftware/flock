@@ -355,10 +355,12 @@ class DashboardEventCollector(AgentComponent):
                 correlation_id=correlation_id,
                 ensure_started=True,
             )
-            run.status = "completed"
-            run.duration_ms = duration_ms
+            # on_terminate follows on_error too: a failed run stays an error
+            if run.status != "error":
+                run.status = "completed"
+                run.duration_ms = duration_ms
+                run.completed_at = datetime.now(UTC)
             run.metrics = dict(metrics)
-            run.completed_at = datetime.now(UTC)
             for artifact_id in artifacts_produced:
                 if artifact_id not in run.produced_artifacts:
                     run.produced_artifacts.append(artifact_id)
@@ -386,9 +388,11 @@ class DashboardEventCollector(AgentComponent):
         )
         failed_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
-        # Clean up start time tracking
-        if ctx.task_id in self._run_start_times:
-            del self._run_start_times[ctx.task_id]
+        # Clean up start time tracking, keeping how long the run took
+        start_time = self._run_start_times.pop(ctx.task_id, None)
+        duration_ms = (
+            (datetime.now(UTC).timestamp() - start_time) * 1000 if start_time else None
+        )
 
         # Create and store event
         event = AgentErrorEvent(
@@ -414,6 +418,7 @@ class DashboardEventCollector(AgentComponent):
             run.status = "error"
             run.error_message = error_message
             run.completed_at = datetime.now(UTC)
+            run.duration_ms = duration_ms
             self._agent_status[agent.name] = "error"
             await self._update_agent_snapshot_locked(agent)
 

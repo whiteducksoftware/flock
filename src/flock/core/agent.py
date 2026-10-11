@@ -357,7 +357,7 @@ class Agent(metaclass=AutoTracedMeta):
         async def run_chain() -> EvalResult:
             current_inputs = inputs
             accumulated_logs: list[str] = []
-            accumulated_metrics: dict[str, float] = {}
+            accumulated_metrics: dict[str, Any] = {}
             for engine in engines:
                 current_inputs = await engine.on_pre_evaluate(self, ctx, current_inputs)
 
@@ -379,7 +379,11 @@ class Agent(metaclass=AutoTracedMeta):
                     self, ctx, current_inputs, result
                 )
                 accumulated_logs.extend(result.logs)
-                accumulated_metrics.update(result.metrics)
+                # Every engine of the chain bills its own tokens
+                accumulated_metrics.update({
+                    k: v for k, v in result.metrics.items() if k != USAGE
+                })
+                merge_usage(accumulated_metrics, result.metrics.get(USAGE))
                 merged_state = dict(current_inputs.state)
                 merged_state.update(result.state)
                 current_inputs = EvalInputs(
@@ -401,9 +405,20 @@ class Agent(metaclass=AutoTracedMeta):
         results = [task.result() for task in tasks]
         if not results:
             return EvalResult(artifacts=[], state={})
-        if self.best_of_score is None:
-            return results[0]
-        return max(results, key=self.best_of_score)
+        chosen = (
+            results[0]
+            if self.best_of_score is None
+            else max(results, key=self.best_of_score)
+        )
+        # One candidate is published, but every candidate was billed
+        billed: dict[str, Any] = {}
+        for result in results:
+            merge_usage(billed, result.metrics.get(USAGE))
+        if not billed:
+            return chosen
+        return chosen.model_copy(
+            update={"metrics": {**chosen.metrics, USAGE: billed[USAGE]}}
+        )
 
     async def _run_post_evaluate(
         self, ctx: Context, inputs: EvalInputs, result: EvalResult

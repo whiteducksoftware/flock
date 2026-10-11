@@ -282,8 +282,73 @@ async def test_the_runs_endpoint_reports_each_run_with_its_tokens_and_cost():
     assert data["total"] == 1
     (run,) = data["runs"]
     assert run["status"] == "completed"
-    assert run["start_time"] and run["end_time"]
+    assert run["start_time"]
+    assert run["end_time"]
     assert run["duration_ms"] >= 0
     assert run["metrics"]["tokens_used"] == 1250
     assert run["metrics"]["cost_usd"] == pytest.approx(0.004)
     assert run["metrics"]["artifacts_produced"] == 1
+
+
+async def test_best_of_counts_every_candidate():
+    seen: list = []
+    flock = Flock(no_output=True)
+    flock.agent("writer").consumes(UsageTicket).publishes(UsageReply).with_engines(
+        SpendingEngine(usage={"m": {"prompt_tokens": 100, "completion_tokens": 10}})
+    ).best_of(3, score=lambda result: 1.0).with_utilities(RunMetrics(seen=seen))
+
+    await flock.publish(UsageTicket(text="hi"))
+    await flock.run_until_idle()
+
+    (metrics,) = seen
+    # Three candidates ran and were billed; one of them was published
+    assert metrics["usage"] == {"m": {"prompt_tokens": 300, "completion_tokens": 30}}
+
+
+async def test_a_chain_of_engines_counts_every_engine():
+    seen: list = []
+    flock = Flock(no_output=True)
+    flock.agent("writer").consumes(UsageTicket).publishes(UsageReply).with_engines(
+        SpendingEngine(usage={"m": {"prompt_tokens": 100, "completion_tokens": 10}}),
+        SpendingEngine(usage={"m": {"prompt_tokens": 50, "completion_tokens": 5}}),
+    ).with_utilities(RunMetrics(seen=seen))
+
+    await flock.publish(UsageTicket(text="hi"))
+    await flock.run_until_idle()
+
+    (metrics,) = seen
+    assert metrics["usage"] == {"m": {"prompt_tokens": 150, "completion_tokens": 15}}
+
+
+async def test_the_runs_endpoint_lists_a_failed_run_as_an_error():
+    from fastapi import FastAPI
+    from httpx import ASGITransport, AsyncClient
+
+    from flock.api.collector import DashboardEventCollector
+    from flock.components.server.traces.trace_component import TracingComponent
+
+    class FailingEngine(EngineComponent):
+        async def evaluate(self, agent, ctx, inputs, output_group):
+            raise RuntimeError("model unreachable")
+
+    flock = Flock(no_output=True)
+    flock.agent("writer").consumes(UsageTicket).publishes(UsageReply).with_engines(
+        FailingEngine()
+    )
+    collector = DashboardEventCollector(store=flock.store)
+    flock._dashboard_collector = collector
+    for agent in flock.agents:
+        agent._add_utilities([collector])
+    app = FastAPI()
+    TracingComponent().register_routes(app, flock)
+
+    await flock.publish(UsageTicket(text="hi"))
+    await flock.run_until_idle()
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://testserver"
+    ) as client:
+        (run,) = (await client.get("/api/plugin/agents/writer/runs")).json()["runs"]
+
+    assert run["status"] == "error"
+    assert run["error_message"] == "model unreachable"
+    assert run["end_time"] is not None
