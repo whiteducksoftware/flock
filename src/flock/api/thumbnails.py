@@ -84,7 +84,8 @@ def compact(value: Any) -> Any:
 
 def thumbnail(url: str) -> str | None:
     """A data URL of the image scaled to at most ``THUMB_SIDE`` px (cached)."""
-    key = hashlib.blake2b(url.encode("ascii"), digest_size=16).digest()
+    # utf-8: image-like values from plain dicts need not be ASCII
+    key = hashlib.blake2b(url.encode("utf-8"), digest_size=16).digest()
     with _cache_lock:  # thumbnails are also built in worker threads
         cached = _cache.get(key)
         if cached is not None:

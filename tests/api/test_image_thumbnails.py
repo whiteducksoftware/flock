@@ -176,3 +176,14 @@ def test_reported_sizes_ignore_base64_padding():
     (summary,) = image_summaries({"picture": picture.model_dump()})
 
     assert summary["bytes"] == len(picture.to_bytes())
+
+
+@pytest.mark.parametrize("url", ["data:image/😀", "data:image/png", "data:image/png;base64,!!"])
+def test_image_like_values_that_are_not_images_get_no_preview(url):
+    """Any dict {"url": "data:image/..."} looks like an image; bad ones must not raise."""
+    from flock.api.thumbnails import compact, image_summaries
+
+    payload = {"note": {"url": url}}
+
+    assert image_summaries(payload) == []
+    assert compact(payload)["note"].startswith("🖼")
