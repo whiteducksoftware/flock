@@ -352,3 +352,49 @@ async def test_the_runs_endpoint_lists_a_failed_run_as_an_error():
     assert run["status"] == "error"
     assert run["error_message"] == "model unreachable"
     assert run["end_time"] is not None
+
+
+@flock_type
+class UsageNote(BaseModel):
+    text: str
+
+
+class GroupSpendingEngine(EngineComponent):
+    """Bills a priced model for replies and an unpriced one for notes."""
+
+    async def evaluate(self, agent, ctx, inputs, output_group):
+        name = output_group.outputs[0].spec.type_name
+        if name.endswith("UsageReply"):
+            usage = {"azure/gpt-x": {"prompt_tokens": 100, "completion_tokens": 0}}
+            return EvalResult.from_object(
+                UsageReply(text="r"), agent=agent, metrics={"usage": usage}
+            )
+        usage = {"local/x": {"prompt_tokens": 50, "completion_tokens": 0}}
+        return EvalResult.from_object(
+            UsageNote(text="n"), agent=agent, metrics={"usage": usage}
+        )
+
+
+async def test_the_trace_cost_covers_the_whole_run(monkeypatch):
+    from opentelemetry import trace
+
+    attributes: dict = {}
+
+    class Span(trace.NonRecordingSpan):
+        def set_attribute(self, key, value):
+            attributes[key] = value
+
+    span = Span(trace.INVALID_SPAN_CONTEXT)
+    monkeypatch.setattr("flock.core.agent.trace.get_current_span", lambda *a: span)
+    flock = Flock(no_output=True, model_prices={"azure/gpt-x": (2.0, 8.0)})
+    flock.agent("writer").consumes(UsageTicket).publishes(UsageReply).publishes(
+        UsageNote
+    ).with_engines(GroupSpendingEngine())
+
+    await flock.publish(UsageTicket(text="hi"))
+    await flock.run_until_idle()
+
+    assert attributes["flock.usage.tokens"] == 150
+    # The second group's model has no price, so the run's cost is unknown
+    assert "flock.usage.cost_usd" not in attributes
+

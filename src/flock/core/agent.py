@@ -297,6 +297,7 @@ class Agent(metaclass=AutoTracedMeta):
                 await self._run_error(ctx, exc)
                 raise
             finally:
+                self._trace_usage(ctx)
                 await self._run_terminate(ctx)
 
     def _record_usage(self, ctx: Context, result: EvalResult) -> None:
@@ -308,10 +309,16 @@ class Agent(metaclass=AutoTracedMeta):
         merge_usage(metrics, usage)
         totals = run_metrics(metrics[USAGE], self._orchestrator.model_prices)
         metrics.update(totals)
+
+    def _trace_usage(self, ctx: Context) -> None:
+        """Put the run's tokens and cost on its trace, once all groups ran."""
+        metrics = ctx.state.get("metrics") or {}
+        if USAGE not in metrics:
+            return
         span = trace.get_current_span()
-        span.set_attribute("flock.usage.tokens", totals["tokens_used"])
-        if totals["cost_usd"] is not None:
-            span.set_attribute("flock.usage.cost_usd", totals["cost_usd"])
+        span.set_attribute("flock.usage.tokens", metrics["tokens_used"])
+        if metrics["cost_usd"] is not None:
+            span.set_attribute("flock.usage.cost_usd", metrics["cost_usd"])
 
     async def _get_mcp_tools(self, ctx: Context) -> list[Callable]:
         """Delegate to MCPIntegration module."""

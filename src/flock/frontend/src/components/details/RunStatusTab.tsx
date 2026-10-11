@@ -53,7 +53,8 @@ const RunStatusTab: React.FC<RunStatusTabProps> = ({ nodeId, nodeType: _nodeType
           status: run.status === 'completed' ? 'idle' : run.status === 'active' ? 'processing' : 'error',
           metrics: {
             tokensUsed: run.metrics?.tokens_used,
-            costUsd: run.metrics?.cost_usd,
+            // null: a model of the run has no price
+            costUsd: run.metrics?.cost_usd ?? undefined,
             artifactsProduced: run.metrics?.artifacts_produced,
           },
           errorMessage: run.error_message,
