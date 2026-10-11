@@ -46,6 +46,7 @@ from flock.components.agent import EngineComponent
 from flock.components.server.models.events import StreamingOutputEvent
 from flock.core import Agent
 from flock.core.artifacts import Artifact
+from flock.core.context_provider import DefaultContextProvider, EmptyContextProvider
 from flock.core.subscription import BatchSpec, JoinSpec
 from flock.decisions import FakeDecider
 from flock.engines.streaming.sinks import WebSocketSink
@@ -366,7 +367,14 @@ def build_flock(
 ) -> Flock:
     """The triage flock. Shorter waits, and no digest (a timer keeps a flock
     from ever being idle), make it fast enough for tests."""
-    flock = Flock(no_output=True)
+    flock = Flock(
+        no_output=True,
+        # A served flock is never idle, and the circuit breaker only resets
+        # when it is: without a high limit, agents stop after 1,000 runs
+        max_agent_iterations=10**9,
+        # Agents read their inputs only; history would make every run slower
+        context_provider=EmptyContextProvider(),
+    )
     decider = ThinkingDecider(
         {"Route": route, "Urgent": urgent}, label="demo-decider", seconds=decide_seconds
     )
@@ -413,9 +421,9 @@ def build_flock(
     if digest_every is not None:
         flock.agent("digest").description(
             "Counts what happened, every 30 seconds"
-        ).schedule(every=digest_every).publishes(Digest).with_engines(
-            ScriptEngine(fn=digest)
-        )
+        ).schedule(every=digest_every).with_context(DefaultContextProvider()).publishes(
+            Digest
+        ).with_engines(ScriptEngine(fn=digest))
     return flock
 
 

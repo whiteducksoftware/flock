@@ -69,3 +69,16 @@ def test_the_demo_has_a_scheduled_agent(demo):
 
     (digest,) = [agent for agent in flock.agents if agent.name == "digest"]
     assert digest.schedule_spec is not None
+
+
+def test_the_demo_can_run_for_hours(demo):
+    from flock.core.context_provider import DefaultContextProvider, EmptyContextProvider
+
+    flock = demo.build_flock()
+
+    # A served flock is never idle, and the circuit breaker resets only when idle
+    assert flock.max_agent_iterations >= 10**6
+    # No agent but the digest reads the blackboard's history on every run
+    assert isinstance(flock._default_context_provider, EmptyContextProvider)
+    (digest,) = [agent for agent in flock.agents if agent.name == "digest"]
+    assert isinstance(digest.context_provider, DefaultContextProvider)
