@@ -158,6 +158,9 @@ class AgentCompletedEvent(BaseModel):
         default_factory=dict
     )  # {"tokens_used": 1234, "cost": 0.05}
     final_state: dict[str, Any] = Field(default_factory=dict)  # Context.state snapshot
+    # The agent's status after this run: another run may still be going, or
+    # a newer one may have failed
+    agent_status: str | None = None
 
 
 class AgentErrorEvent(BaseModel):
@@ -182,6 +185,8 @@ class AgentErrorEvent(BaseModel):
     error_message: str  # Exception message
     traceback: str  # Full Python traceback
     failed_at: str  # ISO timestamp of failure
+    # The agent's status after this run: another run may still be going
+    agent_status: str | None = None
 
 
 class CorrelationGroupUpdatedEvent(BaseModel):

@@ -654,3 +654,29 @@ async def test_an_agent_with_a_run_still_going_is_running(
 
     await collector.on_terminate(test_agent, newer)
     assert await _status(collector) == "idle"
+
+
+@pytest.mark.asyncio
+async def test_run_events_carry_the_agents_status(collector, test_agent, orchestrator):
+    sent: list = []
+
+    class Broadcasts:
+        async def broadcast(self, event):
+            sent.append(event)
+
+    collector.set_websocket_manager(Broadcasts())
+    older, newer = _run_context(orchestrator), _run_context(orchestrator)
+    await collector.on_pre_consume(test_agent, older, [])
+    await collector.on_pre_consume(test_agent, newer, [])
+
+    await collector.on_error(test_agent, older, RuntimeError("boom"))
+    await collector.on_terminate(test_agent, older)
+    await collector.on_terminate(test_agent, newer)
+
+    statuses = [
+        (type(event).__name__, event.agent_status)
+        for event in sent
+        if hasattr(event, "agent_status")
+    ]
+    # The failure happened while the newer run went on; then that one completed
+    assert statuses == [("AgentErrorEvent", "running"), ("AgentCompletedEvent", "idle")]
