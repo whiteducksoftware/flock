@@ -64,21 +64,25 @@ class TracingComponent(ServerComponent):
         description="Singleton WebSocketManagerInstance",
     )
     _db_path: Path | str | None = None
-    _db_path_exists: bool = False
+
+    @property
+    def _db_path_exists(self) -> bool:
+        """Whether the trace database is there now; the tracer creates it on its
+        first span, which can be after the server started."""
+        return self._db_path is not None and Path(self._db_path).exists()
 
     def configure(self, app, orchestrator):
         """Configure the Component.
 
-        Configure duckDB database path if not set.
+        Configure duckDB database path if not set: the file the tracer writes
+        with FLOCK_TRACE_FILE=true and Flock.clear_traces() clears,
+        .flock/traces.duckdb in the working directory.
         """
         if self.config.db_path is not None:
             self._db_path = self.config.db_path
 
         if self._db_path is None:
-            self._db_path = (
-                Path(__file__).parent.parent.parent.parent.parent
-                / ".flock/traces.duckdb"
-            )
+            self._db_path = Path(".flock") / "traces.duckdb"
 
         if isinstance(self._db_path, str):
             # turn it into a path-object
@@ -88,9 +92,6 @@ class TracingComponent(ServerComponent):
             logger.warning(
                 "TracingComponent: Trace database not found. Make sure FLOCK_AUTO_TRACE=true FLOCK_TRACE_FILE=true"
             )
-            self._db_path_exists = False
-        else:
-            self._db_path_exists = True
 
     def register_routes(self, app, orchestrator):
         """Register the routes the TracingComponent provides."""
