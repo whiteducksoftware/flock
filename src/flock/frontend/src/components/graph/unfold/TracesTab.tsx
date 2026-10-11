@@ -62,8 +62,12 @@ const TracesTab: React.FC<{ agent: string; onOpenTrace: (correlationId: string) 
           </button>
         ))}
       </div>
-      <span className={styles.label}>
-        Run {shortId(trace.runId)} · {duration(total / NS_PER_MS)}
+      {/* The label is upper case; the id and duration are not (1.3 m is no M) */}
+      <span>
+        <span className={styles.label}>Run</span>{' '}
+        <span className={`mono num ${styles.quiet}`}>
+          {shortId(trace.runId)} · {duration(total / NS_PER_MS)}
+        </span>
       </span>
       <div className={styles.waterfall}>
         {trace.spans.map(({ span, depth }) => {
