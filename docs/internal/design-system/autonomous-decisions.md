@@ -180,3 +180,18 @@ Each entry says what was decided, why, and where it landed.
 - **The review buttons' preselected best guess wins over the global `.btn` style** whichever stylesheet loads last (the live build loaded `.btn` after the module).
 - **The decider's Needs review queue** comes from the graph snapshot (#610): at most 20 shown, newest first, "and N more" for the rest; each with the decided artifact's title (a field that names it), its run, the two best guesses and the review buttons; a review takes it out on the next refresh. It says where unsure answers route ("route to Route.UNSURE and wait here for a person").
 - **The paid examples in `examples/15-decisions/` were not run for this PR** (they call real decision models); the kit was checked with a harness of fixture decisions for every kind and on the triage demo (choice, yes/no, review queue).
+
+### #567 Publish composer
+
+- **The composer was built by a subagent from the spec and the mockup and reviewed here** (diff, tests, the triage demo live in both themes). Its calls, kept:
+  - The system types are a second listbox after their disclosure button (a button cannot sit inside a listbox); the arrow keys go on from one into the other, and a search opens them when it finds one.
+  - Selection follows focus in the type list; ↑ on the first type returns to the search, ↓ from the search enters the list.
+  - Decision types show no field count (the mockup; every decision has the same fields).
+  - No type is preselected: the composer opens on the search.
+  - The JSON button is off while pictures convert; JSON mode checks the schema's `required` strictly.
+  - Ctrl/⌘+Enter submits through `requestSubmit()`, so it runs the same checks as the Publish button.
+  - "Stop following" clears the correlation filter only while it is still that run.
+- **"Follow this run on the board" is on by default,** as the mockup shows it; publishing from the dashboard is mostly to watch the run.
+- **The toast is one message at a time in `uiStore`,** bottom center of the board above the timeline dock, 8 s, with one action; the next toast replaces it.
+- **The moves are their own commit,** so `git log --follow` keeps the history of the composer and its tests (the rewrite is 34 % similar).
+- **The shortcuts dialog only renames the entry** ("publish composer"); ⌘↵ joins it with the new keys in #569.
