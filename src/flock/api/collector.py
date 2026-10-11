@@ -8,6 +8,7 @@ Phase 3: Extended to emit via WebSocket using WebSocketManager.
 import asyncio
 import hashlib
 import json
+import time
 import traceback
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
@@ -166,8 +167,9 @@ class DashboardEventCollector(AgentComponent):
         Returns:
             Unmodified inputs (pass-through)
         """
-        # Record start time for duration calculation
-        self._run_start_times[ctx.task_id] = datetime.now(UTC).timestamp()
+        # Record start time for duration calculation (monotonic: the wall
+        # clock can step)
+        self._run_start_times[ctx.task_id] = time.monotonic()
 
         # Extract consumed types and artifact IDs. Choice subscribers run on a
         # decision's subject; the graph records the decision that triggered them
@@ -318,8 +320,8 @@ class DashboardEventCollector(AgentComponent):
         """
         # Calculate duration
         start_time = self._run_start_times.get(ctx.task_id)
-        if start_time:
-            duration_ms = (datetime.now(UTC).timestamp() - start_time) * 1000
+        if start_time is not None:
+            duration_ms = (time.monotonic() - start_time) * 1000
             del self._run_start_times[ctx.task_id]
         else:
             duration_ms = 0.0
@@ -391,7 +393,7 @@ class DashboardEventCollector(AgentComponent):
         # Clean up start time tracking, keeping how long the run took
         start_time = self._run_start_times.pop(ctx.task_id, None)
         duration_ms = (
-            (datetime.now(UTC).timestamp() - start_time) * 1000 if start_time else None
+            (time.monotonic() - start_time) * 1000 if start_time is not None else None
         )
 
         # Create and store event

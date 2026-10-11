@@ -398,3 +398,40 @@ async def test_the_trace_cost_covers_the_whole_run(monkeypatch):
     # The second group's model has no price, so the run's cost is unknown
     assert "flock.usage.cost_usd" not in attributes
 
+
+
+@pytest.mark.parametrize("fails", [False, True])
+async def test_run_durations_use_the_monotonic_clock(monkeypatch, fails):
+    from types import SimpleNamespace
+
+    import flock.api.collector as collector_module
+    from flock.api.collector import DashboardEventCollector
+
+    readings = iter([100.0])  # the run's start; every later reading is 100.25
+    monkeypatch.setattr(
+        collector_module,
+        "time",
+        SimpleNamespace(monotonic=lambda: next(readings, 100.25)),
+        raising=False,
+    )
+
+    class Engine(EngineComponent):
+        async def evaluate(self, agent, ctx, inputs, output_group):
+            if fails:
+                raise RuntimeError("model unreachable")
+            return EvalResult.from_object(UsageReply(text="r"), agent=agent)
+
+    flock = Flock(no_output=True)
+    flock.agent("writer").consumes(UsageTicket).publishes(UsageReply).with_engines(
+        Engine()
+    )
+    collector = DashboardEventCollector(store=flock.store)
+    for agent in flock.agents:
+        agent._add_utilities([collector])
+
+    await flock.publish(UsageTicket(text="hi"))
+    await flock.run_until_idle()
+    (run,) = await collector.agent_runs("writer")
+
+    assert run["status"] == ("error" if fails else "completed")
+    assert run["duration_ms"] == pytest.approx(250.0)

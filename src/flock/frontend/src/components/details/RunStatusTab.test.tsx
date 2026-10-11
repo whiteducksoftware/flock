@@ -33,4 +33,29 @@ describe('RunStatusTab', () => {
     expect(await screen.findByText('Tokens: 12')).toBeTruthy();
     expect(screen.queryByText(/Cost:/)).toBeNull();
   });
+
+  it('shows an active run without a duration yet', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          runs: [
+            {
+              run_id: 'run-2',
+              start_time: '2026-10-11T10:00:00Z',
+              end_time: null,
+              duration_ms: null,
+              status: 'active',
+              metrics: { artifacts_produced: 0 },
+            },
+          ],
+        }),
+      })),
+    );
+
+    render(<RunStatusTab nodeId="writer" nodeType="agent" />);
+
+    expect((await screen.findByTestId('run-duration-run-2')).textContent).toBe('—');
+  });
 });
