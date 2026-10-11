@@ -723,5 +723,34 @@ describe('MessageNode', () => {
     // a contradicts the result for backup, b matches every item, c gave no firm answer
     expect(votes.map((v) => v.getAttribute('data-vote'))).toEqual(['differs', 'agrees', 'unsure']);
   });
+
+  it('should count an all-unsure checklist vote as no vote, even when every result is unsure', () => {
+    render(
+      <ReactFlowProvider>
+        <MessageNode
+          {...createNodeProps(
+            decisionNode({
+              question: 'Controls',
+              kind: 'checklist',
+              choice: 'UNSURE',
+              bestGuess: 'passed',
+              probabilities: { mfa: 0.6 },
+              items: ['mfa'],
+              results: { mfa: 'UNSURE' },
+              refusedItems: [],
+              votes: [{ model: 'a', results: { mfa: 'UNSURE' } }],
+              confidence: null,
+              threshold: 0.9,
+              model: 'a + b',
+              latencyMs: 400,
+              score: null,
+              refused: false,
+            })
+          )}
+        />
+      </ReactFlowProvider>
+    );
+    expect(screen.getByTestId('decision-vote')).toHaveAttribute('data-vote', 'unsure');
+  });
 });
 

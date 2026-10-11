@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import time
 from collections import Counter
@@ -200,6 +201,12 @@ class DecisionEngine(EngineComponent):
         default=None,
         description="Answers every question too; recorded, never routed",
     )
+    shadow_timeout: float = Field(
+        default=10.0,
+        gt=0,
+        description="Seconds the decision waits for the shadow after its own "
+        "answer; a slower shadow is cancelled and recorded as an error",
+    )
     enable_context: bool = Field(
         default=False, description="Decisions are made on the inputs only"
     )
@@ -228,7 +235,7 @@ class DecisionEngine(EngineComponent):
                         f"Decision model '{provider.label}' does not accept images; "
                         "use providers with image support (openai/, local/ with a "
                         "vision model) for inputs with Image fields, also in "
-                        "escalate=."
+                        "escalate= and models=."
                     )
 
         started = time.perf_counter()
@@ -244,9 +251,18 @@ class DecisionEngine(EngineComponent):
         except BaseException:
             if shadowed is not None:
                 shadowed.cancel()
+                # Wait until the shadow has stopped, not only asked it to
+                with contextlib.suppress(asyncio.CancelledError):
+                    await shadowed
             raise
         latency_ms = round((time.perf_counter() - started) * 1000, 3)
-        shadow = await shadowed if shadowed is not None else None
+        shadow = None
+        if shadowed is not None:
+            try:
+                shadow = await asyncio.wait_for(shadowed, self.shadow_timeout)
+            except TimeoutError:  # wait_for has cancelled the shadow
+                shadow = f"TimeoutError: no answer within {self.shadow_timeout:g} s"
+                logger.warning(f"Shadow decision model '{self.shadow.label}': {shadow}")
 
         subject_ids = [str(a.id) for a in inputs.artifacts]
         artifacts = []
@@ -324,10 +340,8 @@ class DecisionEngine(EngineComponent):
             and (len(candidates) < 2)
         ):
             # Nothing to rank: no candidates is UNSURE, a single one wins
-            answer = _trivial_answer(candidates)
-            if self.ensemble:  # no model was asked, so there are no votes
-                label = " + ".join(provider.label for provider in self.ensemble)
-                answer = replace(answer, model=label)
+            # No model was asked, so an ensemble has no votes
+            answer = replace(_trivial_answer(candidates), model=self._label)
             return {self.questions[0].__name__: answer}, []
         if self.tournament is not None:
             answer, rounds = await self._run_tournament(state, images, candidates)
@@ -353,9 +367,7 @@ class DecisionEngine(EngineComponent):
                 )
             answers = await self._ask(state, wire, images, provider=self.shadow)
         except Exception as exc:  # a shadow must never fail the decision
-            logger.warning(
-                "Shadow decision model '%s' failed: %s", self.shadow.label, exc
-            )
+            logger.warning(f"Shadow decision model '{self.shadow.label}' failed: {exc}")
             return f"{type(exc).__name__}: {exc}"
         return answers, round((time.perf_counter() - started) * 1000, 3)
 
@@ -752,12 +764,19 @@ class DecisionEngine(EngineComponent):
             refused=bool(results) and len(refused) == len(results),
             threshold=self.threshold,
             subject_ids=subject_ids,
-            model=top_label or (models[0] if models else self.provider.label),
+            model=top_label or (models[0] if models else self._label),
             tier=tier,
             attempts=attempts,
             votes=votes,
             latency_ms=latency_ms,
         )
+
+    @property
+    def _label(self) -> str:
+        """The configured model name: the provider's, or an ensemble's joined."""
+        if self.ensemble:
+            return " + ".join(provider.label for provider in self.ensemble)
+        return self.provider.label
 
     def _firm(self, answer: DecisionAnswer) -> bool:
         if answer.refused or answer.choice is None:

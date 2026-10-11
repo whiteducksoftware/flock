@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
+from typing import Any
+
 import pytest
 from PIL import Image as PILImage
 from pydantic import BaseModel
 
-from flock.components.agent import EngineComponent
+from flock.components.agent import AgentComponent, EngineComponent
 from flock.core import Flock
 from flock.core.image import Image
 from flock.decisions import UNSURE, Checklist, Choice, Decision
@@ -144,6 +147,81 @@ async def test_a_failing_decision_still_fails_with_a_shadow():
         if a.type == type_registry.name_for(WorkflowError)
     ]
     assert "no answer" in errors[0].payload["error_message"]
+
+
+class _SlowShadow(FakeDecider):
+    """Never answers; unwinding its request takes a few loop steps."""
+
+    def __init__(self, events: list[str]):
+        super().__init__({"billing": 0.5, "tech": 0.5}, label="candidate")
+        self.events = events
+
+    async def decide_many(self, state, questions, images=()):
+        try:
+            await asyncio.Event().wait()
+        finally:
+            for _ in range(3):
+                await asyncio.sleep(0)
+            self.events.append("shadow stopped")
+
+
+class _LateFailure(FakeDecider):
+    """Fails after the shadow has started."""
+
+    async def decide_many(self, state, questions, images=()):
+        await asyncio.sleep(0)
+        return await super().decide_many(state, questions, images)
+
+
+class _ErrorRecorder(AgentComponent):
+    events: Any  # the test's list itself, not a validated copy
+
+    async def on_error(self, agent, ctx, error):
+        self.events.append("decision failed")
+
+
+async def test_a_failing_decision_stops_its_shadow_before_it_fails():
+    events: list[str] = []
+    broken = _LateFailure({"SomethingElse": {"a": 1.0}}, label="live")
+    flock = Flock()
+    flock.agent("triage").consumes(ShadowTicket).decides(
+        ShadowRoute, model=broken, shadow=_SlowShadow(events)
+    ).with_utilities(_ErrorRecorder(events=events))
+
+    await flock.publish(ShadowTicket(text="charged twice"))
+    await flock.run_until_idle()
+
+    assert events == ["shadow stopped", "decision failed"]
+
+
+async def test_a_slow_shadow_times_out_without_holding_the_decision():
+    events: list[str] = []
+    flock = Flock()
+    flock.agent("triage").consumes(ShadowTicket).decides(
+        ShadowRoute,
+        model=_route(0.95, "live"),
+        shadow=_SlowShadow(events),
+        shadow_timeout=0.05,
+    )
+
+    await flock.publish(ShadowTicket(text="charged twice"))
+    await flock.run_until_idle()
+
+    (decision,) = await _decisions(flock, ShadowRoute)
+    assert decision["choice"] == "billing"
+    assert decision["shadow"]["model"] == "candidate"
+    assert "no answer within 0.05 s" in decision["shadow"]["error"]
+    assert events == ["shadow stopped"]
+
+
+def test_the_shadow_timeout_must_be_positive():
+    with pytest.raises(ValueError, match="shadow_timeout"):
+        Flock().agent("x").consumes(ShadowTicket).decides(
+            ShadowRoute,
+            model=_route(0.9, "a"),
+            shadow=_route(0.9, "b"),
+            shadow_timeout=0,
+        )
 
 
 async def test_a_text_only_shadow_records_an_error_for_images():
