@@ -464,6 +464,9 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 "isOpenClawAgent": is_openclaw_agent,
                 # A snapshot does not keep the engines, only the OpenClaw label
                 "engineTag": "OpenClaw" if is_openclaw_agent else None,
+                "description": snapshot.description or None,
+                # ... so neither the model they ran on
+                "model": None,
             }
 
             nodes.append(
@@ -501,6 +504,8 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 "isOpenClawAgent": False,
                 # Publishes without being an agent, such as "external"
                 "engineTag": "source" if produced and not consumed else None,
+                "description": None,
+                "model": None,
             }
 
             nodes.append(

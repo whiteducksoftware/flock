@@ -521,6 +521,9 @@ async def test_graph_assembler_inactive_agent_node(orchestrator):
     snapshot = await assembler.build_snapshot(GraphRequest(view_mode="agent"))
     node = next(n for n in snapshot.nodes if n.id == "historical_agent")
     assert node.data["status"] == "inactive"
+    assert node.data["description"] == "Legacy agent"
+    # A snapshot does not keep the engines, so neither their model
+    assert node.data["model"] is None
     assert node.data["firstSeen"] is not None
     assert node.data["lastSeen"] is not None
     assert node.data["signature"]
@@ -588,6 +591,9 @@ async def test_agent_cards_get_the_tag_of_their_engine():
     assert tags["triage"] is None
     # A producer that is no agent
     assert tags["external"] == "source"
+    external = next(node for node in snapshot.nodes if node.id == "external")
+    assert external.data["description"] is None
+    assert external.data["model"] is None
 
 
 async def test_agent_cards_get_their_description_and_model():
