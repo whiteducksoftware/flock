@@ -41,6 +41,19 @@ export interface DeciderInfo {
   escalate?: string[]; // models asked after `model`, in order, when it is not sure
   ensemble?: string[]; // models that all answer every question (instead of `model`)
   vote?: string; // how the ensemble decides: majority, unanimous or mean
+  shadow?: { model: string; compared: number; agree: number }; // shadow model and its agreement
+}
+
+export interface ShadowAnswer {
+  model: string;
+  choice?: string;
+  best_guess?: string | null;
+  probabilities?: Record<string, number>;
+  confidence?: number | null;
+  refused?: boolean;
+  results?: Record<string, string>; // checklist
+  latency_ms?: number;
+  error?: string; // the shadow failed; the decision did not
 }
 
 export interface EscalationAttempt {
@@ -91,6 +104,7 @@ export interface DecisionInfo {
   tier?: number; // escalation tier that answered (0: the decider's model)
   attempts?: EscalationAttempt[]; // lower tiers that were not sure, oldest first
   votes?: EscalationAttempt[]; // ensemble: every model's answer, in model order
+  shadow?: ShadowAnswer; // shadow mode: what the shadow model decided (never routed)
   confidence: number | null;
   threshold: number | null;
   model: string;
@@ -530,6 +544,11 @@ export const DeciderOptions = memo(({ decider }: { decider: DeciderInfo }) => {
           ? `${decider.vote} of ${decider.ensemble.join(' + ')}`
           : [decider.model, ...(decider.escalate ?? [])].join(' › ')}
         {decider.threshold !== null ? ` · threshold ${decider.threshold.toFixed(2)}` : ''}
+        {decider.shadow ? (
+          <div data-testid="decider-shadow" title="Decisions where the shadow model chose the same as the decider">
+            {`shadow ${decider.shadow.model} · agrees ${decider.shadow.agree}/${decider.shadow.compared}`}
+          </div>
+        ) : null}
         {decider.tournament
           ? ` · tournament: groups of ${decider.tournament.groupSize}, keep ${decider.tournament.keep}`
           : ''}
@@ -830,6 +849,35 @@ const EnsembleVotes = memo(
 );
 EnsembleVotes.displayName = 'EnsembleVotes';
 
+function shadowLabel(shadow: ShadowAnswer): string {
+  if (shadow.error) return 'error';
+  if (shadow.refused) return 'refused';
+  if (shadow.results) return shadow.choice ?? UNSURE;
+  const pick = shadow.choice === UNSURE ? shadow.best_guess : shadow.choice;
+  const p = pick ? (shadow.probabilities?.[pick] ?? shadow.confidence) : null;
+  const value = pick && p != null ? `${pick} ${p.toFixed(2)}` : (pick ?? '');
+  return shadow.choice === UNSURE ? `UNSURE (${value})` : value;
+}
+
+/** Shadow mode: what the shadow model decided; violet if it would have routed the same. */
+const ShadowRow = memo(({ shadow, choice }: { shadow: ShadowAnswer; choice: string }) => {
+  const agrees = !shadow.error && shadow.choice === choice;
+  const style = shadow.error ? VOTE_STYLE.unsure : agrees ? VOTE_STYLE.agrees : VOTE_STYLE.differs;
+  return (
+    <div style={{ fontSize: '10px', fontFamily: 'monospace' }}>
+      <span
+        data-testid="decision-shadow"
+        data-agrees={String(agrees)}
+        title={shadow.error ?? (agrees ? 'The shadow model chose the same' : 'The shadow model would have routed differently')}
+        style={{ padding: '1px 6px', borderRadius: '999px', background: style.background, color: style.color, fontWeight: 600, borderStyle: 'dashed', borderWidth: '1px', borderColor: style.color }}
+      >
+        {`shadow ${shadow.model} · ${shadowLabel(shadow)}`}
+      </span>
+    </div>
+  );
+});
+ShadowRow.displayName = 'ShadowRow';
+
 /** Escalation: the lower tiers that were not sure, then the model that answered. */
 const EscalationTrail = memo(({ attempts, model, tier }: { attempts: EscalationAttempt[]; model: string; tier: number }) => (
   <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px', fontSize: '10px', fontFamily: 'monospace' }}>
@@ -1015,6 +1063,7 @@ export const DecisionBars = memo(({ decision }: { decision: DecisionInfo }) => {
         </>
       )}
       {decision.votes && decision.votes.length > 0 && <EnsembleVotes votes={decision.votes} choice={decision.choice} threshold={decision.threshold} />}
+      {decision.shadow && <ShadowRow shadow={decision.shadow} choice={decision.choice} />}
       {decision.attempts && decision.attempts.length > 0 && (
         <EscalationTrail attempts={decision.attempts} model={decision.model} tier={decision.tier ?? decision.attempts.length} />
       )}

@@ -559,6 +559,75 @@ describe('MessageNode', () => {
     expect(votes.map((v) => v.getAttribute('data-vote'))).toEqual(['agrees', 'differs', 'unsure', 'unsure']);
   });
 
+  const shadowedDecision = (shadow: Record<string, unknown>) =>
+    decisionNode({
+      question: 'Route',
+      kind: 'choice',
+      choice: 'billing',
+      bestGuess: 'billing',
+      probabilities: { billing: 0.95, tech: 0.05 },
+      shadow,
+      confidence: 0.95,
+      threshold: 0.8,
+      model: 'live',
+      latencyMs: 200,
+      score: null,
+      refused: false,
+    });
+
+  it('should show where the shadow model would have routed differently', () => {
+    render(
+      <ReactFlowProvider>
+        <MessageNode
+          {...createNodeProps(
+            shadowedDecision({
+              model: 'candidate',
+              choice: 'tech',
+              best_guess: 'tech',
+              probabilities: { billing: 0.1, tech: 0.9 },
+              confidence: 0.9,
+              refused: false,
+            })
+          )}
+        />
+      </ReactFlowProvider>
+    );
+    const shadow = screen.getByTestId('decision-shadow');
+    expect(shadow).toHaveTextContent('shadow candidate · tech 0.90');
+    expect(shadow).toHaveAttribute('data-agrees', 'false');
+  });
+
+  it('should show an unsure shadow with its best guess', () => {
+    render(
+      <ReactFlowProvider>
+        <MessageNode
+          {...createNodeProps(
+            shadowedDecision({
+              model: 'candidate',
+              choice: 'UNSURE',
+              best_guess: 'billing',
+              probabilities: { billing: 0.6, tech: 0.4 },
+              confidence: 0.6,
+              refused: false,
+            })
+          )}
+        />
+      </ReactFlowProvider>
+    );
+    expect(screen.getByTestId('decision-shadow')).toHaveTextContent('shadow candidate · UNSURE (billing 0.60)');
+  });
+
+  it('should show a failed shadow with its error', () => {
+    render(
+      <ReactFlowProvider>
+        <MessageNode {...createNodeProps(shadowedDecision({ model: 'candidate', error: 'TimeoutError: no reply' }))} />
+      </ReactFlowProvider>
+    );
+    const shadow = screen.getByTestId('decision-shadow');
+    expect(shadow).toHaveTextContent('shadow candidate · error');
+    expect(shadow).toHaveAttribute('title', 'TimeoutError: no reply');
+  });
+
   it('should summarize the checklist votes of an ensemble', () => {
     render(
       <ReactFlowProvider>
