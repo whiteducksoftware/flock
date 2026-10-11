@@ -927,19 +927,12 @@ const ExplanationNote = memo(({ explanation }: { explanation: NonNullable<Decisi
     title={[explanation.explanation, explanation.missing ? `Would settle it: ${explanation.missing}` : '', explanation.model]
       .filter(Boolean)
       .join('\n\n')}
-    style={{
-      ...NOTE_STYLE,
-      maxWidth: '420px',
-      padding: '4px 8px',
-      borderLeft: `3px solid ${DECISION_COLOR}`,
-      background: '#f5f3ff',
-      display: '-webkit-box',
-      WebkitLineClamp: 3,
-      WebkitBoxOrient: 'vertical',
-      overflow: 'hidden',
-    }}
+    style={{ ...NOTE_STYLE, maxWidth: '420px', padding: '4px 8px', borderLeft: `3px solid ${DECISION_COLOR}`, background: '#f5f3ff' }}
   >
-    {`💬 ${explanation.by ?? explanation.model}: ${explanation.explanation}`}
+    {/* Clamped inside the padding, so no part of a fourth line shows */}
+    <div style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+      {`💬 ${explanation.by ?? explanation.model}: ${explanation.explanation}`}
+    </div>
   </div>
 ));
 ExplanationNote.displayName = 'ExplanationNote';
