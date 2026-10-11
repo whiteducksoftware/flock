@@ -480,7 +480,17 @@ On the 100 arXiv abstracts (threshold 0.8, [`09_shadow.py`](https://github.com/w
 
 The shadow would have routed 86 of the 100 papers the same way. Most of the other 14 are papers the live model was unsure about and the shadow sorted firmly; they are the papers to look at before the switch.
 
-In the dashboard, the decider shows how often the shadow agreed (`shadow openai/gpt-6-luna · agrees 86/100`), and a decision shows the shadow's answer in a dashed pill: violet if it would have routed the same way, amber if not, grey if the shadow failed.
+In the dashboard, the decider shows how often the shadow agreed (`shadow openai/gpt-6-luna · agrees 85/100` in a second run), and a decision shows the shadow's answer in a dashed pill: violet if it would have routed the same way, amber if not, grey if the shadow failed.
+
+<p align="center">
+  <img alt="A decider with gpt-6-luna in the shadow, agreeing on 85 of 100 papers" src="../../assets/images/decisions/decision-shadow-agent-view.png" width="900">
+</p>
+
+<p align="center">
+  <img alt="Live economics at 0.91; the shadow would have chosen machine_learning at 0.98" src="../../assets/images/decisions/decision-shadow-card.png" width="300">
+  &nbsp;&nbsp;
+  <img alt="Live UNSURE with best guess computer_vision; the shadow chose computer_vision at 0.99" src="../../assets/images/decisions/decision-shadow-card-unsure.png" width="320">
+</p>
 
 ## Visibility
 
