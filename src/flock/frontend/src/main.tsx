@@ -18,7 +18,10 @@ if (!rootElement) {
 // A theme that is gone is replaced by Graphite in the settings too.
 const storedTheme = useSettingsStore.getState().appearance.theme;
 void applyThemeByName(storedTheme).then((applied) => {
-  if (applied !== storedTheme) useSettingsStore.getState().setTheme(applied);
+  // null: the user picked another theme meanwhile, and that one stands
+  if (applied !== null && applied !== storedTheme) {
+    useSettingsStore.getState().setTheme(applied);
+  }
 });
 
 ReactDOM.createRoot(rootElement).render(<App />);

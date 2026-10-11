@@ -152,6 +152,19 @@ describe('applying themes', () => {
     expect(root.style.getPropertyValue('--bg')).toBe('#101010');
   });
 
+  it('drops a theme that finishes loading after another one was chosen', async () => {
+    const root = document.documentElement;
+    let finish: (theme: TerminalTheme) => void = () => {};
+    const loading = applyThemeByName('dracula', root, () => new Promise((resolve) => (finish = resolve)));
+
+    applyBuiltInTheme('paper', root); // the user picks Paper meanwhile
+    finish(dark);
+
+    expect(await loading).toBeNull();
+    expect(root.dataset.theme).toBe('paper');
+    expect(root.style.getPropertyValue('--bg')).toBe('');
+  });
+
   it('falls back to Graphite when a terminal theme cannot be loaded', async () => {
     const root = document.documentElement;
     vi.spyOn(console, 'error').mockImplementation(() => {});

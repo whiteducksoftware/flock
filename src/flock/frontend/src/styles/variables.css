@@ -239,11 +239,12 @@
   --shadow-lg: var(--shadow);
   --shadow-xl: var(--shadow-stage);
   --shadow-2xl: var(--shadow-stage);
-  --shadow-glow-primary: none;
-  --shadow-glow-secondary: none;
-  --shadow-glow-success: none;
-  --shadow-glow-error: none;
-  --shadow-glow-warning: none;
+  /* Legacy focus glows: the design's focus ring, until each control uses :focus-visible */
+  --shadow-glow-primary: 0 0 0 2px var(--sure);
+  --shadow-glow-secondary: 0 0 0 2px var(--sure);
+  --shadow-glow-success: 0 0 0 2px var(--sure);
+  --shadow-glow-error: 0 0 0 2px var(--error);
+  --shadow-glow-warning: 0 0 0 2px var(--signal);
   --shadow-inner: none;
   --shadow-inner-lg: none;
 

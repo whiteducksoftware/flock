@@ -186,6 +186,14 @@ export function terminalThemeTokens(theme: TerminalTheme): Record<ThemeToken, st
   return tokens;
 }
 
+// The latest theme choice; a terminal theme still loading for an older one is dropped
+let latestChoice = 0;
+
+function claim(): number {
+  latestChoice += 1;
+  return latestChoice;
+}
+
 function clearOverrides(root: HTMLElement): void {
   for (const token of THEME_TOKENS) {
     root.style.removeProperty(token);
@@ -194,12 +202,14 @@ function clearOverrides(root: HTMLElement): void {
 
 /** Graphite or Paper: the tokens of tokens.css, with no override left. */
 export function applyBuiltInTheme(name: BuiltInTheme, root: HTMLElement = document.documentElement): void {
+  claim();
   clearOverrides(root);
   root.dataset.theme = name;
 }
 
 /** A terminal theme on top of Graphite (dark grounds) or Paper (light grounds). */
 export function applyTheme(theme: TerminalTheme, root: HTMLElement = document.documentElement): void {
+  claim();
   const tokens = terminalThemeTokens(theme);
   root.dataset.theme = isLight(tokens['--bg']) ? 'paper' : 'graphite';
   for (const token of THEME_TOKENS) {
@@ -222,22 +232,27 @@ export function builtInTheme(name: string): BuiltInTheme | null {
  * Apply a theme by name: a built-in one at once, a terminal theme once it is
  * loaded. Falls back to Graphite when a terminal theme cannot be loaded.
  * Returns the name of the theme now applied ('default' comes back as
- * 'graphite'), so a caller can store it.
+ * 'graphite'), so a caller can store it, or null when another theme was chosen
+ * while this one loaded (that choice stands).
  */
 export async function applyThemeByName(
   name: string,
   root: HTMLElement = document.documentElement,
   load: (name: string) => Promise<TerminalTheme> = fetchTheme
-): Promise<string> {
+): Promise<string | null> {
   const builtIn = builtInTheme(name);
   if (builtIn) {
     applyBuiltInTheme(builtIn, root);
     return builtIn;
   }
+  const choice = claim();
   try {
-    applyTheme(await load(name), root);
+    const theme = await load(name);
+    if (choice !== latestChoice) return null;
+    applyTheme(theme, root);
     return name;
   } catch (error) {
+    if (choice !== latestChoice) return null;
     console.error(`[Theme] Could not load "${name}", using Graphite`, error);
     applyBuiltInTheme('graphite', root);
     return 'graphite';
