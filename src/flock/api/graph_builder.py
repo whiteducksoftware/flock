@@ -288,13 +288,12 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             )
             if decision:
                 node_data["decision"] = decision
+            # Order does not matter: each group's highest revision counts
             coverage = aggregator_info(
                 agent,
                 (
                     (artifact.artifact_type, artifact.payload)
-                    for artifact in sorted(
-                        artifacts.values(), key=lambda a: a.published_at
-                    )
+                    for artifact in artifacts.values()
                     if artifact.produced_by == agent.name
                 ),
             )

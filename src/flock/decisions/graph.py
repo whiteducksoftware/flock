@@ -292,8 +292,8 @@ def aggregator_info(
 ) -> dict[str, Any] | None:
     """Checklist, grouping and outcome counts of an aggregating agent, else None.
 
-    ``produced`` yields ``(type_name, payload)`` oldest first; the latest
-    coverage of each group counts.
+    ``produced`` yields ``(type_name, payload)``; the coverage with the highest
+    revision of each group counts.
     """
     from flock.decisions.coverage import AggregateEngine, Coverage
 
@@ -301,12 +301,16 @@ def aggregator_info(
     if engine is None:
         return None
     coverage_type = type_registry.name_for(Coverage.of(engine.question))
-    latest: dict[str, str] = {}
+    current: dict[str, Mapping[str, Any]] = {}  # group -> highest revision
     for type_name, payload in produced:
-        if type_name == coverage_type:
-            latest[str(payload.get("group"))] = str(payload.get("choice"))
+        if type_name != coverage_type:
+            continue
+        group = str(payload.get("group"))
+        if payload.get("revision", 0) >= current.get(group, {}).get("revision", 0):
+            current[group] = payload
     groups = {PASSED: 0, FAILED: 0, UNSURE: 0}
-    for choice in latest.values():
+    for payload in current.values():
+        choice = str(payload.get("choice"))
         groups[choice] = groups.get(choice, 0) + 1
     return {
         "question": engine.question.__name__,

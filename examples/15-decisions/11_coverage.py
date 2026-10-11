@@ -116,10 +116,12 @@ async def main_cli() -> None:
     await flock.run_until_idle()
 
     model = Coverage.of(Controls)
-    latest: dict[str, dict] = {}
+    latest: dict[str, dict] = {}  # per organisation, the highest revision
     for artifact in await flock.store.list():
         if artifact.type == type_registry.name_for(model):
-            latest[artifact.payload["group"]] = artifact.payload  # oldest first
+            group = artifact.payload["group"]
+            if artifact.payload["revision"] > latest.get(group, {}).get("revision", 0):
+                latest[group] = artifact.payload
 
     expected = truth()
     totals = {"tp": 0, "fp": 0, "fn": 0, "unsure": 0}

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from flock.core import Flock
 from flock.core.visibility import PrivateVisibility
@@ -32,6 +32,12 @@ class CovRoute(Choice):
     b = "B"
 
 
+@flock_type
+class CovAliased(BaseModel):
+    org_name: str = Field(alias="orgName")
+    text: str
+
+
 # Per document text: probability of "yes" per control
 ANSWERS = {
     "access policy": {"mfa": 0.97, "backup": 0.02, "logs": 0.6},
@@ -40,8 +46,12 @@ ANSWERS = {
 }
 
 
+COMPLETE = {"complete manual": {"mfa": 0.97, "backup": 0.96, "logs": 0.98}}
+
+
 def by_text(state: str) -> dict[str, float]:
-    return next(answer for text, answer in ANSWERS.items() if text in state)
+    answers = {**ANSWERS, **COMPLETE}
+    return next(answer for text, answer in answers.items() if text in state)
 
 
 def _flock(combine: str = "any", **aggregates) -> Flock:
@@ -61,9 +71,11 @@ async def _coverages(flock: Flock) -> list:
 
 
 async def _latest(flock: Flock, group: str) -> dict:
-    return [a.payload for a in await _coverages(flock) if a.payload["group"] == group][
-        -1
+    """The current coverage of a group: the highest revision."""
+    group_coverages = [
+        a.payload for a in await _coverages(flock) if a.payload["group"] == group
     ]
+    return max(group_coverages, key=lambda c: c["revision"])
 
 
 async def test_any_document_can_show_a_control():
@@ -132,15 +144,19 @@ async def test_all_needs_every_document_to_show_a_control():
     assert coverage["choice"] == "failed"
 
 
-async def test_a_coverage_is_published_per_arrival_and_the_last_has_everything():
+async def test_a_coverage_is_published_per_arrival_with_a_growing_revision():
     flock = _flock()
     for text in ANSWERS:
         await flock.publish(CovDocument(org="acme", text=text))
     await flock.run_until_idle()
 
-    coverages = await _coverages(flock)
+    coverages = [c.payload for c in await _coverages(flock)]
     assert len(coverages) == 3
-    assert max(len(c.payload["decision_ids"]) for c in coverages) == 3
+    # A revision counts the combined decisions (history included); whatever
+    # order the coverages were stored in, the highest one has everything
+    assert all(c["revision"] == len(c["decision_ids"]) for c in coverages)
+    current = max(coverages, key=lambda c: c["revision"])
+    assert current["revision"] == 3
 
 
 async def test_a_callable_key_groups_by_anything():
@@ -155,6 +171,39 @@ async def test_a_callable_key_groups_by_anything():
     await flock.run_until_idle()
 
     assert (await _latest(flock, "ACME"))["results"]["mfa"] == "yes"
+
+
+async def test_history_only_counts_decisions_that_reach_the_aggregator():
+    flock = Flock()
+    flock.agent("audit").consumes(CovDocument).decides(
+        CovControls, model=FakeDecider({"CovControls": by_text}), threshold=0.9
+    )
+    # Only failed checklists reach this aggregator
+    flock.agent("coverage").consumes(CovControls.failed).aggregates(by="org")
+    await flock.publish(CovDocument(org="acme", text="complete manual"))  # passed
+    await flock.run_until_idle()
+    await flock.publish(CovDocument(org="acme", text="backup runbook"))  # failed
+    await flock.run_until_idle()
+
+    coverage = await _latest(flock, "acme")
+    assert coverage["revision"] == 1  # the passed decision stays out
+
+
+def test_a_callable_key_works_for_alias_only_models():
+    from flock.core.artifacts import Artifact
+    from flock.decisions.coverage import AggregateEngine
+
+    engine = AggregateEngine(
+        question=CovControls, by=lambda document: document.org_name
+    )
+    # Stored payloads use field names, not aliases
+    subject = Artifact(
+        type=type_registry.name_for(CovAliased),
+        payload={"org_name": "acme", "text": "access policy"},
+        produced_by="external",
+    )
+
+    assert engine._key(subject) == "acme"
 
 
 async def test_coverage_keeps_the_documents_visibility():

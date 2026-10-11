@@ -327,7 +327,7 @@ Checks the 24 compliance documents against the 100 controls (as in `05_complianc
 **Key Concepts:**
 - `.consumes(Controls.ANY).aggregates(by="organisation", combine="any")`
 - `Coverage.of(Controls)` (`flock.decisions.coverage`): `group`, `results`, `evidence`, `subject_ids`, `decision_ids`
-- One coverage per decision; the latest per group is current
+- One coverage per decision; per group, the highest `revision` is current
 
 **Run:**
 ```bash
