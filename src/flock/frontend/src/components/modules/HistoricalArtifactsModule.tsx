@@ -1,7 +1,8 @@
+import { shortTypeName } from '../../utils/typeName';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchArtifactSummary, fetchArtifacts, type ArtifactListItem, type ArtifactQueryOptions } from '../../services/api';
 import { useFilterStore } from '../../store/filterStore';
-import type { ModuleContext } from './ModuleRegistry';
+import { boundOf } from '../../types/filters';
 import JsonAttributeRenderer from './JsonAttributeRenderer';
 import ImageThumbnails from '../common/ImageThumbnails';
 import styles from './HistoricalArtifactsModule.module.css';
@@ -12,9 +13,6 @@ const MIN_VISIBLE_ITEMS = 8;
 
 type TimeRangeSelection = ReturnType<typeof useFilterStore.getState>['timeRange'];
 
-type HistoricalArtifactsModuleProps = {
-  context: ModuleContext;
-};
 
 // "The last N minutes" bounds the start only: artifacts stamped after the
 // browser's clock reading (another clock, a publish racing the request) still show
@@ -29,18 +27,19 @@ const resolveTimeRangeToIso = (range: TimeRangeSelection): { from?: string; to?:
   if (range.preset === 'last1hour') {
     return { from: new Date(now - 60 * 60 * 1000).toISOString() };
   }
-  if (range.preset === 'custom' && range.start && range.end) {
+  if (range.preset === 'custom') {
+    // Each bound on its own: a range brushed up to now has a start only
+    const start = boundOf(range.start);
+    const end = boundOf(range.end);
     return {
-      from: new Date(range.start).toISOString(),
-      to: new Date(range.end).toISOString(),
+      ...(start !== undefined && { from: new Date(start).toISOString() }),
+      ...(end !== undefined && { to: new Date(end).toISOString() }),
     };
   }
   return {};
 };
 
-const HistoricalArtifactsModule: React.FC<HistoricalArtifactsModuleProps> = ({ context }) => {
-  // Context reserved for future extensions (module lifecycle expects prop)
-  void context;
+const HistoricalArtifactsModule: React.FC = () => {
   const correlationId = useFilterStore((state) => state.correlationId);
   const timeRange = useFilterStore((state) => state.timeRange);
   const selectedArtifactTypes = useFilterStore((state) => state.selectedArtifactTypes);
@@ -352,7 +351,7 @@ const HistoricalArtifactsModule: React.FC<HistoricalArtifactsModuleProps> = ({ c
                         }}
                       >
                         <span>{row.timestamp}</span>
-                        <span>{row.type}</span>
+                        <span title={row.type}>{shortTypeName(row.type)}</span>
                         <span>{row.producedBy}</span>
                         <span>{row.correlationId}</span>
                         <span>{row.tags}</span>

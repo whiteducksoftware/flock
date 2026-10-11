@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
 
 export type VisualizationMode = 'agent' | 'blackboard';
+export type DockTab = 'traces' | 'history' | 'metrics' | 'settings';
+
 export type AutoLayoutMode =
   | 'hierarchical-horizontal'
   | 'hierarchical-vertical'
@@ -31,6 +33,14 @@ interface UIState {
   unfold: (nodeId: string) => void;
   fold: () => void;
   toggleUnfold: (nodeId: string) => void;
+
+  // The timeline dock, expanded on a tab (not saved); the trace search it opens with
+  dockOpen: boolean;
+  dockTab: DockTab;
+  traceSearch: string;
+  openDock: (tab: DockTab, traceSearch?: string) => void;
+  setTraceSearch: (traceSearch: string) => void;
+  closeDock: () => void;
 
   // The node in focus: a full stage over the dimmed board (not saved)
   focusedNodeId: string | null;
@@ -78,8 +88,17 @@ export const useUIStore = create<UIState>()(
         toggleUnfold: (nodeId: string) =>
           set((state) => ({ unfoldedNodeId: state.unfoldedNodeId === nodeId ? null : nodeId })),
 
+        dockOpen: false,
+        dockTab: 'traces',
+        traceSearch: '',
+        // The expanded dock and the focus stage each need the board's room: one closes the other
+        openDock: (tab: DockTab, traceSearch?: string) =>
+          set((state) => ({ dockOpen: true, dockTab: tab, traceSearch: traceSearch ?? state.traceSearch, focusedNodeId: null })),
+        closeDock: () => set({ dockOpen: false }),
+        setTraceSearch: (traceSearch: string) => set({ traceSearch }),
+
         focusedNodeId: null,
-        focus: (nodeId: string) => set({ focusedNodeId: nodeId }),
+        focus: (nodeId: string) => set({ focusedNodeId: nodeId, dockOpen: false }),
         unfocus: () => set({ focusedNodeId: null }),
 
         detailWindows: new Map(),

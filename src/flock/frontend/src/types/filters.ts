@@ -45,3 +45,10 @@ export interface SavedFilterMeta {
   created_at: number;
   filters: FilterSnapshot;
 }
+
+/**
+ * A range bound, if it is a time: an older dashboard stored NaN for a cleared
+ * date field, which a reload turns into null.
+ */
+export const boundOf = (value: number | null | undefined): number | undefined =>
+  typeof value === 'number' && Number.isFinite(value) ? value : undefined;

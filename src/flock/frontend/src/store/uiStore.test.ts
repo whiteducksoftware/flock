@@ -33,6 +33,31 @@ describe('uiStore', () => {
     });
   });
 
+  it('opens the timeline dock on a tab, with a trace search, and does not save it', () => {
+    useUIStore.getState().openDock('traces', 'c-123');
+    expect(useUIStore.getState()).toMatchObject({ dockOpen: true, dockTab: 'traces', traceSearch: 'c-123' });
+    expect(JSON.stringify(memoryStorage.get('ui-storage') ?? '')).not.toContain('dockOpen');
+
+    useUIStore.getState().openDock('history');
+    expect(useUIStore.getState()).toMatchObject({ dockOpen: true, dockTab: 'history', traceSearch: 'c-123' });
+
+    useUIStore.getState().closeDock();
+    expect(useUIStore.getState().dockOpen).toBe(false);
+  });
+
+  it('keeps focus mode and the expanded dock apart, since each needs the board', () => {
+    useUIStore.setState({ focusedNodeId: null, dockOpen: false, unfoldedNodeId: 'triage' });
+
+    useUIStore.getState().focus('triage');
+    useUIStore.getState().openDock('traces', 'c-1');
+    expect(useUIStore.getState()).toMatchObject({ focusedNodeId: null, dockOpen: true, unfoldedNodeId: 'triage' });
+
+    useUIStore.getState().focus('triage');
+    expect(useUIStore.getState()).toMatchObject({ focusedNodeId: 'triage', dockOpen: false });
+
+    useUIStore.setState({ focusedNodeId: null, unfoldedNodeId: null });
+  });
+
   it('focuses one node at a time and does not save it', () => {
     useUIStore.getState().focus('billing_team');
     expect(useUIStore.getState().focusedNodeId).toBe('billing_team');

@@ -13,7 +13,6 @@
  * - runs: Agent execution records (key: run_id)
  * - layout_agent_view: Node positions for Agent View (key: node_id)
  * - layout_blackboard_view: Node positions for Blackboard View (key: node_id)
- * - module_instances: Module window positions and state (key: instance_id)
  * - sessions: Session metadata for LRU eviction (key: session_id)
  * - filters: Saved filter presets (key: filter_id)
  *
@@ -98,16 +97,6 @@ interface OutputChunk {
   output_type: string;
   content: string;
   timestamp: string;
-}
-
-interface ModuleInstanceRecord {
-  instance_id: string; // PRIMARY KEY
-  type: string; // Module type (e.g., 'eventLog')
-  position: { x: number; y: number };
-  size: { width: number; height: number };
-  visible: boolean;
-  created_at: string; // ISO timestamp
-  updated_at: string; // ISO timestamp
 }
 
 interface LayoutRecord {
@@ -276,12 +265,6 @@ export class IndexedDBService {
             storeNames.push('sessions');
           }
 
-          // Create module_instances store
-          if (!db.objectStoreNames.contains('module_instances')) {
-            db.createObjectStore('module_instances', { keyPath: 'instance_id' });
-            storeNames.push('module_instances');
-          }
-
           // Create filters store
           if (!db.objectStoreNames.contains('filters')) {
             db.createObjectStore('filters', { keyPath: 'filter_id' });
@@ -324,7 +307,6 @@ export class IndexedDBService {
       'runs',
       'layout_agent_view',
       'layout_blackboard_view',
-      'module_instances',
       'sessions',
       'filters',
     ];
@@ -654,71 +636,6 @@ export class IndexedDBService {
     } catch (error) {
       console.error('[IndexedDB] Failed to get all blackboard view layouts:', error);
       return [];
-    }
-  }
-
-  // ============================================================================
-  // Module Instance Persistence
-  // ============================================================================
-
-  async saveModuleInstance(instance: ModuleInstanceRecord): Promise<void> {
-    if (!this.db) {
-      this.inMemoryStore.get('module_instances')?.set(instance.instance_id, instance);
-      return;
-    }
-
-    try {
-      const tx = this.db.transaction('module_instances', 'readwrite');
-      const store = tx.objectStore('module_instances');
-      await promisifyRequest(store.put(instance));
-    } catch (error) {
-      console.error('[IndexedDB] Failed to save module instance:', error);
-    }
-  }
-
-  async getModuleInstance(instanceId: string): Promise<ModuleInstanceRecord | undefined> {
-    if (!this.db) {
-      return this.inMemoryStore.get('module_instances')?.get(instanceId);
-    }
-
-    try {
-      const tx = this.db.transaction('module_instances', 'readonly');
-      const store = tx.objectStore('module_instances');
-      return await promisifyRequest(store.get(instanceId));
-    } catch (error) {
-      console.error('[IndexedDB] Failed to get module instance:', error);
-      return undefined;
-    }
-  }
-
-  async getAllModuleInstances(): Promise<ModuleInstanceRecord[]> {
-    if (!this.db) {
-      const instances = this.inMemoryStore.get('module_instances');
-      return instances ? Array.from(instances.values()) : [];
-    }
-
-    try {
-      const tx = this.db.transaction('module_instances', 'readonly');
-      const store = tx.objectStore('module_instances');
-      return await promisifyRequest(store.getAll());
-    } catch (error) {
-      console.error('[IndexedDB] Failed to get all module instances:', error);
-      return [];
-    }
-  }
-
-  async deleteModuleInstance(instanceId: string): Promise<void> {
-    if (!this.db) {
-      this.inMemoryStore.get('module_instances')?.delete(instanceId);
-      return;
-    }
-
-    try {
-      const tx = this.db.transaction('module_instances', 'readwrite');
-      const store = tx.objectStore('module_instances');
-      await promisifyRequest(store.delete(instanceId));
-    } catch (error) {
-      console.error('[IndexedDB] Failed to delete module instance:', error);
     }
   }
 

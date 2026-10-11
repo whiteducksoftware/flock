@@ -5,8 +5,6 @@
 
 import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Handle, NodeProps, Position, useStore } from '@xyflow/react';
-import { v4 as uuidv4 } from 'uuid';
-import { useModuleStore } from '../../store/moduleStore';
 import { useUIStore } from '../../store/uiStore';
 import { Icon } from '../icons/Icon';
 import {
@@ -86,16 +84,9 @@ const Port: React.FC<{ row: PortRow }> = ({ row }) => (
   </div>
 );
 
-/** Open the trace viewer on a run's correlation. */
+/** Show a run's traces: the timeline dock's Traces tab, searching its correlation. */
 export const openTrace = (correlationId: string) => {
-  useModuleStore.getState().addModule({
-    id: uuidv4(),
-    type: 'traceViewerJaeger',
-    position: { x: 120, y: 120 },
-    size: { width: 820, height: 520 },
-    visible: true,
-    search: correlationId,
-  });
+  useUIStore.getState().openDock('traces', correlationId);
 };
 
 const ErrorRow: React.FC<{ error: AgentData['lastError'] }> = ({ error }) => {
@@ -220,7 +211,9 @@ const AgentNode = memo(({ id, data, selected }: NodeProps) => {
   const agent = data as AgentData;
   // An unfolded node stays unfolded at any zoom; it is what the reader looks at
   const unfolded = useUIStore((state) => state.unfoldedNodeId === id);
-  const chip = useStore((state) => state.transform[2] < CHIP_ZOOM) && !unfolded;
+  // Chips when zoomed out or while the timeline dock is expanded (the board is a strip then)
+  const dockOpen = useUIStore((state) => state.dockOpen);
+  const chip = (useStore((state) => state.transform[2] < CHIP_ZOOM) || dockOpen) && !unfolded;
   const card = useRef<HTMLDivElement>(null);
   const status = agent.status === 'running' ? 'running' : agent.status === 'error' ? 'error' : 'idle';
   const operations = agent.logicOperations ?? [];
