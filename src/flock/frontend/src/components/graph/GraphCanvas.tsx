@@ -11,7 +11,8 @@ import {
   type Node,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import AgentNode from './AgentNode';
+import AgentNode, { openTrace } from './AgentNode';
+import FocusStage from './focus/FocusStage';
 import MessageNode from './MessageNode';
 import MessageFlowEdge from './MessageFlowEdge';
 import TransformEdge from './TransformEdge';
@@ -466,10 +467,12 @@ const GraphCanvas: React.FC = () => {
     }
   }, []);
 
-  // Artifacts open their detail window until their cards unfold too (#565)
+  // A double-click puts an agent in focus; artifacts open their detail window until their cards unfold (#565)
   const onNodeDoubleClick = useCallback(
-    (_event: React.MouseEvent, node: Node) => {
-      if (node.type === 'message') openDetailWindow(node.id);
+    (event: React.MouseEvent, node: Node) => {
+      if (fromControl(event.target)) return;
+      if (node.type === 'agent') useUIStore.getState().focus(node.id);
+      else if (node.type === 'message') openDetailWindow(node.id);
     },
     [openDetailWindow]
   );
@@ -523,6 +526,8 @@ const GraphCanvas: React.FC = () => {
         />
         <MiniMap />
       </ReactFlow>
+
+      <FocusStage onOpenTrace={openTrace} />
 
       {/* Context Menu */}
       {contextMenu && (

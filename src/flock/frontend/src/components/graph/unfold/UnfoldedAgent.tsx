@@ -90,6 +90,18 @@ const UnfoldedAgent: React.FC<UnfoldedAgentProps> = ({
         >
           <Icon name="fold" size={15} />
         </button>
+        <button
+          type="button"
+          className="btn icon ghost nodrag"
+          aria-label="Open in focus mode"
+          title="Open in focus mode (double-click)"
+          onClick={(event) => {
+            event.stopPropagation();
+            useUIStore.getState().focus(id);
+          }}
+        >
+          <Icon name="focus" size={15} />
+        </button>
       </div>
       {(agent.description || model) && (
         <div className={styles.about}>
@@ -153,6 +165,7 @@ const UnfoldedAgent: React.FC<UnfoldedAgentProps> = ({
         id={`${tabIds}-panel`}
         role="tabpanel"
         aria-labelledby={`${tabIds}-${tab}`}
+        tabIndex={0}
         className={`nodrag nowheel nopan ${styles.body}`}
         data-scroll
       >

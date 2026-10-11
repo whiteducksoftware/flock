@@ -17,7 +17,7 @@ const agent = (id: string, selected = false): Node => ({ id, type: 'agent', posi
 describe('useKeyboardShortcuts: unfolding', () => {
   beforeEach(() => {
     useGraphStore.setState({ nodes: [agent('intake'), agent('triage', true)] });
-    useUIStore.setState({ unfoldedNodeId: null, detailWindows: new Map() });
+    useUIStore.setState({ unfoldedNodeId: null, focusedNodeId: null, detailWindows: new Map() });
     renderHook(() => useKeyboardShortcuts());
   });
 
@@ -66,6 +66,19 @@ describe('useKeyboardShortcuts: unfolding', () => {
     press(' ');
 
     expect(useUIStore.getState().unfoldedNodeId).toBeNull();
+  });
+
+  it('leaves focus mode with Esc before folding, and keeps Space from the board behind it', () => {
+    useUIStore.getState().unfold('intake');
+    useUIStore.getState().focus('triage');
+
+    press(' ');
+    press('D', { ctrlKey: true, shiftKey: true });
+    expect(useUIStore.getState().unfoldedNodeId).toBe('intake');
+
+    press('Escape');
+    expect(useUIStore.getState().focusedNodeId).toBeNull();
+    expect(useUIStore.getState().unfoldedNodeId).toBe('intake');
   });
 
   it('leaves Esc to a dialog that handled it', () => {

@@ -1,30 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import ImageThumbnails from '../../common/ImageThumbnails';
-import type { ImageSummary } from '../../../utils/imageFields';
 import { shortTypeName } from '../../../utils/typeName';
 import { clockTime, shortId } from './format';
+import { type Message, useMessageHistory } from './messageHistory';
 import styles from './Unfolded.module.css';
-
-interface Message {
-  id: string;
-  type: string;
-  direction: 'consumed' | 'published';
-  payload: unknown;
-  images?: ImageSummary[];
-  at: string;
-  correlationId: string | null;
-}
-
-interface ApiMessage {
-  id: string;
-  type: string;
-  direction: 'consumed' | 'published';
-  payload: unknown;
-  images?: ImageSummary[] | null;
-  timestamp: string;
-  consumed_at?: string | null;
-  correlation_id?: string | null;
-}
 
 /** One line of a payload: a decision's answer, else its first text, else its JSON. */
 export function summary(payload: unknown): string {
@@ -39,7 +18,7 @@ export function summary(payload: unknown): string {
 }
 
 /** `◆ Route` for a decision, else the type without its module. */
-const TypeLabel: React.FC<{ type: string }> = ({ type }) => {
+export const TypeLabel: React.FC<{ type: string }> = ({ type }) => {
   const decision = /^(?:.*\.)?Decision\[(.+)\]$/.exec(type);
   if (!decision) return <>{shortTypeName(type)}</>;
   return (
@@ -61,40 +40,8 @@ const json = (payload: unknown): string => {
  * What the agent consumed (↓) and published (↑), newest first; a row opens
  * its payload. Read again when the agent's counts change.
  */
-const HistoryTab: React.FC<{ agent: string; revision: number }> = ({ agent, revision }) => {
-  const [messages, setMessages] = useState<Message[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+export const HistoryList: React.FC<{ messages: Message[] | null; error: string | null }> = ({ messages, error }) => {
   const [open, setOpen] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    let current = true;
-    fetch(`/api/artifacts/history/${encodeURIComponent(agent)}`)
-      .then((response) => {
-        if (!response.ok) throw new Error(`The history could not be read (${response.status})`);
-        return response.json();
-      })
-      .then((data: { messages?: ApiMessage[] }) => {
-        if (!current) return;
-        setMessages(
-          (data.messages ?? []).map((message) => ({
-            id: message.id,
-            type: message.type,
-            direction: message.direction,
-            payload: message.payload,
-            images: message.images ?? undefined,
-            at: message.consumed_at || message.timestamp,
-            correlationId: message.correlation_id ?? null,
-          })),
-        );
-        setError(null);
-      })
-      .catch((reason: unknown) => {
-        if (current) setError(reason instanceof Error ? reason.message : String(reason));
-      });
-    return () => {
-      current = false;
-    };
-  }, [agent, revision]);
 
   const toggle = (id: string) =>
     setOpen((previous) => {
@@ -151,6 +98,12 @@ const HistoryTab: React.FC<{ agent: string; revision: number }> = ({ agent, revi
       })}
     </div>
   );
+};
+
+/** The history of `agent`, read for this tab. */
+const HistoryTab: React.FC<{ agent: string; revision: number }> = ({ agent, revision }) => {
+  const { messages, error } = useMessageHistory(agent, revision);
+  return <HistoryList messages={messages} error={error} />;
 };
 
 export default HistoryTab;

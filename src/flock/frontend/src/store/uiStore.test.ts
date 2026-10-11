@@ -29,7 +29,20 @@ describe('uiStore', () => {
       autoLayoutEnabled: true,
       autoLayoutMode: 'hierarchical-horizontal',
       unfoldedNodeId: null,
+      focusedNodeId: null,
     });
+  });
+
+  it('focuses one node at a time and does not save it', () => {
+    useUIStore.getState().focus('billing_team');
+    expect(useUIStore.getState().focusedNodeId).toBe('billing_team');
+
+    useUIStore.getState().focus('triage');
+    expect(useUIStore.getState().focusedNodeId).toBe('triage');
+    expect(JSON.stringify(memoryStorage.get('ui-storage') ?? '')).not.toContain('triage');
+
+    useUIStore.getState().unfocus();
+    expect(useUIStore.getState().focusedNodeId).toBeNull();
   });
 
   it('unfolds one node at a time', () => {

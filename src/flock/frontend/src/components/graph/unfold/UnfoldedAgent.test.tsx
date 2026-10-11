@@ -160,6 +160,17 @@ describe('UnfoldedAgent', () => {
     expect(outside).not.toHaveBeenCalled();
   });
 
+  it('opens focus mode with its button', () => {
+    renderAgent();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open in focus mode' }));
+
+    expect(useUIStore.getState().focusedNodeId).toBe('billing_team');
+    // ... and stays unfolded behind it
+    expect(useUIStore.getState().unfoldedNodeId).toBe('billing_team');
+    useUIStore.setState({ focusedNodeId: null });
+  });
+
   it('moves between tabs with the arrow keys, Home and End', () => {
     renderAgent();
     const overview = screen.getByRole('tab', { name: 'Overview' });

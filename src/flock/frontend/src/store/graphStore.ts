@@ -26,11 +26,16 @@ import { indexedDBService } from '../services/indexeddb';
  * - Real-time updates via CorrelationGroupUpdatedEvent and BatchItemAddedEvent
  */
 
+/** How much of a running run's output the focus stage shows */
+const RUN_TAIL_CHARS = 160;
+
 interface GraphState {
   // Real-time WebSocket state (overlaid on backend snapshot)
   agentStatus: Map<string, string>;
-  /** Per running run, its agent and the types it consumed (edges in flight) */
-  inFlight: Map<string, { agent: string; types: string[] }>;
+  /** Per running run, its agent and what it consumed: the types (edges in flight) and artifact IDs */
+  inFlight: Map<string, { agent: string; types: string[]; artifacts: string[] }>;
+  /** Per running run, the end of its streamed output (an agent's ticker mixes its runs) */
+  runTails: Map<string, string>;
   streamingTokens: Map<string, string[]>;
   agentLogicOperations: Map<string, AgentLogicOperations[]>; // Phase 1.3: Logic operations state
 
@@ -60,7 +65,8 @@ interface GraphState {
 
   // Actions - Real-time WebSocket updates
   updateAgentStatus: (agentId: string, status: string) => void;
-  setInFlight: (runId: string, agentId: string, types: string[] | null) => void;
+  setInFlight: (runId: string, agentId: string, types: string[] | null, artifacts?: string[]) => void;
+  appendRunTail: (runId: string, text: string) => void;
   updateStreamingTokens: (agentId: string, tokens: string[]) => void;
   updateAgentLogicOperations: (agentId: string, logicOps: AgentLogicOperations[]) => void; // Phase 1.3
   addEvent: (message: Message) => void;
@@ -140,6 +146,7 @@ export const useGraphStore = create<GraphState>()(
       // Initial state
       agentStatus: new Map(),
       inFlight: new Map(),
+      runTails: new Map(),
       streamingTokens: new Map(),
       agentLogicOperations: new Map(), // Phase 1.3
       nodes: [],
@@ -296,12 +303,24 @@ export const useGraphStore = create<GraphState>()(
       },
 
       // Real-time WebSocket update actions
-      setInFlight: (runId, agentId, types) => {
+      setInFlight: (runId, agentId, types, artifacts = []) => {
         set((state) => {
           const inFlight = new Map(state.inFlight);
-          if (types && types.length > 0) inFlight.set(runId, { agent: agentId, types });
+          if (types && types.length > 0) inFlight.set(runId, { agent: agentId, types, artifacts });
           else inFlight.delete(runId);
-          return { inFlight };
+          // A run that ends takes its output's tail along
+          if (types !== null || !state.runTails.has(runId)) return { inFlight };
+          const runTails = new Map(state.runTails);
+          runTails.delete(runId);
+          return { inFlight, runTails };
+        });
+      },
+
+      appendRunTail: (runId, text) => {
+        set((state) => {
+          const runTails = new Map(state.runTails);
+          runTails.set(runId, ((state.runTails.get(runId) ?? '') + text).slice(-RUN_TAIL_CHARS));
+          return { runTails };
         });
       },
 

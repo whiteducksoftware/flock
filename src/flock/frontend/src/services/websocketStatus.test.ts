@@ -30,6 +30,56 @@ describe('WebSocketClient agent status', () => {
     expect(useGraphStore.getState().streamingTokens.get('billing')).toEqual([]);
   });
 
+  it('drops the ticker of a run that failed, unless another run goes on', () => {
+    vi.useFakeTimers();
+    const client = new WebSocketClient('ws://test/ws');
+    useGraphStore.setState({ streamingTokens: new Map([['billing', ['we have']]]) });
+
+    receive(client, 'agent_error', { agent_name: 'billing', agent_status: 'running' });
+    expect(useGraphStore.getState().streamingTokens.get('billing')).toEqual(['we have']);
+
+    receive(client, 'agent_error', { agent_name: 'billing', agent_status: 'error' });
+    expect(useGraphStore.getState().streamingTokens.get('billing')).toEqual([]);
+  });
+
+  it('remembers what a starting run consumed', () => {
+    vi.useFakeTimers();
+    const client = new WebSocketClient('ws://test/ws');
+
+    receive(client, 'agent_activated', {
+      agent_name: 'billing',
+      run_id: 'r-1',
+      consumed_types: ['Decision[app.Route]'],
+      consumed_artifacts: ['d-1'],
+    });
+    expect(useGraphStore.getState().inFlight.get('r-1')).toEqual({
+      agent: 'billing',
+      types: ['Decision[app.Route]'],
+      artifacts: ['d-1'],
+    });
+  });
+
+  it('keeps the end of each running run\'s output apart, until the run ends', () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const client = new WebSocketClient('ws://test/ws');
+    const token = (run_id: string, content: string) =>
+      receive(client, 'streaming_output', { agent_name: 'billing', run_id, content, output_type: 'llm_token', sequence: 1 });
+
+    token('r-1', 'Your refund ');
+    token('r-2', 'The second ');
+    token('r-1', 'is on its way');
+    expect(useGraphStore.getState().runTails.get('r-1')).toBe('Your refund is on its way');
+    expect(useGraphStore.getState().runTails.get('r-2')).toBe('The second ');
+
+    token('r-1', 'x'.repeat(200));
+    expect(useGraphStore.getState().runTails.get('r-1')).toHaveLength(160);
+
+    receive(client, 'agent_completed', { agent_name: 'billing', run_id: 'r-1', agent_status: 'running' });
+    receive(client, 'agent_error', { agent_name: 'billing', run_id: 'r-2', agent_status: 'error' });
+    expect(useGraphStore.getState().runTails.size).toBe(0);
+  });
+
   it('reloads the board when an agent ends failed, which says what failed', () => {
     vi.useFakeTimers();
     vi.spyOn(console, 'log').mockImplementation(() => {});

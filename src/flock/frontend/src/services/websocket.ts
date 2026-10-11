@@ -177,7 +177,7 @@ export class WebSocketClient {
       // Update real-time status (fast, local)
       useGraphStore.getState().updateAgentStatus(data.agent_name, 'running');
       // What this run works on: the edges carrying these types are in flight
-      useGraphStore.getState().setInFlight(data.run_id, data.agent_name, data.consumed_types ?? []);
+      useGraphStore.getState().setInFlight(data.run_id, data.agent_name, data.consumed_types ?? [], data.consumed_artifacts ?? []);
 
       // Schedule debounced refresh (batches within 500ms, then fetches backend snapshot)
       this.scheduleGraphRefresh();
@@ -230,6 +230,7 @@ export class WebSocketClient {
       // Phase 6: Agent streaming tokens (for yellow ticker in agent nodes)
       // Note: artifact_id is now always present (Phase 6), so we removed the !artifact_id check
       if (data.agent_name && data.output_type === 'llm_token') {
+        if (data.run_id) useGraphStore.getState().appendRunTail(data.run_id, data.content ?? '');
         const { streamingTokens } = useGraphStore.getState();
         const currentTokens = streamingTokens.get(data.agent_name) || [];
 
@@ -284,7 +285,10 @@ export class WebSocketClient {
     this.on('agent_error', (data) => {
       // UI Optimization Migration (Phase 2 - Spec 002): Use NEW updateAgentStatus()
       // for FAST real-time updates without backend calls
-      useGraphStore.getState().updateAgentStatus(data.agent_name, data.agent_status ?? 'error');
+      const status = data.agent_status ?? 'error';
+      useGraphStore.getState().updateAgentStatus(data.agent_name, status);
+      // A failed run's tokens are not the next run's; another run of it keeps the ticker
+      if (status !== 'running') useGraphStore.getState().updateStreamingTokens(data.agent_name, []);
       useGraphStore.getState().setInFlight(data.run_id, data.agent_name, null);
       // The snapshot says what failed (lastError)
       this.scheduleGraphRefresh();
@@ -451,6 +455,7 @@ export class WebSocketClient {
             streamingTokens: new Map(),
             agentLogicOperations: new Map(),
             inFlight: new Map(),
+            runTails: new Map(),
           });
           this.scheduleGraphRefresh();
           // The counts missed those artifacts too
