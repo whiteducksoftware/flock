@@ -110,14 +110,18 @@ describe('useUnfoldLayout', () => {
     });
   });
 
-  it('lays the board out anew on folding when nodes came while it was unfolded', () => {
+  it('puts the nodes back and leaves one that came meanwhile, when no layout came due (auto layout off)', () => {
     render();
     act(() => useUIStore.getState().unfold('triage'));
-    act(() => useGraphStore.setState({ nodes: [...useGraphStore.getState().nodes, card('pager', 1200, 300)] }));
+    act(() => useGraphStore.setState({ nodes: [...useGraphStore.getState().nodes, card('pager', 1500, 900)] }));
 
     act(() => useUIStore.getState().fold());
 
-    expect(relayout).toHaveBeenCalledOnce();
+    expect(relayout).not.toHaveBeenCalled();
+    expect(positions()).toEqual({
+      ...Object.fromEntries(board().map((node) => [node.id, node.position])),
+      pager: { x: 1500, y: 900 },
+    });
   });
 
   it('lays the board out on folding when a layout came due meanwhile, such as for a new edge', () => {

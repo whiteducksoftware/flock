@@ -18,7 +18,7 @@ interface UnfoldLayoutOptions {
   rankSpacing?: number;
   /** The rendered size of every node on the board */
   collectDimensions: () => Record<string, { width: number; height: number }>;
-  /** Lays the board out anew, for nodes that came or went while one was unfolded */
+  /** Lays the board out, when a layout came due while a node was unfolded (see `layoutDue`) */
   relayout: () => void;
   /** Moves the board so this box (flow coordinates) is in view */
   reveal?: (box: { x: number; y: number; width: number; height: number }) => void;
@@ -47,13 +47,13 @@ export function useUnfoldLayout(options: UnfoldLayoutOptions): void {
       before.current = null;
       setTransientPositions(null);
       if (!restore) return;
-      const same = nodes.length === restore.size && nodes.every((node) => restore.has(node.id));
+      // A layout that came due runs now; otherwise every node goes back, and one that came meanwhile stays
       const due = latest.current.layoutDue;
-      if (same && !due?.current) {
-        moveTo(restore);
+      if (!due?.current) {
+        moveTo(new Map([...restore].filter(([id]) => current.has(id))));
         return;
       }
-      if (due) due.current = false;
+      due.current = false;
       latest.current.relayout();
       return;
     }

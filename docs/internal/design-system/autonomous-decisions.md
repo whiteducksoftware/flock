@@ -102,7 +102,8 @@ Each entry says what was decided, why, and where it landed.
   - the unfolded node keeps its top-left corner, so it opens where it was clicked;
   - folding puts every node back, animated like the unfolding.
   - the board then pans as little as it takes to show all of the unfolded node (24 px margin, no zoom); a card at the edge used to unfold under the header.
-- **Positions while a node is unfolded are not saved,** and snapshot refreshes keep them (they win over the saved ones). Moving a node meanwhile lasts until the node folds. A layout that comes due meanwhile (new nodes or edges) waits for the fold, which then lays the board out anew; choosing a layout from the menu folds the node first and lays the board out in that mode.
+- **Positions while a node is unfolded are not saved,** and snapshot refreshes keep them (they win over the saved ones). Moving a node meanwhile lasts until the node folds. A layout that comes due meanwhile (new nodes or edges with auto layout on) waits for the fold, which then lays the board out anew; with auto layout off the fold puts the nodes back and leaves new ones where they appeared. Choosing a layout from the menu folds the node first and lays the board out in that mode.
+- **A click on a control inside a card** (the failed run's trace button, a review button) does only what the control does; it does not unfold the card.
 - **Keys:**
   - Space and Ctrl+Shift+D unfold or fold the focused agent, else the selected one, else the unfolded one; Space is left to buttons, fields, tabs and dialogs that have the focus.
   - Esc folds the unfolded node once the panels are closed (it used to close the detail windows), and leaves an Esc that a dialog already handled.

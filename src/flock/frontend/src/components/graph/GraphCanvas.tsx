@@ -41,6 +41,7 @@ import {
   scheduleDebouncedAutoLayout,
 } from './autoLayoutTrigger';
 import { MOVE_MS, motionMs } from './animatePositions';
+import { fromControl } from './nodeClick';
 import { useUnfoldLayout } from './useUnfoldLayout';
 
 const GraphCanvas: React.FC = () => {
@@ -457,8 +458,9 @@ const GraphCanvas: React.FC = () => {
     [saveNodePositionDebounced]
   );
 
-  // A click unfolds an agent in place (a click inside the unfolded one changes nothing)
-  const onNodeClick = useCallback((_event: React.MouseEvent, node: Node) => {
+  // A click unfolds an agent in place (a click inside the unfolded one, or on a control, changes nothing)
+  const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
+    if (fromControl(event.target)) return;
     if (node.type === 'agent' && useUIStore.getState().unfoldedNodeId !== node.id) {
       useUIStore.getState().unfold(node.id);
     }
