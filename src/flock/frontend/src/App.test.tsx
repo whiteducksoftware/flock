@@ -7,10 +7,11 @@ import { useUIStore } from './store/uiStore';
 
 // The board itself is not under test here
 vi.mock('./components/graph/GraphCanvas', () => ({ default: () => <div data-testid="graph" /> }));
-vi.mock('./services/websocket', () => {
-  const client = { connect: vi.fn(), disconnect: vi.fn(), reconnectManually: vi.fn() };
-  return { initializeWebSocket: () => client, getWebSocketClient: () => client };
-});
+const client = vi.hoisted(() => ({ connect: vi.fn(), disconnect: vi.fn(), reconnectManually: vi.fn() }));
+vi.mock('./services/websocket', () => ({
+  initializeWebSocket: () => client,
+  getWebSocketClient: () => client,
+}));
 vi.mock('./services/api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./services/api')>()),
   fetchArtifactSummary: vi.fn(async () => ({
@@ -45,6 +46,7 @@ describe('App keyboard shortcuts', () => {
       ui: { ...state.ui, showControls: false, showSettings: false, showFilters: false },
     }));
     useUIStore.setState({ mode: 'agent' });
+    client.connect.mockClear();
   });
 
   afterEach(() => {
@@ -54,7 +56,8 @@ describe('App keyboard shortcuts', () => {
 
   const renderApp = async () => {
     render(<App />);
-    await waitFor(() => expect(document.querySelector('header')).not.toBeNull());
+    // The bootstrap connects last; nothing of it may outlive the test
+    await waitFor(() => expect(client.connect).toHaveBeenCalled());
   };
 
   it('opens the publish panel with Ctrl+Shift+P', async () => {
