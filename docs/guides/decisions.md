@@ -428,7 +428,7 @@ Anything else, disagreement included, routes to `UNSURE`. A refusal is no vote a
 
 The decision's `probabilities` are the mean over the models that answered, its `best_guess` is the answer voted for (or the most probable on average), and `model` joins the models' names (`microsoft-decision-1 + jev-1.13.0 + gpt-6-luna`). `votes` lists every model's answer in the order of `models=`: `model`, `choice`, `probabilities`, `confidence` and `refused`; for a Checklist, the `model` and its result per item.
 
-`models=` replaces `model=` and needs at least two models; every model gets its own share of `decision_rate_limit` and must accept images when the inputs hold an `Image`. It cannot be combined with `escalate=` or `tournament=` yet.
+With `options=`, a question left with one candidate or none is decided without asking any model, so its `votes` stay empty. `models=` replaces `model=` and needs at least two models; every model gets its own share of `decision_rate_limit` and must accept images when the inputs hold an `Image`. It cannot be combined with `escalate=` or `tournament=` yet.
 
 On the 100 arXiv abstracts (threshold 0.8, one run per vote on 2026-10-11, [`08_voting.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/08_voting.py)), each model alone and the three votes over the same three models:
 

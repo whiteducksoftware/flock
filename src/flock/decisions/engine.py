@@ -324,7 +324,11 @@ class DecisionEngine(EngineComponent):
             and (len(candidates) < 2)
         ):
             # Nothing to rank: no candidates is UNSURE, a single one wins
-            return {self.questions[0].__name__: _trivial_answer(candidates)}, []
+            answer = _trivial_answer(candidates)
+            if self.ensemble:  # no model was asked, so there are no votes
+                label = " + ".join(provider.label for provider in self.ensemble)
+                answer = replace(answer, model=label)
+            return {self.questions[0].__name__: answer}, []
         if self.tournament is not None:
             answer, rounds = await self._run_tournament(state, images, candidates)
             return {self.questions[0].__name__: answer}, rounds

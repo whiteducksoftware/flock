@@ -5,15 +5,28 @@ from __future__ import annotations
 import pytest
 from pydantic import BaseModel
 
+from flock.components.agent import EngineComponent
 from flock.core import Flock
-from flock.decisions import UNSURE, Checklist, Choice, Decision, YesNo
+from flock.decisions import UNSURE, Checklist, Choice, Decision, Scale, YesNo
 from flock.decisions.providers import FakeDecider
+from flock.decisions.tournament import Tournament
 from flock.registry import flock_type, type_registry
+from flock.utils.runtime import EvalResult
 
 
 @flock_type
 class VoteTicket(BaseModel):
     text: str
+
+
+@flock_type
+class VoteHandled(BaseModel):
+    handler: str
+
+
+class _Handled(EngineComponent):
+    async def evaluate(self, agent, ctx, inputs, output_group):
+        return EvalResult.from_object(VoteHandled(handler=agent.name), agent=agent)
 
 
 class VoteRoute(Choice):
@@ -26,6 +39,15 @@ class VoteRoute(Choice):
 
 class VoteUrgent(YesNo):
     """Does the customer need an answer today?"""
+
+
+class VoteAnger(Scale):
+    """How angry is the customer?"""
+
+    calm = "Calm"
+    annoyed = "Annoyed"
+    angry = "Angry"
+    furious = "Furious"
 
 
 VoteControls = Checklist.from_items(
@@ -155,6 +177,57 @@ async def test_yes_no_questions_vote_too():
     assert decision["choice"] == "yes"
 
 
+async def test_scale_answers_average_their_score_for_range_handles():
+    models = [
+        FakeDecider(
+            {"calm": 0.0, "annoyed": 0.0, "angry": 0.8, "furious": 0.2}, label="a"
+        ),
+        FakeDecider(
+            {"calm": 0.0, "annoyed": 0.0, "angry": 0.9, "furious": 0.1}, label="b"
+        ),
+        FakeDecider(
+            {"calm": 0.0, "annoyed": 0.3, "angry": 0.6, "furious": 0.1}, label="c"
+        ),
+    ]
+    flock = Flock()
+    flock.agent("triage").consumes(VoteTicket).decides(
+        VoteAnger, models=models, threshold=0.75
+    )
+    flock.agent("deescalate").consumes(VoteAnger.angry.or_higher).with_engines(
+        _Handled()
+    ).publishes(VoteHandled)
+
+    await flock.publish(VoteTicket(text="this is the third time!"))
+    await flock.run_until_idle()
+
+    (decision,) = await _decisions(flock, VoteAnger)
+    assert decision["choice"] == "angry"  # a and b vote angry, c is below 0.75
+    assert decision["probabilities"]["angry"] == pytest.approx((0.8 + 0.9 + 0.6) / 3)
+    # Scores 2.2, 2.1 and 1.8: the mean is the score of the mean probabilities
+    assert decision["score"] == pytest.approx((2.2 + 2.1 + 1.8) / 3)
+    handled = type_registry.name_for(VoteHandled)
+    assert [
+        a.payload["handler"] for a in await flock.store.list() if a.type == handled
+    ] == ["deescalate"]
+
+
+async def test_one_candidate_left_needs_no_vote():
+    models = [_route(0.95, 0.05, "a"), _route(0.1, 0.9, "b")]
+    flock = Flock()
+    flock.agent("triage").consumes(VoteTicket).decides(
+        VoteRoute, models=models, options=lambda ctx: ["tech"]
+    )
+
+    await flock.publish(VoteTicket(text="x"))
+    await flock.run_until_idle()
+
+    (decision,) = await _decisions(flock, VoteRoute)
+    assert decision["choice"] == "tech"
+    assert decision["votes"] == []  # nobody was asked
+    assert decision["model"] == "a + b"
+    assert [model.calls for model in models] == [[], []]
+
+
 async def test_checklist_items_are_voted_one_by_one():
     models = [
         FakeDecider({"VoteControls": {"mfa": 0.97, "backup": 0.95}}, label="a"),
@@ -219,6 +292,15 @@ def test_vote_without_models_is_rejected():
     with pytest.raises(ValueError, match="vote="):
         Flock().agent("x").consumes(VoteTicket).decides(
             VoteRoute, model=_route(0.9, 0.1, "a"), vote="mean"
+        )
+
+
+def test_ensembles_and_tournaments_cannot_be_combined_yet():
+    with pytest.raises(ValueError, match="tournament="):
+        Flock().agent("x").consumes(VoteTicket).decides(
+            VoteRoute,
+            models=[_route(0.9, 0.1, "a"), _route(0.9, 0.1, "b")],
+            tournament=Tournament(group_size=2, keep=1),
         )
 
 
