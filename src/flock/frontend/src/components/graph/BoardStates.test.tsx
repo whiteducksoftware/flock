@@ -61,6 +61,17 @@ describe('BoardStates', () => {
     expect(onPublish).toHaveBeenCalledOnce();
   });
 
+  it('does not call the blackboard empty while its size is unknown', () => {
+    // The summary did not load
+    useFilterStore.setState({ summary: null });
+
+    render(<BoardStates onPublish={() => {}} />);
+
+    expect(screen.queryByText('Nothing on the blackboard yet')).toBeNull();
+    expect(screen.getByText('Nothing to show here')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Show all' })).toBeTruthy();
+  });
+
   it('tells filtered-out artifacts from an empty blackboard', () => {
     vi.spyOn(useGraphStore.getState(), 'refreshCurrentView').mockResolvedValue();
     useFilterStore.setState({ summary: summary(42), selectedProducers: ['triage'], timeRange: { preset: 'last5min' } });

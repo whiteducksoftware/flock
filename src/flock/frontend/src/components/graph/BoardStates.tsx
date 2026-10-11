@@ -81,7 +81,8 @@ const Skeleton: React.FC = () => (
 );
 
 const Empty: React.FC<{ onPublish: () => void }> = ({ onPublish }) => {
-  const total = useFilterStore((state) => state.summary?.total ?? 0);
+  // null: the blackboard's size is unknown (its summary did not load)
+  const total = useFilterStore((state) => state.summary?.total ?? null);
   const mode = useUIStore((state) => state.mode);
 
   const showAll = () => {
@@ -96,7 +97,15 @@ const Empty: React.FC<{ onPublish: () => void }> = ({ onPublish }) => {
       Publish
     </button>
   );
-  if (total > 0 && mode === 'blackboard') {
+  if (total === null) {
+    title = 'Nothing to show here';
+    hint = 'No artifacts in this view.';
+    action = (
+      <button type="button" className="btn sm" onClick={showAll}>
+        Show all
+      </button>
+    );
+  } else if (total > 0 && mode === 'blackboard') {
     title = 'Nothing matches these filters';
     hint = `${total} artifacts are on the blackboard.`;
     action = (

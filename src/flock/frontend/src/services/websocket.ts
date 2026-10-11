@@ -1,6 +1,7 @@
 import { useWSStore } from '../store/wsStore';
 import { useGraphStore } from '../store/graphStore';
 import { useFilterStore } from '../store/filterStore';
+import { fetchArtifactSummary } from './api';
 
 interface WebSocketMessage {
   event_type: 'agent_activated' | 'message_published' | 'streaming_output' | 'agent_completed' | 'agent_error' | 'correlation_group_updated' | 'batch_item_added';
@@ -433,6 +434,10 @@ export class WebSocketClient {
         if (this.connectionLost) {
           this.connectionLost = false;
           this.scheduleGraphRefresh();
+          // The counts missed those artifacts too
+          fetchArtifactSummary()
+            .then((summary) => useFilterStore.getState().setSummary(summary))
+            .catch((error) => console.error('[WebSocket] Summary refresh failed:', error));
         }
         this.reconnectAttempt = 0;
         this.flushBuffer();

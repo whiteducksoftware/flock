@@ -50,6 +50,23 @@ describe('clearDashboardData', () => {
     expect(localStorage.getItem('another-app-key')).toBe('kept');
   });
 
+  it('stops and says so when the database cannot be deleted', async () => {
+    vi.spyOn(indexedDB, 'deleteDatabase').mockImplementation(() => {
+      const request = {} as IDBOpenDBRequest;
+      setTimeout(() => {
+        Object.defineProperty(request, 'error', { value: new DOMException('disk full') });
+        request.onerror?.(new Event('error'));
+      });
+      return request;
+    });
+    const reload = vi.fn();
+
+    await expect(clearDashboardData(reload)).rejects.toThrow('disk full');
+
+    expect(reload).not.toHaveBeenCalled();
+    expect(localStorage.getItem('flock-flow-settings')).not.toBeNull();
+  });
+
   it('waits for another tab to let go of the database before it reloads', async () => {
     // Another dashboard tab, which does not close on request
     const otherTab = await open('flock_dashboard_v1');

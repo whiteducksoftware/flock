@@ -2,7 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { liveState } from '../components/layout/connection';
 import { useGraphStore } from '../store/graphStore';
 import { useWSStore } from '../store/wsStore';
+import { useFilterStore } from '../store/filterStore';
 import { WebSocketClient } from './websocket';
+
+const fetchArtifactSummary = vi.hoisted(() => vi.fn());
+vi.mock('./api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./api')>()),
+  fetchArtifactSummary,
+}));
 
 /** A socket the test opens, fails and closes by hand. */
 class FakeSocket {
@@ -55,6 +62,7 @@ describe('WebSocketClient reconnects', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});
     FakeSocket.made = [];
+    fetchArtifactSummary.mockReset().mockResolvedValue(null);
     useWSStore.setState({ status: 'connecting', reconnectAttempts: 0, nextRetryAt: null, lastError: null });
   });
 
@@ -176,6 +184,24 @@ describe('WebSocketClient reconnects', () => {
 
     // Events published while offline never arrived
     expect(refresh).toHaveBeenCalledOnce();
+    client.disconnect();
+  });
+
+  it('reloads the blackboard summary after a reconnect', async () => {
+    vi.spyOn(useGraphStore.getState(), 'refreshCurrentView').mockResolvedValue();
+    const summary = { total: 7, by_type: {}, by_producer: {}, by_visibility: {}, tag_counts: {} };
+    fetchArtifactSummary.mockResolvedValue(summary);
+    const client = new WebSocketClient('ws://test/ws');
+    client.connect();
+    socket(0).open();
+    socket(0).fail();
+    vi.advanceTimersByTime(1000);
+
+    socket(1).open();
+    await vi.waitFor(() => expect(useFilterStore.getState().summary).toEqual(summary));
+
+    // Artifacts published while offline never counted
+    expect(fetchArtifactSummary).toHaveBeenCalledOnce();
     client.disconnect();
   });
 

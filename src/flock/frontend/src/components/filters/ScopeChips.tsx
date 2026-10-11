@@ -71,6 +71,11 @@ const ScopeChips: React.FC = () => {
     return result;
   }, [correlationId, types, producers, tags, visibility]);
 
+  // One popover at a time, also when a shortcut opens the filters
+  useEffect(() => {
+    if (showFilters) setShowTime(false);
+  }, [showFilters]);
+
   // A click elsewhere closes the open popover; Esc closes the time range
   // (the dashboard's Esc closes the filters)
   useEffect(() => {

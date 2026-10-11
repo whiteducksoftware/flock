@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useFilterStore } from '../../store/filterStore';
 import { useGraphStore } from '../../store/graphStore';
@@ -33,6 +33,16 @@ describe('ScopeChips', () => {
     fireEvent.click(within(screen.getByRole('dialog', { name: 'Time range' })).getByText('Custom'));
 
     expect(screen.getByLabelText(/Start/)).toBeTruthy();
+  });
+
+  it('closes the time range when a shortcut opens the filters', () => {
+    render(<ScopeChips />);
+    fireEvent.click(screen.getByRole('button', { name: /Last 10 min/ }));
+
+    act(() => useSettingsStore.getState().setShowFilters(true)); // Ctrl+Shift+F
+
+    expect(screen.queryByRole('dialog', { name: 'Time range' })).toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Filters' })).toBeTruthy();
   });
 
   it('shows one chip per active filter, with short type names', () => {

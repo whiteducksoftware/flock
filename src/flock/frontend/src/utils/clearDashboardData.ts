@@ -10,7 +10,8 @@ import { useUIStore } from '../store/uiStore';
  * saved layouts and presets, settings), then reload. Other apps on the same
  * origin keep their data, and the blackboard itself is untouched. While
  * another dashboard tab holds the database open, `onBlocked` is told and the
- * reload waits for that tab to close.
+ * reload waits for that tab to close. When the database cannot be deleted it
+ * rejects, and nothing else is cleared.
  */
 export async function clearDashboardData(
   reload: () => void = () => window.location.reload(),

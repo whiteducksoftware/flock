@@ -27,10 +27,11 @@ const AdvancedSettings: React.FC = () => {
 
   // Another dashboard tab keeps the data open while it is cleared
   const [clearBlocked, setClearBlocked] = useState(false);
+  const [clearError, setClearError] = useState<string | null>(null);
 
   // Version information state
   const [backendVersion, setBackendVersion] = useState<string>('Loading...');
-  const dashboardVersion = '0.1.1'; // From package.json
+  const dashboardVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev';
 
   // Fetch version information from backend
   useEffect(() => {
@@ -166,7 +167,11 @@ const AdvancedSettings: React.FC = () => {
             className="btn sm"
             onClick={() => {
               if (confirm('Clear all dashboard data? This will remove all graph data and session data.')) {
-                void clearDashboardData(undefined, () => setClearBlocked(true));
+                setClearError(null);
+                clearDashboardData(undefined, () => setClearBlocked(true)).catch((error: unknown) => {
+                  setClearBlocked(false);
+                  setClearError(error instanceof Error ? error.message : String(error));
+                });
               }
             }}
           >
@@ -175,6 +180,11 @@ const AdvancedSettings: React.FC = () => {
           {clearBlocked && (
             <p role="status" className="settings-description">
               Close the other dashboard tabs to finish clearing.
+            </p>
+          )}
+          {clearError && (
+            <p role="alert" className="settings-description" style={{ color: 'var(--error-ink)' }}>
+              The dashboard data could not be cleared: {clearError}
             </p>
           )}
         </div>
