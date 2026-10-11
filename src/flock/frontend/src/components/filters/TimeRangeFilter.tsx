@@ -3,7 +3,12 @@ import { useFilterStore } from '../../store/filterStore';
 import { TimeRangePreset } from '../../types/filters';
 import styles from './TimeRangeFilter.module.css';
 
-const TimeRangeFilter: React.FC = () => {
+interface TimeRangeFilterProps {
+  /** Called after a preset button is clicked */
+  onPreset?: (preset: TimeRangePreset) => void;
+}
+
+const TimeRangeFilter: React.FC<TimeRangeFilterProps> = ({ onPreset }) => {
   const timeRange = useFilterStore((state) => state.timeRange);
   const setTimeRange = useFilterStore((state) => state.setTimeRange);
 
@@ -16,6 +21,7 @@ const TimeRangeFilter: React.FC = () => {
     } else {
       setTimeRange({ preset });
     }
+    onPreset?.(preset);
   };
 
   const handleStartChange = (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -14,8 +14,8 @@ interface KeyboardShortcutConfig {
  * Custom hook for managing global keyboard shortcuts
  *
  * Shortcuts:
- * - Ctrl+M (or Cmd+M): Toggle between Agent View and Blackboard View
- * - Ctrl+F (or Cmd+F): Focus the filter input
+ * - Ctrl+M (or Cmd+M): Toggle between the Flow and Blackboard views
+ * - Ctrl+F (or Cmd+F): Open the filters on the correlation search
  * - Ctrl+, (or Cmd+,): Toggle Settings Panel
  * - Ctrl+Shift+F: Toggle Filters Panel
  * - Ctrl+Shift+P: Toggle Publish Panel
@@ -95,13 +95,19 @@ export const useKeyboardShortcuts = (config: KeyboardShortcutConfig = {}) => {
           if (config.onFocusFilter) {
             config.onFocusFilter();
           } else {
-            // Default behavior: focus correlation ID filter
-            const filterInput = document.querySelector<HTMLInputElement>(
-              'input[placeholder*="correlation"], input[placeholder*="Correlation"]'
-            );
-            if (filterInput) {
-              filterInput.focus();
-              filterInput.select();
+            // Default behavior: focus the correlation search of the filters
+            const focusCorrelation = (): boolean => {
+              const filterInput = document.querySelector<HTMLInputElement>(
+                'input[placeholder*="correlation"], input[placeholder*="Correlation"]'
+              );
+              filterInput?.focus();
+              filterInput?.select();
+              return filterInput !== null;
+            };
+            if (!focusCorrelation()) {
+              // The filters are closed: open them, then focus once they render
+              useSettingsStore.getState().setShowFilters(true);
+              window.setTimeout(focusCorrelation, 0);
             }
           }
         }

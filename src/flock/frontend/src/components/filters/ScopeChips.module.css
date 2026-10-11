@@ -1,0 +1,98 @@
+.scope {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.chips {
+  display: contents;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chip {
+  cursor: default;
+  padding-right: 4px;
+  max-width: 260px;
+}
+
+.facet {
+  color: var(--text-3);
+}
+
+.value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
+
+.remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-tag);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+
+.remove:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.remove:focus-visible {
+  outline: 2px solid var(--sure);
+  outline-offset: 1px;
+}
+
+.popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 1100;
+  width: min(380px, calc(100vw - 32px));
+  max-height: min(70vh, 640px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  font-size: 13px;
+}
+
+.time {
+  width: min(320px, calc(100vw - 32px));
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.section + .section {
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.heading {
+  margin: 0;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}

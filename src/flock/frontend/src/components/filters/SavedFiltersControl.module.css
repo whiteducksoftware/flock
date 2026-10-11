@@ -1,60 +1,35 @@
 .container {
   display: flex;
   flex-direction: column;
-  gap: var(--gap-xs);
+  gap: 6px;
 }
 
 .controlsRow {
   display: flex;
   align-items: center;
-  gap: var(--gap-sm);
+  gap: 6px;
   flex-wrap: wrap;
 }
 
 .select {
-  min-width: 180px;
-  padding: var(--spacing-1) var(--spacing-2);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--color-border-subtle);
-  background: rgba(0, 0, 0, 0.35);
-  color: var(--color-text-primary);
+  flex: 1;
+  min-width: 140px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 7px;
+  border: 1px solid var(--line-2);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
 }
 
-.saveButton,
-.applyButton,
-.deleteButton {
-  padding: var(--spacing-1) var(--spacing-3);
-  border-radius: var(--radius-sm);
-  border: none;
-  font-size: var(--font-size-body-xs);
-  cursor: pointer;
-  transition: background-color var(--duration-fast) ease;
-}
-
-.saveButton {
-  background: var(--color-info);
-  color: var(--color-text-on-primary);
-}
-
-.applyButton {
-  background: var(--color-success);
-  color: var(--on-sure);
-}
-
-.deleteButton {
-  background: var(--color-error);
-  color: var(--on-error);
-}
-
-.saveButton:disabled,
-.applyButton:disabled,
-.deleteButton:disabled,
 .select:disabled {
-  opacity: 0.5;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
 .error {
-  font-size: var(--font-size-body-xs);
-  color: var(--color-error);
+  font-size: 12px;
+  color: var(--error-ink);
 }

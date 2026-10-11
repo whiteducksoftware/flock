@@ -2,6 +2,9 @@
 @import './tokens.css';
 @import './variables.css';
 
+/* Buttons, chips and the other shared controls */
+@import './controls.css';
+
 /* Import themed scrollbar styles */
 @import './scrollbar.css';
 
