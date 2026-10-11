@@ -95,7 +95,8 @@ def _trivial_answer(candidates: dict[str, str]) -> DecisionAnswer:
 
 logger = get_logger(__name__)
 
-# Section requests of one question set that run at the same time
+# Section requests of one evaluation that run at the same time; a cap per
+# decision model across evaluations is decision_rate_limit
 SECTION_CONCURRENCY = 8
 # Seconds a cancelled shadow gets to stop before the decision moves on
 SHADOW_STOP_GRACE = 1.0
