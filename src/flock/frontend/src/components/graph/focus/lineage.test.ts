@@ -67,6 +67,16 @@ describe('lineageOf', () => {
     expect(lineageOf('external', nodes, edges).upstream).toEqual([]);
   });
 
+  it('keeps a decision label the server already qualified (yes/no, scale, checklist)', () => {
+    const escalation = [
+      agent('triage', ['Decision[app.Escalate]']),
+      agent('pager', ['app.Page']),
+    ];
+    const lineage = lineageOf('pager', escalation, [flow('triage', 'pager', 'Decision[app.Escalate]', 'Escalate.yes')]);
+
+    expect(lineage.upstream).toEqual([{ node: 'triage', label: 'Escalate.yes', decision: true }]);
+  });
+
   it('names each upstream producer once per type', () => {
     expect(lineageOf('crm_sync', nodes, edges).upstream).toEqual([
       { node: 'billing_team', label: 'TeamReply', decision: false },

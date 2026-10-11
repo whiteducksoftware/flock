@@ -65,7 +65,9 @@ export function lineageOf(id: string, nodes: Node[], edges: Edge[]): Lineage {
       flows
         .filter((flow) => flow.target === edge.source && !questionOf(flow.data.messageType))
         .forEach((flow) => add({ node: flow.source, label: shortTypeName(flow.data.messageType), decision: false }));
-      add({ node: edge.source, label: `${question}.${edge.data.decisionChoice}`, decision: true });
+      // Choices come as the option (`billing`); yes/no, scale and checklist labels come qualified (`Escalate.yes`)
+      const choice = edge.data.decisionChoice;
+      add({ node: edge.source, label: choice.includes('.') ? choice : `${question}.${choice}`, decision: true });
     } else {
       add({ node: edge.source, label: shortTypeName(edge.data.messageType), decision: false });
     }
