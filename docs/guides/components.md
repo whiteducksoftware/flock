@@ -167,6 +167,8 @@ agent.with_engines(
 
 Engines are **also AgentComponents** - they implement the same lifecycle hooks, but their `evaluate()` method is what actually runs when the agent executes.
 
+**Dashboard tag:** the dashboard labels an agent's card with its engine's `kind`. `DSPyEngine` is `"LLM"` and `OpenClawEngine` is `"OpenClaw"`; set the class attribute on your own engine (`kind = "LLM"`), or leave it unset for no tag.
+
 #### Example: Instructor-based Engine
 
 ```python

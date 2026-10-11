@@ -524,3 +524,75 @@ async def test_graph_assembler_inactive_agent_node(orchestrator):
     assert node.data["firstSeen"] is not None
     assert node.data["lastSeen"] is not None
     assert node.data["signature"]
+
+
+@pytest.mark.asyncio
+async def test_agent_cards_get_the_tag_of_their_engine():
+    from pydantic import BaseModel
+
+    from flock.components.agent import EngineComponent
+    from flock.decisions import Choice, FakeDecider
+    from flock.registry import flock_type
+
+    @flock_type(name="EngineTagTicket")
+    class EngineTagTicket(BaseModel):
+        text: str
+
+    @flock_type(name="EngineTagReply")
+    class EngineTagReply(BaseModel):
+        text: str
+
+    class EngineTagRoute(Choice):
+        """Which team?"""
+
+        billing = "Charges"
+        tech = "Bugs"
+
+    class ScriptedEngine(EngineComponent):
+        kind = "Script"
+
+    class PlainEngine(EngineComponent):
+        pass
+
+    orchestrator = Flock()
+    orchestrator.agent("writer").consumes(EngineTagTicket).publishes(EngineTagReply)
+    orchestrator.agent("scripted").consumes(EngineTagTicket).publishes(
+        EngineTagReply
+    ).with_engines(ScriptedEngine())
+    orchestrator.agent("plain").consumes(EngineTagTicket).publishes(
+        EngineTagReply
+    ).with_engines(PlainEngine())
+    orchestrator.agent("triage").consumes(EngineTagTicket).decides(
+        EngineTagRoute, model=FakeDecider({"billing": 0.9, "tech": 0.1})
+    )
+    await orchestrator.store.publish(
+        Artifact(
+            type="EngineTagTicket",
+            payload={"text": "hi"},
+            produced_by="external",
+            visibility=PublicVisibility(),
+        )
+    )
+
+    collector = DashboardEventCollector(store=orchestrator.store)
+    await collector.load_persistent_snapshots()
+    assembler = GraphAssembler(orchestrator.store, collector, orchestrator)
+    snapshot = await assembler.build_snapshot(GraphRequest(view_mode="agent"))
+    tags = {node.id: node.data.get("engineTag") for node in snapshot.nodes}
+
+    # No engine of its own: the default DSPy engine, an LLM
+    assert tags["writer"] == "LLM"
+    assert tags["scripted"] == "Script"
+    assert tags["plain"] is None
+    # A decider shows its question instead
+    assert tags["triage"] is None
+    # A producer that is no agent
+    assert tags["external"] == "source"
+
+
+def test_engines_label_themselves():
+    from flock.engines import DSPyEngine
+    from flock.integrations.openclaw.engine import OpenClawEngine
+
+    assert DSPyEngine.kind == "LLM"
+    assert OpenClawEngine.kind == "OpenClaw"

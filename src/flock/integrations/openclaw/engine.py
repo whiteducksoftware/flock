@@ -33,6 +33,7 @@ def _default_stream_value() -> bool:
 class OpenClawEngine(EngineComponent):
     """Engine delegating execution to an OpenClaw gateway (spawn mode)."""
 
+    kind: ClassVar[str | None] = "OpenClaw"
     alias: str
     gateway: GatewayConfig
     mode: Literal["spawn"] = "spawn"

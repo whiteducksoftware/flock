@@ -38,7 +38,7 @@ import itertools
 import re
 from dataclasses import replace
 from datetime import timedelta
-from typing import Any
+from typing import Any, ClassVar
 from uuid import uuid4
 
 from pydantic import BaseModel
@@ -265,6 +265,8 @@ class ThinkingDecider(FakeDecider):
 class ScriptedReplyEngine(EngineComponent):
     """Streams a canned reply token by token, like an LLM, then publishes it."""
 
+    # Stands in for an LLM, so the dashboard tags it as one
+    kind: ClassVar[str | None] = "LLM"
     token_seconds: float = TOKEN_SECONDS
 
     async def evaluate(self, agent, ctx, inputs: EvalInputs, output_group):
