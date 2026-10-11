@@ -430,11 +430,11 @@ uv run examples/15-decisions/14_calibration.py
 
 **What You'll See (2026-10-11, Microsoft-Decision-1):**
 ```
-Calibrated 96 of 100 controls for precision 0.95: 9 below 0.8, 87 at or above it
+Calibrated 96 of 100 controls for precision 0.95: 11 below 0.8, 85 at or above it
 
 held-out documents           precision  recall  unsure
-global threshold 0.8              0.76    0.99      75
-calibrated                        0.81    0.99     217
+global threshold 0.8              0.76    0.99      78
+calibrated                        0.80    0.90     213
 ```
 
-With 12 labelled documents per control, precision rises but stays far from 0.95 on the held-out half, and more answers stay unsure; more labels give steadier thresholds.
+Recall counts an unsure answer about a shown control as a miss. With 12 labelled documents per control, precision rises a little but stays far from 0.95 on the held-out half, more answers stay unsure and recall drops; more labels give steadier thresholds.

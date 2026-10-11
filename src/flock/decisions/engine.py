@@ -860,6 +860,17 @@ class DecisionEngine(EngineComponent):
             return answer
         return UNSURE
 
+    def _own_thresholds(self, checklist: type[Question]) -> dict[str, float]:
+        """The checklist's items that have their own threshold, and it."""
+        own = {}
+        for item in checklist.__options__:
+            threshold = self.item_thresholds.get(
+                f"{checklist.__name__}.{item}", self.item_thresholds.get(item)
+            )
+            if threshold is not None:
+                own[item] = threshold
+        return own
+
     def _checklist_decision(
         self,
         question: type[Question],
@@ -953,6 +964,7 @@ class DecisionEngine(EngineComponent):
             refused_items=refused,
             refused=bool(results) and len(refused) == len(results),
             threshold=self.threshold,
+            item_thresholds=self._own_thresholds(question),
             instructions=self.instructions,
             subject_ids=subject_ids,
             model=top_label or (models[0] if models else self._label),

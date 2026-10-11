@@ -87,6 +87,11 @@ class Decision(BaseModel):
         "choice, best_guess, results, refused_items, latency_ms); model and "
         "error when the shadow failed",
     )
+    item_thresholds: dict[str, float] = Field(
+        default_factory=dict,
+        description="Checklists: the items that had their own threshold instead "
+        "of threshold",
+    )
     review_of: str | None = Field(
         default=None,
         description="Id of the decision a person confirmed or overrode with this one",

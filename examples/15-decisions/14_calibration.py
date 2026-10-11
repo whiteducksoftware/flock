@@ -102,7 +102,8 @@ async def decide(documents: list[dict], **decides) -> dict[str, dict]:
 
 
 def score(decisions: dict[str, dict]) -> tuple[float, float, int]:
-    """Precision and recall of "shown" against the ground truth, and unsure answers."""
+    """Precision and recall of "shown" against the ground truth (an unsure
+    answer about a shown control is a miss), and the unsure answers."""
     truth = {d["id"]: d["labels"] for d in DOCUMENTS}
     tp = fp = fn = unsure = 0
     for doc_id, decision in decisions.items():
@@ -110,6 +111,7 @@ def score(decisions: dict[str, dict]) -> tuple[float, float, int]:
             expected = truth[doc_id][control]
             if result == "UNSURE":
                 unsure += 1
+                fn += expected == "yes"  # an unsure answer misses a shown control
             elif result == "yes":
                 tp += expected == "yes"
                 fp += expected != "yes"

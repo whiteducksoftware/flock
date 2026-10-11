@@ -465,12 +465,14 @@ Thresholds need enough labels. [`14_calibration.py`](https://github.com/whiteduc
 
 | Held-out documents | Precision of "shown" | Recall | Unsure answers |
 |---|---|---|---|
-| one threshold, 0.8 | 0.76 | 0.99 | 75 |
-| calibrated item thresholds | 0.81 | 0.99 | 217 |
+| one threshold, 0.8 | 0.76 | 0.99 | 78 |
+| calibrated item thresholds | 0.80 | 0.90 | 213 |
 
-Precision rises at the same recall, but the target is far off on documents the thresholds were not fitted to, and almost three times as many answers stay unsure: 12 labelled documents per control are too few for stable thresholds. Calibrate on as many labels as you can, and measure on labels the thresholds did not come from.
+(Recall counts an unsure answer about a shown control as a miss.) Precision rises a little, but the target is far off on documents the thresholds were not fitted to, almost three times as many answers stay unsure, and recall drops: 12 labelled documents per control are too few for stable thresholds. Calibrate on as many labels as you can, and measure on labels the thresholds did not come from.
 
-In the dashboard, a decider names how many items have their own threshold (the thresholds on hover):
+Calibration covers single-model deciders. With `escalate=` or `models=`, a threshold acts on each tier or vote rather than on the final answer, so `calibrate()` suggests nothing for those deciders and says so in the suggestion's `note`. Decisions record the item thresholds that applied in `item_thresholds`.
+
+In the dashboard, a decider names how many items have their own threshold and opens the list on click or with the keyboard; a checklist cell names its item's own threshold:
 
 <p align="center">
   <img alt="A checklist decider with threshold 0.80 and 3 item thresholds" src="../../assets/images/decisions/decision-item-thresholds.png" width="320">

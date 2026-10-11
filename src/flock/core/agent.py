@@ -905,14 +905,28 @@ class AgentBuilder:
                     )
         if item_thresholds:
             checklists = {q.__name__: q for q in questions if q.__kind__ == "checklist"}
+            seen: dict[tuple[str, str], str] = {}
             for key, value in item_thresholds.items():
                 # "Checklist.item" only with a known checklist name in front;
                 # item ids may contain dots themselves (ORP.1.A1)
-                owners = [
+                qualified = [
                     n
                     for n, q in checklists.items()
                     if key.startswith(f"{n}.") and key[len(n) + 1 :] in q.__options__
-                ] or [n for n, q in checklists.items() if key in q.__options__]
+                ]
+                if qualified:
+                    owners, item = qualified, key[len(qualified[0]) + 1 :]
+                else:
+                    owners = [n for n, q in checklists.items() if key in q.__options__]
+                    item = key
+                if owners and (owners[0], item) in seen:
+                    raise ValueError(
+                        f"Agent '{self._agent.name}': item_thresholds= sets "
+                        f"{owners[0]}.{item} twice: '{seen[(owners[0], item)]}' "
+                        f"and '{key}'."
+                    )
+                if owners:
+                    seen[(owners[0], item)] = key
                 if not owners:
                     raise ValueError(
                         f"Agent '{self._agent.name}': item_thresholds= names no "

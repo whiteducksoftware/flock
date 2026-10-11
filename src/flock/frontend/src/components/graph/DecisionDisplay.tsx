@@ -111,6 +111,7 @@ export interface DecisionInfo {
   sections?: { field: string; spans: number[][]; answeredBy: Record<string, number> }; // long documents
   review?: { choice: string; by: string | null }; // the latest review of this decision
   reviewOf?: string; // this decision is a person's review of that decision
+  itemThresholds?: Record<string, number>; // checklist items with their own threshold
   options?: string[]; // the question's options, for a review (also of a refusal)
   explanation?: { explanation: string; missing?: string | null; model: string; by?: string | null }; // latest LLM explanation
   confidence: number | null;
@@ -552,11 +553,7 @@ export const DeciderOptions = memo(({ decider }: { decider: DeciderInfo }) => {
           ? `${decider.vote} of ${decider.ensemble.join(' + ')}`
           : [decider.model, ...(decider.escalate ?? [])].join(' › ')}
         {decider.threshold !== null ? ` · threshold ${decider.threshold.toFixed(2)}` : ''}
-        {decider.itemThresholds ? (
-          <span title={Object.entries(decider.itemThresholds).map(([item, t]) => `${item} ${t.toFixed(2)}`).join(', ')}>
-            {` · ${Object.keys(decider.itemThresholds).length} item threshold${Object.keys(decider.itemThresholds).length === 1 ? '' : 's'}`}
-          </span>
-        ) : null}
+        {decider.itemThresholds ? <ItemThresholds thresholds={decider.itemThresholds} /> : null}
         {decider.shadow ? (
           <div data-testid="decider-shadow" title="Decisions where the shadow model chose the same as the decider">
             {`shadow ${decider.shadow.model} · agrees ${decider.shadow.agree}/${decider.shadow.compared}`}
@@ -1062,7 +1059,10 @@ const ChecklistGrid = memo(({ decision }: { decision: DecisionInfo }) => {
         const result = results[item] ?? UNSURE;
         const p = decision.probabilities[item];
         const section = decision.sections?.answeredBy[item];
-        const where = section !== undefined ? ` · section ${section + 1}` : '';
+        const own = decision.itemThresholds?.[item];
+        const where = `${own !== undefined ? ` · threshold ${own.toFixed(2)}` : ''}${
+          section !== undefined ? ` · section ${section + 1}` : ''
+        }`;
         const title = refused.has(item)
           ? `${item} · refused${where}`
           : `${item} · ${result}${p !== undefined ? ` · p ${p.toFixed(2)}` : ''}${where}`;
@@ -1232,6 +1232,21 @@ function ReviewNote({ text }: { text: string }) {
     <div data-testid="decision-review" style={{ fontSize: '11px', color: '#15803d', fontWeight: 700 }}>
       {text}
     </div>
+  );
+}
+
+/** Calibrated checklist items: a count that opens the thresholds (keyboard too). */
+function ItemThresholds({ thresholds }: { thresholds: Record<string, number> }) {
+  const count = Object.keys(thresholds).length;
+  return (
+    <details className="nodrag nopan">
+      <summary style={{ cursor: 'pointer' }}>{`${count} item threshold${count === 1 ? '' : 's'}`}</summary>
+      <div>
+        {Object.entries(thresholds)
+          .map(([item, threshold]) => `${item} ${threshold.toFixed(2)}`)
+          .join(' · ')}
+      </div>
+    </details>
   );
 }
 

@@ -38,6 +38,9 @@ class Suggestion(BaseModel):
     coverage: float = Field(
         description="Share of the labelled answers that are firm at that threshold"
     )
+    note: str | None = Field(
+        default=None, description="Why no threshold was suggested, if not the target"
+    )
 
 
 def _check(target: float, min_support: int) -> None:
@@ -109,12 +112,16 @@ def calibrate(
     """
     _check(target_precision, min_support)
     points: dict[tuple[str | None, str, str | None], list[tuple[float, bool]]] = {}
+    multi_stage: set[tuple[str | None, str]] = set()
     for decision in decisions:
         decider, payload = _unpack(decision)
         subject_ids = payload.get("subject_ids") or []
         if payload.get("review_of") or not subject_ids:
             continue
         question = str(payload.get("question"))
+        if payload.get("attempts") or payload.get("votes") or payload.get("tier"):
+            # A threshold acts per tier or per vote there, not on the final answer
+            multi_stage.add((decider, question))
         label = (labels.get(str(subject_ids[0])) or {}).get(question)
         if label is None:
             continue
@@ -139,6 +146,21 @@ def calibrate(
             ))
     suggestions = []
     for (decider, question, item), answers in points.items():
+        if (decider, question) in multi_stage:
+            suggestions.append(
+                Suggestion(
+                    decider=decider,
+                    question=question,
+                    item=item,
+                    labeled=len(answers),
+                    threshold=None,
+                    precision=None,
+                    coverage=0.0,
+                    note="escalation or ensemble: thresholds act per tier or "
+                    "vote, not calibrated",
+                )
+            )
+            continue
         threshold, precision, coverage = suggest_threshold(
             answers, target_precision, min_support
         )
@@ -151,6 +173,7 @@ def calibrate(
                 threshold=threshold,
                 precision=precision,
                 coverage=coverage,
+                note=None if threshold is not None else "the target is out of reach",
             )
         )
     return suggestions

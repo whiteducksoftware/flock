@@ -209,6 +209,8 @@ def decision_view(
         view["shadow"] = dict(payload["shadow"])
     if payload.get("review_of"):
         view["reviewOf"] = payload["review_of"]
+    if payload.get("item_thresholds"):
+        view["itemThresholds"] = dict(payload["item_thresholds"])
     if options:
         view["options"] = list(options)
     if payload.get("sections"):

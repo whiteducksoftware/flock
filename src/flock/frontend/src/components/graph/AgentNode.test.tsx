@@ -434,6 +434,9 @@ describe('AgentNode', () => {
       </ReactFlowProvider>
     );
     expect(screen.getByText(/2 item thresholds/)).toBeInTheDocument();
+    // The thresholds are in a disclosure, reachable without hover
+    expect(screen.getByText('2 item thresholds').closest('summary')).not.toBeNull();
+    expect(screen.getByText('mfa 0.70 · logs 0.90')).toBeInTheDocument();
   });
 
   it('should say item threshold for a single one', () => {

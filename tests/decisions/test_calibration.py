@@ -268,6 +268,50 @@ def test_dotted_item_ids_keep_their_dots():
     )
 
 
+def test_an_item_cannot_get_two_thresholds():
+    with pytest.raises(ValueError, match="twice"):
+        Flock().agent("x").consumes(CalTicket).decides(
+            CalControls,
+            model=FakeDecider({}),
+            item_thresholds={"mfa": 0.7, "CalControls.mfa": 0.9},
+        )
+
+
+def test_escalated_or_voted_decisions_are_not_calibrated():
+    decisions = [
+        _decision("t1", {"billing": 0.9, "tech": 0.1}),
+        _decision(
+            "t2",
+            {"billing": 0.95, "tech": 0.05},
+            tier=1,
+            attempts=[{"model": "fast", "choice": "billing", "probabilities": {}}],
+        ),
+    ]
+    labels = {"t1": {"CalRoute": "billing"}, "t2": {"CalRoute": "billing"}}
+
+    (suggestion,) = calibrate(decisions, labels, min_support=1)
+
+    assert suggestion.threshold is None
+    assert "escalat" in suggestion.note
+
+
+async def test_decisions_record_the_item_thresholds_that_applied():
+    flock = Flock()
+    flock.agent("audit").consumes(CalTicket).decides(
+        CalControls,
+        model=FakeDecider({"CalControls": {"mfa": 0.75, "logs": 0.75}}),
+        threshold=0.9,
+        item_thresholds={"mfa": 0.7},
+    )
+
+    await flock.publish(CalTicket(text="policy"))
+    await flock.run_until_idle()
+
+    name = type_registry.name_for(Decision.of(CalControls))
+    (decision,) = [a.payload for a in await flock.store.list() if a.type == name]
+    assert decision["item_thresholds"] == {"mfa": 0.7}
+
+
 def test_a_plain_item_name_must_be_unambiguous():
     other = Checklist.from_items("CalOther2", {"mfa": "MFA"}, question="Shown?")
     with pytest.raises(ValueError, match="CalControls.mfa"):
@@ -390,3 +434,9 @@ async def test_the_decider_view_lists_its_item_thresholds():
 
     audit = next(node for node in graph.nodes if node.id == "audit")
     assert audit.data["decision"]["itemThresholds"] == {"mfa": 0.7}
+
+    await flock.publish(CalTicket(text="policy"))
+    await flock.run_until_idle()
+    blackboard = await assembler.build_snapshot(GraphRequest(view_mode="blackboard"))
+    (view,) = [n.data["decision"] for n in blackboard.nodes if "decision" in n.data]
+    assert view["itemThresholds"] == {"mfa": 0.7}

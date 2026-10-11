@@ -198,6 +198,7 @@ def decisions_calibrate(
         "threshold",
         "precision",
         "coverage",
+        "note",
     ):
         table.add_column(column)
     for s in sorted(
@@ -211,6 +212,7 @@ def decisions_calibrate(
             "-" if s.threshold is None else f"{s.threshold:.2f}",
             "-" if s.precision is None else f"{s.precision:.2f}",
             f"{s.coverage:.2f}",
+            s.note or "",
         )
     console.print(table)
 
