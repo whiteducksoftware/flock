@@ -131,7 +131,8 @@ export const useGraphStore = create<GraphState>()(
       events: [],
       viewMode: 'agent',
       savedPositions: new Map(),
-      isLoading: false,
+      // The dashboard loads its board as it starts
+      isLoading: true,
       error: null,
 
       // Backend integration actions

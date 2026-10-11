@@ -700,14 +700,19 @@ export class WebSocketClient {
 
   /** Retry now instead of waiting for the scheduled attempt. */
   reconnectManually(): void {
+    if (this.ws?.readyState === WebSocket.OPEN) return;
     this.shouldReconnect = true;
+    // Whatever ended the connection, the board reloads once it is back
+    this.connectionLost = true;
+    // The wait starts over if this try fails too
     this.reconnectAttempt = 0;
     if (this.reconnectTimeout !== null) {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
     }
     if (typeof useWSStore !== 'undefined') {
-      useWSStore.getState().resetAttempts();
+      // It counts as an attempt, so the dashboard stays reconnecting meanwhile
+      useWSStore.getState().incrementAttempts();
       useWSStore.getState().setNextRetryAt(null);
     }
     this.connect();

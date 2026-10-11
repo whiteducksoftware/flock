@@ -163,7 +163,7 @@ const AdvancedSettings: React.FC = () => {
             className="btn sm"
             onClick={() => {
               if (confirm('Clear all dashboard data? This will remove all graph data and session data.')) {
-                clearDashboardData();
+                void clearDashboardData();
               }
             }}
           >

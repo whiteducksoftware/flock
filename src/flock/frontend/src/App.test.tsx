@@ -72,6 +72,24 @@ describe('App keyboard shortcuts', () => {
     );
   });
 
+  it('opens the filters with Ctrl+F even when another correlation field is open', async () => {
+    render(
+      <>
+        {/* The trace viewer has a correlation ID field too */}
+        <input placeholder="Filter by correlation ID" />
+        <App />
+      </>,
+    );
+    await waitFor(() => expect(document.querySelector('header')).not.toBeNull());
+
+    press('f');
+
+    expect(useSettingsStore.getState().ui.showFilters).toBe(true);
+    await waitFor(() =>
+      expect(document.activeElement?.closest('[role="dialog"][aria-label="Filters"]')).not.toBeNull(),
+    );
+  });
+
   it('switches between Flow and Blackboard with Ctrl+M', async () => {
     render(<App />);
     await waitFor(() => expect(document.querySelector('header')).not.toBeNull());

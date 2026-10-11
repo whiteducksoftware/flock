@@ -151,6 +151,12 @@ export class IndexedDBService {
   private inMemoryStore: Map<string, Map<string, any>> = new Map();
   private available = false;
 
+  /** Close the connection, for example before the database is deleted. */
+  close(): void {
+    this.db?.close();
+    this.db = null;
+  }
+
   /**
    * Initialize database with schema and indexes
    */

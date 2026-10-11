@@ -42,6 +42,15 @@ describe('BoardStates', () => {
     expect(screen.queryByText('Nothing on the blackboard yet')).toBeNull();
   });
 
+  it('shows the skeleton, not an empty blackboard, before the first load starts', () => {
+    useGraphStore.setState({ isLoading: useGraphStore.getInitialState().isLoading });
+
+    render(<BoardStates onPublish={() => {}} />);
+
+    expect(screen.getByRole('status', { name: 'Loading the board' })).toBeTruthy();
+    expect(screen.queryByText('Nothing on the blackboard yet')).toBeNull();
+  });
+
   it('invites the first publish on an empty blackboard', () => {
     const onPublish = vi.fn();
     render(<BoardStates onPublish={onPublish} />);

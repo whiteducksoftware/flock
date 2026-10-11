@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { liveState } from '../components/layout/connection';
 import { useGraphStore } from '../store/graphStore';
 import { useWSStore } from '../store/wsStore';
 import { WebSocketClient } from './websocket';
@@ -105,12 +106,44 @@ describe('WebSocketClient reconnects', () => {
     expect(FakeSocket.made).toHaveLength(2);
     expect(useWSStore.getState().nextRetryAt).toBeNull();
     socket(1).fail();
-    // The retry the failure planned before does not stand in the way
+    // The retry the failure planned before does not stand in the way; the
+    // wait starts over, and the manual try counts as an attempt
     expect(useWSStore.getState()).toMatchObject({
       status: 'reconnecting',
-      reconnectAttempts: 1,
+      reconnectAttempts: 3,
       nextRetryAt: Date.now() + 1000,
     });
+    client.disconnect();
+  });
+
+  it('stays reconnecting while a retry asked for by hand is under way', () => {
+    const client = new WebSocketClient('ws://test/ws');
+    client.connect();
+    socket(0).open();
+    socket(0).fail();
+
+    client.reconnectManually();
+
+    const { status, reconnectAttempts } = useWSStore.getState();
+    expect(liveState(status, reconnectAttempts)).toBe('reconnecting');
+    client.disconnect();
+  });
+
+  it('refreshes the board when a retry by hand ends an offline spell', () => {
+    const refresh = vi.spyOn(useGraphStore.getState(), 'refreshCurrentView').mockResolvedValue();
+    const client = new WebSocketClient('ws://test/ws');
+    client.connect();
+    socket(0).open();
+    // A clean close: offline, with no retry planned
+    socket(0).readyState = FakeSocket.CLOSED;
+    socket(0).onclose?.({ code: 1000, reason: '' });
+    expect(useWSStore.getState().status).toBe('disconnected');
+
+    client.reconnectManually();
+    socket(1).open();
+    vi.advanceTimersByTime(1000);
+
+    expect(refresh).toHaveBeenCalledOnce();
     client.disconnect();
   });
 

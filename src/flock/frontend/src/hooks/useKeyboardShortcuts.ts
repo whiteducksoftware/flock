@@ -97,8 +97,9 @@ export const useKeyboardShortcuts = (config: KeyboardShortcutConfig = {}) => {
           } else {
             // Default behavior: focus the correlation search of the filters
             const focusCorrelation = (): boolean => {
+              // The one in the filters; other panels have correlation fields too
               const filterInput = document.querySelector<HTMLInputElement>(
-                'input[placeholder*="correlation"], input[placeholder*="Correlation"]'
+                '[role="dialog"][aria-label="Filters"] input[placeholder*="orrelation"]'
               );
               filterInput?.focus();
               filterInput?.select();

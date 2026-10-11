@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useGraphStore } from '../../store/graphStore';
+import { useUIStore } from '../../store/uiStore';
 import { useWSStore } from '../../store/wsStore';
 import LiveStatus from './LiveStatus';
 
@@ -8,6 +9,7 @@ const agent = (id: string) => ({ id, type: 'agent', position: { x: 0, y: 0 }, da
 
 describe('LiveStatus', () => {
   beforeEach(() => {
+    useUIStore.setState({ mode: 'agent' });
     useGraphStore.setState({ nodes: [], agentStatus: new Map() });
     useWSStore.setState({ status: 'connected', reconnectAttempts: 0, nextRetryAt: null });
   });
@@ -25,6 +27,15 @@ describe('LiveStatus', () => {
     render(<LiveStatus />);
 
     expect(screen.getByRole('status').textContent).toBe('Live3 agents · 2 running');
+  });
+
+  it('leaves the agents out of the Blackboard view', () => {
+    useUIStore.setState({ mode: 'blackboard' });
+    useGraphStore.setState({ agentStatus: new Map([['triage', 'running']]) });
+
+    render(<LiveStatus />);
+
+    expect(screen.getByRole('status').textContent).toBe('Live');
   });
 
   it('says how often it tried to reconnect', () => {

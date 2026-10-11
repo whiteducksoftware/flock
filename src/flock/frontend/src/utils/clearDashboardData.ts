@@ -1,14 +1,26 @@
+import { indexedDBService } from '../services/indexeddb';
 import { useFilterStore } from '../store/filterStore';
 import { useGraphStore } from '../store/graphStore';
 import { useModuleStore } from '../store/moduleStore';
 import { useUIStore } from '../store/uiStore';
 
+/** Delete a database; a deletion another tab blocks finishes once it closes. */
+const deleteDatabase = (name: string): Promise<void> =>
+  new Promise((resolve) => {
+    const request = indexedDB.deleteDatabase(name);
+    request.onsuccess = () => resolve();
+    request.onerror = () => resolve();
+    request.onblocked = () => resolve();
+  });
+
 /**
  * Forget everything the dashboard keeps in this browser (graph, filters,
- * windows, saved layouts and presets) and reload. The blackboard itself is
+ * windows, saved layouts and presets), then reload. The blackboard itself is
  * untouched.
  */
-export function clearDashboardData(): void {
+export async function clearDashboardData(
+  reload: () => void = () => window.location.reload(),
+): Promise<void> {
   useGraphStore.setState({
     events: [],
     nodes: [],
@@ -21,11 +33,11 @@ export function clearDashboardData(): void {
   useFilterStore.getState().clearFilters();
   useModuleStore.getState().instances.clear();
 
-  indexedDB.databases().then((databases) => {
-    databases.forEach((database) => {
-      if (database.name) indexedDB.deleteDatabase(database.name);
-    });
-  });
+  // The dashboard's own connection would block the deletion
+  indexedDBService.close();
+  const databases = await indexedDB.databases();
+  await Promise.all(databases.flatMap((database) => (database.name ? [deleteDatabase(database.name)] : [])));
   localStorage.clear();
-  window.location.reload();
+  // Only now: a reload any earlier could drop the deletions
+  reload();
 }
