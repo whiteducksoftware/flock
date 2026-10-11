@@ -588,6 +588,10 @@ class DaprStateBlackboardStore(BlackboardStore):
                 return self._query_via_index_scan(filters)
             return await self._query_via_dapr_api(filters)
 
+    async def consumptions_of(self, artifact_id: UUID) -> list[ConsumptionRecord]:
+        found = await self._get_consumptions_by_artifact_ids(artifact_ids=[artifact_id])
+        return list(found.get(str(artifact_id), []))
+
     async def _get_consumptions_by_artifact_ids(
         self, artifact_ids: list[UUID]
     ) -> dict[str, list[ConsumptionRecord]]:

@@ -189,9 +189,13 @@ GET /api/v1/artifacts?type=YourType&limit=50&offset=0
 GET /api/v1/artifacts/{artifact_id}
 ```
 
-**Response:** Single artifact object (same structure as list items).
+**Query parameters:**
+- `embed_meta` (bool) - Include the artifact's consumption history: `consumptions` (consumer, run, correlation and time of each) and `consumed_by` (default: false)
+- `images` (`full` or `thumbnails`) - See [Images in Responses](#images-in-responses) above (default: `full`)
 
-**Use case:** Retrieve specific artifact details by UUID.
+**Response:** Single artifact object (same structure as list items). 404 if it does not exist or the caller may not see it.
+
+**Use case:** Retrieve specific artifact details by UUID; the dashboard's Blackboard view loads an unfolded artifact card this way, with its consumption history.
 
 ---
 

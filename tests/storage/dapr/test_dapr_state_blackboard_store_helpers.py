@@ -1376,3 +1376,23 @@ async def test_load_agent_snapshots_returns_empty_when_index_is_empty(
     result = await store.load_agent_snapshots()
 
     assert result == []
+
+
+async def test_consumptions_of_reads_one_artifacts_records_by_its_id(monkeypatch):
+    store, _ = _make_store(monkeypatch)
+    artifact_id = uuid4()
+    rec = ConsumptionRecord(
+        artifact_id=artifact_id,
+        consumer="consumer",
+        consumed_at=datetime(2026, 1, 5, tzinfo=UTC),
+    )
+    asked: list[list] = []
+
+    async def _consumptions(*, artifact_ids):
+        asked.append(list(artifact_ids))
+        return {str(artifact_id): [rec]}
+
+    monkeypatch.setattr(store, "_get_consumptions_by_artifact_ids", _consumptions)
+
+    assert await store.consumptions_of(artifact_id) == [rec]
+    assert asked == [[artifact_id]]
