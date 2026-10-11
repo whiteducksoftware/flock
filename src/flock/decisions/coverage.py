@@ -175,8 +175,9 @@ class AggregateEngine(EngineComponent):
         known = {str(a.id): a for a in [*ctx.artifacts, *inputs.artifacts]}
 
         async with self._lock:
-            for artifact in ctx.artifacts:  # history, e.g. after a restart
-                if artifact.type == decision_type:
+            # History, e.g. after a restart: only decisions that reach this agent
+            for artifact in ctx.artifacts:
+                if artifact.type == decision_type and self._reaches(agent, artifact):
                     self._add(str(artifact.id), artifact.payload, known)
             groups = [
                 self._add(item["id"], item["payload"], known) for item in triggering
@@ -222,10 +223,19 @@ class AggregateEngine(EngineComponent):
         )
         return group
 
+    @staticmethod
+    def _reaches(agent: Any, artifact: Artifact) -> bool:
+        """Whether one of the agent's subscriptions matches the decision."""
+        return any(
+            subscription.accepts_events() and subscription.matches(artifact)
+            for subscription in agent.subscriptions
+        )
+
     def _key(self, subject: Artifact) -> str:
         if callable(self.by):
             model = type_registry.resolve(subject.type)
-            return str(self.by(model(**subject.payload)))
+            # Stored payloads use field names, also for alias-only models
+            return str(self.by(model.model_validate(subject.payload, by_name=True)))
         if self.by not in subject.payload:
             raise ValueError(
                 f"Artifact {subject.type} has no field '{self.by}' to group by."
