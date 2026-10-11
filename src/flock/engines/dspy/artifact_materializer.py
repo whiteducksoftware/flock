@@ -14,7 +14,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from flock.core.artifacts import Artifact
+from flock.core.artifacts import Artifact, model_from_payload
 from flock.core.fan_out import FanOutRange
 from flock.logging.logging import get_logger
 
@@ -165,7 +165,7 @@ class DSPyArtifactMaterializer:
                 # Create one artifact for each item in the (possibly truncated) list
                 for item_data in data:
                     try:
-                        instance = model_cls(**item_data)
+                        instance = model_from_payload(model_cls, item_data)
                     except Exception as exc:  # noqa: BLE001 - collect validation errors for logs
                         errors.append(f"{output.spec.type_name}: {exc!s}")
                         continue
@@ -189,7 +189,7 @@ class DSPyArtifactMaterializer:
                 # Create one artifact for each item in the list
                 for item_data in data:
                     try:
-                        instance = model_cls(**item_data)
+                        instance = model_from_payload(model_cls, item_data)
                     except Exception as exc:  # noqa: BLE001 - collect validation errors for logs
                         errors.append(f"{output.spec.type_name}: {exc!s}")
                         continue
@@ -203,7 +203,7 @@ class DSPyArtifactMaterializer:
             else:
                 # SINGLE OUTPUT: Create one artifact from dict
                 try:
-                    instance = model_cls(**data)
+                    instance = model_from_payload(model_cls, data)
                 except Exception as exc:  # noqa: BLE001 - collect validation errors for logs
                     errors.append(f"{output.spec.type_name} validation error: {exc!s}")
                     continue

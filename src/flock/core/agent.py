@@ -21,7 +21,7 @@ from flock.agent.mcp_integration import MCPIntegration
 # Phase 4: Import extracted modules
 from flock.agent.mcp_server_config import MCPServerConfig
 from flock.agent.output_processor import OutputProcessor
-from flock.core.artifacts import Artifact, ArtifactSpec
+from flock.core.artifacts import Artifact, ArtifactSpec, model_from_payload
 from flock.core.fan_out import FanOutRange, FanOutSpec, normalize_fan_out
 from flock.core.subscription import BatchSpec, JoinSpec, ScheduleSpec, Subscription
 from flock.core.visibility import AgentIdentity, Visibility, ensure_visibility
@@ -433,7 +433,7 @@ class Agent(metaclass=AutoTracedMeta):
             return
         first = artifacts[0]
         model_cls = type_registry.resolve(first.type)
-        payload = model_cls(**first.payload)
+        payload = model_from_payload(model_cls, first.payload)
         maybe_coro = func(payload)
         if asyncio.iscoroutine(maybe_coro):  # pragma: no cover - optional async support
             await maybe_coro

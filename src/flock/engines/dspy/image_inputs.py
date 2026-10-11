@@ -21,7 +21,7 @@ from typing import Any
 
 from pydantic import BaseModel, create_model
 
-from flock.core.artifacts import Artifact
+from flock.core.artifacts import Artifact, model_from_payload
 from flock.core.image import Image, describe_image_data
 from flock.registry import type_registry
 from flock.utils.runtime import EvalInputs
@@ -179,7 +179,9 @@ def _image_fields(inputs: EvalInputs) -> list[str]:
         if dspy_input_model(model) is model:
             continue
         try:
-            sent = to_dspy_input(model.model_validate(artifact.payload or {}), model)
+            sent = to_dspy_input(
+                model_from_payload(model, artifact.payload or {}), model
+            )
         except Exception:  # noqa: S112 - invalid payloads are passed on as data
             continue
         for name in [*model.model_fields, *model.model_computed_fields]:
