@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import os
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
 from typing import TYPE_CHECKING, Any
@@ -783,6 +783,7 @@ class AgentBuilder:
         shadow: str | Any | None = None,
         shadow_timeout: float = 10.0,
         sections: Any | None = None,
+        item_thresholds: Mapping[str, float] | None = None,
     ) -> AgentBuilder:
         """Answer questions about each input with a decision model.
 
@@ -838,6 +839,10 @@ class AgentBuilder:
                 section. A checklist item is yes if any section shows it, other
                 questions take the most confident section. The decision's
                 ``sections`` records the spans and the section per answer.
+            item_thresholds: Checklist items with their own threshold instead
+                of ``threshold``, e.g. calibrated ones (``flock decisions
+                calibrate``): ``{"mfa": 0.7}``, or ``{"Controls.mfa": 0.7}``
+                when several checklists of the decider share an item name.
             options: Restricts the single Choice or Checklist to a subset of its
                 options for each execution: a callable that receives the
                 context (``ctx.decisions`` holds the decisions that triggered
@@ -897,6 +902,46 @@ class AgentBuilder:
                     raise ValueError(
                         f"Agent '{self._agent.name}': sections= is not supported "
                         f"together with {name} yet."
+                    )
+        if item_thresholds:
+            checklists = {q.__name__: q for q in questions if q.__kind__ == "checklist"}
+            seen: dict[tuple[str, str], str] = {}
+            for key, value in item_thresholds.items():
+                # "Checklist.item" only with a known checklist name in front;
+                # item ids may contain dots themselves (ORP.1.A1)
+                qualified = [
+                    n
+                    for n, q in checklists.items()
+                    if key.startswith(f"{n}.") and key[len(n) + 1 :] in q.__options__
+                ]
+                if qualified:
+                    owners, item = qualified, key[len(qualified[0]) + 1 :]
+                else:
+                    owners = [n for n, q in checklists.items() if key in q.__options__]
+                    item = key
+                if owners and (owners[0], item) in seen:
+                    raise ValueError(
+                        f"Agent '{self._agent.name}': item_thresholds= sets "
+                        f"{owners[0]}.{item} twice: '{seen[(owners[0], item)]}' "
+                        f"and '{key}'."
+                    )
+                if owners:
+                    seen[(owners[0], item)] = key
+                if not owners:
+                    raise ValueError(
+                        f"Agent '{self._agent.name}': item_thresholds= names no "
+                        f"checklist item of this decider: {key}."
+                    )
+                if len(owners) > 1:
+                    qualified = ", ".join(f"{n}.{key}" for n in owners)
+                    raise ValueError(
+                        f"Agent '{self._agent.name}': item_thresholds= key '{key}' "
+                        f"is an item of several checklists; use {qualified}."
+                    )
+                if not 0.0 < value <= 1.0:
+                    raise ValueError(
+                        f"Agent '{self._agent.name}': item_thresholds= must be in "
+                        f"(0, 1], got {key}={value}."
                     )
         if shadow_timeout <= 0:
             raise ValueError(
@@ -1033,6 +1078,7 @@ class AgentBuilder:
             shadow=None if shadow is None else with_budget(shadow),
             shadow_timeout=shadow_timeout,
             sections=sections,
+            item_thresholds=dict(item_thresholds or {}),
         )
         self.publishes(*(Decision.of(question) for question in questions))
         for output in self._agent.output_groups[-1].outputs:

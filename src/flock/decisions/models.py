@@ -79,6 +79,12 @@ class Decision(BaseModel):
         "model, choice, probabilities, confidence, refused (checklists: model "
         "and its result per item)",
     )
+    mode: Literal["single", "escalation", "ensemble"] = Field(
+        default="single",
+        description="How the decider answers: one model, a model with "
+        "escalate=, or several models with models=; recorded even when no "
+        "escalation or vote happened",
+    )
     shadow: dict[str, Any] | None = Field(
         default=None,
         description="Shadow mode: the shadow model's answer, recorded but not "
@@ -86,6 +92,11 @@ class Decision(BaseModel):
         "probabilities, confidence, refused, latency_ms (checklists: model, "
         "choice, best_guess, results, refused_items, latency_ms); model and "
         "error when the shadow failed",
+    )
+    item_thresholds: dict[str, float] = Field(
+        default_factory=dict,
+        description="Checklists: the items that had their own threshold instead "
+        "of threshold",
     )
     review_of: str | None = Field(
         default=None,

@@ -133,6 +133,8 @@ def decider_info(
         info["vote"] = engine.vote
     if engine.shadow is not None:
         info["shadow"] = _shadow_info(engine, produced)
+    if engine.item_thresholds:
+        info["itemThresholds"] = dict(engine.item_thresholds)
     return info
 
 
@@ -207,6 +209,8 @@ def decision_view(
         view["shadow"] = dict(payload["shadow"])
     if payload.get("review_of"):
         view["reviewOf"] = payload["review_of"]
+    if payload.get("item_thresholds"):
+        view["itemThresholds"] = dict(payload["item_thresholds"])
     if options:
         view["options"] = list(options)
     if payload.get("sections"):

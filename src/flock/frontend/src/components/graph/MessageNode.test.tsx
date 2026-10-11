@@ -655,6 +655,36 @@ describe('MessageNode', () => {
     expect(screen.getByText(/3 sections of text · from section 2/)).toBeInTheDocument();
   });
 
+  it('should name an item threshold on its checklist cell', () => {
+    render(
+      <ReactFlowProvider>
+        <MessageNode
+          {...createNodeProps(
+            decisionNode({
+              question: 'Controls',
+              kind: 'checklist',
+              choice: 'UNSURE',
+              bestGuess: 'passed',
+              probabilities: { mfa: 0.75, logs: 0.75 },
+              items: ['mfa', 'logs'],
+              results: { mfa: 'yes', logs: 'UNSURE' },
+              refusedItems: [],
+              itemThresholds: { mfa: 0.7 },
+              confidence: null,
+              threshold: 0.9,
+              model: 'fake',
+              latencyMs: 100,
+              score: null,
+              refused: false,
+            })
+          )}
+        />
+      </ReactFlowProvider>
+    );
+    expect(screen.getByRole('img', { name: 'mfa · yes · p 0.75 · threshold 0.70' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'logs · UNSURE · p 0.75' })).toBeInTheDocument();
+  });
+
   it('should name the section of each checklist item', () => {
     render(
       <ReactFlowProvider>

@@ -176,6 +176,7 @@ flock.agent("audit").consumes(Decision.of(Route)).publishes(Entry)    # the deci
   - `.consumes(Controls.ANY).aggregates(by="organisation", combine="any" | "all")` publishes `Coverage.of(Controls)` (`flock.decisions.coverage`) per group as checklist decisions arrive.
   - `sections=Sections(field="text", max_chars=4000)` decides a long text field section by section; the decision's `sections` records which section answered.
   - `await flock.review(decision_id, choice=..., reviewer=...)` publishes a person's decision (`review_of`) that routes like any other; the dashboard shows review buttons on unsure decisions.
+  - `calibrate(decisions, labels, target_precision=0.95)` (`flock.decisions.calibration`) and `flock decisions calibrate DB` suggest thresholds per question and checklist item; `.decides(..., item_thresholds={...})` applies them.
 - **Rules:**
   - A decision agent publishes only its decisions: no `.with_engines()` or `.publishes()` with `.decides()`.
   - Handles and `Decision.of(X)` cannot share an agent.

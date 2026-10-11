@@ -229,6 +229,11 @@ class DecisionEngine(EngineComponent):
         default=None,
         description="Splits a long text field into sections decided one by one",
     )
+    item_thresholds: dict[str, float] = Field(
+        default_factory=dict,
+        description="Checklist items with their own threshold instead of "
+        "threshold, keyed 'Checklist.item' or just 'item'",
+    )
     shadow_timeout: float = Field(
         default=10.0,
         gt=0,
@@ -353,6 +358,7 @@ class DecisionEngine(EngineComponent):
                 votes=[
                     _attempt(label, vote) for label, vote in trail.votes.get(name, [])
                 ],
+                mode=self._mode,
                 shadow=shadow_record,
                 sections=self._sections_record(
                     spans,
@@ -540,7 +546,8 @@ class DecisionEngine(EngineComponent):
         if (
             question.item is not None
             and refused
-            and self._item_result(strength(best[1])) != "yes"
+            and self._item_result(strength(best[1]), question.item, question.group)
+            != "yes"
         ):
             # No section shows the item and one refused: not every section says no
             return refused[0]
@@ -678,7 +685,9 @@ class DecisionEngine(EngineComponent):
             return None
         if question.item is None:
             return answer.choice
-        return self._item_result(answer.probabilities.get("yes", 0.0))
+        return self._item_result(
+            answer.probabilities.get("yes", 0.0), question.item, question.group
+        )
 
     def _settled(self, question: DecisionQuestion, answer: DecisionAnswer) -> bool:
         """A firm answer: a checklist item's result, else the threshold."""
@@ -686,7 +695,8 @@ class DecisionEngine(EngineComponent):
             return self._firm(answer)
         if answer.refused or answer.choice is None:
             return False
-        return self._item_result(answer.probabilities.get("yes", 0.0)) != UNSURE
+        p_yes = answer.probabilities.get("yes", 0.0)
+        return self._item_result(p_yes, question.item, question.group) != UNSURE
 
     def _candidates(self, ctx: Context) -> dict[str, str] | None:
         """The options of the single question for this execution (options=)."""
@@ -835,13 +845,32 @@ class DecisionEngine(EngineComponent):
                 )
         return wire
 
-    def _item_result(self, p_yes: float) -> str:
+    def _item_result(
+        self, p_yes: float, item: str | None = None, checklist: str | None = None
+    ) -> str:
         # The more probable answer, firm if it reaches the threshold (as for a
-        # YesNo question; below 0.5 the yes and no regions would overlap)
+        # YesNo question; below 0.5 the yes and no regions would overlap). An
+        # item can have its own threshold, "Checklist.item" or just "item".
         answer, probability = ("yes", p_yes) if p_yes >= 0.5 else ("no", 1.0 - p_yes)
-        if self.threshold is None or probability >= self.threshold:
+        threshold = self.threshold
+        if item is not None:
+            threshold = self.item_thresholds.get(
+                f"{checklist}.{item}", self.item_thresholds.get(item, threshold)
+            )
+        if threshold is None or probability >= threshold:
             return answer
         return UNSURE
+
+    def _own_thresholds(self, checklist: type[Question]) -> dict[str, float]:
+        """The checklist's items that have their own threshold, and it."""
+        own = {}
+        for item in checklist.__options__:
+            threshold = self.item_thresholds.get(
+                f"{checklist.__name__}.{item}", self.item_thresholds.get(item)
+            )
+            if threshold is not None:
+                own[item] = threshold
+        return own
 
     def _checklist_decision(
         self,
@@ -872,7 +901,9 @@ class DecisionEngine(EngineComponent):
             if item_question.name in trail.verdicts:
                 results[item] = trail.verdicts[item_question.name] or UNSURE
             else:
-                results[item] = self._item_result(probabilities[item])
+                results[item] = self._item_result(
+                    probabilities[item], item, item_question.group
+                )
 
         if not results:
             outcome = UNSURE  # no items to check
@@ -900,7 +931,11 @@ class DecisionEngine(EngineComponent):
                 attempts[index]["results"][item_question.item] = (
                     UNSURE
                     if earlier.refused or earlier.choice is None
-                    else self._item_result(earlier.probabilities.get("yes", 0.0))
+                    else self._item_result(
+                        earlier.probabilities.get("yes", 0.0),
+                        item_question.item,
+                        item_question.group,
+                    )
                 )
         # Ensembles: every model's result per item, in the order of the models
         votes: list[dict[str, Any]] = []
@@ -930,12 +965,14 @@ class DecisionEngine(EngineComponent):
             refused_items=refused,
             refused=bool(results) and len(refused) == len(results),
             threshold=self.threshold,
+            item_thresholds=self._own_thresholds(question),
             instructions=self.instructions,
             subject_ids=subject_ids,
             model=top_label or (models[0] if models else self._label),
             tier=tier,
             attempts=attempts,
             votes=votes,
+            mode=self._mode,
             latency_ms=latency_ms,
         )
 
@@ -945,6 +982,12 @@ class DecisionEngine(EngineComponent):
         if self.ensemble:
             return " + ".join(provider.label for provider in self.ensemble)
         return self.provider.label
+
+    @property
+    def _mode(self) -> Literal["single", "escalation", "ensemble"]:
+        if self.ensemble:
+            return "ensemble"
+        return "escalation" if self.escalation else "single"
 
     def _firm(self, answer: DecisionAnswer) -> bool:
         if answer.refused or answer.choice is None:

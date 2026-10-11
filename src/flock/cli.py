@@ -153,6 +153,71 @@ def sqlite_maintenance(
         console.print("[yellow]VACUUM completed[/yellow]")
 
 
+decisions_app = typer.Typer(help="Decision models")
+app.add_typer(decisions_app, name="decisions")
+
+
+@decisions_app.command("calibrate")
+def decisions_calibrate(
+    db_path: str = typer.Argument(..., help="Path to SQLite blackboard database"),
+    target_precision: float = typer.Option(
+        0.95, help="Share of right answers the firm answers must reach, in (0, 1]"
+    ),
+    min_support: int = typer.Option(
+        5, min=1, help="Labelled answers a threshold needs at or above it"
+    ),
+) -> None:
+    """Suggest thresholds per question and checklist item from human reviews."""
+    from flock.decisions.calibration import calibrate_store
+
+    store = SQLiteBlackboardStore(db_path)
+
+    if not 0.0 < target_precision <= 1.0:
+        raise typer.BadParameter(
+            f"The target precision must be in (0, 1], got {target_precision}.",
+            param_hint="--target-precision",
+        )
+
+    async def _calibrate():
+        await store.ensure_schema()
+        try:
+            return await calibrate_store(store, target_precision, min_support)
+        finally:
+            await store.close()
+
+    suggestions = asyncio.run(_calibrate())
+    if not suggestions:
+        console.print("[yellow]No reviewed decisions to calibrate from.[/yellow]")
+        return
+    table = Table(title=f"Thresholds for precision {target_precision:.2f}")
+    for column in (
+        "decider",
+        "question",
+        "item",
+        "labelled",
+        "threshold",
+        "precision",
+        "coverage",
+        "note",
+    ):
+        table.add_column(column)
+    for s in sorted(
+        suggestions, key=lambda s: (s.decider or "", s.question, s.item or "")
+    ):
+        table.add_row(
+            s.decider or "",
+            s.question,
+            s.item or "",
+            str(s.labeled),
+            # Exact, so that it can be copied into item_thresholds
+            "-" if s.threshold is None else str(s.threshold),
+            "-" if s.precision is None else f"{s.precision:.2f}",
+            f"{s.coverage:.2f}",
+            s.note or "",
+        )
+    console.print(table)
+
+
 def main() -> None:
     app()
 
