@@ -108,6 +108,19 @@ describe('lanesOf', () => {
     expect(writing.columns.map((column) => column.activeIn)).toEqual([false, false, true]);
   });
 
+  it('places what a run published before its run is on the record after what the run consumed', () => {
+    // The server draws a run's edges once the run is done; the stream that just ended has no payload yet
+    const published = [
+      ...nodes,
+      artifact('r9', 'c-4', 'app.TeamReply', 'billing_team', 2800, { streamingText: 'Hi, thanks for your patience' }),
+    ].filter((node) => node.id !== 's1');
+    expect(ids(lanesOf(published, edges, running).find((each) => each.id === 'c-4')!)).toEqual([['t4'], ['d5'], ['r9']]);
+
+    // The run ended too: the stream still goes last, not first
+    const ended = lanesOf(published, edges, running.filter((run) => run.agent !== 'billing_team'));
+    expect(ids(ended.find((each) => each.id === 'c-4')!)).toEqual([['t4'], ['d5'], ['r9']]);
+  });
+
   it('names several running agents at once', () => {
     const both = [...running, { agent: 'urgency', correlationId: 'c-3', artifacts: ['t3'] }];
     expect(lanesOf(nodes, edges, both).find((each) => each.id === 'c-3')!.status.text).toBe('triage and 1 more are working');
@@ -118,5 +131,7 @@ describe('titleOf', () => {
   it('takes the first text of a payload', () => {
     expect(titleOf({ priority: 2, subject: 'Refund not received', message: 'I returned the shoes' })).toBe('Refund not received');
     expect(titleOf({ n: 1 })).toBeNull();
+    // A field that names it comes first, wherever it is
+    expect(titleOf({ ticket_id: 'T-0010', title: 'Refund not received' })).toBe('Refund not received');
   });
 });

@@ -48,6 +48,13 @@
   border: 1px solid var(--line-2);
 }
 
+.on,
+.on:hover {
+  border-color: var(--sure);
+  background: var(--sure-soft);
+  color: var(--sure-ink);
+}
+
 .table {
   flex: 1 1 0;
   min-height: 0;
@@ -222,7 +229,7 @@
 
 .kv {
   display: grid;
-  grid-template-columns: 62px minmax(0, 1fr);
+  grid-template-columns: fit-content(96px) minmax(0, 1fr);
   gap: 2px 10px;
   font-size: 12px;
 }

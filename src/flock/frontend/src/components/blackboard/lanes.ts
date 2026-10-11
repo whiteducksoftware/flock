@@ -62,17 +62,23 @@ interface ArtifactData {
   payload?: unknown;
   decision?: DecisionInfo;
   isStreaming?: boolean;
+  streamingText?: string;
 }
 
 const DECISION = /^(?:.*\.)?Decision\[(.+)\]$/;
 
 const dataOf = (node: Node) => node.data as ArtifactData;
 
-/** The first text of a payload, the run's title in its lane header. */
+/** Fields that name what an artifact is about, in the order they are taken. */
+const TITLE_FIELDS = ['title', 'subject', 'name', 'question', 'summary'];
+
+/** The run's title in its lane header: a field that names it, else the payload's first text. */
 export function titleOf(payload: unknown): string | null {
   if (!payload || typeof payload !== 'object') return null;
-  const text = Object.values(payload as Record<string, unknown>).find((value) => typeof value === 'string' && value.trim());
-  return typeof text === 'string' ? text : null;
+  const fields = payload as Record<string, unknown>;
+  const text = (value: unknown): value is string => typeof value === 'string' && value.trim() !== '';
+  const named = TITLE_FIELDS.map((field) => fields[field]).find(text);
+  return named ?? Object.values(fields).find(text) ?? null;
 }
 
 /** An unsure decision a person still has to review (a checklist's unsure items are its results, not a route). */
@@ -156,8 +162,16 @@ export function lanesOf(nodes: Node[], edges: Edge[], running: RunningRun[]): La
       const consumed = runs.find((run) => run.agent === agent)?.artifacts.filter((artifact) => byId.has(artifact)) ?? [];
       return consumed.length > 0 ? 1 + Math.max(...consumed.map((artifact) => depths.get(artifact) ?? 0)) : last + 1;
     };
+    // Not on the record yet: still streaming, or published by a run the server
+    // draws edges for only once it is done (or streamed, before its snapshot)
+    const unrecorded = (node: Node) => {
+      const data = dataOf(node);
+      if (data.isStreaming) return true;
+      if ((inputs.get(node.id) ?? []).some((source) => byId.has(source))) return false;
+      return data.streamingText !== undefined || runs.some((run) => run.agent === data.producedBy);
+    };
     const recorded = members.filter((node) => !dataOf(node).isStreaming);
-    const last = Math.max(0, ...recorded.map((node) => depths.get(node.id) ?? 0));
+    const last = Math.max(0, ...members.filter((node) => !unrecorded(node)).map((node) => depths.get(node.id) ?? 0));
 
     const placed: { card: LaneCard; depth: number }[] = members.map((node) => {
       const data = dataOf(node);
@@ -171,11 +185,12 @@ export function lanesOf(nodes: Node[], edges: Edge[], running: RunningRun[]): La
           data: node.data as Record<string, unknown>,
           state: streaming ? 'streaming' : 'done',
         },
-        depth: streaming ? runDepth(data.producedBy ?? '', last) : (depths.get(node.id) ?? 0),
+        depth: unrecorded(node) ? runDepth(data.producedBy ?? '', last) : (depths.get(node.id) ?? 0),
       };
     });
     for (const run of runs) {
-      if (placed.some(({ card }) => card.state === 'streaming' && card.producedBy === run.agent)) continue;
+      // A run that shows what it makes (streaming, or published but not on the record yet) needs no placeholder
+      if (members.some((node) => dataOf(node).producedBy === run.agent && unrecorded(node))) continue;
       if (placed.some(({ card }) => card.id === `pending:${run.agent}`)) continue;
       placed.push({
         card: {

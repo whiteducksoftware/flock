@@ -88,6 +88,8 @@ const Summary: React.FC<{ card: LaneCard }> = ({ card }) => {
   }
   if (data.decision) return <DecisionLine decision={data.decision} />;
   const rows = data.payload && typeof data.payload === 'object' ? Object.entries(data.payload as Record<string, unknown>).slice(0, 2) : [];
+  // A stream that just ended, before the board's snapshot has its payload
+  if (rows.length === 0 && data.streamingText) return <span className={`mono ${styles.stream}`}>{data.streamingText.slice(-140)}</span>;
   return (
     <>
       {rows.length > 0 && (

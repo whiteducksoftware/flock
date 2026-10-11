@@ -70,7 +70,7 @@ const Blackboard: React.FC = () => {
         {view === 'lanes' && (
           <button
             type="button"
-            className="chip"
+            className={`chip ${reviewOnly ? styles.on : ''}`}
             aria-pressed={reviewOnly}
             onClick={() => useUIStore.getState().setNeedsReviewOnly(!reviewOnly)}
           >
