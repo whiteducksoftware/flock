@@ -76,6 +76,15 @@ Get OpenTelemetry traces with filtering.
 }
 ```
 
+### GET /api/plugin/traces/agents/{agent_name}
+
+An agent's latest runs and the spans below them, in the format of `/traces`. A run is an `Agent.execute` span whose `agent.name` attribute names the agent; the spans below it are read with a recursive query, so the trace database is never read whole. The dashboard's unfolded node reads its Traces tab from here.
+
+**Query parameters:**
+- `runs` (int, 1 to 50, default 5) - How many of the latest runs
+
+Without a trace database the response is `[]`.
+
 ### GET /api/plugin/traces/services
 
 Get list of unique services that have been traced.
