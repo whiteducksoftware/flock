@@ -223,7 +223,7 @@ GET /api/v1/artifacts/summary?type=YourType&from=2025-10-19T00:00:00Z
 GET /api/v1/artifacts/histogram?from=2026-10-11T12:00:00Z&to=2026-10-11T13:00:00Z&buckets=60
 ```
 
-**Query parameters:** the filters of List Artifacts (`type`, `produced_by`, `correlation_id`, `tag`, `visibility`, `from`, `to`) and `buckets` (1 to 500, default 60). Without `from` and `to`, the histogram covers the last hour.
+**Query parameters:** the filters of List Artifacts (`type`, `produced_by`, `correlation_id`, `tag`, `visibility`, `from`, `to`) and `buckets` (1 to 500, default 60). Without `from` and `to`, the histogram covers the last hour. A range too wide for exact buckets (about 584 years at 500 buckets) is rejected with 422.
 
 **Response:**
 ```json

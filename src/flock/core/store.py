@@ -65,6 +65,10 @@ def _check_histogram_range(filters: FilterConfig, buckets: int) -> None:
         raise ValueError("A histogram's end must be after its start.")
     if buckets < 1:
         raise ValueError("A histogram needs at least one bucket.")
+    from flock.storage.histogram import too_wide
+
+    if too_wide(filters.start, filters.end, buckets):
+        raise ValueError("A histogram's range is too wide for this many buckets.")
 
 
 @dataclass(slots=True)

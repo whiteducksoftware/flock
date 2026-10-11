@@ -20,6 +20,14 @@ from flock.utils.type_resolution import TypeResolutionHelper
 
 EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 MICROSECOND = timedelta(microseconds=1)
+# SQLite computes an offset in microseconds times the buckets in 64 bits
+_MAX_PRODUCT = 2**63 - 1
+
+
+def too_wide(start: datetime, end: datetime, buckets: int) -> bool:
+    """Whether the range is too wide for exact buckets (about 584 years over
+    500 buckets)."""
+    return (as_utc(end) - as_utc(start)) // MICROSECOND * buckets > _MAX_PRODUCT
 
 
 def workflow_error_type() -> str:
@@ -65,5 +73,6 @@ __all__ = [
     "MICROSECOND",
     "bucket_artifacts",
     "bucket_of",
+    "too_wide",
     "workflow_error_type",
 ]

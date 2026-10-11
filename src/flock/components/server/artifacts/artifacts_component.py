@@ -32,7 +32,7 @@ from flock.core.visibility import (
 )
 from flock.registry import type_registry
 from flock.storage.artifact_aggregator import ArtifactAggregator
-from flock.storage.histogram import bucket_artifacts
+from flock.storage.histogram import bucket_artifacts, too_wide
 from flock.utils.time_utils import as_utc, format_time_span
 from flock.utils.type_resolution import TypeResolutionHelper
 from flock.utils.visibility_utils import deserialize_visibility
@@ -648,6 +648,11 @@ class ArtifactsComponent(ServerComponent):
             )
             if end_at <= start_at:
                 raise HTTPException(status_code=422, detail="'to' must be after 'from'")
+            if too_wide(start_at, end_at, buckets):
+                raise HTTPException(
+                    status_code=422,
+                    detail="The range is too wide for this many buckets",
+                )
             filters = replace(filters, start=start_at, end=end_at)
             store = orchestrator.store
 

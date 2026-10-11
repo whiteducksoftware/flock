@@ -126,6 +126,15 @@ async def test_errors_count_by_their_resolved_type(store):
     assert errors == [1, 0, 0, 0]
 
 
+async def test_a_range_too_wide_for_exact_buckets_is_rejected(store):
+    # SQLite computes offset * buckets in 64-bit integers
+    with pytest.raises(ValueError, match="too wide"):
+        await store.artifact_histogram(
+            FilterConfig(start=START - timedelta(days=600 * 365), end=END),
+            buckets=500,
+        )
+
+
 async def test_sqlite_reads_only_the_range_of_a_histogram(tmp_path):
     sqlite = SQLiteBlackboardStore(str(tmp_path / "plan.db"))
     await sqlite.ensure_schema()
@@ -225,6 +234,7 @@ async def test_without_a_range_the_histogram_covers_the_last_hour():
         {"buckets": 0},
         {"buckets": 501},
         {"from": END.isoformat(), "to": START.isoformat()},
+        {"from": "1400-01-01T00:00:00Z", "to": END.isoformat(), "buckets": 500},
     ],
 )
 async def test_bad_histogram_requests_are_rejected(params):
