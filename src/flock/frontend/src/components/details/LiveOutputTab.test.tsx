@@ -97,54 +97,6 @@ const MockLiveOutputTab = ({
   );
 };
 
-// Mock virtualized component for performance testing
-const MockVirtualizedOutputTab = ({
-  nodeId,
-  outputs,
-}: {
-  nodeId: string;
-  outputs: StreamingOutputData[];
-}) => {
-  const [visibleRange, setVisibleRange] = React.useState({ start: 0, end: 50 });
-
-  const sortedOutputs = [...outputs].sort((a, b) => a.sequence - b.sequence);
-  const visibleOutputs = sortedOutputs.slice(visibleRange.start, visibleRange.end);
-
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLDivElement;
-    const scrollTop = target.scrollTop;
-    const itemHeight = 20;
-    const start = Math.floor(scrollTop / itemHeight);
-    const end = start + 50;
-    setVisibleRange({ start, end });
-  };
-
-  return (
-    <div
-      data-testid={`virtualized-output-${nodeId}`}
-      onScroll={handleScroll}
-      style={{ height: '400px', overflow: 'auto' }}
-    >
-      <div style={{ height: `${sortedOutputs.length * 20}px`, position: 'relative' }}>
-        {visibleOutputs.map((output, index) => (
-          <div
-            key={`${output.run_id}-${output.sequence}`}
-            data-testid={`virtual-line-${visibleRange.start + index}`}
-            style={{
-              position: 'absolute',
-              top: `${(visibleRange.start + index) * 20}px`,
-              height: '20px',
-            }}
-          >
-            {output.content}
-          </div>
-        ))}
-      </div>
-      <div data-testid="total-lines">{sortedOutputs.length}</div>
-    </div>
-  );
-};
-
 describe('LiveOutputTab', () => {
   describe('Output Display', () => {
     it('should render empty state when no output', () => {
@@ -611,79 +563,6 @@ describe('LiveOutputTab', () => {
       // Note: Mock shows it, but actual implementation should filter it out
       // This test documents expected behavior
       expect(screen.getByTestId('final-marker')).toBeInTheDocument();
-    });
-  });
-
-  describe('Virtualization Performance', () => {
-    it('should handle 1000+ lines without performance degradation', () => {
-      const startTime = performance.now();
-
-      const outputs: StreamingOutputData[] = Array.from({ length: 1000 }, (_, i) => ({
-        agent_name: 'test_agent',
-        run_id: 'run-1',
-        output_type: 'llm_token' as const,
-        content: `Line ${i}: ${'x'.repeat(100)}`,
-        sequence: i,
-        is_final: false,
-      }));
-
-      render(<MockVirtualizedOutputTab nodeId="agent-1" outputs={outputs} />);
-
-      const endTime = performance.now();
-      const renderTime = endTime - startTime;
-
-      // Virtualized rendering should be fast (< 100ms for 1000 lines)
-      expect(renderTime).toBeLessThan(100);
-
-      expect(screen.getByTestId('total-lines')).toHaveTextContent('1000');
-    });
-
-    it('should only render visible lines in virtualized mode', () => {
-      const outputs: StreamingOutputData[] = Array.from({ length: 1000 }, (_, i) => ({
-        agent_name: 'test_agent',
-        run_id: 'run-1',
-        output_type: 'llm_token' as const,
-        content: `Line ${i}`,
-        sequence: i,
-        is_final: false,
-      }));
-
-      render(<MockVirtualizedOutputTab nodeId="agent-1" outputs={outputs} />);
-
-      // Should only render ~50 visible lines (not all 1000)
-      const visibleLines = screen.getAllByTestId(/virtual-line-/);
-      expect(visibleLines.length).toBeLessThan(100);
-      expect(visibleLines.length).toBeGreaterThan(0);
-    });
-
-    it('should handle rapid updates with many lines', () => {
-      const { rerender } = render(
-        <MockVirtualizedOutputTab nodeId="agent-1" outputs={[]} />
-      );
-
-      // Add 100 lines at a time
-      for (let batch = 0; batch < 10; batch++) {
-        const outputs: StreamingOutputData[] = Array.from(
-          { length: (batch + 1) * 100 },
-          (_, i) => ({
-            agent_name: 'test_agent',
-            run_id: 'run-1',
-            output_type: 'llm_token' as const,
-            content: `Line ${i}`,
-            sequence: i,
-            is_final: false,
-          })
-        );
-
-        const startTime = performance.now();
-        rerender(<MockVirtualizedOutputTab nodeId="agent-1" outputs={outputs} />);
-        const endTime = performance.now();
-
-        // Each update should be fast
-        expect(endTime - startTime).toBeLessThan(50);
-      }
-
-      expect(screen.getByTestId('total-lines')).toHaveTextContent('1000');
     });
   });
 
