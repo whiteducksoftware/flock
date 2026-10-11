@@ -839,8 +839,11 @@ class AgentBuilder:
             )
         from flock.decisions.choice import MAX_OPTIONS
 
+        # One model, not a sequence of characters
         if isinstance(escalate, str):
-            escalate = [escalate]  # one tier, not a sequence of characters
+            escalate = [escalate]
+        if isinstance(models, str):
+            models = [models]
         if escalate and tournament is not None:
             raise ValueError(
                 f"Agent '{self._agent.name}': escalate= is not supported together "

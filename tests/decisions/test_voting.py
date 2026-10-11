@@ -199,6 +199,13 @@ def test_an_ensemble_needs_two_models():
         )
 
 
+def test_a_bare_model_string_is_not_an_ensemble():
+    with pytest.raises(ValueError, match="at least two"):
+        Flock().agent("x").consumes(VoteTicket).decides(
+            VoteRoute, models="azure/decision-1"
+        )
+
+
 def test_unknown_votes_are_rejected():
     with pytest.raises(ValueError, match="vote="):
         Flock().agent("x").consumes(VoteTicket).decides(
