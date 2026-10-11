@@ -219,6 +219,36 @@ def agent_runs_db(temp_db):
     return temp_db
 
 
+class TestReadingWhileTheTracerWrites:
+    """The tracer's exporter connects with DuckDB's default configuration (#599)."""
+
+    async def test_reads_while_this_process_has_the_file_open_for_writing(
+        self, app, orchestrator, agent_runs_db
+    ):
+        component = TracingComponent(
+            config=TracingComponentConfig(db_path=agent_runs_db)
+        )
+        component.configure(app, orchestrator)
+        component.register_routes(app, orchestrator)
+        writer = duckdb.connect(str(agent_runs_db))
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(
+                transport=transport, base_url="http://testserver"
+            ) as client:
+                spans = (await client.get("/api/plugin/traces")).json()
+                runs = (
+                    await client.get("/api/plugin/traces/agents/billing_team")
+                ).json()
+            # ... and the writer still can
+            writer.execute("SELECT count(*) FROM spans").fetchone()
+        finally:
+            writer.close()
+
+        assert len(spans) == 9
+        assert len([s for s in runs if s["name"] == "Agent.execute"]) == 3
+
+
 class TestAgentTraces:
     """GET traces/agents/{name}: an agent's latest runs and the spans below them."""
 
