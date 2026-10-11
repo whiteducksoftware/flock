@@ -229,3 +229,13 @@ def _mutated_image(url: str) -> Image:
     image = Image(url=_png_url((8, 8)))
     image.url = url  # bypasses validation
     return image
+
+
+async def test_extra_padding_does_not_shrink_the_size_estimate(tiny_bound):
+    """Non-canonical '=' padding must not make an oversized image look small."""
+    flock = Flock()
+    url = _noisy_url().rstrip("=") + "=" * 100_000
+    artifact = Artifact(type="Padded", payload={"shot": {"url": url}}, produced_by="external")
+
+    with pytest.raises(ValueError, match="larger than"):
+        await flock.publish(artifact)

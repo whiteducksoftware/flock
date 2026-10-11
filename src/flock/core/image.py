@@ -175,12 +175,15 @@ def _enforce_limits(url: str) -> None:
     if match is None:
         return
     encoded = match.group(2)
-    padding = len(encoded) - len(encoded.rstrip("="))
-    if len(encoded) * 3 // 4 - padding > MAX_IMAGE_BYTES:  # before decoding
+    data_chars = encoded.rstrip("=")
+    # From the data characters alone: extra "=" padding cannot shrink the estimate
+    if len(data_chars) * 3 // 4 > MAX_IMAGE_BYTES:  # before decoding
         raise ValueError(
             f"Image data is larger than {MAX_IMAGE_BYTES / (1024 * 1024):g} MB; "
             "downscale it, e.g. with Image.from_file()."
         )
+    if len(encoded) % 4 or len(encoded) - len(data_chars) > 2 or "=" in data_chars:
+        return  # not canonical base64, so not image data an Image would accept
     try:
         data = base64.b64decode(encoded, validate=True)
     except (binascii.Error, ValueError):
