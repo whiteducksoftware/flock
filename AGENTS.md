@@ -289,7 +289,7 @@ for name, service, ms, status, error in conn.execute(
 |---|---|
 | Concepts | [Blackboard](docs/guides/blackboard.md), [agents](docs/guides/agents.md), [patterns](docs/guides/patterns.md), [use cases](docs/guides/use-cases.md) |
 | Subscriptions | [Predicates](docs/guides/predicates.md), [joins](docs/guides/join-operations.md), [batching](docs/guides/batch-processing.md), [semantic](docs/guides/semantic-subscriptions.md), [workflow control](docs/guides/workflow-control.md) |
-| Publishing | [Fan-out](docs/guides/fan-out.md), [visibility](docs/guides/visibility.md), [webhooks](docs/guides/webhooks.md) |
+| Publishing | [Fan-out](docs/guides/fan-out.md), [images](docs/guides/images.md), [visibility](docs/guides/visibility.md), [webhooks](docs/guides/webhooks.md) |
 | Decisions | [Decision models](docs/guides/decisions.md) |
 | Hosting | [Applications](docs/guides/applications.md), [Microsoft Foundry](docs/guides/foundry.md), [REST API](docs/guides/rest-api.md), [server components](docs/guides/server-components.md) |
 | Extending | [Agent components](docs/guides/components.md), [orchestrator components](docs/guides/orchestrator-components.md), [DSPy engine](docs/guides/dspy-engine.md), [local models](docs/guides/local-models.md), [context providers](docs/guides/context-providers.md) |

@@ -232,6 +232,7 @@ nav:
       - Timer Scheduling: guides/scheduling.md
     - Publishing:
       - Fan-Out Publishing: guides/fan-out.md
+      - Images: guides/images.md
       - Visibility Controls: guides/visibility.md
       - Webhook Notifications: guides/webhooks.md
     - Advanced:

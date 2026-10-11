@@ -10,6 +10,7 @@ from uuid import uuid4
 from pydantic import BaseModel
 
 from flock.core.artifacts import Artifact
+from flock.core.image import check_inline_images
 from flock.core.visibility import PublicVisibility, Visibility
 from flock.registry import type_registry
 
@@ -139,7 +140,9 @@ class ArtifactManager:
         """
         # Handle different input types
         if isinstance(obj, Artifact):
-            # Already an artifact - publish as-is
+            # Already an artifact - publish as-is, but inline images keep the
+            # limits that models enforce when they are created
+            check_inline_images(obj.payload)
             artifact = obj
         elif isinstance(obj, BaseModel):
             # BaseModel instance - get type from registry

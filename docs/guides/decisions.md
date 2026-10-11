@@ -423,6 +423,7 @@ await flock.publish(ProductPhoto(sku="A-17", photo=Image.from_file("a17.jpg")))
 - `Image.from_file()`, `Image.from_bytes()` and `Image.from_pil()` scale the picture down to `max_side` (default 1024 px) and re-encode it as JPEG (PNG when it has transparency). Re-encoding drops EXIF metadata such as GPS positions. Smaller images are faster: a local Clef model took 1.3 s for a 108 KB photo and 11 s for 1 MB.
 - The decider sends every `Image` in its inputs (also nested, in order) to the model; the text state shows `<image 1>`, `<image 2>`, ... in their place.
 - LLM agents receive `Image` fields as pictures too; see [image inputs](dspy-engine.md#image-inputs).
+- Limits, publishing paths and security rules for images: [Images guide](images.md).
 - A text-only provider refuses image inputs with a clear error instead of dropping the images.
 
 | Provider | Images |

@@ -17,7 +17,7 @@ import binascii
 import io
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -165,4 +165,24 @@ class Image(BaseModel):
         return f"Image({self.mime_type}, {len(self.base64_data)} base64 chars)"
 
 
-__all__ = ["DEFAULT_MAX_SIDE", "Image", "describe_image_data"]
+def check_inline_images(value: Any) -> None:
+    """Raise ``ValueError`` if a payload holds inline image data over the limits.
+
+    Models validate their ``Image`` fields when they are created; this covers
+    payloads that are published without a model (``Artifact`` objects). Only
+    valid image data URLs (``{"url": "data:image/...;base64,..."}``) are checked;
+    other values are left alone.
+    """
+    if isinstance(value, dict):
+        url = value.get("url")
+        if len(value) == 1 and isinstance(url, str) and _DATA_URL.match(url):
+            Image(url=url)  # size and pixel limits; ValidationError is a ValueError
+            return
+        for item in value.values():
+            check_inline_images(item)
+    elif isinstance(value, list | tuple):
+        for item in value:
+            check_inline_images(item)
+
+
+__all__ = ["DEFAULT_MAX_SIDE", "Image", "check_inline_images", "describe_image_data"]
