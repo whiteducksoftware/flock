@@ -67,7 +67,8 @@ Each entry says what was decided, why, and where it landed.
   - `subscriptionGroups` and `lastError` for the `AND`/`JOIN` rows and the error row (#585, PR #586);
   - the collector derives the agent status from its runs and puts it on the run events, so concurrent runs do not flip the card.
 - **The error row opens the existing trace viewer module** on the run's correlation ID (`ModuleInstance.search`) until the Traces tab (#561) and the timeline dock (#564) replace it.
-- **"In flight" means:** a run of the edge's target agent consumed that type (`consumed_types` of `agent_activated`) and has not ended. Runs are tracked by `run_id`, so one ending leaves a concurrent run's edges moving. The edge animation setting now means "animate edges in flight"; the global always-on animation is gone.
+- **"In flight" means:** a run of the edge's target agent consumed that type (`consumed_types` of `agent_activated`) and has not ended. Runs are tracked by `run_id`, so one ending leaves a concurrent run's edges moving.
+  - A dashboard that connects while a run is under way shows that run's edges still, until the next activation; its status dot is right. Seeding them from the snapshot needs the active runs' types from the server, and a snapshot that arrives after a run's `agent_completed` would keep that run in flight for good. The edge animation setting now means "animate edges in flight"; the global always-on animation is gone.
 - **A subscription that needs a type several times** (`.consumes(A, A, A)`) shows one row with `×3`.
 - **Decision handles about the same subject read `AND`** (`pager`: `Route.tech AND Urgent.yes`), although they correlate like a join under the hood; `JOIN` is kept for joins by a key.
 - **The demo does not record traces,** so the error row's trace viewer opens empty there; the link carries the run's correlation ID.
