@@ -206,6 +206,7 @@ Each decision is a `Decision.of(<question>)` artifact, for example `Decision.of(
 | `candidates` | The options the decision was asked about when `options=` restricted them |
 | `confidence` | Confidence as reported by the model |
 | `threshold` | The threshold that applied |
+| `instructions` | The question text asked when `.decides(instructions=...)` replaced the docstring |
 | `subject_ids` | Ids of the artifacts the decision is about |
 | `model` | The model that answered (as reported by the provider) |
 | `tier`, `attempts` | [Escalation](#escalation-cascades): the tier that answered (0 is the decider's model) and the earlier tiers' answers |
@@ -563,7 +564,7 @@ On eight support tickets with Microsoft-Decision-1 at threshold 0.95 ([`10_expla
 > The subject and the reference to a "return label" support shipping, whose scope includes returns. However, "from the website gives an error when I print it" also suggests a technical bug, supporting tech as an alternative. [...]
 > *Would settle it:* the exact error message and whether the failure occurs while generating the label on the website or while printing a downloaded one.
 
-In the dashboard, an explanation shows as text instead of JSON, and the explained decision shows the start of the explanation on its card (the whole text on hover). The screenshots come from a second run, in which two tickets were unsure:
+In the dashboard, an explanation shows as text instead of JSON, and the explained decision shows the start of the explanation on its card; its **more** button (click or keyboard) opens the whole text and what would settle it. The screenshots come from a second run, in which two tickets were unsure:
 
 <p align="center">
   <img alt="Triage routes eight tickets; the explainer consumes Route.UNSURE and published two explanations" src="../../assets/images/decisions/decision-explain-agent-view.png" width="800">

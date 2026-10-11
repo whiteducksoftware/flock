@@ -36,6 +36,11 @@ class Decision(BaseModel):
     threshold: float | None = Field(
         default=None, description="Minimum top probability for a firm choice"
     )
+    instructions: str | None = Field(
+        default=None,
+        description="The question text asked instead of the question's docstring "
+        "(.decides(instructions=...))",
+    )
     score: float | None = Field(
         default=None,
         description="Scale questions: probability-weighted level (0 = lowest)",

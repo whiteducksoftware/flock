@@ -108,7 +108,10 @@ def decision_case(decision_type: str, payload: dict[str, Any]) -> DecisionToExpl
     if payload.get("candidates") is not None:  # restricted at runtime (options=)
         candidates = set(payload["candidates"])
         options = {name: text for name, text in options.items() if name in candidates}
-    text = question.__question__ if question is not None else payload.get("question")
+    # The text actually asked: custom instructions, else the question's docstring
+    text = payload.get("instructions") or (
+        question.__question__ if question is not None else payload.get("question")
+    )
     return DecisionToExplain(
         question=text or payload.get("question", ""),
         options=options,
