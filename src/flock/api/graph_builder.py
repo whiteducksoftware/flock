@@ -84,12 +84,15 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         )
         if total_available > limit:
             # A full view shows the newest artifacts (the store orders oldest
-            # first), so a live dashboard keeps showing what was just published
+            # first), so a live dashboard keeps showing what was just published.
+            # Reading from the last page on without a limit also gets what was
+            # published since the count; page and total come from one query
             envelopes, total_available = await self._store.fetch_graph_artifacts(
                 filter_config,
-                limit=limit,
+                limit=0,
                 offset=total_available - limit,
             )
+            envelopes = envelopes[-limit:]
 
         graph_state: GraphState = await self._collector.snapshot_graph_state()
         agent_snapshots = await self._collector.snapshot_agent_registry()
