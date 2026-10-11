@@ -153,7 +153,7 @@ flock.agent("pager").consumes(Route.tech, Urgent.yes).publishes(Page)  # AND abo
 Measured with Microsoft-Decision-1 on the repository's examples:
 
 - **Routing:** 100 arXiv abstracts sorted into research fields at 169 ms per paper, against 598 ms for `gpt-4.1`; the decision model agreed with arXiv's category on 90 papers, `gpt-4.1` on 85.
-- **Compliance:** 24 documents checked against 100 controls with one checklist decision each, about 600 ms per document, recall 1.00 at precision 0.75 against ground truth.
+- **Compliance:** 24 documents checked against 100 controls with one checklist decision each, about 600 ms per document, recall 0.99 at precision 0.75 against ground truth (an unsure answer counts as missed).
 
 📖 [Decision models guide](https://whiteducksoftware.github.io/flock/guides/decisions/) · [Examples](examples/15-decisions/)
 
