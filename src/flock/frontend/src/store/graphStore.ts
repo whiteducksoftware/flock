@@ -188,11 +188,13 @@ export const useGraphStore = create<GraphState>()(
           // Merge positions: saved > current > backend > random
           const mergedNodes = mergeNodePositions(snapshot.nodes, savedPositions, currentNodes);
 
-          // Overlay real-time WebSocket state
+          // Overlay real-time WebSocket state; the selected node stays selected
+          const selected = new Set(currentNodes.filter((node) => node.selected).map((node) => node.id));
           const finalNodes = withTransientPositions(
-            overlayWebSocketState(mergedNodes, agentStatus, streamingTokens, agentLogicOperations).map((node) =>
-              node.type === 'agent' ? { ...node, data: { ...node.data, snapshotAt } } : node,
-            ),
+            overlayWebSocketState(mergedNodes, agentStatus, streamingTokens, agentLogicOperations).map((node) => {
+              const kept = selected.has(node.id) ? { ...node, selected: true } : node;
+              return kept.type === 'agent' ? { ...kept, data: { ...kept.data, snapshotAt } } : kept;
+            }),
             get().transientPositions,
           );
 
