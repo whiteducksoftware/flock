@@ -63,7 +63,7 @@ const AdvancedSettings: React.FC = () => {
             Layout Direction
           </label>
           <p className="settings-description">
-            Direction for manual layout algorithm (right-click → Auto Layout)
+            Direction of the default hierarchical layout (the canvas dock’s layout menu picks one too)
           </p>
           <select
             id="layout-direction"

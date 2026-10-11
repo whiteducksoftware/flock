@@ -126,3 +126,12 @@ Each entry says what was decided, why, and where it landed.
 - **Contract:** fields with type, `?` for optional ones and the description; a decision handle shows the subject's fields, a decider's decisions only that they route to their handles. Visibility is not shown; agent nodes do not carry it.
 - **History loading moved into a hook** (`useMessageHistory`) shared by the History tab and Live's right column.
 - **The tablists of the unfolded node and the stage follow the WAI-ARIA tabs pattern** (arrow keys, Home and End, one tab in the Tab order).
+
+### #563 Canvas dock
+
+- **The lock of the React Flow controls is not in the dock** (the design's dock has none, and it was rarely of use); nodes can always be moved. The README's table maps "React Flow controls (zoom, fit, lock)" to the dock.
+- **Until the timeline dock (#564), the trace viewer and the historical blackboard open only from where they are linked** (a failed run's row, the Traces tab's link); the historical blackboard has no entry point for that time. This is a state of the `ui-rework` branch only.
+- **Choosing a layout keeps it as the board's layout** (as the right-click menu did), and folds an unfolded node first; Auto-arrange is the old "Auto Layout: On/Off".
+- **The layout menu is a WAI-ARIA menu of radio items** (arrow keys, Home, End, Esc back to its button); its Esc does not reach the board's shortcuts.
+- **The layout direction setting** (Settings › Advanced) now says it is the default hierarchical layout's direction; the dock's menu picks one too. Settings are reworked in #569.
+- **Zooming and fitting do not animate for people who ask for less motion.**
