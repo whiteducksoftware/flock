@@ -132,6 +132,6 @@ Each entry says what was decided, why, and where it landed.
 - **The lock of the React Flow controls is not in the dock** (the design's dock has none, and it was rarely of use); nodes can always be moved. The README's table maps "React Flow controls (zoom, fit, lock)" to the dock.
 - **Until the timeline dock (#564), the trace viewer and the historical blackboard open only from where they are linked** (a failed run's row, the Traces tab's link); the historical blackboard has no entry point for that time. This is a state of the `ui-rework` branch only.
 - **Choosing a layout keeps it as the board's layout** (as the right-click menu did), and folds an unfolded node first; Auto-arrange is the old "Auto Layout: On/Off".
-- **The layout menu is a WAI-ARIA menu of radio items** (arrow keys, Home, End, Esc back to its button); its Esc does not reach the board's shortcuts.
+- **The layout menu is a WAI-ARIA menu of radio items** (arrow keys, Home, End, Esc back to its button; Tab, Shift+Tab or a focus that leaves it closes it); its Esc does not reach the board's shortcuts.
 - **The layout direction setting** (Settings › Advanced) now says it is the default hierarchical layout's direction; the dock's menu picks one too. Settings are reworked in #569.
 - **Zooming and fitting do not animate for people who ask for less motion.**

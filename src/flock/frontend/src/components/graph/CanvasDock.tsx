@@ -61,6 +61,9 @@ const CanvasDock: React.FC<CanvasDockProps> = ({ layout, autoArrange, onLayout, 
       // The menu's own Esc: the board's shortcuts leave it alone
       event.preventDefault();
       closeMenu();
+    } else if (event.key === 'Tab') {
+      // Tab or Shift+Tab moves on: the menu closes and the focus goes where it went
+      setOpen(false);
     } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
       const step = event.key === 'ArrowDown' ? 1 : -1;
@@ -107,7 +110,18 @@ const CanvasDock: React.FC<CanvasDockProps> = ({ layout, autoArrange, onLayout, 
           <Icon name="chevronDown" size={13} />
         </button>
         {open && (
-          <div ref={menu} role="menu" aria-label="Layout" className={styles.menu} onKeyDown={onMenuKey}>
+          <div
+            ref={menu}
+            role="menu"
+            aria-label="Layout"
+            className={styles.menu}
+            onKeyDown={onMenuKey}
+            // The focus left it some other way; to its button, the button's click toggles it
+            onBlur={(event) => {
+              const to = event.relatedTarget as Node | null;
+              if (!menu.current?.contains(to) && !button.current?.contains(to)) setOpen(false);
+            }}
+          >
             {LAYOUTS.map((entry) => (
               <button
                 key={entry.mode}
