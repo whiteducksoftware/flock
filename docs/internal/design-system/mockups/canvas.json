@@ -1,0 +1,23 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-10-11T11:40:00Z"},
+  "title": "Flock Dashboard Redesign",
+  "launch": {"view": "canvas"},
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {"x": 0, "y": 0, "w": 1440, "h": 900, "title": "Flow: a node unfolded on the board", "expand": "fill", "is_interactive": true},
+    "Focus.dc.html": {"x": 1520, "y": 0, "w": 1440, "h": 900, "title": "Focus: a node maximized", "expand": "fill", "is_interactive": true},
+    "Blackboard.dc.html": {"x": 3040, "y": 0, "w": 1440, "h": 900, "title": "Blackboard: runs as lanes", "expand": "fill", "is_interactive": true},
+    "Dock.dc.html": {"x": 4560, "y": 0, "w": 1440, "h": 900, "title": "Timeline dock: history and traces", "expand": "fill", "is_interactive": true},
+    "Publish.dc.html": {"x": 6080, "y": 0, "w": 1440, "h": 900, "title": "Publish composer", "expand": "fill", "is_interactive": true},
+    "Foundations.dc.html": {"x": 0, "y": 1300, "w": 1440, "h": 1020, "title": "Foundations"},
+    "States.dc.html": {"x": 1520, "y": 1300, "w": 1440, "h": 1260, "title": "Node levels and states"},
+    "Decisions.dc.html": {"x": 3040, "y": 1300, "w": 1440, "h": 1060, "title": "Decision kit"}
+  },
+  "order": ["Main.dc.html", "Focus.dc.html", "Blackboard.dc.html", "Dock.dc.html", "Publish.dc.html", "Foundations.dc.html", "States.dc.html", "Decisions.dc.html"],
+  "notes": {
+    "screens": {"x": 0, "y": -300, "text": "Screens — click through: Flow · Focus · Blackboard · Dock · Publish", "kind": "title1", "maxW": 7520},
+    "system": {"x": 0, "y": 1000, "text": "System — tokens, node levels, decision encodings", "kind": "title1", "maxW": 4480}
+  },
+  "designSystems": []
+}

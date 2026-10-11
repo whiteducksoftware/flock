@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Flock · Foundations</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.fl{--bg:#0B0C0E;--board:#0D0F12;--surface:#15171B;--surface-2:#1B1E23;--surface-3:#24282E;--line:rgba(255,255,255,.075);--line-2:rgba(255,255,255,.14);--text:#ECEEF1;--text-2:#B0B6BF;--text-3:#858C96;--signal:#F2A33A;--signal-ink:#F6B860;--signal-soft:rgba(242,163,58,.13);--sure:#7BA8F5;--sure-ink:#9DBEF8;--error:#F07563;--error-ink:#F59384;--hatch:rgba(255,255,255,.22);font-family:'Geist',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;font-size:13px;line-height:1.45;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+.fl *{box-sizing:border-box}
+.mono{font-family:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace}
+.num{font-variant-numeric:tabular-nums}
+.hatch{background-image:repeating-linear-gradient(135deg,var(--hatch) 0 1.5px,transparent 1.5px 5px)}
+.label{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);font-weight:500}
+.h2{margin:0;font-size:13px;font-weight:600;letter-spacing:.01em;color:var(--text)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px}
+.sw{display:flex;flex-direction:column;gap:6px;font-size:11px}
+.swc{height:44px;border-radius:8px;border:1px solid rgba(127,127,127,.25)}
+.ico{display:flex;flex-direction:column;align-items:center;gap:8px;width:84px;font-size:11px;color:var(--text-2);text-align:center}
+.icobox{width:40px;height:40px;border-radius:10px;border:1px solid var(--line-2);display:flex;align-items:center;justify-content:center;color:var(--text)}
+@keyframes flow{to{stroke-dashoffset:-20}}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(242,163,58,.5)}70%{box-shadow:0 0 0 7px rgba(242,163,58,0)}100%{box-shadow:0 0 0 0 rgba(242,163,58,0)}}
+.live{animation:pulse 1.8s ease-out infinite}
+.edge-live{stroke-dasharray:3 7;stroke-linecap:round;animation:flow .9s linear infinite}
+@media (prefers-reduced-motion:reduce){.live,.edge-live{animation:none}}
+</style>
+</helmet>
+<div class="fl" style="width: 1440px; height: 1020px; padding: 56px 64px; display: flex; flex-direction: column; gap: 36px; overflow: hidden">
+
+  <div style="display: flex; align-items: flex-end; gap: 24px">
+    <div style="display: flex; align-items: center; gap: 14px">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3.5l4 3-4 3" stroke="var(--text)"></path><path d="M8 14.5l4 3-4 3" stroke="var(--text)"></path><path d="M15 9l4 3-4 3" stroke="var(--signal)"></path></svg>
+      <span style="font-size: 44px; font-weight: 600; letter-spacing: -0.035em">flock</span>
+    </div>
+    <p style="margin: 0 0 8px; max-width: 560px; font-size: 15px; color: var(--text-2); text-wrap: pretty">Graphite ground, one typeface family, and four signals. Color only ever means something; structure comes from position, weight and the mono face.</p>
+  </div>
+
+  <section aria-labelledby="sig" style="display: flex; flex-direction: column; gap: 14px">
+    <h2 id="sig" class="h2">Four signals</h2>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px">
+      <div class="card" style="padding: 18px; display: flex; flex-direction: column; gap: 14px">
+        <div style="display: flex; align-items: center; gap: 12px; height: 40px">
+          <span class="live" style="width: 12px; height: 12px; border-radius: 50%; background: var(--signal)"></span>
+          <svg width="120" height="20" viewBox="0 0 120 20" aria-hidden="true"><path class="edge-live" d="M2 10 C40 10 60 4 118 10" fill="none" stroke="var(--signal)" stroke-width="2"></path></svg>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <span style="font-size: 15px; font-weight: 600; color: var(--signal-ink)">Amber · happening now</span>
+          <span style="color: var(--text-2); text-wrap: pretty">Running agents, artifacts in flight, streaming text, countdowns. When nothing runs, the board has no amber.</span>
+        </div>
+      </div>
+      <div class="card" style="padding: 18px; display: flex; flex-direction: column; gap: 14px">
+        <div style="display: flex; align-items: center; gap: 10px; height: 40px">
+          <span class="mono" style="color: var(--sure-ink); font-size: 14px">◆ billing</span>
+          <span style="flex: 1 1 0; height: 8px; border-radius: 4px; background: var(--surface-3); overflow: hidden; display: flex"><span style="width: 91%; background: var(--sure)"></span></span>
+          <span class="mono num" style="color: var(--text-2)">0.91</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <span style="font-size: 15px; font-weight: 600; color: var(--sure-ink)">Blue · decided</span>
+          <span style="color: var(--text-2); text-wrap: pretty">A decision answered above its threshold: the chosen option, its handle and the edge it routes along.</span>
+        </div>
+      </div>
+      <div class="card" style="padding: 18px; display: flex; flex-direction: column; gap: 14px">
+        <div style="display: flex; align-items: center; gap: 10px; height: 40px">
+          <span class="hatch" style="width: 40px; height: 24px; border-radius: 5px; outline: 1px dashed var(--text-3); outline-offset: -1px"></span>
+          <span class="mono" style="color: var(--text-2)">UNSURE</span>
+          <span style="display: flex; flex-direction: column; gap: 4px; flex: 1 1 0"><span class="hatch" style="height: 6px; border-radius: 3px; width: 90%"></span><span class="hatch" style="height: 6px; border-radius: 3px; width: 55%"></span></span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <span style="font-size: 15px; font-weight: 600">Hatch · not sure yet</span>
+          <span style="color: var(--text-2); text-wrap: pretty">Below threshold, waiting for a join or batch, still streaming. Texture instead of hue, so it reads in any theme and for color-blind eyes.</span>
+        </div>
+      </div>
+      <div class="card" style="padding: 18px; display: flex; flex-direction: column; gap: 14px">
+        <div style="display: flex; align-items: center; gap: 10px; height: 40px">
+          <span style="width: 12px; height: 12px; border-radius: 50%; background: var(--error)"></span>
+          <span style="display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px; border-radius: 6px; border: 1px solid var(--error); color: var(--error-ink); font-size: 12px">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 8v5M12 16.5h.01"></path><circle cx="12" cy="12" r="9"></circle></svg>
+            RateLimitError
+          </span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <span style="font-size: 15px; font-weight: 600; color: var(--error-ink)">Coral · failed</span>
+          <span style="color: var(--text-2); text-wrap: pretty">Agent errors and workflow errors. Always paired with an icon or text, never color alone.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div style="display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 32px">
+    <section aria-labelledby="pal" style="display: flex; flex-direction: column; gap: 14px">
+      <h2 id="pal" class="h2">Palette · Graphite and Paper</h2>
+      <div style="display: grid; grid-template-columns: 76px repeat(7, minmax(0, 1fr)); gap: 10px; align-items: end">
+        <span class="label" style="padding-bottom: 32px">Graphite</span>
+        <div class="sw"><div class="swc" style="background: #0B0C0E"></div><span class="mono">ground</span><span class="mono" style="color: var(--text-3)">#0B0C0E</span></div>
+        <div class="sw"><div class="swc" style="background: #15171B"></div><span class="mono">surface</span><span class="mono" style="color: var(--text-3)">#15171B</span></div>
+        <div class="sw"><div class="swc" style="background: #24282E"></div><span class="mono">raised</span><span class="mono" style="color: var(--text-3)">#24282E</span></div>
+        <div class="sw"><div class="swc" style="background: #ECEEF1"></div><span class="mono">text</span><span class="mono" style="color: var(--text-3)">#ECEEF1</span></div>
+        <div class="sw"><div class="swc" style="background: #F2A33A"></div><span class="mono">signal</span><span class="mono" style="color: var(--text-3)">#F2A33A</span></div>
+        <div class="sw"><div class="swc" style="background: #7BA8F5"></div><span class="mono">decided</span><span class="mono" style="color: var(--text-3)">#7BA8F5</span></div>
+        <div class="sw"><div class="swc" style="background: #F07563"></div><span class="mono">failed</span><span class="mono" style="color: var(--text-3)">#F07563</span></div>
+        <span class="label" style="padding-bottom: 32px">Paper</span>
+        <div class="sw"><div class="swc" style="background: #F3F2EE"></div><span class="mono">ground</span><span class="mono" style="color: var(--text-3)">#F3F2EE</span></div>
+        <div class="sw"><div class="swc" style="background: #FFFFFF"></div><span class="mono">surface</span><span class="mono" style="color: var(--text-3)">#FFFFFF</span></div>
+        <div class="sw"><div class="swc" style="background: #EAE8E2"></div><span class="mono">raised</span><span class="mono" style="color: var(--text-3)">#EAE8E2</span></div>
+        <div class="sw"><div class="swc" style="background: #16171A"></div><span class="mono">text</span><span class="mono" style="color: var(--text-3)">#16171A</span></div>
+        <div class="sw"><div class="swc" style="background: #D9861A"></div><span class="mono">signal</span><span class="mono" style="color: var(--text-3)">#D9861A</span></div>
+        <div class="sw"><div class="swc" style="background: #2E6BD1"></div><span class="mono">decided</span><span class="mono" style="color: var(--text-3)">#2E6BD1</span></div>
+        <div class="sw"><div class="swc" style="background: #C8432F"></div><span class="mono">failed</span><span class="mono" style="color: var(--text-3)">#C8432F</span></div>
+      </div>
+      <p style="margin: 2px 0 0; font-size: 12px; color: var(--text-3); text-wrap: pretty">The 336 terminal themes keep working: they map onto these tokens, and nothing in a node or card hard-codes a color any more.</p>
+    </section>
+
+    <section aria-labelledby="typ" style="display: flex; flex-direction: column; gap: 14px">
+      <h2 id="typ" class="h2">Type · Geist and Geist Mono</h2>
+      <div class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 12px">
+        <div style="display: flex; align-items: baseline; gap: 14px"><span style="font-size: 20px; font-weight: 600; letter-spacing: -0.015em">billing_team</span><span class="mono" style="margin-left: auto; font-size: 11px; color: var(--text-3)">20 / 600 · focus title</span></div>
+        <div style="display: flex; align-items: baseline; gap: 14px"><span style="font-size: 13.5px; font-weight: 600">triage</span><span style="font-size: 13px; color: var(--text-2)">Routes support tickets to a team</span><span class="mono" style="margin-left: auto; font-size: 11px; color: var(--text-3)">13.5 / 13 · node</span></div>
+        <div style="display: flex; align-items: baseline; gap: 14px; padding-top: 10px; border-top: 1px solid var(--line)"><span class="mono" style="font-size: 13px">SupportTicket</span><span class="mono" style="font-size: 13px; color: var(--sure-ink)">◆ Route.billing</span><span class="mono num" style="font-size: 13px; color: var(--text-2)">9c34 · 0.93 · 61 ms</span><span class="mono" style="margin-left: auto; font-size: 11px; color: var(--text-3)">mono · types, ids, numbers</span></div>
+        <div style="display: flex; align-items: center; gap: 12px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12.5px">
+          <span class="mono" style="color: var(--text-3); text-decoration: line-through">__main__.SupportTicket (6)</span>
+          <svg width="20" height="10" viewBox="0 0 20 10" aria-hidden="true"><path d="M0 5h16M12 1l4 4-4 4" fill="none" stroke="var(--text-3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <span class="mono">SupportTicket · 6</span>
+          <span style="margin-left: auto; font-size: 11px; color: var(--text-3)">module path on hover</span>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <section aria-labelledby="ico" style="display: flex; flex-direction: column; gap: 14px">
+    <h2 id="ico" class="h2">One line-icon set instead of emoji</h2>
+    <div style="display: flex; flex-wrap: wrap; gap: 8px 4px">
+      <div class="ico"><span class="icobox"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></span>Publish</div>
+      <div class="ico"><span class="icobox"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="M16 16l4 4"></path></svg></span>Search</div>
+      <div class="ico"><span class="icobox"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"></path></svg></span>Fold</div>
+      <div class="ico"><span class="icobox"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path></svg></span>Focus</div>
+      <div class="ico"><span class="icobox"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="6" height="5" rx="1"></rect><rect x="3" y="15" width="6" height="5" rx="1"></rect><rect x="15" y="9.5" width="6" height="5" rx="1"></rect><path d="M9 6.5h2.5a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5H9M13 12h2"></path></svg></span>Layout</div>
+      <div class="ico"><span class="icobox"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1M3.5 4.5v4h4"></path><path d="M12 8v4l2.5 1.5"></path></svg></span>History</div>
+      <div class="ico"><span class="icobox"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 6h9M8 12h11M6 18h6"></path></svg></span>Traces</div>
+      <div class="ico"><span class="icobox"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3 2"></path></svg></span>Scheduled</div>
+      <div class="ico"><span class="icobox"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4v16M17 4v16M7 12h10"></path></svg></span>Join</div>
+      <div class="ico"><span class="icobox"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5"></rect><rect x="13" y="4" width="7" height="7" rx="1.5"></rect><rect x="4" y="13" width="7" height="7" rx="1.5"></rect><rect x="13" y="13" width="7" height="7" rx="1.5" stroke-dasharray="2 2"></rect></svg></span>Batch</div>
+      <div class="ico"><span class="icobox"><span class="mono" style="color: var(--sure-ink); font-size: 16px">◆</span></span>Decision</div>
+      <div class="ico"><span class="icobox"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h9M18 7h2M4 17h3M12 17h8"></path><circle cx="15.5" cy="7" r="2.3"></circle><circle cx="9.5" cy="17" r="2.3"></circle></svg></span>Settings</div>
+      <div class="ico"><span class="icobox"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2.5"></rect><path d="M7 10h.01M11 10h.01M15 10h.01M8 14h8"></path></svg></span>Shortcuts</div>
+      <div class="ico"><span class="icobox"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 8v5M12 16.5h.01"></path><circle cx="12" cy="12" r="9"></circle></svg></span>Error</div>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1020}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

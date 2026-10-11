@@ -1,0 +1,138 @@
+/*
+ * Flock dashboard tokens: "Unfold" design system.
+ * Spec: docs/internal/design-system/README.md
+ *
+ * The root element carries data-theme="graphite" (default) or data-theme="paper".
+ * Terminal themes override these custom properties; components never hard-code colors.
+ */
+
+:root,
+[data-theme="graphite"] {
+  /* Ground and surfaces */
+  --bg: #0b0c0e;
+  --board: #0d0f12;
+  --dot: rgba(255, 255, 255, 0.06);
+  --surface: #15171b;
+  --surface-2: #1b1e23;
+  --surface-3: #24282e;
+  --line: rgba(255, 255, 255, 0.075);
+  --line-2: rgba(255, 255, 255, 0.14);
+
+  /* Text */
+  --text: #eceef1;
+  --text-2: #b0b6bf;
+  --text-3: #858c96;
+  --invert: #eceef1;
+  --on-invert: #0b0c0e;
+
+  /* The four signals: amber = happening now, blue = decided, hatch = not sure yet, coral = failed */
+  --signal: #f2a33a;
+  --signal-ink: #f6b860;
+  --signal-soft: rgba(242, 163, 58, 0.13);
+  --sure: #7ba8f5;
+  --sure-ink: #9dbef8;
+  --sure-soft: rgba(123, 168, 245, 0.16);
+  --error: #f07563;
+  --error-ink: #f59384;
+  --error-soft: rgba(240, 117, 99, 0.13);
+  --hatch: rgba(255, 255, 255, 0.22);
+
+  /* Depth */
+  --scrim: rgba(5, 6, 8, 0.72);
+  --shadow: 0 1px 0 rgba(255, 255, 255, 0.035) inset, 0 18px 40px -18px rgba(0, 0, 0, 0.75);
+  --shadow-stage: 0 1px 0 rgba(255, 255, 255, 0.035) inset, 0 30px 80px -24px rgba(0, 0, 0, 0.85);
+
+  /* Type */
+  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Radii */
+  --radius-tag: 6px;
+  --radius-control: 8px;
+  --radius-card: 12px;
+  --radius-dialog: 16px;
+
+  /* Motion */
+  --duration-fast: 120ms;
+  --duration-layout: 200ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+[data-theme="paper"] {
+  --bg: #f3f2ee;
+  --board: #f6f5f1;
+  --dot: rgba(20, 20, 20, 0.08);
+  --surface: #ffffff;
+  --surface-2: #f5f4f0;
+  --surface-3: #eae8e2;
+  --line: rgba(20, 20, 20, 0.08);
+  --line-2: rgba(20, 20, 20, 0.15);
+
+  --text: #16171a;
+  --text-2: #4a4f57;
+  --text-3: #676c74;
+  --invert: #16171a;
+  --on-invert: #ffffff;
+
+  --signal: #d9861a;
+  --signal-ink: #9a5a06;
+  --signal-soft: rgba(217, 134, 26, 0.13);
+  --sure: #2e6bd1;
+  --sure-ink: #2559b0;
+  --sure-soft: rgba(46, 107, 209, 0.12);
+  --error: #c8432f;
+  --error-ink: #a8361f;
+  --error-soft: rgba(200, 67, 47, 0.1);
+  --hatch: rgba(20, 20, 20, 0.24);
+
+  --scrim: rgba(240, 239, 235, 0.72);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 14px 30px -16px rgba(0, 0, 0, 0.2);
+  --shadow-stage: 0 1px 2px rgba(0, 0, 0, 0.05), 0 30px 70px -24px rgba(0, 0, 0, 0.28);
+}
+
+/* Canvas background: dot grid */
+.board {
+  background-color: var(--board);
+  background-image: radial-gradient(var(--dot) 1px, transparent 1.3px);
+  background-size: 22px 22px;
+}
+
+/* "Not sure yet": UNSURE answers, waiting joins and batches, streaming outputs */
+.hatch {
+  background-image: repeating-linear-gradient(135deg, var(--hatch) 0 1.5px, transparent 1.5px 5px);
+}
+
+/* Focus ring */
+:focus-visible {
+  outline: 2px solid var(--sure);
+  outline-offset: 2px;
+}
+
+/* Motion: running dot, artifacts in flight, streaming caret, running node sweep */
+@keyframes flock-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--signal) 50%, transparent); }
+  70% { box-shadow: 0 0 0 6px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+@keyframes flock-flow {
+  to { stroke-dashoffset: -20; }
+}
+
+@keyframes flock-blink {
+  50% { opacity: 0; }
+}
+
+@keyframes flock-sweep {
+  0% { background-position: -60% 0; }
+  100% { background-position: 160% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition-duration: 0ms !important;
+  }
+}
