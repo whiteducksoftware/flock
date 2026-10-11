@@ -47,7 +47,9 @@ from flock.decisions.graph import (
     is_coverage_type,
     is_decision_type,
     is_explanation_type,
+    needs_review,
     reviews_by_decision,
+    title_of,
 )
 from flock.decisions.models import choice_of
 from flock.logging.auto_trace import AutoTracedMeta
@@ -106,6 +108,8 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         )
 
         if request.view_mode == "agent":
+            # Which unsure decisions a person answered, for the deciders' review queues
+            reviews = await self._reviews_of_unsure(artifacts, filter_config)
             nodes = self._build_agent_nodes(
                 artifacts,
                 produced_metrics,
@@ -113,6 +117,7 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 graph_state,
                 agent_snapshots,
                 await self._current_coverages(artifacts, filter_config),
+                reviews,
             )
             edges = self._derive_agent_edges(artifacts)
             # Phase 1.5: Add pending edges for artifacts waiting in correlation/batch
@@ -166,6 +171,27 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             limit=0,  # all of them
         )
         return [item for item in found if isinstance(item, Artifact)]
+
+    async def _reviews_of_unsure(
+        self, artifacts: Mapping[str, GraphArtifact], filters: FilterConfig
+    ) -> dict[str, dict[str, Any]]:
+        """Reviews of the unsure decisions in view, also those outside the view.
+        Reads nothing when no decision in view waits for a person."""
+        unsure = {
+            artifact.artifact_id: artifact
+            for artifact in artifacts.values()
+            if is_decision_type(artifact.artifact_type)
+            and needs_review(artifact.payload)
+        }
+        if not unsure:
+            return {}
+        later = await self._published_since(
+            {artifact.artifact_type for artifact in unsure.values()},
+            min(artifact.published_at for artifact in unsure.values()),
+            filters,
+        )
+        reviews = reviews_by_decision((a.payload, a.produced_by) for a in later)
+        return {k: v for k, v in reviews.items() if k in unsure}
 
     async def _decision_links(
         self, artifacts: Mapping[str, GraphArtifact], filters: FilterConfig
@@ -298,6 +324,7 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         graph_state: GraphState,
         agent_snapshots: Mapping[str, AgentSnapshot],
         coverages: Mapping[str, Sequence[tuple[str, Mapping[str, Any]]]],
+        reviews: Mapping[str, Mapping[str, Any]] | None = None,
     ) -> list[GraphNode]:
         nodes: list[GraphNode] = []
         agent_status = graph_state.agent_status
@@ -403,6 +430,8 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 ),
             )
             if decision:
+                queue = self._review_queue(agent.name, artifacts, reviews or {})
+                decision["needsReview"], decision["needsReviewCount"] = queue
                 node_data["decision"] = decision
             # Order does not matter: each group's highest revision counts
             coverage = aggregator_info(agent, coverages.get(agent.name, ()))
@@ -662,6 +691,48 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         if question is None or question.__kind__ not in ("scale", "checklist"):
             return None
         return list(question.__options__)
+
+    def _review_queue(
+        self,
+        agent_name: str,
+        artifacts: Mapping[str, GraphArtifact],
+        reviews: Mapping[str, Mapping[str, Any]],
+        limit: int = 20,
+    ) -> tuple[list[dict[str, Any]], int]:
+        """A decider's unsure decisions in view that no review answered, newest
+        first (at most ``limit``), and how many there are."""
+        pending = sorted(
+            (
+                artifact
+                for artifact in artifacts.values()
+                if artifact.produced_by == agent_name
+                and is_decision_type(artifact.artifact_type)
+                and needs_review(artifact.payload)
+                and artifact.artifact_id not in reviews
+            ),
+            key=lambda artifact: artifact.published_at,
+            reverse=True,
+        )
+
+        def subject_title(payload: Mapping[str, Any]) -> str | None:
+            for subject_id in payload.get("subject_ids") or []:
+                subject = artifacts.get(str(subject_id))
+                if subject is not None:
+                    return title_of(subject.payload)
+            return None
+
+        return [
+            {
+                "id": artifact.artifact_id,
+                "question": artifact.payload.get("question"),
+                "correlationId": artifact.correlation_id,
+                "bestGuess": artifact.payload.get("best_guess"),
+                "probabilities": dict(artifact.payload.get("probabilities") or {}),
+                "options": self._review_options(artifact.artifact_type),
+                "subjectTitle": subject_title(artifact.payload),
+            }
+            for artifact in pending[:limit]
+        ], len(pending)
 
     @staticmethod
     def _review_options(type_name: str) -> list[str] | None:
