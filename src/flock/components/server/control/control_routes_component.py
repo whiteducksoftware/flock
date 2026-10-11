@@ -1,8 +1,6 @@
-import asyncio
-
-
 """ServerComponent that serves control routes."""
 
+import asyncio
 import json
 from typing import Any
 from uuid import uuid4

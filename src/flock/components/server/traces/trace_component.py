@@ -1,8 +1,6 @@
-import asyncio
-
-
 """Trace-relate API routes."""
 
+import asyncio
 import json
 from datetime import UTC, datetime
 from pathlib import Path
