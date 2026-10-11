@@ -23,7 +23,7 @@ const TABS: { key: DockTab; label: string }[] = [
   { key: 'settings', label: 'Tracing settings' },
 ];
 
-/** Bars of the histogram: about one per 12 px of the board's width. */
+/** Bars of the histogram: one per minute of the last hour. */
 const BUCKETS = 60;
 
 const TimelineDock: React.FC = () => {
@@ -39,9 +39,11 @@ const TimelineDock: React.FC = () => {
     return (
       <footer aria-label="Timeline" className={styles.collapsed}>
         <div className={styles.summary}>
-          <span className={styles.title}>Activity</span>
-          <span className={`mono num ${styles.faint}`}>
-            {activity ? `${activity.total} artifact${activity.total === 1 ? '' : 's'} · last hour` : 'Loading…'}
+          <span className={styles.title}>
+            Activity <span className={styles.faint}>· last hour</span>
+          </span>
+          <span className={`mono num ${styles.faint} ${styles.count}`}>
+            {activity ? `${activity.total} artifact${activity.total === 1 ? '' : 's'}` : 'Loading…'}
           </span>
         </div>
         <div className={styles.middle}>

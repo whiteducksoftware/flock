@@ -145,7 +145,7 @@ export const useKeyboardShortcuts = (config: KeyboardShortcutConfig = {}) => {
         if (config.onCloseWindows) {
           config.onCloseWindows();
         } else {
-          // Priority: Close panels first, then the unfolded node, then artifact windows
+          // Priority: panels, then focus mode, the timeline dock, the unfolded node, artifact windows
           const { showSettings, showFilters, showControls } = useSettingsStore.getState().ui;
           const { detailWindows, unfoldedNodeId, focusedNodeId, dockOpen } = useUIStore.getState();
 

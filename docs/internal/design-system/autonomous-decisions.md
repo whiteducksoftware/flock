@@ -123,7 +123,7 @@ Each entry says what was decided, why, and where it landed.
 - **The stage covers the board, not the header,** so filters and the publish panel stay reachable; it is therefore a dialog that is not modal (`aria-modal` is not set). It ends by itself when its node leaves the board (the other view).
 - **Lineage comes from the graph's edges:** the producers of what the agent reads, a decision handle one step further back to the subject the decider read (as in the mockup), the node, its outputs and their consumers with the option a decision consumer takes. Edges that have not carried anything yet (an open join, a batch) are not in it.
 - **Live's right column** shows the latest consumed message and, while the agent runs, its live tokens as the output so far ("Waiting for output" until the first; never an earlier run's output), else the latest published message; earlier runs open the Runs tab. The header says how long the running run has run, or how long ago the last run ended. The engine's class name in the mockup (`DSPyEngine`) is the card's tag (`LLM`) next to the model.
-- **Contract:** fields with type, `?` for optional ones and the description; a decision handle shows the subject's fields, a decider's decisions only that they route to their handles. Visibility is not shown; agent nodes do not carry it.
+- **Contract:** fields with type, `?` for optional ones and the description; a decision handle shows the subject's fields (each subject's, when the decider decides about several types), a decider's decisions only that they route to their handles. Visibility is not shown; agent nodes do not carry it.
 - **History loading moved into a hook** (`useMessageHistory`) shared by the History tab and Live's right column.
 - **The tablists of the unfolded node and the stage follow the WAI-ARIA tabs pattern** (arrow keys, Home and End, one tab in the Tab order).
 
@@ -135,3 +135,14 @@ Each entry says what was decided, why, and where it landed.
 - **The layout menu is a WAI-ARIA menu of radio items** (arrow keys, Home, End, Esc back to its button); its Esc does not reach the board's shortcuts.
 - **The layout direction setting** (Settings › Advanced) now says it is the default hierarchical layout's direction; the dock's menu picks one too. Settings are reworked in #569.
 - **Zooming and fitting do not animate for people who ask for less motion.**
+
+### #564 Timeline dock
+
+- **The histogram shows the last hour in 60 one-minute bars,** reaching further back when a custom range starts earlier, and refreshes every 10 s. It counts for the board's filters (correlation, types, producers, tags, visibility) but not for its time filter, which the brush shows.
+- **A brush that ends within a bar of now stays open,** so it follows the time; one as long as a preset (5 min, 10 min, 1 hour, within a bar) is that preset, so brushing and picking it make the same filter. Other brushes are fixed custom ranges.
+- **The dock's tabs split the trace viewer's views:** Traces holds the timeline and statistics, Metrics the RED metrics and dependencies, Tracing settings the configuration and guide; the History tab is the historical blackboard. The search box shows only for the views that list traces.
+- **Trace search syntax:** `agent:NAME` (spans with that `agent.name`), `status:error|ok`, `service:CLASS` (the class in a span's name, any case); other words search trace ids, span names and attribute values as before. Sorting: Newest, Slowest, Errors first, Spans.
+- **While the dock is open, agents show as chips and the canvas dock and minimap are hidden;** the board is too short then for cards and controls on top of it. The board keeps 220 px.
+- **Esc** closes panels, then leaves focus mode, then collapses the dock, then folds the unfolded node, then closes artifact windows.
+- **Services in the trace viewer get neutral greys** instead of eight hues, since the design keeps color for its four signals; errors are coral. Its emoji are gone (icons for empty and error states).
+- **The floating module windows are gone with their registry, store and persistence.** The `flock-module-state` key is removed by "Clear all dashboard data"; the `module_instances` store stays in existing IndexedDB databases (removing it needs a version upgrade of the database for no gain) and is no longer written.

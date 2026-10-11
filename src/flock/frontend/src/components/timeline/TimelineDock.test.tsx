@@ -39,7 +39,8 @@ describe('TimelineDock', () => {
   it('shows the last hour of activity with the time filter on it, errors and now', async () => {
     render(<TimelineDock />);
 
-    expect(await screen.findByText('78 artifacts · last hour')).toBeTruthy();
+    expect(await screen.findByText('78 artifacts')).toBeTruthy();
+    expect(screen.getByText('· last hour')).toBeTruthy();
     const activity = screen.getByTestId('activity');
     expect(activity.querySelectorAll('[title$="artifact"], [title$="artifacts"]')).toHaveLength(60);
     expect(activity.querySelector('[title="1 error"]')).toBeTruthy();
