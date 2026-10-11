@@ -211,6 +211,7 @@ Each decision is a `Decision.of(<question>)` artifact, for example `Decision.of(
 | `model` | The model that answered (as reported by the provider) |
 | `tier`, `attempts` | [Escalation](#escalation-cascades): the tier that answered (0 is the decider's model) and the earlier tiers' answers |
 | `votes` | [Ensembles](#ensembles-and-voting): every model's answer |
+| `mode` | How the decider answers: `"single"`, `"escalation"` (`escalate=`) or `"ensemble"` (`models=`), also when no escalation or vote happened |
 | `shadow` | [Shadow mode](#shadow-mode): the shadow model's answer, recorded but not routed |
 | `sections` | [Long documents](#long-documents-in-sections): the split field, the sections' spans and the section per answer |
 | `review_of` | [Human review](#human-review): the decision a person confirmed or overrode with this one |
@@ -455,7 +456,7 @@ flock.agent("audit").consumes(Document).decides(
 
 `decisions` are decision artifacts (their producer is the decider; payloads or models work too, without a decider); `labels` maps a decided artifact's id to the right answer per question: `{"<artifact id>": {"Route": "tech"}}`, and for a Checklist a mapping of item to `"yes"` or `"no"`, `{"<artifact id>": {"Controls": {"mfa": "yes"}}}`. Per decider and question, and per checklist item, `calibrate()` returns a `Suggestion` with the lowest threshold whose firm answers reach `target_precision`, counting only thresholds with at least `min_support` labelled answers at or above them, and the `precision` and `coverage` (share of firm answers) at that threshold; `threshold` is `None` when no threshold reaches the target. A choice, yes/no or scale answer is its best guess with its probability; a checklist item's answer is yes or no, whichever is more probable, with that probability. `item_thresholds=` on `.decides()` gives checklist items their own threshold, keyed by item (`"mfa"`) or, when several checklists of the decider share an item name, by `"Controls.mfa"`. `target_precision` must be in (0, 1] and `min_support` at least 1.
 
-Human reviews are labels: `labels_from_reviews(decisions)` turns every [review](#human-review) into the right answer to its question about its subject, and the CLI calibrates a SQLite store from the decisions and reviews in it, per decider:
+Human reviews are labels: `labels_from_reviews(decisions)` turns every [review](#human-review) into the right answer to its question about its subject, and the CLI calibrates a SQLite store from the decisions and reviews in it, per decider, and prints the thresholds exactly, ready to copy into `item_thresholds`:
 
 ```bash
 flock decisions calibrate .flock/blackboard.db --target-precision 0.95 --min-support 5
@@ -470,7 +471,7 @@ Thresholds need enough labels. [`14_calibration.py`](https://github.com/whiteduc
 
 (Recall counts an unsure answer about a shown control as a miss.) Precision rises a little, but the target is far off on documents the thresholds were not fitted to, almost three times as many answers stay unsure, and recall drops: 12 labelled documents per control are too few for stable thresholds. Calibrate on as many labels as you can, and measure on labels the thresholds did not come from.
 
-Calibration covers single-model deciders. With `escalate=` or `models=`, a threshold acts on each tier or vote rather than on the final answer, so `calibrate()` suggests nothing for those deciders and says so in the suggestion's `note`. Decisions record the item thresholds that applied in `item_thresholds`.
+Calibration covers single-model deciders. With `escalate=` or `models=`, a threshold acts on each tier or vote rather than on the final answer, so `calibrate()` suggests nothing for those deciders (by the decisions' `mode`, also when every answer came from the first model) and says so in the suggestion's `note`. Decisions record the item thresholds that applied in `item_thresholds`.
 
 In the dashboard, a decider names how many items have their own threshold and opens the list on click or with the keyboard; a checklist cell names its item's own threshold:
 

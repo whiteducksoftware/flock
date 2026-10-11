@@ -358,6 +358,7 @@ class DecisionEngine(EngineComponent):
                 votes=[
                     _attempt(label, vote) for label, vote in trail.votes.get(name, [])
                 ],
+                mode=self._mode,
                 shadow=shadow_record,
                 sections=self._sections_record(
                     spans,
@@ -971,6 +972,7 @@ class DecisionEngine(EngineComponent):
             tier=tier,
             attempts=attempts,
             votes=votes,
+            mode=self._mode,
             latency_ms=latency_ms,
         )
 
@@ -980,6 +982,12 @@ class DecisionEngine(EngineComponent):
         if self.ensemble:
             return " + ".join(provider.label for provider in self.ensemble)
         return self.provider.label
+
+    @property
+    def _mode(self) -> Literal["single", "escalation", "ensemble"]:
+        if self.ensemble:
+            return "ensemble"
+        return "escalation" if self.escalation else "single"
 
     def _firm(self, answer: DecisionAnswer) -> bool:
         if answer.refused or answer.choice is None:

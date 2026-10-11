@@ -295,6 +295,51 @@ def test_escalated_or_voted_decisions_are_not_calibrated():
     assert "escalat" in suggestion.note
 
 
+async def _route_decisions(flock: Flock) -> tuple[list, dict]:
+    """The CalRoute decisions in the store, with every ticket labelled billing."""
+    await flock.publish(CalTicket(text="charged twice"))
+    await flock.run_until_idle()
+    name = type_registry.name_for(Decision.of(CalRoute))
+    decisions = [a for a in await flock.store.list() if a.type == name]
+    labels = {
+        str(a.payload["subject_ids"][0]): {"CalRoute": "billing"} for a in decisions
+    }
+    return decisions, labels
+
+
+async def test_an_escalating_decider_is_not_calibrated_when_its_model_settled():
+    flock = Flock()
+    flock.agent("triage").consumes(CalTicket).decides(
+        CalRoute,
+        model=FakeDecider({"billing": 0.95, "tech": 0.05}),
+        escalate=[FakeDecider({"billing": 0.99, "tech": 0.01}, label="strong")],
+        threshold=0.8,
+    )
+    decisions, labels = await _route_decisions(flock)
+
+    (suggestion,) = calibrate(decisions, labels, min_support=1)
+
+    assert decisions[0].payload["tier"] == 0  # no escalation happened
+    assert suggestion.threshold is None
+    assert "escalat" in suggestion.note
+
+
+async def test_an_ensemble_is_not_calibrated_without_votes():
+    flock = Flock()
+    flock.agent("triage").consumes(CalTicket).decides(
+        CalRoute,
+        models=[FakeDecider({}), FakeDecider({})],
+        options=lambda ctx: ["billing"],  # one candidate: no model is asked
+    )
+    decisions, labels = await _route_decisions(flock)
+
+    (suggestion,) = calibrate(decisions, labels, min_support=1)
+
+    assert decisions[0].payload["votes"] == []
+    assert suggestion.threshold is None
+    assert "ensemble" in suggestion.note
+
+
 async def test_decisions_record_the_item_thresholds_that_applied():
     flock = Flock()
     flock.agent("audit").consumes(CalTicket).decides(
@@ -348,14 +393,14 @@ def test_item_thresholds_name_items_of_the_checklist():
         )
 
 
-async def _reviewed_store(path) -> None:
+async def _reviewed_store(path, firm: float = 0.97) -> None:
     flock = Flock(store=SQLiteBlackboardStore(str(path)))
 
     def route(state: str) -> dict:
         return (
             {"billing": 0.6, "tech": 0.4}
             if "crash" in state
-            else {"billing": 0.97, "tech": 0.03}
+            else {"billing": firm, "tech": 1 - firm}
         )
 
     flock.agent("triage").consumes(CalTicket).decides(
@@ -413,6 +458,23 @@ def test_the_cli_prints_the_suggestions(tmp_path):
     assert result.exit_code == 0, result.output
     assert "CalRoute" in result.output
     assert "0.97" in result.output
+
+
+def test_the_cli_prints_thresholds_exactly(tmp_path):
+    import asyncio
+
+    from flock.cli import app
+
+    path = tmp_path / "blackboard.db"
+    asyncio.run(_reviewed_store(path, firm=0.9731))
+
+    result = CliRunner().invoke(
+        app, ["decisions", "calibrate", str(path), "--min-support", "2"]
+    )
+
+    # Rounded down, a copied threshold would let less confident answers through
+    assert result.exit_code == 0, result.output
+    assert "0.9731" in result.output
 
 
 async def test_the_decider_view_lists_its_item_thresholds():

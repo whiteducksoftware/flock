@@ -119,7 +119,10 @@ def calibrate(
         if payload.get("review_of") or not subject_ids:
             continue
         question = str(payload.get("question"))
-        if payload.get("attempts") or payload.get("votes") or payload.get("tier"):
+        if payload.get("mode", "single") != "single" or (
+            # Decisions recorded before the mode existed
+            payload.get("attempts") or payload.get("votes") or payload.get("tier")
+        ):
             # A threshold acts per tier or per vote there, not on the final answer
             multi_stage.add((decider, question))
         label = (labels.get(str(subject_ids[0])) or {}).get(question)

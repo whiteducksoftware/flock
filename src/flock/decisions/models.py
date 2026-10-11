@@ -79,6 +79,12 @@ class Decision(BaseModel):
         "model, choice, probabilities, confidence, refused (checklists: model "
         "and its result per item)",
     )
+    mode: Literal["single", "escalation", "ensemble"] = Field(
+        default="single",
+        description="How the decider answers: one model, a model with "
+        "escalate=, or several models with models=; recorded even when no "
+        "escalation or vote happened",
+    )
     shadow: dict[str, Any] | None = Field(
         default=None,
         description="Shadow mode: the shadow model's answer, recorded but not "

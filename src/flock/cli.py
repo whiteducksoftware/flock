@@ -209,7 +209,8 @@ def decisions_calibrate(
             s.question,
             s.item or "",
             str(s.labeled),
-            "-" if s.threshold is None else f"{s.threshold:.2f}",
+            # Exact, so that it can be copied into item_thresholds
+            "-" if s.threshold is None else str(s.threshold),
             "-" if s.precision is None else f"{s.precision:.2f}",
             f"{s.coverage:.2f}",
             s.note or "",
