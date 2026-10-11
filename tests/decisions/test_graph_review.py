@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from flock.api.collector import DashboardEventCollector
 from flock.api.graph_builder import GraphAssembler
-from flock.components.server.models.graph import GraphRequest, GraphRequestOptions
+from flock.components.server.models.graph import GraphFilters, GraphRequest
 from flock.core import Flock
 from flock.decisions import Choice, Decision, FakeDecider
 from flock.registry import flock_type, type_registry
@@ -65,7 +65,7 @@ async def test_a_decision_view_lists_the_options_a_person_can_choose():
     assert view["options"] == ["billing", "tech"]
 
 
-async def test_a_decision_shows_its_review_beyond_the_view_limit():
+async def test_a_decision_shows_its_review_when_the_view_leaves_it_out():
     flock = Flock()
     flock.is_dashboard = True
     flock.agent("triage").consumes(GraphRevTicket).decides(
@@ -78,9 +78,11 @@ async def test_a_decision_shows_its_review_beyond_the_view_limit():
     (unsure,) = [a for a in await flock.store.list() if a.type == name]
     await flock.review(unsure.id, choice="tech", reviewer="alice")
 
-    # The ticket and the decision fill the view; the later review is past its limit
+    # Only the decider's artifacts in view: the reviewer's review is filtered out
     assembler = GraphAssembler(flock.store, collector, flock)
-    request = GraphRequest(view_mode="blackboard", options=GraphRequestOptions(limit=2))
+    request = GraphRequest(
+        view_mode="blackboard", filters=GraphFilters(producers=["triage"])
+    )
     blackboard = await assembler.build_snapshot(request)
 
     views = {n.id: n.data["decision"] for n in blackboard.nodes if "decision" in n.data}

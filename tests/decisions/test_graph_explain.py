@@ -8,10 +8,9 @@ from flock.api.collector import DashboardEventCollector
 from flock.api.graph_builder import GraphAssembler
 from flock.components.server.models.graph import GraphFilters, GraphRequest
 from flock.core import Flock
-from flock.decisions import Choice, FakeDecider
+from flock.decisions import Choice, Decision, FakeDecider
 from flock.decisions.explain import Explanation
 from flock.engines.dspy_engine import DSPyEngine
-from flock.decisions import Decision
 from flock.registry import flock_type, type_registry
 from flock.utils.runtime import EvalResult
 

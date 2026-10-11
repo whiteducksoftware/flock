@@ -9,7 +9,6 @@ from flock.api.graph_builder import GraphAssembler
 from flock.components.server.models.graph import (
     GraphFilters,
     GraphRequest,
-    GraphRequestOptions,
     GraphTimeRange,
 )
 from flock.core import Flock
@@ -83,7 +82,7 @@ async def test_aggregator_and_coverage_views():
     }
 
 
-async def test_a_group_counts_with_its_newest_revision_beyond_the_view_limit():
+async def test_a_group_counts_with_its_newest_revision_outside_the_view():
     flock = Flock()
     flock.is_dashboard = True
     flock.agent("audit").consumes(GraphCovDocument).decides(
@@ -96,28 +95,28 @@ async def test_a_group_counts_with_its_newest_revision_beyond_the_view_limit():
     for text in ("policy", "runbook"):  # acme fails (revision 1), then passes
         await flock.publish(GraphCovDocument(org="acme", text=text))
         await flock.run_until_idle()
-    ordered = sorted(await flock.store.list(), key=lambda a: (a.created_at, a.id))
-    newest = max(
-        (a for a in ordered if a.produced_by == "coverage"),
-        key=lambda a: a.payload["revision"],
-    )
+    revisions = {
+        a.payload["revision"]: a
+        for a in await flock.store.list()
+        if a.produced_by == "coverage"
+    }
 
-    # The view ends right before the newest revision
+    # The first document's workflow in view: revision 2 belongs to the second
     request = GraphRequest(
         view_mode="agent",
-        filters=GraphFilters(time_range=GraphTimeRange(preset="all")),
-        options=GraphRequestOptions(limit=ordered.index(newest)),
+        filters=GraphFilters(
+            correlation_id=str(revisions[1].correlation_id),
+            time_range=GraphTimeRange(preset="all"),
+        ),
     )
     agent_view = await GraphAssembler(flock.store, collector, flock).build_snapshot(
         request
     )
 
     coverage_node = next(n for n in agent_view.nodes if n.id == "coverage")
-    in_view = ordered[: ordered.index(newest)]
-    assert [a.payload["choice"] for a in in_view if a.produced_by == "coverage"] == [
-        "failed"
-    ]
-    assert newest.payload["choice"] == "passed"
+    assert revisions[1].payload["choice"] == "failed"
+    assert revisions[2].payload["choice"] == "passed"
+    assert revisions[2].correlation_id != revisions[1].correlation_id
     assert coverage_node.data["coverage"]["groups"] == {
         "passed": 1,
         "failed": 0,
