@@ -524,5 +524,66 @@ describe('MessageNode', () => {
     expect(screen.getByTestId('escalation-attempt')).toHaveTextContent('fast · 1 unsure');
     expect(screen.getByTestId('escalation-attempt')).toHaveAttribute('title', expect.stringContaining('backup'));
   });
+
+  it('should show every vote of an ensemble decision', () => {
+    render(
+      <ReactFlowProvider>
+        <MessageNode
+          {...createNodeProps(
+            decisionNode({
+              question: 'Route',
+              kind: 'choice',
+              choice: 'billing',
+              bestGuess: 'billing',
+              probabilities: { billing: 0.71, tech: 0.29 },
+              votes: [
+                { model: 'a', choice: 'billing', probabilities: { billing: 0.95, tech: 0.05 }, confidence: 0.95, refused: false },
+                { model: 'b', choice: 'tech', probabilities: { billing: 0.2, tech: 0.8 }, confidence: 0.8, refused: false },
+                { model: 'c', choice: null, probabilities: {}, confidence: null, refused: true },
+              ],
+              confidence: 0.71,
+              threshold: 0.9,
+              model: 'a + b + c',
+              latencyMs: 300,
+              score: null,
+              refused: false,
+            })
+          )}
+        />
+      </ReactFlowProvider>
+    );
+    const votes = screen.getAllByTestId('decision-vote');
+    expect(votes.map((v) => v.textContent)).toEqual(['a · billing 0.95', 'b · tech 0.80', 'c · refused']);
+    expect(votes.map((v) => v.getAttribute('data-agrees'))).toEqual(['true', 'false', 'false']);
+  });
+
+  it('should summarize the checklist votes of an ensemble', () => {
+    render(
+      <ReactFlowProvider>
+        <MessageNode
+          {...createNodeProps(
+            decisionNode({
+              question: 'Controls',
+              kind: 'checklist',
+              choice: 'UNSURE',
+              bestGuess: 'passed',
+              probabilities: { mfa: 0.68, backup: 0.52 },
+              items: ['mfa', 'backup'],
+              results: { mfa: 'yes', backup: 'UNSURE' },
+              refusedItems: [],
+              votes: [{ model: 'a', results: { mfa: 'yes', backup: 'no' } }],
+              confidence: null,
+              threshold: 0.9,
+              model: 'a + b',
+              latencyMs: 400,
+              score: null,
+              refused: false,
+            })
+          )}
+        />
+      </ReactFlowProvider>
+    );
+    expect(screen.getByTestId('decision-vote')).toHaveTextContent('a · 1 yes · 1 no');
+  });
 });
 

@@ -39,6 +39,8 @@ export interface DeciderInfo {
   questions: DeciderQuestion[];
   tournament?: { groupSize: number; keep: number };
   escalate?: string[]; // models asked after `model`, in order, when it is not sure
+  ensemble?: string[]; // models that all answer every question (instead of `model`)
+  vote?: string; // how the ensemble decides: majority, unanimous or mean
 }
 
 export interface EscalationAttempt {
@@ -88,6 +90,7 @@ export interface DecisionInfo {
   candidates?: string[]; // options= restricted the question to these options
   tier?: number; // escalation tier that answered (0: the decider's model)
   attempts?: EscalationAttempt[]; // lower tiers that were not sure, oldest first
+  votes?: EscalationAttempt[]; // ensemble: every model's answer, in model order
   confidence: number | null;
   threshold: number | null;
   model: string;
@@ -523,7 +526,9 @@ export const DeciderOptions = memo(({ decider }: { decider: DeciderInfo }) => {
         </div>
       ))}
       <div style={{ fontSize: '10px', color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-family-mono)' }}>
-        {[decider.model, ...(decider.escalate ?? [])].join(' › ')}
+        {decider.ensemble
+          ? `${decider.vote} of ${decider.ensemble.join(' + ')}`
+          : [decider.model, ...(decider.escalate ?? [])].join(' › ')}
         {decider.threshold !== null ? ` · threshold ${decider.threshold.toFixed(2)}` : ''}
         {decider.tournament
           ? ` · tournament: groups of ${decider.tournament.groupSize}, keep ${decider.tournament.keep}`
@@ -777,6 +782,40 @@ function attemptLabel(attempt: EscalationAttempt): string {
   return p == null ? attempt.choice : `${attempt.choice} ${p.toFixed(2)}`;
 }
 
+function voteLabel(vote: EscalationAttempt): string {
+  if (!vote.results) return attemptLabel(vote);
+  const values = Object.values(vote.results);
+  const count = (result: string) => values.filter((value) => value === result).length;
+  const unsure = count(UNSURE);
+  return `${count('yes')} yes · ${count('no')} no${unsure ? ` · ${unsure} unsure` : ''}`;
+}
+
+/** Ensemble: every model's answer; violet where it agrees with the decision. */
+const EnsembleVotes = memo(({ votes, choice }: { votes: EscalationAttempt[]; choice: string }) => (
+  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px', fontSize: '10px', fontFamily: 'monospace' }}>
+    {votes.map((vote, index) => {
+      const agrees = !vote.results && !vote.refused && vote.choice === choice;
+      return (
+        <span
+          key={index}
+          data-testid="decision-vote"
+          data-agrees={String(agrees)}
+          style={{
+            padding: '1px 6px',
+            borderRadius: '999px',
+            background: agrees || vote.results ? '#ede9fe' : '#fef3c7',
+            color: agrees || vote.results ? VIOLET_TEXT : '#b45309',
+            fontWeight: 600,
+          }}
+        >
+          {`${vote.model} · ${voteLabel(vote)}`}
+        </span>
+      );
+    })}
+  </div>
+));
+EnsembleVotes.displayName = 'EnsembleVotes';
+
 /** Escalation: the lower tiers that were not sure, then the model that answered. */
 const EscalationTrail = memo(({ attempts, model, tier }: { attempts: EscalationAttempt[]; model: string; tier: number }) => (
   <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px', fontSize: '10px', fontFamily: 'monospace' }}>
@@ -961,6 +1000,7 @@ export const DecisionBars = memo(({ decision }: { decision: DecisionInfo }) => {
           <ChoiceBars decision={decision} />
         </>
       )}
+      {decision.votes && decision.votes.length > 0 && <EnsembleVotes votes={decision.votes} choice={decision.choice} />}
       {decision.attempts && decision.attempts.length > 0 && (
         <EscalationTrail attempts={decision.attempts} model={decision.model} tier={decision.tier ?? decision.attempts.length} />
       )}
