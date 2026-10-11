@@ -20,6 +20,7 @@ from flock.engines.dspy.streaming_executor import DSPyStreamingExecutor
 from flock.logging.logging import get_logger
 from flock.registry import type_registry
 from flock.utils.runtime import EvalInputs, EvalResult
+from flock.utils.usage import report_usage
 
 
 logger = get_logger(__name__)
@@ -481,7 +482,9 @@ class DSPyEngine(EngineComponent):
 
         adapter_to_use = self.adapter or ChatAdapter()
 
-        with dspy_mod.context(lm=lm, adapter=adapter_to_use):
+        # track_usage: the prediction carries the tokens of every LM call
+        # (also streamed ones; DSPy then asks for the usage in the stream)
+        with dspy_mod.context(lm=lm, adapter=adapter_to_use, track_usage=True):
             program = self._choose_program(dspy_mod, signature, combined_tools)
 
             # Detect if there's already an active Rich Live context
@@ -584,6 +587,12 @@ class DSPyEngine(EngineComponent):
                     from flock.core import Agent
 
                     Agent._streaming_counter = max(0, Agent._streaming_counter - 1)
+
+        # The model answered: count its tokens now, so the run keeps them even
+        # when the prediction fails below
+        get_usage = getattr(raw_result, "get_lm_usage", None)
+        usage = get_usage() if callable(get_usage) else None
+        report_usage(usage if isinstance(usage, Mapping) else None)
 
         # Extract semantic fields from Prediction (delegated to SignatureBuilder)
         normalized_output = self._signature_builder.extract_multi_output_payload(

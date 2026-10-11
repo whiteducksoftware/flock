@@ -47,6 +47,7 @@ from flock.orchestrator import (
     TracingManager,
 )
 from flock.registry import type_registry
+from flock.utils.usage import ModelPrice, PriceLike, model_price
 
 
 if TYPE_CHECKING:
@@ -106,6 +107,7 @@ class Flock(metaclass=AutoTracedMeta):
         openclaw: OpenClawConfig | None = None,
         decision_model: str | Any | None = None,
         decision_rate_limit: str | None = None,
+        model_prices: Mapping[str, PriceLike] | None = None,
     ) -> None:
         """Initialize the Flock orchestrator for blackboard-based agent coordination.
 
@@ -127,6 +129,10 @@ class Flock(metaclass=AutoTracedMeta):
                 ``"N/min"`` or ``"N/h"`` (e.g. ``"100/min"``). All deciders
                 that use the same model share it; requests over the budget
                 wait for a free slot. Without it, requests are not spaced out.
+            model_prices: Prices in USD per million tokens for models LiteLLM
+                does not price, as ``{"azure/decision-1": (input, output)}``;
+                they win over LiteLLM's price table. Every run reports its
+                tokens and, when all its models have a price, its cost.
 
         Examples:
             >>> flock = Flock("openai/gpt-4.1")
@@ -167,6 +173,9 @@ class Flock(metaclass=AutoTracedMeta):
         self._agent_iteration_count = components["agent_iteration_count"]
         self._default_context_provider = context_provider
         self.max_agent_iterations = max_agent_iterations
+        self.model_prices: dict[str, ModelPrice] = {
+            name: model_price(price) for name, price in (model_prices or {}).items()
+        }
         self.is_dashboard = False
 
         # Assign engines

@@ -495,6 +495,7 @@ class TracingComponent(ServerComponent):
                     "runs": [
                         {
                             "run_id": "<uuid>",
+                            "correlation_id": "<uuid>",
                             "start_time": "2025-10-11T..",
                             "end_time": "2025-10-11T...",
                             "duration_ms": 1234
@@ -502,6 +503,7 @@ class TracingComponent(ServerComponent):
                             "metrics": {
                                 "tokens_used": 123,
                                 "cost_usd": 0.0012,
+                                "usage": {"<model>": {"prompt_tokens": .., ..}},
                                 "artifacts_produced": 5,
                             },
                             "error_message": "error details" (if status=error)
@@ -511,14 +513,10 @@ class TracingComponent(ServerComponent):
                 }
             """
             try:
-                # TODO: Implement run history tracking in orchestrator
-                # For now, return empty array with proper structure
-                # This unblocks frontend development and can be enhanced later
-                runs = []
-
-                # FUTURE: Query run history from orchestrator or store
-                # Example implementation when run tracking is added:
-                # runs = await orchestrator.get_agent_run_history(agent_id, limit=50)
+                # The dashboard's event collector keeps the runs (and their
+                # metrics); without the dashboard there is no run history
+                collector = getattr(orchestrator, "_dashboard_collector", None)
+                runs = await collector.agent_runs(agent_id) if collector else []
                 return {"agent_id": agent_id, "runs": runs, "total": len(runs)}
             except Exception as ex:
                 logger.exception(

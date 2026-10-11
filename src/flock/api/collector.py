@@ -8,6 +8,7 @@ Phase 3: Extended to emit via WebSocket using WebSocketManager.
 import asyncio
 import hashlib
 import json
+import time
 import traceback
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
@@ -166,8 +167,9 @@ class DashboardEventCollector(AgentComponent):
         Returns:
             Unmodified inputs (pass-through)
         """
-        # Record start time for duration calculation
-        self._run_start_times[ctx.task_id] = datetime.now(UTC).timestamp()
+        # Record start time for duration calculation (monotonic: the wall
+        # clock can step)
+        self._run_start_times[ctx.task_id] = time.monotonic()
 
         # Extract consumed types and artifact IDs. Choice subscribers run on a
         # decision's subject; the graph records the decision that triggered them
@@ -318,8 +320,8 @@ class DashboardEventCollector(AgentComponent):
         """
         # Calculate duration
         start_time = self._run_start_times.get(ctx.task_id)
-        if start_time:
-            duration_ms = (datetime.now(UTC).timestamp() - start_time) * 1000
+        if start_time is not None:
+            duration_ms = (time.monotonic() - start_time) * 1000
             del self._run_start_times[ctx.task_id]
         else:
             duration_ms = 0.0
@@ -355,10 +357,12 @@ class DashboardEventCollector(AgentComponent):
                 correlation_id=correlation_id,
                 ensure_started=True,
             )
-            run.status = "completed"
-            run.duration_ms = duration_ms
+            # on_terminate follows on_error too: a failed run stays an error
+            if run.status != "error":
+                run.status = "completed"
+                run.duration_ms = duration_ms
+                run.completed_at = datetime.now(UTC)
             run.metrics = dict(metrics)
-            run.completed_at = datetime.now(UTC)
             for artifact_id in artifacts_produced:
                 if artifact_id not in run.produced_artifacts:
                     run.produced_artifacts.append(artifact_id)
@@ -386,9 +390,11 @@ class DashboardEventCollector(AgentComponent):
         )
         failed_at = datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
-        # Clean up start time tracking
-        if ctx.task_id in self._run_start_times:
-            del self._run_start_times[ctx.task_id]
+        # Clean up start time tracking, keeping how long the run took
+        start_time = self._run_start_times.pop(ctx.task_id, None)
+        duration_ms = (
+            (time.monotonic() - start_time) * 1000 if start_time is not None else None
+        )
 
         # Create and store event
         event = AgentErrorEvent(
@@ -414,6 +420,7 @@ class DashboardEventCollector(AgentComponent):
             run.status = "error"
             run.error_message = error_message
             run.completed_at = datetime.now(UTC)
+            run.duration_ms = duration_ms
             self._agent_status[agent.name] = "error"
             await self._update_agent_snapshot_locked(agent)
 
@@ -433,6 +440,42 @@ class DashboardEventCollector(AgentComponent):
         return GraphState(
             consumptions=consumptions, runs=runs, agent_status=agent_status
         )
+
+    async def agent_runs(
+        self, agent_name: str, limit: int = 50
+    ) -> list[dict[str, Any]]:
+        """The agent's runs, newest first, with their metrics (tokens and cost
+        among them), as the dashboard's run status reads them."""
+        async with self._graph_lock:
+            records = [
+                record
+                for record in self._run_registry.values()
+                if record.agent_name == agent_name
+            ]
+        oldest = datetime.min.replace(tzinfo=UTC)
+        records.sort(
+            key=lambda r: r.started_at or r.completed_at or oldest, reverse=True
+        )
+        return [
+            {
+                "run_id": record.run_id,
+                "correlation_id": record.correlation_id or None,
+                "start_time": record.started_at.isoformat()
+                if record.started_at
+                else None,
+                "end_time": record.completed_at.isoformat()
+                if record.completed_at
+                else None,
+                "duration_ms": record.duration_ms,
+                "status": record.status,
+                "metrics": {
+                    **record.metrics,
+                    "artifacts_produced": len(record.produced_artifacts),
+                },
+                "error_message": record.error_message,
+            }
+            for record in records[:limit]
+        ]
 
     async def snapshot_agent_registry(self) -> dict[str, AgentSnapshot]:
         """Return a snapshot of all known agents (active and inactive)."""
