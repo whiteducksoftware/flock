@@ -61,6 +61,25 @@ describe('contractOf', () => {
     });
   });
 
+  it('finds the decider of a handle by the edge that brings it, when two decide the same question', () => {
+    const two = [
+      node('mail_triage', { subscriptions: ['app.Email'], outputTypes: ['Decision[app.Route]'] }),
+      node('ticket_triage', { subscriptions: ['app.SupportTicket'], outputTypes: ['Decision[app.Route]'] }),
+      node('billing_team', {
+        subscriptions: ['Decision[app.Route]'],
+        typeLabels: { 'Decision[app.Route]': '◆ Route.billing' },
+      }),
+    ];
+    const edges = [
+      { id: 'e', source: 'ticket_triage', target: 'billing_team', data: { messageType: 'Decision[app.Route]', decisionChoice: 'billing' } },
+    ];
+
+    expect(contractOf('billing_team', two, schemas, edges).consumes[0]).toMatchObject({
+      note: 'decision handle · receives the SupportTicket',
+      fields: fieldsOf(schemas['app.SupportTicket']),
+    });
+  });
+
   it('shows a decider\'s decisions without fields, and a type without a schema as such', () => {
     const contract = contractOf('triage', nodes, { 'app.SupportTicket': schemas['app.SupportTicket'] });
 

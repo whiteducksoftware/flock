@@ -3,7 +3,7 @@
  * the Contract tab of focus mode. Schemas come from `/api/artifact-types`.
  */
 
-import type { Node } from '@xyflow/react';
+import type { Edge, Node } from '@xyflow/react';
 import { shortTypeName } from '../../../utils/typeName';
 
 export interface Field {
@@ -77,14 +77,24 @@ const dataOf = (node: Node | undefined) =>
  * read, so it shows that subject's fields; a decider's own decisions route to
  * their handles and have no fields of interest.
  */
-export function contractOf(id: string, nodes: Node[], schemas: Record<string, JsonSchema>): Contract {
+export function contractOf(
+  id: string,
+  nodes: Node[],
+  schemas: Record<string, JsonSchema>,
+  edges: Pick<Edge, 'source' | 'target' | 'data'>[] = [],
+): Contract {
   const data = dataOf(nodes.find((node) => node.id === id));
   const labels = data.typeLabels ?? {};
 
   const consumes = [...new Set(data.subscriptions ?? [])].map((type): ContractEntry => {
     const handle = labels[type]?.startsWith('◆') ? labels[type]!.replace(/^◆\s*/, '') : null;
     if (handle && DECISION.test(type)) {
-      const decider = nodes.find((node) => (dataOf(node).outputTypes ?? []).includes(type));
+      // The decider whose edge brings the handle; else one that publishes the decision
+      const source = edges.find(
+        (edge) => edge.target === id && (edge.data as { messageType?: string } | undefined)?.messageType === type,
+      )?.source;
+      const decider =
+        nodes.find((node) => node.id === source) ?? nodes.find((node) => (dataOf(node).outputTypes ?? []).includes(type));
       const subjects = (dataOf(decider).subscriptions ?? []).filter((subject) => !DECISION.test(subject));
       return {
         type,

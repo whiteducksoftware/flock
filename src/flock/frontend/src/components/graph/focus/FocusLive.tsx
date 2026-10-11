@@ -67,13 +67,18 @@ const FocusLive: React.FC<FocusLiveProps> = ({ agent, running, messages, runs, t
       </section>
       <aside className={styles.aside}>
         <MessageCard title="Input" message={input} />
-        {running && tokens.length > 0 ? (
+        {running ? (
+          // This run's output only; an earlier run's is not this one's
           <div className={styles.card}>
             <div className={styles.cardHead}>
               <span className={styles.label}>Output</span>
-              <span className={`${styles.quiet} ${styles.end}`}>streaming</span>
+              <span className={`${styles.quiet} ${styles.end}`}>{tokens.length > 0 ? 'streaming' : 'running'}</span>
             </div>
-            <span className="mono">…{tokens.join('').slice(-160)}</span>
+            {tokens.length > 0 ? (
+              <span className="mono">…{tokens.join('').slice(-160)}</span>
+            ) : (
+              <span className={styles.faint}>Waiting for output</span>
+            )}
           </div>
         ) : (
           <MessageCard title="Output" message={output} />

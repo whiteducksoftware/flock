@@ -80,7 +80,11 @@ const Stage: React.FC<StageProps> = ({ id, data, nodes, edges, onOpenTrace }) =>
   const { runs, error } = useAgentRuns(id, data.status, messagesCount);
   const { messages } = useMessageHistory(id, messagesCount);
   const active = runs?.find((run) => run.status === 'active');
-  const since = useSince(active?.startedAt ?? runs?.[0]?.startedAt ?? null);
+  // Running: since the active run started (none yet: no duration); idle: since the last run ended
+  const last = runs?.find((run) => run.status !== 'active');
+  const lastEnd =
+    last?.startedAt && last.durationMs !== null ? new Date(Date.parse(last.startedAt) + last.durationMs).toISOString() : (last?.startedAt ?? null);
+  const since = useSince(status === 'running' ? (active?.startedAt ?? null) : lastEnd);
   const lineage = lineageOf(id, nodes, edges);
   const tag = tagOf(data);
   const decider = data.decision as DeciderInfo | undefined;
@@ -110,7 +114,8 @@ const Stage: React.FC<StageProps> = ({ id, data, nodes, edges, onOpenTrace }) =>
   return (
     <div className={styles.overlay}>
       <div className={styles.scrim} aria-hidden onClick={() => useUIStore.getState().unfocus()} />
-      <div role="dialog" aria-modal="true" aria-label={`${data.name ?? id} in focus`} className={`nodrag nowheel ${styles.stage}`}>
+      {/* Not modal: the header (filters, publish) stays usable while a node is in focus */}
+      <div role="dialog" aria-label={`${data.name ?? id} in focus`} className={`nodrag nowheel ${styles.stage}`}>
         <div className={styles.header}>
           <button ref={back} type="button" className={`btn ghost ${styles.back}`} onClick={() => useUIStore.getState().unfocus()}>
             <Icon name="chevronLeft" size={15} />
@@ -229,7 +234,7 @@ const Stage: React.FC<StageProps> = ({ id, data, nodes, edges, onOpenTrace }) =>
           )}
           {tab === 'history' && <HistoryTab agent={id} revision={messagesCount} />}
           {tab === 'runs' && <RunsTab runs={runs} error={error} />}
-          {tab === 'contract' && <ContractTab id={id} nodes={nodes} />}
+          {tab === 'contract' && <ContractTab id={id} nodes={nodes} edges={edges} />}
           {tab === 'traces' && <TracesTab agent={id} onOpenTrace={onOpenTrace} />}
         </div>
       </div>

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import type { Node } from '@xyflow/react';
+import type { Edge, Node } from '@xyflow/react';
 import { type ContractEntry, contractOf } from './contract';
 import styles from './Focus.module.css';
 
@@ -32,7 +32,7 @@ const Entry: React.FC<{ entry: ContractEntry }> = ({ entry }) => (
 );
 
 /** What the agent consumes and publishes, with the fields of each type. */
-const ContractTab: React.FC<{ id: string; nodes: Node[] }> = ({ id, nodes }) => {
+const ContractTab: React.FC<{ id: string; nodes: Node[]; edges: Edge[] }> = ({ id, nodes, edges }) => {
   const [schemas, setSchemas] = useState<Record<string, never> | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,7 +56,7 @@ const ContractTab: React.FC<{ id: string; nodes: Node[] }> = ({ id, nodes }) => 
 
   if (error) return <div className={styles.empty}>{error}</div>;
   if (schemas === null) return <div className={styles.empty}>Loading the contract…</div>;
-  const contract = contractOf(id, nodes, schemas);
+  const contract = contractOf(id, nodes, schemas, edges);
 
   return (
     <div className={styles.contract} data-testid="contract">
