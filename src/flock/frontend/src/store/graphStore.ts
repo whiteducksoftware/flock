@@ -135,7 +135,11 @@ function previewFilter(): (data: Record<string, any>) => boolean {
     (from === undefined || (data.timestamp ?? 0) >= from) &&
     (to === undefined || (data.timestamp ?? 0) <= to) &&
     (!filters.correlation_id || data.correlationId === filters.correlation_id) &&
-    (filters.artifactTypes.length === 0 || filters.artifactTypes.includes(data.artifactType)) &&
+    // An agent that publishes several types streams under all of them ("app.A, app.B")
+    (filters.artifactTypes.length === 0 ||
+      String(data.artifactType ?? '')
+        .split(', ')
+        .some((type) => filters.artifactTypes.includes(type))) &&
     (filters.producers.length === 0 || filters.producers.includes(data.producedBy)) &&
     filters.tags.length === 0 &&
     (filters.visibility.length === 0 || filters.visibility.includes(data.visibilityKind ?? 'Public'));

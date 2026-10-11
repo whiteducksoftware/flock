@@ -99,6 +99,23 @@ describe('graphStore - NEW Simplified Architecture', () => {
       expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual(['a-1']);
     });
 
+    it('match a type filter by any type of an agent that publishes several', () => {
+      vi.mocked(useFilterStore.getState).mockReturnValue({
+        correlationId: null,
+        timeRange: { preset: 'all' },
+        selectedArtifactTypes: ['app.B'],
+        selectedProducers: [],
+        selectedTags: [],
+        selectedVisibility: [],
+      } as any);
+
+      // `.publishes(A, B)` streams under the label "app.A, app.B"
+      stream('a-1', 'c-1', 'writer', 'app.A, app.B');
+      stream('a-2', 'c-1', 'writer', 'app.A, app.C');
+
+      expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual(['a-1']);
+    });
+
     it('follow the type, producer and tag filters', () => {
       const filters = { correlationId: null, timeRange: { preset: 'all' }, selectedVisibility: [] };
       vi.mocked(useFilterStore.getState).mockReturnValue({
