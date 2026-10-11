@@ -755,6 +755,8 @@ class AgentBuilder:
         escalate: str | Sequence[str | Any] | None = None,
         models: Sequence[str | Any] | None = None,
         vote: str | None = None,
+        shadow: str | Any | None = None,
+        shadow_timeout: float = 10.0,
     ) -> AgentBuilder:
         """Answer questions about each input with a decision model.
 
@@ -796,6 +798,15 @@ class AgentBuilder:
                 than half of the models to give the same firm answer (with
                 ``threshold`` applied per model), ``"unanimous"`` all of them,
                 and ``"mean"`` applies ``threshold`` to the mean probabilities.
+            shadow: A second decision model that answers every question too,
+                concurrently. Its answer is recorded in the decision's
+                ``shadow`` (model, choice under the same ``threshold``,
+                probabilities) and never routes, so a model switch can be
+                evaluated on live traffic. A failing shadow records its
+                ``error`` and does not fail the decision.
+            shadow_timeout: Seconds the decision waits for the shadow after
+                its own answer; a slower shadow is cancelled and recorded as
+                an error, so it never holds up routing.
             options: Restricts the single Choice or Checklist to a subset of its
                 options for each execution: a callable that receives the
                 context (``ctx.decisions`` holds the decisions that triggered
@@ -847,6 +858,16 @@ class AgentBuilder:
         if escalate and tournament is not None:
             raise ValueError(
                 f"Agent '{self._agent.name}': escalate= is not supported together "
+                "with tournament= yet."
+            )
+        if shadow_timeout <= 0:
+            raise ValueError(
+                f"Agent '{self._agent.name}': shadow_timeout must be positive, "
+                f"got {shadow_timeout}."
+            )
+        if shadow is not None and tournament is not None:
+            raise ValueError(
+                f"Agent '{self._agent.name}': shadow= is not supported together "
                 "with tournament= yet."
             )
         if vote is not None and not models:
@@ -971,6 +992,8 @@ class AgentBuilder:
             escalation=[with_budget(tier) for tier in escalate or ()],
             ensemble=[with_budget(member) for member in models or ()],
             vote=vote or "majority",
+            shadow=None if shadow is None else with_budget(shadow),
+            shadow_timeout=shadow_timeout,
         )
         self.publishes(*(Decision.of(question) for question in questions))
         for output in self._agent.output_groups[-1].outputs:

@@ -24,6 +24,7 @@ from flock.decisions.providers import (
     DecisionQuestion,
 )
 from flock.decisions.tournament import Tournament
+from flock.logging.logging import get_logger
 from flock.registry import RegistryError, type_registry
 from flock.utils.runtime import EvalResult
 
@@ -89,6 +90,27 @@ def _trivial_answer(candidates: dict[str, str]) -> DecisionAnswer:
         return DecisionAnswer(choice=None, probabilities={})
     (only,) = candidates
     return DecisionAnswer(only, {only: 1.0}, confidence=1.0)
+
+
+logger = get_logger(__name__)
+
+# Seconds a cancelled shadow gets to stop before the decision moves on
+SHADOW_STOP_GRACE = 1.0
+# Shadows that ignored cancellation, referenced until they end
+_ABANDONED_SHADOWS: set[asyncio.Task[Any]] = set()
+
+
+async def _stop_shadow(task: asyncio.Task[Any], label: str) -> None:
+    """Cancel ``task`` and wait for it at most ``SHADOW_STOP_GRACE`` seconds."""
+    task.cancel()
+    done, _ = await asyncio.wait({task}, timeout=SHADOW_STOP_GRACE)
+    if not done:
+        logger.warning(
+            f"Shadow decision model '{label}' ignored its cancellation; "
+            "the decision does not wait for it"
+        )
+        _ABANDONED_SHADOWS.add(task)
+        task.add_done_callback(_ABANDONED_SHADOWS.discard)
 
 
 VOTES = ("majority", "unanimous", "mean")
@@ -159,7 +181,9 @@ class DecisionEngine(EngineComponent):
     checklist items) that are not firm are asked again by the next provider;
     a decision records the ``tier`` that answered and the earlier ``attempts``.
     With ``ensemble``, every provider answers every question and ``vote``
-    decides; a decision records the ``votes``.
+    decides; a decision records the ``votes``. A ``shadow`` provider answers
+    every question too; its answer is recorded in the decision's ``shadow``
+    and never routes.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -190,6 +214,16 @@ class DecisionEngine(EngineComponent):
         default="majority",
         description="majority: more than half of the ensemble gives the same firm "
         "answer; unanimous: all of it; mean: the threshold applies to the mean",
+    )
+    shadow: DecisionProvider | None = Field(
+        default=None,
+        description="Answers every question too; recorded, never routed",
+    )
+    shadow_timeout: float = Field(
+        default=10.0,
+        gt=0,
+        description="Seconds the decision waits for the shadow after its own "
+        "answer; a slower shadow is cancelled and recorded as an error",
     )
     enable_context: bool = Field(
         default=False, description="Decisions are made on the inputs only"
@@ -223,37 +257,43 @@ class DecisionEngine(EngineComponent):
                     )
 
         started = time.perf_counter()
-        rounds: list[dict[str, Any]] = []
         trail = _Trail()
-        if (
-            candidates is not None
-            and self.questions[0].__kind__ == "choice"
-            and (len(candidates) < 2)
-        ):
-            # Nothing to rank: no candidates is UNSURE, a single one wins
-            # No model was asked, so an ensemble has no votes
-            answer = replace(_trivial_answer(candidates), model=self._label)
-            answers = {self.questions[0].__name__: answer}
-        elif self.tournament is not None:
-            answer, rounds = await self._run_tournament(state, images, candidates)
-            answers = {self.questions[0].__name__: answer}
-        elif wire and self.ensemble:
-            answers = await self._vote(state, wire, images, trail)
-        elif wire:
-            answers = await self._ask(state, wire, images)
-            await self._escalate(state, wire, answers, images, trail)
-        else:
-            answers = {}
-        latency_ms = round((time.perf_counter() - started) * 1000, 3)
+        shadowed = None
+        if self.shadow is not None and wire and self.tournament is None:
+            # Concurrently with the decision; it never fails the decision
+            shadowed = asyncio.create_task(self._shadow_answers(state, wire, images))
+        shadow = None
+        try:
+            answers, rounds = await self._answers(
+                state, wire, images, candidates, trail
+            )
+            latency_ms = round((time.perf_counter() - started) * 1000, 3)
+            if shadowed is not None:
+                assert self.shadow is not None
+                done, _ = await asyncio.wait({shadowed}, timeout=self.shadow_timeout)
+                if done:
+                    shadow = shadowed.result()
+                else:
+                    shadow = f"TimeoutError: no answer within {self.shadow_timeout:g} s"
+                    logger.warning(
+                        f"Shadow decision model '{self.shadow.label}': {shadow}"
+                    )
+        finally:
+            # A failed, cancelled or timed-out decision stops its shadow
+            if shadowed is not None and not shadowed.done():
+                assert self.shadow is not None
+                await _stop_shadow(shadowed, self.shadow.label)
 
         subject_ids = [str(a.id) for a in inputs.artifacts]
         artifacts = []
         for question in self.questions:
             model = Decision.of(question)
+            shadow_record = self._shadow_record(question, wire, shadow)
             if question.__kind__ == "checklist":
                 decision = self._checklist_decision(
                     question, wire, answers, subject_ids, latency_ms, trail
                 )
+                decision.shadow = shadow_record
                 if candidates is not None:
                     decision.candidates = list(candidates)
                 artifacts.append(
@@ -291,6 +331,7 @@ class DecisionEngine(EngineComponent):
                 votes=[
                     _attempt(label, vote) for label, vote in trail.votes.get(name, [])
                 ],
+                shadow=shadow_record,
                 latency_ms=latency_ms,
             )
             artifacts.append(
@@ -303,6 +344,90 @@ class DecisionEngine(EngineComponent):
             )
         return EvalResult(artifacts=artifacts)
 
+    async def _answers(
+        self,
+        state: str,
+        wire: list[DecisionQuestion],
+        images: list[Image],
+        candidates: dict[str, str] | None,
+        trail: _Trail,
+    ) -> tuple[dict[str, DecisionAnswer], list[dict[str, Any]]]:
+        """The answers and tournament rounds, escalated or voted as
+        configured; ``trail`` records how."""
+        if (
+            candidates is not None
+            and self.questions[0].__kind__ == "choice"
+            and (len(candidates) < 2)
+        ):
+            # Nothing to rank: no candidates is UNSURE, a single one wins
+            # No model was asked, so an ensemble has no votes
+            answer = replace(_trivial_answer(candidates), model=self._label)
+            return {self.questions[0].__name__: answer}, []
+        if self.tournament is not None:
+            answer, rounds = await self._run_tournament(state, images, candidates)
+            return {self.questions[0].__name__: answer}, rounds
+        if not wire:
+            return {}, []
+        if self.ensemble:
+            return await self._vote(state, wire, images, trail), []
+        answers = await self._ask(state, wire, images)
+        await self._escalate(state, wire, answers, images, trail)
+        return answers, []
+
+    async def _shadow_answers(
+        self, state: str, wire: list[DecisionQuestion], images: list[Image]
+    ) -> tuple[dict[str, DecisionAnswer], float] | str:
+        """The shadow's answers and latency, or the error that stopped it."""
+        assert self.shadow is not None
+        started = time.perf_counter()
+        try:
+            if images and not self.shadow.supports_images:
+                raise ValueError(
+                    f"Decision model '{self.shadow.label}' does not accept images"
+                )
+            answers = await self._ask(state, wire, images, provider=self.shadow)
+        except Exception as exc:  # a shadow must never fail the decision
+            logger.warning(f"Shadow decision model '{self.shadow.label}' failed: {exc}")
+            return f"{type(exc).__name__}: {exc}"
+        return answers, round((time.perf_counter() - started) * 1000, 3)
+
+    def _shadow_record(
+        self,
+        question: type[Question],
+        wire: list[DecisionQuestion],
+        shadow: tuple[dict[str, DecisionAnswer], float] | str | None,
+    ) -> dict[str, Any] | None:
+        """The shadow's answer to ``question``, as a decision records it."""
+        if shadow is None or self.shadow is None:
+            return None
+        if isinstance(shadow, str):
+            return {"model": self.shadow.label, "error": shadow}
+        answers, latency_ms = shadow
+        if question.__kind__ == "checklist":
+            items = [q for q in wire if q.group == question.__name__]
+            outcome = self._checklist_decision(question, items, answers, [], latency_ms)
+            return {
+                "model": next(
+                    (answers[q.name].model for q in items if answers[q.name].model),
+                    self.shadow.label,
+                ),
+                "choice": outcome.choice,
+                "best_guess": outcome.best_guess,
+                "results": dict(outcome.results),
+                "refused_items": list(outcome.refused_items),
+                "latency_ms": latency_ms,
+            }
+        answer = answers[question.__name__]
+        return {
+            "model": answer.model or self.shadow.label,
+            "choice": answer.choice if self._firm(answer) else UNSURE,
+            "best_guess": answer.choice,
+            "probabilities": dict(answer.probabilities),
+            "confidence": answer.confidence,
+            "refused": answer.refused,
+            "latency_ms": latency_ms,
+        }
+
     async def _ask(
         self,
         state: str,
@@ -314,9 +439,18 @@ class DecisionEngine(EngineComponent):
         provider = provider or self.provider
         size = self.questions_per_request
         chunks = [wire[i : i + size] for i in range(0, len(wire), size)]
-        replies = await asyncio.gather(
-            *(provider.decide_many(state, chunk, images) for chunk in chunks)
-        )
+        requests = [
+            asyncio.ensure_future(provider.decide_many(state, chunk, images))
+            for chunk in chunks
+        ]
+        try:
+            replies = await asyncio.gather(*requests)
+        except BaseException:
+            # One request failed: stop the others instead of leaving them running
+            for request in requests:
+                request.cancel()
+            await asyncio.gather(*requests, return_exceptions=True)
+            raise
         return {name: answer for reply in replies for name, answer in reply.items()}
 
     async def _escalate(

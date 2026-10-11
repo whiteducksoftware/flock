@@ -74,6 +74,14 @@ class Decision(BaseModel):
         "model, choice, probabilities, confidence, refused (checklists: model "
         "and its result per item)",
     )
+    shadow: dict[str, Any] | None = Field(
+        default=None,
+        description="Shadow mode: the shadow model's answer, recorded but not "
+        "routed: model, choice (under the same threshold), best_guess, "
+        "probabilities, confidence, refused, latency_ms (checklists: model, "
+        "choice, best_guess, results, refused_items, latency_ms); model and "
+        "error when the shadow failed",
+    )
     latency_ms: float | None = Field(
         default=None, description="Round trip of the decision request"
     )

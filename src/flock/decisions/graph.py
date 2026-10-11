@@ -12,6 +12,7 @@ from flock.registry import RegistryError, type_registry
 
 if TYPE_CHECKING:
     from flock.core.agent import Agent
+    from flock.decisions.engine import DecisionEngine
 
 
 def is_decision_type(type_name: str) -> bool:
@@ -101,7 +102,8 @@ def decider_info(
     questions carry the ``meanScore`` of their decisions, questions with
     refusals their ``refused`` count. With escalation, ``escalate`` lists the
     models asked after the decider's own, in order. An ensemble lists its
-    models in ``ensemble`` and its ``vote``.
+    models in ``ensemble`` and its ``vote``. A shadow lists its ``model`` and
+    how many decisions were ``compared`` and ``agree``.
     """
     from flock.decisions.engine import DecisionEngine
 
@@ -129,7 +131,24 @@ def decider_info(
     if engine.ensemble:
         info["ensemble"] = [provider.label for provider in engine.ensemble]
         info["vote"] = engine.vote
+    if engine.shadow is not None:
+        info["shadow"] = _shadow_info(engine, produced)
     return info
+
+
+def _shadow_info(
+    engine: DecisionEngine, produced: list[tuple[str, Mapping[str, Any]]]
+) -> dict[str, Any]:
+    """The shadow model and how often its choice matched the decision."""
+    types = {type_registry.name_for(Decision.of(q)) for q in engine.questions}
+    compared = agree = 0
+    for type_name, payload in produced:
+        shadow = payload.get("shadow")
+        if type_name not in types or not shadow or "error" in shadow:
+            continue
+        compared += 1
+        agree += shadow.get("choice") == payload.get("choice")
+    return {"model": engine.shadow.label, "compared": compared, "agree": agree}
 
 
 def choice_type_labels(agent: Agent) -> dict[str, str]:
@@ -182,6 +201,8 @@ def decision_view(
         view["attempts"] = list(payload["attempts"])
     if payload.get("votes"):
         view["votes"] = list(payload["votes"])
+    if payload.get("shadow"):
+        view["shadow"] = dict(payload["shadow"])
     if view["kind"] == "checklist":
         view["items"] = levels or list(payload.get("results") or {})
         view["results"] = dict(payload.get("results") or {})

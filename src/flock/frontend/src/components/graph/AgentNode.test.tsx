@@ -369,5 +369,28 @@ describe('AgentNode', () => {
     );
     expect(screen.getByText(/majority of a \+ b \+ c/)).toBeInTheDocument();
   });
+
+  it('should show how often a shadow model agrees', () => {
+    const data: AgentNodeData = {
+      name: 'triage',
+      status: 'idle',
+      subscriptions: ['Ticket'],
+      sentCount: 3,
+      recvCount: 3,
+      decision: {
+        model: 'live',
+        threshold: 0.8,
+        shadow: { model: 'candidate', compared: 3, agree: 2 },
+        questions: [{ name: 'Route', kind: 'choice', options: ['billing', 'tech'], counts: { billing: 3, tech: 0 } }],
+      },
+    };
+
+    render(
+      <ReactFlowProvider>
+        <AgentNode {...createNodeProps(data)} />
+      </ReactFlowProvider>
+    );
+    expect(screen.getByTestId('decider-shadow')).toHaveTextContent('shadow candidate · agrees 2/3');
+  });
 });
 
