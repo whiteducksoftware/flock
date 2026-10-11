@@ -467,6 +467,33 @@ describe('MessageNode', () => {
     expect(screen.getByTestId('escalation-final')).toHaveTextContent('strong · tier 2');
   });
 
+  it('should fall back to the confidence when an attempt has no probability for its choice', () => {
+    render(
+      <ReactFlowProvider>
+        <MessageNode
+          {...createNodeProps(
+            decisionNode({
+              question: 'Route',
+              kind: 'choice',
+              choice: 'billing',
+              bestGuess: 'billing',
+              probabilities: { billing: 0.97, tech: 0.03 },
+              tier: 1,
+              attempts: [{ model: 'custom', choice: 'tech', probabilities: {}, confidence: 0.55, refused: false }],
+              confidence: 0.97,
+              threshold: 0.9,
+              model: 'strong',
+              latencyMs: 700,
+              score: null,
+              refused: false,
+            })
+          )}
+        />
+      </ReactFlowProvider>
+    );
+    expect(screen.getByTestId('escalation-attempt')).toHaveTextContent('custom · tech 0.55');
+  });
+
   it('should count the escalated items of a checklist attempt', () => {
     render(
       <ReactFlowProvider>

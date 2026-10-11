@@ -119,7 +119,7 @@ flock.agent("inbox").consumes(ResearchField.UNSURE).with_engines(Park()).publish
 def guess(attempt: dict) -> str:
     if attempt["refused"] or not attempt["choice"]:
         return f"{attempt['model']}: refused"
-    p = attempt["probabilities"][attempt["choice"]]
+    p = attempt["probabilities"].get(attempt["choice"], attempt["confidence"] or 0.0)
     return f"{attempt['model']}: {attempt['choice']} {p:.2f}"
 
 
@@ -169,9 +169,14 @@ async def main_cli(papers: list[dict]) -> None:
             continue
         title, field = truth[d.subject_ids[0]]
         trail = " → ".join(guess(a) for a in d.attempts)
-        final = d.choice if d.choice != "UNSURE" else f"UNSURE ({d.best_guess})"
+        if d.refused:
+            final = "refused"
+        elif d.choice == "UNSURE":
+            final = f"UNSURE ({d.best_guess}) {d.probabilities[d.best_guess]:.2f}"
+        else:
+            final = f"{d.choice} {d.probabilities[d.choice]:.2f}"
         print(f"  {title[:58]:<58}  arXiv {field}")
-        print(f"      {trail} → {d.model}: {final} {d.probabilities[d.best_guess]:.2f}")
+        print(f"      {trail} → {d.model}: {final}")
 
 
 async def main_dashboard(papers: list[dict]) -> None:

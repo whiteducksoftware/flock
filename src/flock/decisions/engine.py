@@ -508,9 +508,10 @@ class DecisionEngine(EngineComponent):
                     if earlier.refused or earlier.choice is None
                     else self._item_result(earlier.probabilities.get("yes", 0.0))
                 )
+        # The model the top tier reported, else its configured label
         top_label = next(
             (
-                trail.labels[q.name]
+                answers[q.name].model or trail.labels[q.name]
                 for q in items
                 if trail.tiers.get(q.name, 0) == tier and q.name in trail.labels
             ),

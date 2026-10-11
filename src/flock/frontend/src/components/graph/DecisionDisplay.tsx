@@ -772,7 +772,9 @@ const CELL_COLOR: Record<string, string> = { yes: DECISION_COLOR, no: NO_CELL, U
 function attemptLabel(attempt: EscalationAttempt): string {
   if (attempt.results) return `${Object.keys(attempt.results).length} unsure`;
   if (attempt.refused || !attempt.choice) return 'refused';
-  return `${attempt.choice} ${(attempt.probabilities?.[attempt.choice] ?? 0).toFixed(2)}`;
+  // A provider may report only a confidence for its choice
+  const p = attempt.probabilities?.[attempt.choice] ?? attempt.confidence;
+  return p == null ? attempt.choice : `${attempt.choice} ${p.toFixed(2)}`;
 }
 
 /** Escalation: the lower tiers that were not sure, then the model that answered. */
