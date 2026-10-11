@@ -10,6 +10,7 @@ from uuid import uuid4
 from pydantic import BaseModel
 
 from flock.core.artifacts import Artifact
+from flock.core.image import check_inline_images
 from flock.core.visibility import PublicVisibility, Visibility
 from flock.registry import type_registry
 
@@ -79,6 +80,9 @@ class ArtifactManager:
         self._scoped_correlation_id = correlation_id
 
     async def _persist(self, artifact: Artifact) -> None:
+        # Every way into the store passes here (publish, component and agent
+        # outputs): inline images keep the limits of Image fields
+        check_inline_images(artifact.payload)
         scoped = self._scoped_correlation_id
         if scoped is not None and artifact.correlation_id != scoped:
             if artifact.correlation_id is not None:

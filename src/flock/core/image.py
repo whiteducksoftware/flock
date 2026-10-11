@@ -17,7 +17,7 @@ import binascii
 import io
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -165,4 +165,58 @@ class Image(BaseModel):
         return f"Image({self.mime_type}, {len(self.base64_data)} base64 chars)"
 
 
-__all__ = ["DEFAULT_MAX_SIDE", "Image", "describe_image_data"]
+def _enforce_limits(url: str) -> None:
+    """Raise if ``url`` is image data over the size or pixel limit.
+
+    Only the limits are enforced here: a value that is not valid image data
+    (no match, or base64 that does not decode) is left alone as ordinary text.
+    """
+    match = _DATA_URL.match(url)
+    if match is None:
+        return
+    encoded = match.group(2)
+    data_chars = encoded.rstrip("=")
+    # From the data characters alone: extra "=" padding cannot shrink the estimate
+    if len(data_chars) * 3 // 4 > MAX_IMAGE_BYTES:  # before decoding
+        raise ValueError(
+            f"Image data is larger than {MAX_IMAGE_BYTES / (1024 * 1024):g} MB; "
+            "downscale it, e.g. with Image.from_file()."
+        )
+    if len(encoded) % 4 or len(encoded) - len(data_chars) > 2 or "=" in data_chars:
+        return  # not canonical base64, so not image data an Image would accept
+    try:
+        data = base64.b64decode(encoded, validate=True)
+    except (binascii.Error, ValueError):
+        return
+    _check_pixels(data)
+
+
+def check_inline_images(value: Any) -> None:
+    """Raise ``ValueError`` if a payload holds inline image data over the limits.
+
+    Models validate their ``Image`` fields when they are created, but a payload
+    can also arrive without that check (``Artifact`` objects, component
+    publishes, a model changed after creation), so every artifact is checked
+    before it is stored. Only valid image data URLs under a ``url`` key are
+    checked; other values are left alone.
+    """
+    if isinstance(value, BaseModel):  # a model object in a raw payload, maybe changed
+        # The actual field values, not model_dump(): excluded fields and custom
+        # serializers could hide an image from the serialized form
+        fields = {name: getattr(value, name, None) for name in type(value).model_fields}
+        check_inline_images({**(value.__pydantic_extra__ or {}), **fields})
+    elif isinstance(value, dict):
+        url = value.get("url")
+        if isinstance(url, str):
+            _enforce_limits(url)
+        for key, item in value.items():
+            if key != "url" or not isinstance(
+                item, str
+            ):  # any other value may hold images
+                check_inline_images(item)
+    elif isinstance(value, list | tuple):
+        for item in value:
+            check_inline_images(item)
+
+
+__all__ = ["DEFAULT_MAX_SIDE", "Image", "check_inline_images", "describe_image_data"]
