@@ -665,10 +665,10 @@ describe('MessageNode', () => {
               choice: 'passed',
               bestGuess: 'passed',
               probabilities: { mfa: 0.97, backup: 0.96 },
-              items: ['mfa', 'backup'],
-              results: { mfa: 'yes', backup: 'yes' },
-              refusedItems: [],
-              sections: { field: 'text', spans: [[0, 30], [32, 60]], answeredBy: { mfa: 0, backup: 1 } },
+              results: { mfa: 'yes', backup: 'yes', logs: 'UNSURE' },
+              items: ['mfa', 'backup', 'logs'],
+              refusedItems: ['logs'],
+              sections: { field: 'text', spans: [[0, 30], [32, 60]], answeredBy: { mfa: 0, backup: 1, logs: 1 } },
               confidence: null,
               threshold: 0.9,
               model: 'fake',
@@ -681,6 +681,7 @@ describe('MessageNode', () => {
       </ReactFlowProvider>
     );
     expect(screen.getByRole('img', { name: 'backup · yes · p 0.96 · section 2' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'logs · refused · section 2' })).toBeInTheDocument();
     expect(screen.getByText(/2 sections of text/)).toBeInTheDocument();
   });
 
