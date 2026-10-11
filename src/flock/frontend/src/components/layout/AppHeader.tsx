@@ -7,6 +7,7 @@
 import React from 'react';
 import { useSettingsStore } from '../../store/settingsStore';
 import { useUIStore } from '../../store/uiStore';
+import { modKey } from '../../utils/keys';
 import ScopeChips from '../filters/ScopeChips';
 import { FlockMark, Icon } from '../icons/Icon';
 import LiveStatus from './LiveStatus';
@@ -20,6 +21,7 @@ const VIEWS = [
 const AppHeader: React.FC<{ onShowShortcuts: () => void }> = ({ onShowShortcuts }) => {
   const mode = useUIStore((state) => state.mode);
   const setMode = useUIStore((state) => state.setMode);
+  const openPalette = useUIStore((state) => state.openPalette);
   const showControls = useSettingsStore((state) => state.ui.showControls);
   const showSettings = useSettingsStore((state) => state.ui.showSettings);
   const setShowControls = useSettingsStore((state) => state.setShowControls);
@@ -50,12 +52,18 @@ const AppHeader: React.FC<{ onShowShortcuts: () => void }> = ({ onShowShortcuts 
 
       <div className={styles.spacer} />
 
-      <button type="button" className={`chip ${styles.search}`} disabled title="Search arrives with the command palette">
+      <button
+        type="button"
+        className={`chip ${styles.search}`}
+        aria-keyshortcuts="Control+K Meta+K"
+        title={`Search agents, types and runs, or run a command (${modKey('K')})`}
+        onClick={openPalette}
+      >
         <span className={styles.searchLabel}>
           <Icon name="search" size={14} />
           <span>Search agents, types, runs</span>
         </span>
-        <kbd>⌘K</kbd>
+        <kbd aria-hidden>{modKey('K')}</kbd>
       </button>
 
       <LiveStatus />

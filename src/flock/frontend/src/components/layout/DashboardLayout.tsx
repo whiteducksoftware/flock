@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import GraphCanvas from '../graph/GraphCanvas';
 import Blackboard from '../blackboard/Blackboard';
@@ -6,6 +6,7 @@ import PublishComposer from '../publish/PublishComposer';
 import SettingsPanel from '../settings/SettingsPanel';
 import KeyboardShortcutsDialog from '../common/KeyboardShortcutsDialog';
 import Toast from '../common/Toast';
+import CommandPalette from '../palette/CommandPalette';
 import { useSettingsStore } from '../../store/settingsStore';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import { useBoardData } from '../../hooks/useBoardData';
@@ -29,6 +30,8 @@ const DashboardLayout: React.FC = () => {
 
   // Keyboard shortcuts help dialog
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
+  const showShortcuts = useCallback(() => setShowKeyboardShortcuts(true), []);
+  const paletteOpen = useUIStore((state) => state.paletteOpen);
 
   // The dashboard's keyboard shortcuts, registered once
   useKeyboardShortcuts({
@@ -64,6 +67,9 @@ const DashboardLayout: React.FC = () => {
 
       {/* Settings Panel - Slides in from right */}
       {showSettings && <SettingsPanel />}
+
+      {/* The ⌘K palette: search and commands */}
+      {paletteOpen && <CommandPalette onShowShortcuts={showShortcuts} />}
 
       {/* Keyboard Shortcuts Dialog */}
       <KeyboardShortcutsDialog

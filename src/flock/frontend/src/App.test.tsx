@@ -60,36 +60,39 @@ describe('App keyboard shortcuts', () => {
     expect(useSettingsStore.getState().ui.showControls).toBe(true);
   });
 
-  it('opens the filters on the correlation search with Ctrl+F', async () => {
+  it('opens and closes the palette with Ctrl+K, and leaves Ctrl+F to the browser', async () => {
     render(<App />);
     // The bootstrap connects last; nothing of it may outlive the test
     await waitFor(() => expect(client.connect).toHaveBeenCalled());
 
-    press('f');
+    press('k');
+    expect(useUIStore.getState().paletteOpen).toBe(true);
+    expect(await screen.findByRole('combobox')).toBe(document.activeElement);
 
-    expect(useSettingsStore.getState().ui.showFilters).toBe(true);
-    await waitFor(() =>
-      expect((document.activeElement as HTMLInputElement | null)?.placeholder).toMatch(/correlation/i),
-    );
+    // From inside the palette (a modal dialog) Ctrl+K closes it
+    act(() => {
+      document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true }));
+    });
+    expect(useUIStore.getState().paletteOpen).toBe(false);
+
+    const find = new KeyboardEvent('keydown', { key: 'f', ctrlKey: true, bubbles: true, cancelable: true });
+    act(() => {
+      window.dispatchEvent(find);
+    });
+    expect(find.defaultPrevented).toBe(false);
+    expect(useSettingsStore.getState().ui.showFilters).toBe(false);
   });
 
-  it('opens the filters with Ctrl+F even when another correlation field is open', async () => {
-    render(
-      <>
-        {/* The trace viewer has a correlation ID field too */}
-        <input placeholder="Filter by correlation ID" />
-        <App />
-      </>,
-    );
+  it('does not open the palette over the publish composer', async () => {
+    render(<App />);
     // The bootstrap connects last; nothing of it may outlive the test
     await waitFor(() => expect(client.connect).toHaveBeenCalled());
+    act(() => useSettingsStore.getState().setShowControls(true));
+    await screen.findByPlaceholderText('Find a type');
 
-    press('f');
+    press('k');
 
-    expect(useSettingsStore.getState().ui.showFilters).toBe(true);
-    await waitFor(() =>
-      expect(document.activeElement?.closest('[role="dialog"][aria-label="Filters"]')).not.toBeNull(),
-    );
+    expect(useUIStore.getState().paletteOpen).toBe(false);
   });
 
   it('closes one panel per Esc', async () => {

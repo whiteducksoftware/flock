@@ -52,8 +52,10 @@ describe('AppHeader', () => {
     expect(screen.getByText('flock')).toBeTruthy();
     expect(screen.getByRole('button', { name: /Last 10 min|All time|Last/ })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Filter' })).toBeTruthy();
-    // The search arrives with the command palette (⌘K)
-    expect((screen.getByRole('button', { name: /Search agents, types, runs/ }) as HTMLButtonElement).disabled).toBe(true);
+    // The search opens the palette (Ctrl+K)
+    fireEvent.click(screen.getByRole('button', { name: /Search agents, types, runs/ }));
+    expect(useUIStore.getState().paletteOpen).toBe(true);
+    useUIStore.getState().closePalette();
     expect(screen.getByRole('status').textContent).toContain('Live');
   });
 });

@@ -10,6 +10,7 @@ import { useFilterStore } from '../../store/filterStore';
 import { useSettingsStore } from '../../store/settingsStore';
 import { useUIStore } from '../../store/uiStore';
 import { IMAGE_ACCEPT, fileToImageUrl, imageFieldKind } from '../../utils/imageFields';
+import { modKey } from '../../utils/keys';
 import { shortTypeName } from '../../utils/typeName';
 import { shortId } from '../graph/unfold/format';
 import { Icon } from '../icons/Icon';
@@ -58,7 +59,8 @@ const PublishComposer: React.FC = () => {
   const [artifactTypes, setArtifactTypes] = useState<ArtifactType[]>([]);
   // The agents, read once, for "Picked up by"; null until they arrive
   const [agents, setAgents] = useState<Agent[] | null>(null);
-  const [selectedType, setSelectedType] = useState('');
+  // The type it opens on, if one was asked for (Publish this type, in the palette)
+  const [selectedType, setSelectedType] = useState(() => useUIStore.getState().publishType ?? '');
   const [formData, setFormData] = useState<FormValues>({});
   const [mode, setMode] = useState<EditorMode>('form');
   const [jsonText, setJsonText] = useState('');
@@ -95,9 +97,10 @@ const PublishComposer: React.FC = () => {
     setShowControls(false);
   };
 
-  // The type search takes the focus
+  // The type search takes the focus; a type asked for is taken
   useEffect(() => {
     searchRef.current?.focus();
+    useUIStore.getState().setPublishType(null);
     return () => opener?.focus?.();
   }, [opener]);
 
@@ -768,7 +771,7 @@ const PublishComposer: React.FC = () => {
                   aria-keyshortcuts="Control+Enter Meta+Enter"
                 >
                   {pendingPictures > 0 ? 'Processing pictures…' : loading ? 'Publishing…' : 'Publish'}
-                  {pendingPictures === 0 && !loading && <kbd aria-hidden>⌘↵</kbd>}
+                  {pendingPictures === 0 && !loading && <kbd aria-hidden>{modKey('↵')}</kbd>}
                 </button>
               </div>
             </div>

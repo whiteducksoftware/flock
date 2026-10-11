@@ -5,7 +5,6 @@ import { useSettingsStore } from '../store/settingsStore';
 
 interface KeyboardShortcutConfig {
   onToggleMode?: () => void;
-  onFocusFilter?: () => void;
   onCloseWindows?: () => void;
   onToggleHelp?: () => void;
 }
@@ -28,8 +27,8 @@ const SPACE_TAKEN =
  * Custom hook for managing global keyboard shortcuts
  *
  * Shortcuts:
+ * - Ctrl+K (or Cmd+K): Open or close the palette (search and commands); Ctrl+F is the browser's find
  * - Ctrl+M (or Cmd+M): Toggle between the Flow and Blackboard views
- * - Ctrl+F (or Cmd+F): Open the filters on the correlation search
  * - Ctrl+, (or Cmd+,): Toggle Settings Panel
  * - Ctrl+Shift+F: Toggle Filters Panel
  * - Ctrl+Shift+P: Open or close the publish composer
@@ -40,12 +39,22 @@ const SPACE_TAKEN =
 export const useKeyboardShortcuts = (config: KeyboardShortcutConfig = {}) => {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      // Check for modifier key (Ctrl on Windows/Linux, Cmd on Mac)
+      const modifier = event.ctrlKey || event.metaKey;
+
+      // Ctrl+K or Cmd+K: Open or close the palette (not over another modal dialog)
+      if (modifier && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'k') {
+        const { paletteOpen, openPalette, closePalette } = useUIStore.getState();
+        if (!paletteOpen && document.querySelector('[aria-modal="true"]')) return;
+        event.preventDefault();
+        if (paletteOpen) closePalette();
+        else openPalette();
+        return;
+      }
+
       // A modal dialog has the keyboard: only Esc reaches the board's shortcuts
       // (it closes the dialog), nothing behind the dialog opens or takes the focus
       if (event.key !== 'Escape' && document.querySelector('[aria-modal="true"]')) return;
-
-      // Check for modifier key (Ctrl on Windows/Linux, Cmd on Mac)
-      const modifier = event.ctrlKey || event.metaKey;
 
       // Ctrl+, or Cmd+,: Toggle Settings Panel
       if (modifier && event.key === ',') {
@@ -108,37 +117,6 @@ export const useKeyboardShortcuts = (config: KeyboardShortcutConfig = {}) => {
           // Default behavior: toggle mode
           const currentMode = useUIStore.getState().mode;
           useUIStore.getState().setMode(currentMode === 'agent' ? 'blackboard' : 'agent');
-        }
-        return;
-      }
-
-      // Ctrl+F or Cmd+F: Focus filter (only if not in an input already)
-      if (modifier && event.key === 'f') {
-        const activeElement = document.activeElement;
-        const isInInput = activeElement?.tagName === 'INPUT' ||
-                         activeElement?.tagName === 'TEXTAREA';
-
-        if (!isInInput) {
-          event.preventDefault();
-          if (config.onFocusFilter) {
-            config.onFocusFilter();
-          } else {
-            // Default behavior: focus the correlation search of the filters
-            const focusCorrelation = (): boolean => {
-              // The one in the filters; other panels have correlation fields too
-              const filterInput = document.querySelector<HTMLInputElement>(
-                '[role="dialog"][aria-label="Filters"] input[placeholder*="orrelation"]'
-              );
-              filterInput?.focus();
-              filterInput?.select();
-              return filterInput !== null;
-            };
-            if (!focusCorrelation()) {
-              // The filters are closed: open them, then focus once they render
-              useSettingsStore.getState().setShowFilters(true);
-              window.setTimeout(focusCorrelation, 0);
-            }
-          }
         }
         return;
       }
