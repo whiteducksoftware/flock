@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useGraphStore } from '../store/graphStore';
 import { WebSocketClient } from './websocket';
 
@@ -10,7 +10,40 @@ const receive = (client: WebSocketClient, event_type: string, data: Record<strin
 
 describe('WebSocketClient agent status', () => {
   beforeEach(() => {
-    useGraphStore.setState({ agentStatus: new Map() });
+    useGraphStore.setState({ agentStatus: new Map(), streamingTokens: new Map() });
+  });
+
+  afterEach(() => {
+    useGraphStore.setState(useGraphStore.getInitialState(), true);
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('keeps the ticker while another run of the agent goes on', () => {
+    const client = new WebSocketClient('ws://test/ws');
+    useGraphStore.setState({ streamingTokens: new Map([['billing', ['we have']]]) });
+
+    receive(client, 'agent_completed', { agent_name: 'billing', agent_status: 'running' });
+    expect(useGraphStore.getState().streamingTokens.get('billing')).toEqual(['we have']);
+
+    receive(client, 'agent_completed', { agent_name: 'billing', agent_status: 'idle' });
+    expect(useGraphStore.getState().streamingTokens.get('billing')).toEqual([]);
+  });
+
+  it('reloads the board when an agent ends failed, which says what failed', () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const refresh = vi.spyOn(useGraphStore.getState(), 'refreshCurrentView').mockResolvedValue();
+    const client = new WebSocketClient('ws://test/ws');
+
+    receive(client, 'agent_error', { agent_name: 'crm_sync', agent_status: 'error' });
+    vi.advanceTimersByTime(1000);
+    expect(refresh).toHaveBeenCalledOnce();
+
+    // A run completing after a newer one failed: the card stays failed and learns why
+    receive(client, 'agent_completed', { agent_name: 'crm_sync', agent_status: 'error' });
+    vi.advanceTimersByTime(1000);
+    expect(refresh).toHaveBeenCalledTimes(2);
   });
 
   it('takes the status the server derived from all of the agent\'s runs', () => {
