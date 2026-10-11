@@ -213,6 +213,7 @@ Each decision is a `Decision.of(<question>)` artifact, for example `Decision.of(
 | `votes` | [Ensembles](#ensembles-and-voting): every model's answer |
 | `shadow` | [Shadow mode](#shadow-mode): the shadow model's answer, recorded but not routed |
 | `sections` | [Long documents](#long-documents-in-sections): the split field, the sections' spans and the section per answer |
+| `review_of` | [Human review](#human-review): the decision a person confirmed or overrode with this one |
 | `latency_ms` | Round trip of the decision request (shared by all questions of the request) |
 
 ### Tournaments for large choices
@@ -607,6 +608,40 @@ In the dashboard, an explanation shows as text instead of JSON, and the explaine
   <img alt="An explanation: why the ticket sits between shipping and tech, and what would settle it" src="../../assets/images/decisions/decision-explanation-card.png" width="440">
 </p>
 
+### Human review
+
+When the decision model is not sure, a person can decide. A review publishes the person's answer as a decision of the same question about the same subject, so it routes like any other decision:
+
+```python
+flock.agent("triage").consumes(Ticket).decides(Route, threshold=0.95)
+flock.agent("review_queue").consumes(Route.UNSURE).publishes(QueueItem)
+flock.agent("tech").consumes(Route.tech).publishes(Reply)
+
+# later, for an unsure decision
+await flock.review(decision_id, choice="tech", reviewer="lead")  # the ticket reaches tech
+await flock.review(other_id)  # without choice: confirm the best guess
+```
+
+The reviewed decision has the chosen option with probability 1.0, the reviewer as `model` and producer, `review_of` set to the reviewed decision's id, and the original's subjects, correlation and visibility; a scale review sets the score of the chosen level, so range handles match. Choice, yes/no and scale decisions can be reviewed; checklists cannot yet. An unknown id raises `LookupError`; an option the question does not have, or a reviewer named like one of the flock's agents (agents do not consume their own outputs, so the review would not reach that agent), raises `ValueError`.
+
+The control API offers the same: `POST /api/control/decisions/{id}/review` with `{"choice": "tech", "reviewer": "lead"}` (both optional). In the Blackboard View, an unsure decision shows review buttons, the most probable options first; a click publishes the review. A reviewed decision then shows its review, and the review names the decision it replaces. Like the other dashboard data, the review state comes from the artifacts in view: with filters, or more artifacts than the view's limit, a review outside the view does not show on its decision. Reviewed decisions are labels: they record what a person decided where the model was not sure, which is the data needed to calibrate thresholds.
+
+<p align="center">
+  <img alt="An unsure decision with review buttons, the most probable option first" src="../../assets/images/decisions/decision-review-buttons.png" width="300">
+  &nbsp;
+  <img alt="The same decision after a click: reviewed as tech by human" src="../../assets/images/decisions/decision-reviewed.png" width="300">
+  &nbsp;
+  <img alt="The review: a decision by human, tech at 100 percent, review of the unsure decision" src="../../assets/images/decisions/decision-review-by-human.png" width="300">
+</p>
+
+The reviewer appears as a producer in the Agent View, and the review routes the ticket like any decision:
+
+<p align="center">
+  <img alt="human publishes a Route decision that reaches the tech agent" src="../../assets/images/decisions/decision-review-agent-view.png" width="800">
+</p>
+
+In [`13_human_review.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/13_human_review.py), Microsoft-Decision-1 routes two of five tickets at threshold 0.95; a support lead reviews the other three in code (one override, two confirmations), and each ticket reaches the team the lead chose.
+
 ## Visibility
 
 A decision inherits the visibility of its subject, so routing never widens who can read data. Agents that may not see the ticket do not see its decision either and are not triggered. If a decider consumes several inputs with different visibilities, it fails instead of guessing; pass `visibility=` to `.decides()` to choose the decision's readership explicitly.
@@ -798,4 +833,4 @@ They judge well when the answer can be read off the supplied state: routing, int
 
 ## Example
 
-[`examples/15-decisions/01_ticket_triage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/01_ticket_triage.py) routes support tickets with Microsoft-Decision-1 (or any other provider) and sends ambiguous tickets to a supervisor. [`02_arxiv_race.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/02_arxiv_race.py) races an LLM against the available decision models on 100 arXiv abstracts. [`03_color_sorter.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/03_color_sorter.py) sorts generated shapes into color bins from their images. [`04_question_types.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/04_question_types.py) asks a choice, a yes/no and a scale question about every ticket in one request. [`05_compliance_checklist.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/05_compliance_checklist.py) checks 24 fictional security documents against 100 controls and compares the answers with ground truth. [`06_control_mapping_tournament.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/06_control_mapping_tournament.py) maps evidence sentences to one of the 100 controls in three ways: a single choice, a tournament and a screening network. [`07_escalation.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/07_escalation.py) sorts the arXiv abstracts with a cascade of two decision models and shows which tier answered each paper. [`08_voting.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/08_voting.py) lets three decision models vote on them and compares each model with the ensemble. [`09_shadow.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/09_shadow.py) runs a candidate model in the shadow of the live one and lists where it would have routed differently. [`10_explain.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/10_explain.py) lets an LLM explain the tickets the router was unsure about. [`11_coverage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/11_coverage.py) combines the compliance checklists per organisation. [`12_long_documents.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/12_long_documents.py) checks long manuals in sections and shows where each control is shown.
+[`examples/15-decisions/01_ticket_triage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/01_ticket_triage.py) routes support tickets with Microsoft-Decision-1 (or any other provider) and sends ambiguous tickets to a supervisor. [`02_arxiv_race.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/02_arxiv_race.py) races an LLM against the available decision models on 100 arXiv abstracts. [`03_color_sorter.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/03_color_sorter.py) sorts generated shapes into color bins from their images. [`04_question_types.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/04_question_types.py) asks a choice, a yes/no and a scale question about every ticket in one request. [`05_compliance_checklist.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/05_compliance_checklist.py) checks 24 fictional security documents against 100 controls and compares the answers with ground truth. [`06_control_mapping_tournament.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/06_control_mapping_tournament.py) maps evidence sentences to one of the 100 controls in three ways: a single choice, a tournament and a screening network. [`07_escalation.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/07_escalation.py) sorts the arXiv abstracts with a cascade of two decision models and shows which tier answered each paper. [`08_voting.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/08_voting.py) lets three decision models vote on them and compares each model with the ensemble. [`09_shadow.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/09_shadow.py) runs a candidate model in the shadow of the live one and lists where it would have routed differently. [`10_explain.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/10_explain.py) lets an LLM explain the tickets the router was unsure about. [`11_coverage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/11_coverage.py) combines the compliance checklists per organisation. [`12_long_documents.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/12_long_documents.py) checks long manuals in sections and shows where each control is shown. [`13_human_review.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/13_human_review.py) lets a person review the unsure tickets.

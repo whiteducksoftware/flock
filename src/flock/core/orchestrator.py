@@ -14,6 +14,8 @@ from pydantic import BaseModel
 
 
 if TYPE_CHECKING:
+    from uuid import UUID
+
     from flock.components import ServerComponent
     from flock.core.conditions import RunCondition
 
@@ -1115,6 +1117,24 @@ class Flock(metaclass=AutoTracedMeta):
             is_dashboard=is_dashboard,
             schedule_immediately=schedule_immediately,
         )
+
+    async def review(
+        self,
+        decision_id: str | UUID,
+        choice: str | None = None,
+        reviewer: str = "human",
+    ) -> Artifact:
+        """Confirm or override a decision as a person.
+
+        Publishes ``reviewer``'s answer to the question of decision
+        ``decision_id`` (by default its best guess): a decision about the same
+        subject with probability 1.0, ``model`` and producer ``reviewer`` and
+        ``review_of`` pointing to the reviewed decision. It routes like any
+        other decision. Choice, yes/no and scale decisions can be reviewed.
+        """
+        from flock.decisions.review import review_decision
+
+        return await review_decision(self, decision_id, choice, reviewer)
 
     async def publish_many(
         self,

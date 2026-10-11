@@ -378,3 +378,37 @@ Brightwater Logistics: 4093 characters in 7 sections
   section 7 [3340:4093] '4. Access control'
       shows acc_02, acc_05, acc_06, acc_07, acc_10, acc_11, ops_02
 ```
+
+## 13_human_review.py
+
+Microsoft-Decision-1 routes five support tickets at threshold 0.95; the unsure ones land in a review queue. A support lead reviews them with `flock.review()`, and each reviewed ticket reaches the team the lead chose. With `USE_DASHBOARD = True`, review the unsure decisions with the buttons on their cards instead.
+
+**Key Concepts:**
+- `await flock.review(decision_id, choice=..., reviewer="lead")`; without `choice`, the best guess is confirmed
+- The review is a decision (`model` and producer the reviewer, `review_of` the reviewed decision) and routes like any other
+- `POST /api/control/decisions/{id}/review` and the dashboard's review buttons
+
+**Run:**
+```bash
+# AZURE_API_BASE and AZURE_API_KEY set
+uv run examples/15-decisions/13_human_review.py
+```
+
+**What You'll See (2026-10-11):**
+```
+The model routed 2 tickets; 3 wait for a person.
+
+  lead overrides shipping → tech: Return label not working
+  lead confirms billing → billing: Refund for broken item
+  lead confirms tech → tech: Can't download my invoice
+
+Who handled what:
+  review_queue  ← Return label not working
+  billing       ← Charged twice
+  ...
+  tech          ← Return label not working
+  billing       ← Refund for broken item
+  tech          ← Can't download my invoice
+
+3 reviewed decisions are labels for calibration.
+```

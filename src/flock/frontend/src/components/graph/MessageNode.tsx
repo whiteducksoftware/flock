@@ -110,7 +110,7 @@ const MessageNode = memo(({ id, data, selected }: NodeProps) => {
         ) : (
           /* Complete: Show beautiful JSON (decisions: bars first, JSON collapsed) */
           <>
-          {decision && <DecisionBars decision={decision} />}
+          {decision && <DecisionBars decision={decision} artifactId={artifactId} />}
           {explanation && <ExplanationCard explanation={explanation} />}
           {coverage && <CoverageCard coverage={coverage} />}
           {images && images.length > 0 && <ImageStrip images={images} />}

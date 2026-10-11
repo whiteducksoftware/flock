@@ -217,6 +217,34 @@ export async function publishArtifact(
   }
 }
 
+export interface ReviewResponse {
+  artifact_id: string;
+  choice: string;
+  correlation_id: string;
+}
+
+/**
+ * Confirm or override a decision as a person
+ * @param decisionId - Id of the decision artifact
+ * @param choice - The option chosen; without it, the decision's best guess is confirmed
+ * @returns The reviewed decision's id and choice
+ */
+export async function reviewDecision(decisionId: string, choice?: string): Promise<ReviewResponse> {
+  const response = await fetch(`${BASE_URL}/control/decisions/${encodeURIComponent(decisionId)}/review`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(choice ? { choice } : {}),
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new ApiError(response.status, {
+      error: 'Review failed',
+      message: typeof errorData.detail === 'string' ? errorData.detail : 'Failed to review the decision',
+    } as ErrorResponse);
+  }
+  return await response.json();
+}
+
 /**
  * Invoke an agent via the orchestrator
  * @param agentName - The name of the agent to invoke

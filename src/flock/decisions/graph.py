@@ -173,11 +173,13 @@ def decision_view(
     payload: Mapping[str, Any],
     subject_thumb: str | None = None,
     levels: list[str] | None = None,
+    options: list[str] | None = None,
 ) -> dict[str, Any]:
     """Decision fields for the dashboard's decision artifact view.
 
     ``levels`` are the ordered options of a scale question or the items of a
-    checklist.
+    checklist; ``options`` are the options a person can choose when reviewing
+    (all of the question's, also for a refusal without probabilities).
     """
     view = {
         "question": payload.get("question"),
@@ -203,6 +205,10 @@ def decision_view(
         view["votes"] = list(payload["votes"])
     if payload.get("shadow"):
         view["shadow"] = dict(payload["shadow"])
+    if payload.get("review_of"):
+        view["reviewOf"] = payload["review_of"]
+    if options:
+        view["options"] = list(options)
     if payload.get("sections"):
         sections = payload["sections"]
         view["sections"] = {
@@ -320,6 +326,21 @@ def aggregator_info(
     }
 
 
+def reviews_by_decision(
+    reviews: Iterable[tuple[Mapping[str, Any], str | None]],
+) -> dict[str, dict[str, Any]]:
+    """Decision id -> the latest review of it, from ``(payload, producer)``
+    pairs of decisions in publication order."""
+    by_decision: dict[str, dict[str, Any]] = {}
+    for payload, producer in reviews:
+        if payload.get("review_of"):
+            by_decision[str(payload["review_of"])] = {
+                "choice": payload.get("choice"),
+                "by": producer,
+            }
+    return by_decision
+
+
 __all__ = [
     "aggregator_info",
     "choice_type_labels",
@@ -332,4 +353,5 @@ __all__ = [
     "is_coverage_type",
     "is_decision_type",
     "is_explanation_type",
+    "reviews_by_decision",
 ]
