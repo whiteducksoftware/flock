@@ -32,6 +32,11 @@ interface UIState {
   fold: () => void;
   toggleUnfold: (nodeId: string) => void;
 
+  // The node in focus: a full stage over the dimmed board (not saved)
+  focusedNodeId: string | null;
+  focus: (nodeId: string) => void;
+  unfocus: () => void;
+
   // Artifact detail windows of the Blackboard view, until its cards unfold (#565); not saved
   detailWindows: Map<string, DetailWindow>;
   openDetailWindow: (nodeId: string) => void;
@@ -72,6 +77,10 @@ export const useUIStore = create<UIState>()(
         fold: () => set({ unfoldedNodeId: null }),
         toggleUnfold: (nodeId: string) =>
           set((state) => ({ unfoldedNodeId: state.unfoldedNodeId === nodeId ? null : nodeId })),
+
+        focusedNodeId: null,
+        focus: (nodeId: string) => set({ focusedNodeId: nodeId }),
+        unfocus: () => set({ focusedNodeId: null }),
 
         detailWindows: new Map(),
         openDetailWindow: (nodeId: string) =>

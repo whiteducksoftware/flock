@@ -35,7 +35,7 @@ const SPACE_TAKEN =
  * - Ctrl+Shift+P: Toggle Publish Panel
  * - Space, Ctrl+Shift+D: Unfold or fold the selected node
  * - Ctrl+/ (or Cmd+/): Toggle Keyboard Shortcuts Help
- * - Esc: Close a panel, else fold the unfolded node, else close the artifact windows
+ * - Esc: Close a panel, else leave focus mode, else fold the unfolded node, else close the artifact windows
  */
 export const useKeyboardShortcuts = (config: KeyboardShortcutConfig = {}) => {
   useEffect(() => {
@@ -67,9 +67,10 @@ export const useKeyboardShortcuts = (config: KeyboardShortcutConfig = {}) => {
         return;
       }
 
-      // Ctrl+Shift+D: Unfold or fold the selected node
+      // Ctrl+Shift+D: Unfold or fold the selected node (not behind a node in focus)
       if (modifier && event.shiftKey && event.key === 'D') {
         event.preventDefault();
+        if (useUIStore.getState().focusedNodeId) return;
         const target = unfoldTarget();
         if (target) useUIStore.getState().toggleUnfold(target);
         return;
@@ -77,7 +78,7 @@ export const useKeyboardShortcuts = (config: KeyboardShortcutConfig = {}) => {
 
       // Space: Unfold or fold the selected node, unless the focus has a use for it
       if (event.key === ' ' && !modifier && !event.altKey) {
-        if (document.activeElement?.closest(SPACE_TAKEN)) return;
+        if (document.activeElement?.closest(SPACE_TAKEN) || useUIStore.getState().focusedNodeId) return;
         const target = unfoldTarget();
         if (!target) return;
         event.preventDefault();
@@ -146,7 +147,7 @@ export const useKeyboardShortcuts = (config: KeyboardShortcutConfig = {}) => {
         } else {
           // Priority: Close panels first, then the unfolded node, then artifact windows
           const { showSettings, showFilters, showControls } = useSettingsStore.getState().ui;
-          const { detailWindows, unfoldedNodeId } = useUIStore.getState();
+          const { detailWindows, unfoldedNodeId, focusedNodeId } = useUIStore.getState();
 
           if (showSettings) {
             event.preventDefault();
@@ -157,6 +158,9 @@ export const useKeyboardShortcuts = (config: KeyboardShortcutConfig = {}) => {
           } else if (showFilters) {
             event.preventDefault();
             useSettingsStore.getState().setShowFilters(false);
+          } else if (focusedNodeId) {
+            event.preventDefault();
+            useUIStore.getState().unfocus();
           } else if (unfoldedNodeId) {
             event.preventDefault();
             useUIStore.getState().fold();

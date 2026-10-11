@@ -58,7 +58,7 @@ const Count: React.FC<{ value: number }> = ({ value }) => {
   return <span className={`mono num ${styles.count} ${flash ? styles.flash : ''}`}>{value}</span>;
 };
 
-const Tag: React.FC<{ tag: CardTag }> = ({ tag }) => (
+export const Tag: React.FC<{ tag: CardTag }> = ({ tag }) => (
   <span className={styles.tag} data-testid="card-tag">
     {tag.kind === 'schedule' && <Icon name="scheduled" size={11} />}
     {tag.kind === 'decision' ? (
@@ -86,8 +86,8 @@ const Port: React.FC<{ row: PortRow }> = ({ row }) => (
   </div>
 );
 
-/** Open the trace viewer on the failed run's correlation. */
-const openTrace = (correlationId: string) => {
+/** Open the trace viewer on a run's correlation. */
+export const openTrace = (correlationId: string) => {
   useModuleStore.getState().addModule({
     id: uuidv4(),
     type: 'traceViewerJaeger',
