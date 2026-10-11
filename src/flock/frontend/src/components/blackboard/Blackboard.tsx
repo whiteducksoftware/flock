@@ -28,7 +28,12 @@ const Blackboard: React.FC = () => {
         ? lanesOf(
             nodes,
             edges,
-            [...inFlight.values()].map((run) => ({ agent: run.agent, correlationId: run.correlationId ?? null, artifacts: run.artifacts })),
+            [...inFlight.entries()].map(([runId, run]) => ({
+              runId,
+              agent: run.agent,
+              correlationId: run.correlationId ?? null,
+              artifacts: run.artifacts,
+            })),
           )
         : [],
     [viewMode, nodes, edges, inFlight],

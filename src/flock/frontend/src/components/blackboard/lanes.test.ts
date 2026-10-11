@@ -121,6 +121,26 @@ describe('lanesOf', () => {
     expect(ids(ended.find((each) => each.id === 'c-4')!)).toEqual([['t4'], ['d5'], ['r9']]);
   });
 
+  it('says a lane with nothing on the record yet is running, not done', () => {
+    const streamOnly = [artifact('s9', 'c-9', 'app.Digest', 'digest', 9000, { isStreaming: true, streamingText: 'Today' })];
+    expect(lanesOf(streamOnly, [], [{ agent: 'digest', correlationId: 'c-9', artifacts: [] }])[0]!.status).toEqual({ kind: 'running', text: 'digest is writing' });
+    // Its run already ended: no time to tell
+    expect(lanesOf(streamOnly, [], [])[0]!.status).toEqual({ kind: 'done', text: 'done · 0 artifacts' });
+  });
+
+  it('places each stream after what its own run consumed, when an agent runs twice in a workflow', () => {
+    const twice = [
+      ...nodes,
+      artifact('s2', 'c-4', 'app.TeamReply', 'billing_team', 2750, { isStreaming: true, streamingText: 'About the ticket', runId: 'run-b' }),
+    ].map((node) => (node.id === 's1' ? { ...node, data: { ...node.data, runId: 'run-a' } } : node));
+    const runs = [
+      { runId: 'run-a', agent: 'billing_team', correlationId: 'c-4', artifacts: ['d5'] },
+      { runId: 'run-b', agent: 'billing_team', correlationId: 'c-4', artifacts: ['t4'] },
+    ];
+    // run-b read the ticket itself (another subscription): its stream follows the ticket
+    expect(ids(lanesOf(twice, edges, runs).find((each) => each.id === 'c-4')!)).toEqual([['t4'], ['d5', 's2'], ['s1']]);
+  });
+
   it('names several running agents at once', () => {
     const both = [...running, { agent: 'urgency', correlationId: 'c-3', artifacts: ['t3'] }];
     expect(lanesOf(nodes, edges, both).find((each) => each.id === 'c-3')!.status.text).toBe('triage and 1 more are working');

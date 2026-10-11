@@ -11,6 +11,8 @@ import { duration } from '../graph/unfold/format';
 
 /** A running run of an agent: its correlation and what it consumed. */
 export interface RunningRun {
+  /** Its run ID; a stream knows the run that makes it */
+  runId?: string;
   agent: string;
   correlationId: string | null;
   artifacts: string[];
@@ -63,6 +65,7 @@ interface ArtifactData {
   decision?: DecisionInfo;
   isStreaming?: boolean;
   streamingText?: string;
+  runId?: string | null;
 }
 
 const DECISION = /^(?:.*\.)?Decision\[(.+)\]$/;
@@ -123,6 +126,8 @@ function statusOf(cards: LaneCard[], runs: RunningRun[], deciders: Set<string>, 
     return { kind: 'review', text: answeredBy.length > 0 ? `needs review · answered by ${answeredBy.join(', ')}` : 'needs review' };
   }
   const done = cards.filter((card) => card.state === 'done');
+  // A stream whose run ended before anything was published has no time to tell
+  if (done.length === 0) return { kind: 'done', text: 'done · 0 artifacts' };
   const span = Math.max(...done.map((card) => card.timestamp)) - Math.min(...done.map((card) => card.timestamp));
   return { kind: 'done', text: `done in ${duration(span)} · ${done.length} artifact${done.length === 1 ? '' : 's'}` };
 }
@@ -158,8 +163,10 @@ export function lanesOf(nodes: Node[], edges: Edge[], running: RunningRun[]): La
   const lanes = [...groups.entries()].map(([id, members]): Lane => {
     const runs = running.filter((run) => (run.correlationId ?? '') === id);
     // Streaming artifacts are not on the record yet: after what their run consumed
-    const runDepth = (agent: string, last: number) => {
-      const consumed = runs.find((run) => run.agent === agent)?.artifacts.filter((artifact) => byId.has(artifact)) ?? [];
+    // (their own run's, when the agent runs twice in the workflow)
+    const runDepth = (agent: string, last: number, runId?: string | null) => {
+      const run = (runId && runs.find((each) => each.runId === runId)) || runs.find((each) => each.agent === agent);
+      const consumed = run?.artifacts.filter((artifact) => byId.has(artifact)) ?? [];
       return consumed.length > 0 ? 1 + Math.max(...consumed.map((artifact) => depths.get(artifact) ?? 0)) : last + 1;
     };
     // Not on the record yet: still streaming, or published by a run the server
@@ -185,7 +192,7 @@ export function lanesOf(nodes: Node[], edges: Edge[], running: RunningRun[]): La
           data: node.data as Record<string, unknown>,
           state: streaming ? 'streaming' : 'done',
         },
-        depth: unrecorded(node) ? runDepth(data.producedBy ?? '', last) : (depths.get(node.id) ?? 0),
+        depth: unrecorded(node) ? runDepth(data.producedBy ?? '', last, data.runId) : (depths.get(node.id) ?? 0),
       };
     });
     for (const run of runs) {

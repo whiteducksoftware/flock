@@ -246,7 +246,13 @@ export const useGraphStore = create<GraphState>()(
           const known = new Set(snapshot.nodes.map((node) => node.id));
           const filters = request.filters;
           const timeRange = useFilterStore.getState().timeRange;
-          const from = timeRange.preset === 'custom' ? boundOf(timeRange.start) : undefined;
+          const lastMinutes = { last5min: 5, last10min: 10, last1hour: 60 }[timeRange.preset as string];
+          const from =
+            timeRange.preset === 'custom'
+              ? boundOf(timeRange.start)
+              : lastMinutes !== undefined
+                ? Date.now() - lastMinutes * 60_000
+                : undefined;
           const to = timeRange.preset === 'custom' ? boundOf(timeRange.end) : undefined;
           const passes = (data: Record<string, any>) =>
             (from === undefined || (data.timestamp ?? 0) >= from) &&
@@ -326,7 +332,8 @@ export const useGraphStore = create<GraphState>()(
       setInFlight: (runId, agentId, types, artifacts = [], correlationId = null) => {
         set((state) => {
           const inFlight = new Map(state.inFlight);
-          if (types && types.length > 0) inFlight.set(runId, { agent: agentId, types, artifacts, correlationId });
+          // A run that consumed nothing (a direct invocation, a timer) runs too; null ends it
+          if (types !== null) inFlight.set(runId, { agent: agentId, types, artifacts, correlationId });
           else inFlight.delete(runId);
           // A run that ends takes its output's tail along
           if (types !== null || !state.runTails.has(runId)) return { inFlight };

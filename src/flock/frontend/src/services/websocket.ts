@@ -19,6 +19,8 @@ export class WebSocketClient {
   private connectionLost = false;
   /** Runs that ended since the page last asked which runs go on: a late answer must not bring them back */
   private endedRuns = new Set<string>();
+  /** Which ask is the latest: an answer to one a reconnect superseded is dropped */
+  private seedGeneration = 0;
   private maxReconnectDelay = 30000; // 30 seconds
   private connectionTimeout: number | null = null;
   private connectionTimeoutMs = 10000; // 10 seconds
@@ -170,12 +172,13 @@ export class WebSocketClient {
 
   private seedActiveRuns(): void {
     this.endedRuns.clear();
+    const generation = ++this.seedGeneration;
     fetch('/api/runs/active')
       .then((response) => (response.ok ? response.json() : null))
       .then(
         (data: { runs?: { run_id: string; agent_name: string; correlation_id: string | null; consumed_artifacts?: string[] }[] } | null) => {
-          // An older server answers without the endpoint
-          if (!Array.isArray(data?.runs)) return;
+          // An older server answers without the endpoint; a newer ask answers for now
+          if (!Array.isArray(data?.runs) || generation !== this.seedGeneration) return;
           useGraphStore.getState().seedInFlight(
             data.runs
               .filter((run) => !this.endedRuns.has(run.run_id))
