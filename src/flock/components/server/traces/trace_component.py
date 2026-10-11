@@ -2,12 +2,13 @@
 
 import asyncio
 import json
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import duckdb
-from fastapi import HTTPException
+from fastapi import HTTPException, Query
 from pydantic import Field
 
 from flock.api.thumbnails import compact, image_summaries
@@ -18,6 +19,38 @@ from flock.logging.logging import get_logger
 
 
 logger = get_logger(__name__)
+
+
+_SPAN_COLUMNS = """
+    trace_id, span_id, parent_id, name, service, operation,
+    kind, start_time, end_time, duration_ms,
+    status_code, status_description,
+    attributes, events, links, resource
+"""
+
+
+def _span_from_row(row: Sequence[Any]) -> dict[str, Any]:
+    """A span in OTEL format from a row of ``_SPAN_COLUMNS``."""
+    span = {
+        "name": row[3],
+        "context": {
+            "trace_id": row[0],
+            "span_id": row[1],
+            "trace_flags": 0,
+            "trace_state": "",
+        },
+        "kind": row[6],
+        "start_time": row[7],
+        "end_time": row[8],
+        "status": {"status_code": row[10], "description": row[11]},
+        "attributes": json.loads(row[12]) if row[12] else {},
+        "events": json.loads(row[13]) if row[13] else [],
+        "links": json.loads(row[14]) if row[14] else [],
+        "resource": json.loads(row[15]) if row[15] else {},
+    }
+    if row[2]:
+        span["parent_id"] = row[2]
+    return span
 
 
 class TracingComponentConfig(ServerComponentConfig):
@@ -125,49 +158,61 @@ class TracingComponent(ServerComponent):
             try:
                 with duckdb.connect(str(self._db_path), read_only=True) as conn:
                     # Query all spans from DuckDB
-                    result = conn.execute("""
-                                          SELECT
-                                            trace_id, span_id, parent_id, name, service, operation,
-                                            kind, start_time, end_time, duration_ms,
-                                            status_code, status_description,
-                                            attributes, events, links, resource
-                                          FROM spans
-                                          ORDER BY start_time DESC
-                                          """).fetchall()
-                    spans = []
-                    for row in result:
-                        # Reconstruct OTEL span format from DuckDB row
-                        span = {
-                            "name": row[3],
-                            "context": {
-                                "trace_id": row[0],  # trace_id
-                                "span_id": row[1],  # span_id
-                                "trace_flags": 0,
-                                "trace_state": "",
-                            },
-                            "kind": row[6],  # kind
-                            "start_time": row[7],  # start_time
-                            "end_time": row[8],  # end_time
-                            "status": {
-                                "status_code": row[10],  # status_code
-                                "description": row[11],  # status_description
-                            },
-                            "attributes": json.loads(row[12])
-                            if row[12]
-                            else {},  # attributes
-                            "events": json.loads(row[13]) if row[13] else [],  # events
-                            "links": json.loads(row[14]) if row[14] else [],  # links
-                            "resource": json.loads(row[15])
-                            if row[15]
-                            else {},  # resource
-                        }
-                        # add parent_id if exists
-                        if row[2]:
-                            span["parent_id"] = row[2]
-                        spans.append(span)
+                    result = conn.execute(
+                        f"SELECT {_SPAN_COLUMNS} FROM spans ORDER BY start_time DESC"
+                    ).fetchall()
+                    spans = [_span_from_row(row) for row in result]
                     logger.debug(f"Loaded {len(spans)} spans from DuckDB")
                     return spans
 
+            except Exception as ex:
+                logger.exception(f"Error reading traces from DuckDB: {ex!s}")
+                return []
+
+        @app.get(
+            self._join_path(self.config.prefix, "traces/agents/{agent_name}"),
+            tags=self.config.tags,
+        )
+        async def get_agent_traces(
+            agent_name: str,
+            runs: int = Query(
+                5, ge=1, le=50, description="How many of the latest runs"
+            ),
+        ) -> list[dict[str, Any]]:
+            """The agent's latest runs and the spans below them, in the format of /traces.
+
+            A run is an ``Agent.execute`` span whose ``agent.name`` attribute
+            names the agent; its spans are read with a recursive query, so the
+            trace database is never read whole.
+            """
+            if not self._db_path_exists:
+                return []
+            try:
+                with duckdb.connect(str(self._db_path), read_only=True) as conn:
+                    result = conn.execute(
+                        f"""
+                        WITH RECURSIVE latest AS (
+                            SELECT trace_id, span_id FROM spans
+                            WHERE name = 'Agent.execute'
+                              AND json_extract_string(attributes, '$."agent.name"') = ?
+                            ORDER BY start_time DESC
+                            LIMIT ?
+                        ),
+                        tree(trace_id, span_id) AS (
+                            SELECT trace_id, span_id FROM latest
+                            UNION
+                            SELECT spans.trace_id, spans.span_id
+                            FROM spans JOIN tree
+                              ON spans.trace_id = tree.trace_id
+                             AND spans.parent_id = tree.span_id
+                        )
+                        SELECT {_SPAN_COLUMNS} FROM spans
+                        WHERE (trace_id, span_id) IN (SELECT trace_id, span_id FROM tree)
+                        ORDER BY start_time
+                        """,
+                        [agent_name, runs],
+                    ).fetchall()
+                    return [_span_from_row(row) for row in result]
             except Exception as ex:
                 logger.exception(f"Error reading traces from DuckDB: {ex!s}")
                 return []

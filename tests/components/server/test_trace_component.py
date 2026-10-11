@@ -135,6 +135,164 @@ def temp_db():
         yield db_path
 
 
+def _span(trace, span, parent, name, start, attributes=None, status="OK"):
+    """A row of the spans table; times in milliseconds."""
+    import json
+
+    return (
+        trace,
+        span,
+        parent,
+        name,
+        name.split(".")[0],
+        name.split(".")[-1],
+        "INTERNAL",
+        start * 1_000_000,
+        (start + 5) * 1_000_000,
+        5.0,
+        status,
+        None,
+        json.dumps(attributes or {}),
+        "[]",
+        "[]",
+        "{}",
+    )
+
+
+@pytest.fixture
+def agent_runs_db(temp_db):
+    """Three runs of billing_team, one of triage, and spans around them."""
+    conn = duckdb.connect(str(temp_db))
+    conn.execute("DELETE FROM spans")
+    rows = [
+        _span(
+            "t1",
+            "r1",
+            None,
+            "Agent.execute",
+            100,
+            {"agent.name": "billing_team", "task_id": "run-1"},
+        ),
+        _span("t1", "r1a", "r1", "DSPyEngine.evaluate", 101),
+        _span(
+            "t2",
+            "r2",
+            None,
+            "Agent.execute",
+            200,
+            {"agent.name": "billing_team", "task_id": "run-2"},
+        ),
+        _span("t2", "r2a", "r2", "DSPyEngine.evaluate", 201),
+        _span("t2", "r2b", "r2a", "LM.call", 202, status="ERROR"),
+        # Another span of the same trace that is not below the run
+        _span("t2", "other", None, "Flock.publish", 199),
+        _span(
+            "t3",
+            "r3",
+            None,
+            "Agent.execute",
+            300,
+            {"agent.name": "billing_team", "task_id": "run-3"},
+        ),
+        _span("t3", "r3a", "r3", "DSPyEngine.evaluate", 301),
+        _span(
+            "t4",
+            "x1",
+            None,
+            "Agent.execute",
+            400,
+            {"agent.name": "triage", "task_id": "run-x"},
+        ),
+    ]
+    for row in rows:
+        conn.execute(
+            """
+            INSERT INTO spans (
+                trace_id, span_id, parent_id, name, service, operation,
+                kind, start_time, end_time, duration_ms, status_code,
+                status_description, attributes, events, links, resource
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            row,
+        )
+    conn.close()
+    return temp_db
+
+
+class TestAgentTraces:
+    """GET traces/agents/{name}: an agent's latest runs and the spans below them."""
+
+    async def _get(self, app, orchestrator, db_path, url):
+        component = TracingComponent(config=TracingComponentConfig(db_path=db_path))
+        component.configure(app, orchestrator)
+        component.register_routes(app, orchestrator)
+        transport = ASGITransport(app=app)
+        async with AsyncClient(
+            transport=transport, base_url="http://testserver"
+        ) as client:
+            return await client.get(url)
+
+    async def test_returns_the_latest_runs_with_the_spans_below_them(
+        self, app, orchestrator, agent_runs_db
+    ):
+        response = await self._get(
+            app,
+            orchestrator,
+            agent_runs_db,
+            "/api/plugin/traces/agents/billing_team?runs=2",
+        )
+
+        assert response.status_code == 200
+        spans = response.json()
+        assert sorted(span["context"]["span_id"] for span in spans) == [
+            "r2",
+            "r2a",
+            "r2b",
+            "r3",
+            "r3a",
+        ]
+        # In the format of /traces
+        by_id = {span["context"]["span_id"]: span for span in spans}
+        assert by_id["r2b"]["parent_id"] == "r2a"
+        assert by_id["r2b"]["status"]["status_code"] == "ERROR"
+        assert by_id["r3"]["attributes"]["task_id"] == "run-3"
+
+    async def test_defaults_to_five_runs_and_knows_no_other_agent(
+        self, app, orchestrator, agent_runs_db
+    ):
+        response = await self._get(
+            app, orchestrator, agent_runs_db, "/api/plugin/traces/agents/billing_team"
+        )
+        roots = [s for s in response.json() if s["name"] == "Agent.execute"]
+        assert len(roots) == 3
+
+        response = await self._get(
+            app, orchestrator, agent_runs_db, "/api/plugin/traces/agents/nobody"
+        )
+        assert response.json() == []
+
+    async def test_keeps_the_number_of_runs_in_bounds(
+        self, app, orchestrator, agent_runs_db
+    ):
+        response = await self._get(
+            app,
+            orchestrator,
+            agent_runs_db,
+            "/api/plugin/traces/agents/billing_team?runs=0",
+        )
+        assert response.status_code == 422
+
+    async def test_answers_nothing_without_a_trace_database(self, app, orchestrator):
+        response = await self._get(
+            app,
+            orchestrator,
+            "nonexistent/traces.duckdb",
+            "/api/plugin/traces/agents/billing_team",
+        )
+        assert response.status_code == 200
+        assert response.json() == []
+
+
 class TestTracingComponentConfig:
     """Tests for TracingComponentConfig."""
 
