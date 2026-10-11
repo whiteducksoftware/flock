@@ -13,7 +13,7 @@ import { type AgentData, formatAgo, tagOf } from '../card/cardModel';
 import type { DeciderInfo } from '../DecisionDisplay';
 import { useAgentRuns } from '../unfold/agentRuns';
 import { count, duration } from '../unfold/format';
-import HistoryTab from '../unfold/HistoryTab';
+import { HistoryList } from '../unfold/HistoryTab';
 import { useMessageHistory } from '../unfold/messageHistory';
 import RunsTab from '../unfold/RunsTab';
 import TracesTab from '../unfold/TracesTab';
@@ -78,7 +78,8 @@ const Stage: React.FC<StageProps> = ({ id, data, nodes, edges, onOpenTrace }) =>
   const status = data.status === 'running' ? 'running' : data.status === 'error' ? 'error' : 'idle';
   const messagesCount = (data.recvCount ?? 0) + (data.sentCount ?? 0);
   const { runs, error } = useAgentRuns(id, data.status, messagesCount);
-  const { messages } = useMessageHistory(id, messagesCount);
+  // Read once, for Live and History
+  const { messages, error: historyError } = useMessageHistory(id, messagesCount);
   const active = runs?.find((run) => run.status === 'active');
   // Running: since the active run started (none yet: no duration); idle: since the last run ended
   const last = runs?.find((run) => run.status !== 'active');
@@ -221,7 +222,15 @@ const Stage: React.FC<StageProps> = ({ id, data, nodes, edges, onOpenTrace }) =>
             </button>
           ))}
         </div>
-        <div id={`${tabIds}-panel`} role="tabpanel" aria-labelledby={`${tabIds}-${tab}`} className={styles.body} data-scroll>
+        {/* In the Tab order: Live and Contract may hold nothing focusable to scroll by */}
+        <div
+          id={`${tabIds}-panel`}
+          role="tabpanel"
+          aria-labelledby={`${tabIds}-${tab}`}
+          tabIndex={0}
+          className={styles.body}
+          data-scroll
+        >
           {tab === 'live' && (
             <FocusLive
               agent={id}
@@ -232,7 +241,7 @@ const Stage: React.FC<StageProps> = ({ id, data, nodes, edges, onOpenTrace }) =>
               onRuns={() => setTab('runs')}
             />
           )}
-          {tab === 'history' && <HistoryTab agent={id} revision={messagesCount} />}
+          {tab === 'history' && <HistoryList messages={messages} error={historyError} />}
           {tab === 'runs' && <RunsTab runs={runs} error={error} />}
           {tab === 'contract' && <ContractTab id={id} nodes={nodes} edges={edges} />}
           {tab === 'traces' && <TracesTab agent={id} onOpenTrace={onOpenTrace} />}

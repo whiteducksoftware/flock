@@ -156,6 +156,18 @@ describe('FocusStage', () => {
     expect(await screen.findByText(/^last run 1\d s ago$/)).toBeTruthy();
   });
 
+  it('reads the history once for Live and History, and lets the keyboard into its tab panel', async () => {
+    const fetch = vi.mocked(globalThis.fetch);
+    render(<FocusStage onOpenTrace={() => {}} />);
+    await screen.findByText('Refund not received');
+
+    fireEvent.click(screen.getByRole('tab', { name: /History/ }));
+    await screen.findByTestId('history');
+
+    expect(fetch.mock.calls.filter(([url]) => url === '/api/artifacts/history/billing_team')).toHaveLength(1);
+    expect(screen.getByRole('tabpanel').tabIndex).toBe(0);
+  });
+
   it('is a dialog that leaves the header usable (not modal)', () => {
     render(<FocusStage onOpenTrace={() => {}} />);
 
