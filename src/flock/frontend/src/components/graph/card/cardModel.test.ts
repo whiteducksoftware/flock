@@ -88,6 +88,20 @@ describe('portRows', () => {
     ]);
   });
 
+  it('labels decision handles about the same subject AND, though they correlate like a join', () => {
+    // pager: .consumes(Route.tech, Urgent.yes) joins on the ticket under the hood
+    const rows = portRows({
+      subscriptionGroups: [['Decision[app.Route]', 'Decision[app.Urgent]']],
+      typeLabels: { 'Decision[app.Route]': '◆ Route.tech', 'Decision[app.Urgent]': '◆ Urgent.yes' },
+      logicOperations: [{ subscription_index: 0, subscription_types: [], join: { required_types: [] } }],
+    });
+
+    expect(rows.map((row: PortRow) => [row.dir, row.label])).toEqual([
+      ['in', 'Route.tech'],
+      ['and', 'Urgent.yes'],
+    ]);
+  });
+
   it('counts a type a subscription needs several times once, with how many', () => {
     const rows = portRows({ subscriptionGroups: [['app.Note', 'app.Note', 'app.Note']], receivedByType: {} });
 

@@ -120,9 +120,10 @@ const row = (
 
 /**
  * The port rows: per subscription its first type is IN and the others AND
- * (JOIN when the subscription joins); types received outside a subscription
- * are IN too; outputs are OUT. A decider's Decision output is left out, its
- * summary stands for it.
+ * (JOIN when the subscription joins by a key; decision handles about the same
+ * subject correlate like a join but read as AND); types received outside a
+ * subscription are IN too; outputs are OUT. A decider's Decision output is
+ * left out, its summary stands for it.
  */
 export function portRows(data: AgentData): PortRow[] {
   const labels = data.typeLabels ?? {};
@@ -136,8 +137,10 @@ export function portRows(data: AgentData): PortRow[] {
   groups.forEach((group, index) => {
     const times = new Map<string, number>();
     group.forEach((type) => times.set(type, (times.get(type) ?? 0) + 1));
+    const handles = group.every((type) => labels[type]?.startsWith('◆'));
+    const joined = joins.has(index) && !handles;
     [...times.entries()].forEach(([type, count], position) => {
-      const dir = position === 0 ? 'in' : joins.has(index) ? 'join' : 'and';
+      const dir = position === 0 ? 'in' : joined ? 'join' : 'and';
       rows.push(row(dir, type, labels, received, count));
       shown.add(type);
     });
