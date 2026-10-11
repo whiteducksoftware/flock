@@ -68,6 +68,12 @@ class Decision(BaseModel):
         "model, choice, probabilities, confidence, refused (checklists: model "
         "and the results of the escalated items)",
     )
+    votes: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Ensembles: every model's answer, in the order of models=: "
+        "model, choice, probabilities, confidence, refused (checklists: model "
+        "and its result per item)",
+    )
     latency_ms: float | None = Field(
         default=None, description="Round trip of the decision request"
     )

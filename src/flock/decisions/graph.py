@@ -100,7 +100,8 @@ def decider_info(
     thumbnails per option with the chosen option's probability. Scale
     questions carry the ``meanScore`` of their decisions, questions with
     refusals their ``refused`` count. With escalation, ``escalate`` lists the
-    models asked after the decider's own, in order.
+    models asked after the decider's own, in order. An ensemble lists its
+    models in ``ensemble`` and its ``vote``.
     """
     from flock.decisions.engine import DecisionEngine
 
@@ -125,6 +126,9 @@ def decider_info(
         }
     if engine.escalation:
         info["escalate"] = [provider.label for provider in engine.escalation]
+    if engine.ensemble:
+        info["ensemble"] = [provider.label for provider in engine.ensemble]
+        info["vote"] = engine.vote
     return info
 
 
@@ -176,6 +180,8 @@ def decision_view(
     if payload.get("attempts"):
         view["tier"] = payload.get("tier", 0)
         view["attempts"] = list(payload["attempts"])
+    if payload.get("votes"):
+        view["votes"] = list(payload["votes"])
     if view["kind"] == "checklist":
         view["items"] = levels or list(payload.get("results") or {})
         view["results"] = dict(payload.get("results") or {})
