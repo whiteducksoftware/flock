@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 import pytest
 from fastapi import FastAPI
@@ -144,3 +145,31 @@ async def test_a_private_artifact_stays_hidden_with_its_history():
     )
 
     assert response.status_code == 404
+
+
+async def test_the_store_reads_an_artifacts_history_by_its_id(store):
+    ticket = _ticket("Refund not received")
+    await store.publish(ticket)
+    await store.record_consumptions([_consumed(ticket, "triage", 1)])
+
+    history = await store.consumptions_of(ticket.id)
+
+    assert [(record.consumer, record.run_id) for record in history] == [
+        ("triage", "triage-run")
+    ]
+    assert await store.consumptions_of(uuid4()) == []
+
+
+async def test_the_history_needs_no_registered_type():
+    # Written by a process that knew the model; this one does not
+    orchestrator = Flock()
+    stranger = _ticket("Refund not received", type="NeverRegisteredHere")
+    await orchestrator.store.publish(stranger)
+    await orchestrator.store.record_consumptions([_consumed(stranger, "triage", 1)])
+
+    response = _client(orchestrator).get(
+        f"/api/v1/artifacts/{stranger.id}", params={"embed_meta": "true"}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["consumed_by"] == ["triage"]
