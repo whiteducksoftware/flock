@@ -3,19 +3,18 @@ import { ReactFlowProvider } from '@xyflow/react';
 import GraphCanvas from '../graph/GraphCanvas';
 import DetailWindowContainer from '../details/DetailWindowContainer';
 import PublishControl from '../controls/PublishControl';
-import ModuleWindow from '../modules/ModuleWindow';
 import SettingsPanel from '../settings/SettingsPanel';
 import KeyboardShortcutsDialog from '../common/KeyboardShortcutsDialog';
-import { useModuleStore } from '../../store/moduleStore';
 import { useSettingsStore } from '../../store/settingsStore';
-import { useModulePersistence } from '../../hooks/useModulePersistence';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import BoardStates from '../graph/BoardStates';
+import TimelineDock from '../timeline/TimelineDock';
+import { useUIStore } from '../../store/uiStore';
 import AppHeader from './AppHeader';
 import './DashboardLayout.css';
 
 const DashboardLayout: React.FC = () => {
-  const moduleInstances = useModuleStore((state) => state.instances);
+  const dockOpen = useUIStore((state) => state.dockOpen);
 
   // UI visibility from settings store
   const showControls = useSettingsStore((state) => state.ui.showControls);
@@ -24,9 +23,6 @@ const DashboardLayout: React.FC = () => {
 
   // Keyboard shortcuts help dialog
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
-
-  // Enable module window persistence
-  useModulePersistence();
 
   // The dashboard's keyboard shortcuts, registered once
   useKeyboardShortcuts({
@@ -39,20 +35,19 @@ const DashboardLayout: React.FC = () => {
 
       <div className="dashboard-main">
         <main className="graph-container">
-          <ReactFlowProvider>
-            <GraphCanvas />
-          </ReactFlowProvider>
-          <BoardStates onPublish={() => setShowControls(true)} />
+          {/* With the timeline dock expanded the board keeps a strip of chips */}
+          <div className={`board-area${dockOpen ? ' docked' : ''}`}>
+            <ReactFlowProvider>
+              <GraphCanvas />
+            </ReactFlowProvider>
+            <BoardStates onPublish={() => setShowControls(true)} />
+          </div>
+          <TimelineDock />
         </main>
       </div>
 
       {/* Detail Windows */}
       <DetailWindowContainer />
-
-      {/* Module Windows */}
-      {Array.from(moduleInstances.values()).map((instance) => (
-        <ModuleWindow key={instance.id} instanceId={instance.id} />
-      ))}
 
       {/* Publish Control Panel - Slides in from right */}
       {showControls && <PublishControl />}

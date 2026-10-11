@@ -35,7 +35,7 @@ const SPACE_TAKEN =
  * - Ctrl+Shift+P: Toggle Publish Panel
  * - Space, Ctrl+Shift+D: Unfold or fold the selected node
  * - Ctrl+/ (or Cmd+/): Toggle Keyboard Shortcuts Help
- * - Esc: Close a panel, else leave focus mode, else fold the unfolded node, else close the artifact windows
+ * - Esc: Close a panel, else leave focus mode, else collapse the timeline dock, else fold the unfolded node, else close the artifact windows
  */
 export const useKeyboardShortcuts = (config: KeyboardShortcutConfig = {}) => {
   useEffect(() => {
@@ -147,7 +147,7 @@ export const useKeyboardShortcuts = (config: KeyboardShortcutConfig = {}) => {
         } else {
           // Priority: Close panels first, then the unfolded node, then artifact windows
           const { showSettings, showFilters, showControls } = useSettingsStore.getState().ui;
-          const { detailWindows, unfoldedNodeId, focusedNodeId } = useUIStore.getState();
+          const { detailWindows, unfoldedNodeId, focusedNodeId, dockOpen } = useUIStore.getState();
 
           if (showSettings) {
             event.preventDefault();
@@ -161,6 +161,9 @@ export const useKeyboardShortcuts = (config: KeyboardShortcutConfig = {}) => {
           } else if (focusedNodeId) {
             event.preventDefault();
             useUIStore.getState().unfocus();
+          } else if (dockOpen) {
+            event.preventDefault();
+            useUIStore.getState().closeDock();
           } else if (unfoldedNodeId) {
             event.preventDefault();
             useUIStore.getState().fold();

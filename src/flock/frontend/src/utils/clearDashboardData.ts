@@ -1,7 +1,6 @@
 import { indexedDBService } from '../services/indexeddb';
 import { useFilterStore } from '../store/filterStore';
 import { useGraphStore } from '../store/graphStore';
-import { useModuleStore } from '../store/moduleStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { useUIStore } from '../store/uiStore';
 
@@ -28,10 +27,11 @@ export async function clearDashboardData(
     agentStatus: new Map(),
     streamingTokens: new Map(),
   });
-  useModuleStore.getState().instances.clear();
-  for (const store of [useFilterStore, useSettingsStore, useUIStore, useModuleStore]) {
+  for (const store of [useFilterStore, useSettingsStore, useUIStore]) {
     store.persist.clearStorage();
   }
+  // The module windows' saved state, from dashboards before the timeline dock
+  localStorage.removeItem('flock-module-state');
   // Only now: a reload any earlier could drop the deletion
   reload();
 }

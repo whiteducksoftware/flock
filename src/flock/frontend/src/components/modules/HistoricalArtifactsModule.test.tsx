@@ -20,7 +20,7 @@ describe('HistoricalArtifactsModule', () => {
     async (preset) => {
       useFilterStore.setState({ timeRange: { preset } });
 
-      render(<HistoricalArtifactsModule context={{} as never} />);
+      render(<HistoricalArtifactsModule />);
 
       await waitFor(() => expect(fetchArtifacts).toHaveBeenCalled());
       const options = vi.mocked(fetchArtifacts).mock.calls[0]![0]!;

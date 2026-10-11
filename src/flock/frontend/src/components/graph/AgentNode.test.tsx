@@ -4,7 +4,6 @@ import { ReactFlowProvider, useStoreApi } from '@xyflow/react';
 import { useLayoutEffect } from 'react';
 import AgentNode from './AgentNode';
 import { NodeProps } from '@xyflow/react';
-import { useModuleStore } from '../../store/moduleStore';
 import { useUIStore } from '../../store/uiStore';
 
 // UI Optimization Migration (Phase 4.1 - Spec 002): AgentNodeData removed, use Record<string, any>
@@ -498,8 +497,8 @@ describe('AgentNode', () => {
       expect(screen.queryByTestId('ticker')).toBeNull();
     });
 
-    it('says what failed and opens that run in the trace viewer', () => {
-      useModuleStore.setState({ instances: new Map() });
+    it('says what failed and opens that run\'s traces in the timeline dock', () => {
+      useUIStore.setState({ dockOpen: false, traceSearch: '' });
       renderCard({
         status: 'error',
         lastError: {
@@ -513,8 +512,8 @@ describe('AgentNode', () => {
 
       fireEvent.click(screen.getByRole('button', { name: `RateLimitError · ${time}` }));
 
-      const [viewer] = [...useModuleStore.getState().instances.values()];
-      expect(viewer).toMatchObject({ type: 'traceViewerJaeger', search: 'c-123' });
+      expect(useUIStore.getState()).toMatchObject({ dockOpen: true, dockTab: 'traces', traceSearch: 'c-123' });
+      useUIStore.setState({ dockOpen: false, traceSearch: '' });
     });
 
     it('says only that it failed when the server does not say why', () => {
@@ -680,6 +679,18 @@ describe('AgentNode', () => {
     expect(screen.getByRole('tablist')).toBeTruthy();
     useUIStore.setState({ unfoldedNodeId: null });
     vi.unstubAllGlobals();
+  });
+
+  it('shows a chip while the timeline dock is expanded', () => {
+    useUIStore.setState({ dockOpen: true });
+    const { container } = render(
+      <ReactFlowProvider>
+        <AgentNode {...createNodeProps({ name: 'tech_support', status: 'idle', recvCount: 1, subscriptions: ['app.Ticket'] })} />
+      </ReactFlowProvider>,
+    );
+
+    expect(container.textContent).toBe('tech_support1');
+    useUIStore.setState({ dockOpen: false });
   });
 
   it('shows a chip when the board is zoomed out', () => {

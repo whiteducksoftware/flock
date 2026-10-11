@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ModuleContext } from './ModuleRegistry';
+import { Icon } from '../icons/Icon';
+import { matchesTrace, parseTraceSearch } from './traceSearch';
 import JsonAttributeRenderer from './JsonAttributeRenderer';
 import TracingSettings from '../settings/TracingSettings';
 
@@ -29,7 +30,8 @@ interface SpanNode extends Span {
 }
 
 interface TraceModuleJaegerProps {
-  context: ModuleContext;
+  /** The views this place offers, the first shown first (the timeline dock's tabs split them) */
+  views?: ViewMode[];
   /** Start with this search, e.g. the correlation ID of a failed run */
   search?: string;
 }
@@ -70,9 +72,13 @@ interface DependencyEdge {
   operations: Map<string, OperationMetrics>; // parent.operation -> child.operation
 }
 
-type ViewMode = 'timeline' | 'statistics' | 'metrics' | 'dependencies' | 'configuration' | 'guide';
+export type ViewMode = 'timeline' | 'statistics' | 'metrics' | 'dependencies' | 'configuration' | 'guide';
 
-const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = ({ search }) => {
+const ALL_VIEWS: ViewMode[] = ['timeline', 'statistics', 'metrics', 'dependencies', 'configuration', 'guide'];
+
+const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = ({ search, views = ALL_VIEWS }) => {
+  // A view button only where there is more than one view to choose
+  const shows = (view: ViewMode) => views.length > 1 && views.includes(view);
   const [traces, setTraces] = useState<Span[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -80,12 +86,12 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = ({ search }) => {
   const [expandedSpans, setExpandedSpans] = useState<Set<string>>(new Set());
   const [collapsedSpans, setCollapsedSpans] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState(search ?? '');
-  const [viewMode, setViewMode] = useState<ViewMode>('timeline');
+  const [viewMode, setViewMode] = useState<ViewMode>(views[0] ?? 'timeline');
   const [focusedSpanId, setFocusedSpanId] = useState<string | null>(null);
   const [expandedDeps, setExpandedDeps] = useState<Set<string>>(new Set());
 
   // Sort state for timeline/statistics
-  type SortField = 'date' | 'spans' | 'duration';
+  type SortField = 'date' | 'spans' | 'duration' | 'errors';
   type SortOrder = 'asc' | 'desc';
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc'); // newest first by default
@@ -212,17 +218,10 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = ({ search }) => {
   const filteredTraces = useMemo(() => {
     let result = traceGroups;
 
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(trace =>
-        trace.traceId.toLowerCase().includes(query) ||
-        trace.spans.some(span =>
-          span.name.toLowerCase().includes(query) ||
-          Object.values(span.attributes).some(val =>
-            typeof val === 'string' && val.toLowerCase().includes(query)
-          )
-        )
-      );
+    if (searchQuery.trim()) {
+      // agent:billing_team status:error service:DecisionEngine, and free text
+      const query = parseTraceSearch(searchQuery);
+      result = result.filter((trace) => matchesTrace(trace, query));
     }
 
     // Apply sorting
@@ -238,6 +237,10 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = ({ search }) => {
           break;
         case 'duration':
           comparison = a.duration - b.duration;
+          break;
+        case 'errors':
+          // Failed traces first, newest first among them
+          comparison = Number(a.hasError) - Number(b.hasError) || a.startTime - b.startTime;
           break;
       }
 
@@ -755,7 +758,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = ({ search }) => {
         color: 'var(--color-text-secondary)',
       }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '32px', marginBottom: 'var(--gap-md)', opacity: 0.5 }}>🔎</div>
+          <div style={{ marginBottom: 'var(--gap-md)', opacity: 0.5 }}><Icon name="search" size={28} /></div>
           <div>Loading traces...</div>
         </div>
       </div>
@@ -772,7 +775,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = ({ search }) => {
         color: 'var(--color-error)',
       }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '32px', marginBottom: 'var(--gap-md)' }}>⚠️</div>
+          <div style={{ marginBottom: 'var(--gap-md)' }}><Icon name="error" size={28} /></div>
           <div>{error}</div>
         </div>
       </div>
@@ -796,6 +799,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = ({ search }) => {
       }}>
         {/* Row 1: View mode buttons */}
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {shows('timeline') && (
           <button
             onClick={() => setViewMode('timeline')}
             style={{
@@ -809,8 +813,10 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = ({ search }) => {
               fontWeight: 'var(--font-weight-medium)',
             }}
           >
-            📅 Timeline
+            Timeline
           </button>
+          )}
+          {shows('statistics') && (
           <button
             onClick={() => setViewMode('statistics')}
             style={{
@@ -824,8 +830,10 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = ({ search }) => {
               fontWeight: 'var(--font-weight-medium)',
             }}
           >
-            📊 Statistics
+            Statistics
           </button>
+          )}
+          {shows('metrics') && (
           <button
             onClick={() => setViewMode('metrics')}
             style={{
@@ -839,8 +847,10 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = ({ search }) => {
               fontWeight: 'var(--font-weight-medium)',
             }}
           >
-            🔴 RED Metrics
+            RED metrics
           </button>
+          )}
+          {shows('dependencies') && (
           <button
             onClick={() => setViewMode('dependencies')}
             style={{
@@ -854,8 +864,10 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = ({ search }) => {
               fontWeight: 'var(--font-weight-medium)',
             }}
           >
-            🔗 Dependencies
+            Dependencies
           </button>
+          )}
+          {shows('configuration') && (
           <button
             onClick={() => setViewMode('configuration')}
             style={{
@@ -869,8 +881,10 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = ({ search }) => {
               fontWeight: 'var(--font-weight-medium)',
             }}
           >
-            ⚙️ Configuration
+            Configuration
           </button>
+          )}
+          {shows('guide') && (
           <button
             onClick={() => setViewMode('guide')}
             style={{
@@ -884,8 +898,9 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = ({ search }) => {
               fontWeight: 'var(--font-weight-medium)',
             }}
           >
-            📚 Guide
+            Guide
           </button>
+          )}
 
           {/* Trace count */}
           {(viewMode === 'timeline' || viewMode === 'statistics') && (
@@ -902,7 +917,8 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = ({ search }) => {
         {/* Row 2: Search box */}
         <input
           type="text"
-          placeholder="🔎 Find traces (Jaeger style) - Search by service, operation, trace ID, correlation ID, or error"
+          aria-label="Search traces"
+          placeholder="Search traces: agent:billing_team status:error service:DecisionEngine, an operation, a trace or correlation ID"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           style={{
@@ -925,9 +941,9 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = ({ search }) => {
             fontSize: 'var(--font-size-body-xs)',
           }}>
             <span style={{ color: 'var(--color-text-tertiary)', flexShrink: 0 }}>Sort:</span>
-            {(['date', 'spans', 'duration'] as SortField[]).map((field) => {
+            {(['date', 'duration', 'errors', 'spans'] as SortField[]).map((field) => {
               const isActive = sortField === field;
-              const labels = { date: 'Date', spans: 'Spans', duration: 'Duration' };
+              const labels = { date: 'Newest', spans: 'Spans', duration: 'Slowest', errors: 'Errors first' };
 
               return (
                 <button
@@ -939,7 +955,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = ({ search }) => {
                     } else {
                       // Switch field, use default order
                       setSortField(field);
-                      setSortOrder(field === 'date' ? 'desc' : 'asc');
+                      setSortOrder(field === 'spans' ? 'asc' : 'desc');
                     }
                   }}
                   style={{
@@ -1278,7 +1294,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = ({ search }) => {
                 color: 'var(--color-text-primary)',
                 marginBottom: 'var(--gap-md)',
               }}>
-                🚀 Quick Start Guide
+                Quick Start Guide
               </h3>
               <div style={{
                 display: 'grid',
@@ -1299,18 +1315,18 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = ({ search }) => {
                 color: 'var(--color-text-primary)',
                 marginBottom: 'var(--gap-sm)',
               }}>
-                📊 View Modes
+                View Modes
               </h4>
               <div style={{
                 display: 'grid',
                 gap: 'var(--gap-sm)',
               }}>
                 {[
-                  { icon: '📅', name: 'Timeline', desc: 'Waterfall view of spans showing execution flow and dependencies' },
-                  { icon: '📈', name: 'Statistics', desc: 'Aggregated metrics including duration, error rates, and call counts' },
-                  { icon: '🔴', name: 'RED Metrics', desc: 'Rate, Errors, Duration metrics for service health monitoring' },
-                  { icon: '🔗', name: 'Dependencies', desc: 'Service-to-service communication patterns and operation drill-down' },
-                  { icon: '⚙️', name: 'Configuration', desc: 'Configure tracing settings, service filters, and operation blacklists' },
+                  { name: 'Timeline', desc: 'Waterfall view of spans showing execution flow and dependencies' },
+                  { name: 'Statistics', desc: 'Aggregated metrics including duration, error rates, and call counts' },
+                  { name: 'RED Metrics', desc: 'Rate, Errors, Duration metrics for service health monitoring' },
+                  { name: 'Dependencies', desc: 'Service-to-service communication patterns and operation drill-down' },
+                  { name: 'Configuration', desc: 'Configure tracing settings, service filters, and operation blacklists' },
                 ].map((mode) => (
                   <div
                     key={mode.name}
@@ -1322,7 +1338,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = ({ search }) => {
                     }}
                   >
                     <div style={{ fontWeight: 'var(--font-weight-medium)', color: 'var(--color-text-primary)', marginBottom: '4px' }}>
-                      {mode.icon} {mode.name}
+                      {mode.name}
                     </div>
                     <div style={{ fontSize: 'var(--font-size-body-xs)', color: 'var(--color-text-tertiary)' }}>
                       {mode.desc}
@@ -1339,7 +1355,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = ({ search }) => {
                 color: 'var(--color-text-primary)',
                 marginBottom: 'var(--gap-sm)',
               }}>
-                🔍 Search Tips
+                Search Tips
               </h4>
               <div style={{
                 padding: 'var(--space-component-sm)',
@@ -1367,7 +1383,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = ({ search }) => {
                 color: 'var(--color-text-primary)',
                 marginBottom: 'var(--gap-sm)',
               }}>
-                ⚡ Best Practices
+                Best Practices
               </h4>
               <div style={{
                 display: 'grid',
@@ -1406,7 +1422,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = ({ search }) => {
               color: 'var(--color-text-secondary)',
             }}>
               <div style={{ fontWeight: 'var(--font-weight-bold)', color: '#3b82f6', marginBottom: '4px' }}>
-                📚 Full Documentation
+                Full Documentation
               </div>
               For comprehensive tracing guides, see <code style={{ fontFamily: 'var(--font-family-mono)' }}>docs/how_to_use_tracing_effectively.md</code>
             </div>
@@ -1422,7 +1438,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = ({ search }) => {
                 padding: 'var(--space-component-xl)',
                 color: 'var(--color-text-secondary)',
               }}>
-                <div style={{ fontSize: '32px', marginBottom: 'var(--gap-md)', opacity: 0.5 }}>🔎</div>
+                <div style={{ marginBottom: 'var(--gap-md)', opacity: 0.5 }}><Icon name="search" size={28} /></div>
                 <div>No traces found</div>
               </div>
             ) : (

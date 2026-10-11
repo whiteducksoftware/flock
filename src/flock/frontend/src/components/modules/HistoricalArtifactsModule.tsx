@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchArtifactSummary, fetchArtifacts, type ArtifactListItem, type ArtifactQueryOptions } from '../../services/api';
 import { useFilterStore } from '../../store/filterStore';
-import type { ModuleContext } from './ModuleRegistry';
 import JsonAttributeRenderer from './JsonAttributeRenderer';
 import ImageThumbnails from '../common/ImageThumbnails';
 import styles from './HistoricalArtifactsModule.module.css';
@@ -12,9 +11,6 @@ const MIN_VISIBLE_ITEMS = 8;
 
 type TimeRangeSelection = ReturnType<typeof useFilterStore.getState>['timeRange'];
 
-type HistoricalArtifactsModuleProps = {
-  context: ModuleContext;
-};
 
 // "The last N minutes" bounds the start only: artifacts stamped after the
 // browser's clock reading (another clock, a publish racing the request) still show
@@ -38,9 +34,7 @@ const resolveTimeRangeToIso = (range: TimeRangeSelection): { from?: string; to?:
   return {};
 };
 
-const HistoricalArtifactsModule: React.FC<HistoricalArtifactsModuleProps> = ({ context }) => {
-  // Context reserved for future extensions (module lifecycle expects prop)
-  void context;
+const HistoricalArtifactsModule: React.FC = () => {
   const correlationId = useFilterStore((state) => state.correlationId);
   const timeRange = useFilterStore((state) => state.timeRange);
   const selectedArtifactTypes = useFilterStore((state) => state.selectedArtifactTypes);

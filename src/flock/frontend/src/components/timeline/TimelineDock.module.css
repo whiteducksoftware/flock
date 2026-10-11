@@ -1,0 +1,206 @@
+/* The timeline dock at the bottom of the board
+   (docs/internal/design-system/mockups/Main.dc.html collapsed, Dock.dc.html expanded) */
+
+.bar {
+  flex: none;
+  height: 76px;
+  display: flex;
+  align-items: stretch;
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+}
+
+.summary {
+  flex: none;
+  width: 196px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 16px;
+  border-right: 1px solid var(--line);
+}
+
+.title {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.faint {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.middle {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 16px;
+}
+
+.actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 16px;
+  border-left: 1px solid var(--line);
+}
+
+.histogram {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.bars {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+
+.bar {
+  flex: 1 1 0;
+  min-width: 1px;
+  border-radius: 2px 2px 0 0;
+  background: var(--line-2);
+}
+
+.bar[data-in] {
+  background: var(--text-3);
+}
+
+.brush {
+  position: absolute;
+  top: -4px;
+  bottom: -2px;
+  border-left: 2px solid var(--text-2);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--text) 5%, transparent);
+  pointer-events: none;
+}
+
+.error {
+  position: absolute;
+  top: -3px;
+  bottom: -1px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--error);
+  pointer-events: none;
+}
+
+.now {
+  position: absolute;
+  right: -2px;
+  top: -6px;
+  bottom: -2px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--signal);
+  pointer-events: none;
+}
+
+.ticks {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10.5px;
+  color: var(--text-3);
+}
+
+.nowLabel {
+  color: var(--signal-ink);
+}
+
+/* Expanded */
+
+.dock {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line-2);
+  background: var(--bg);
+  box-shadow: 0 -18px 40px -24px rgba(0, 0, 0, 0.6);
+  color: var(--text);
+  font-family: var(--font-sans);
+}
+
+.head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 0 12px 0 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tabs {
+  display: flex;
+  gap: 22px;
+}
+
+.tab {
+  height: 40px;
+  padding: 0 2px;
+  margin-bottom: -1px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--text-3);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--text);
+}
+
+.tab[aria-selected='true'] {
+  color: var(--text);
+  border-bottom-color: var(--text);
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--sure);
+  outline-offset: 2px;
+}
+
+.mini {
+  flex: 1 1 0;
+  min-width: 200px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mini > :first-child {
+  flex: 1 1 0;
+}
+
+.body {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (max-width: 760px) {
+  .summary {
+    display: none;
+  }
+}

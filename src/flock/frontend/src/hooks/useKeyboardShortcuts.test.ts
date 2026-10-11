@@ -17,7 +17,7 @@ const agent = (id: string, selected = false): Node => ({ id, type: 'agent', posi
 describe('useKeyboardShortcuts: unfolding', () => {
   beforeEach(() => {
     useGraphStore.setState({ nodes: [agent('intake'), agent('triage', true)] });
-    useUIStore.setState({ unfoldedNodeId: null, focusedNodeId: null, detailWindows: new Map() });
+    useUIStore.setState({ unfoldedNodeId: null, focusedNodeId: null, dockOpen: false, detailWindows: new Map() });
     renderHook(() => useKeyboardShortcuts());
   });
 
@@ -78,6 +78,15 @@ describe('useKeyboardShortcuts: unfolding', () => {
 
     press('Escape');
     expect(useUIStore.getState().focusedNodeId).toBeNull();
+    expect(useUIStore.getState().unfoldedNodeId).toBe('intake');
+  });
+
+  it('collapses the timeline dock with Esc after focus mode, before folding', () => {
+    useUIStore.getState().unfold('intake');
+    useUIStore.getState().openDock('traces');
+
+    press('Escape');
+    expect(useUIStore.getState().dockOpen).toBe(false);
     expect(useUIStore.getState().unfoldedNodeId).toBe('intake');
   });
 
