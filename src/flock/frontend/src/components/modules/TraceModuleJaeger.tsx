@@ -30,6 +30,8 @@ interface SpanNode extends Span {
 
 interface TraceModuleJaegerProps {
   context: ModuleContext;
+  /** Start with this search, e.g. the correlation ID of a failed run */
+  search?: string;
 }
 
 interface TraceGroup {
@@ -70,14 +72,14 @@ interface DependencyEdge {
 
 type ViewMode = 'timeline' | 'statistics' | 'metrics' | 'dependencies' | 'configuration' | 'guide';
 
-const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
+const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = ({ search }) => {
   const [traces, setTraces] = useState<Span[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedTraceIds, setSelectedTraceIds] = useState<Set<string>>(new Set());
   const [expandedSpans, setExpandedSpans] = useState<Set<string>>(new Set());
   const [collapsedSpans, setCollapsedSpans] = useState<Set<string>>(new Set());
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(search ?? '');
   const [viewMode, setViewMode] = useState<ViewMode>('timeline');
   const [focusedSpanId, setFocusedSpanId] = useState<string | null>(null);
   const [expandedDeps, setExpandedDeps] = useState<Set<string>>(new Set());

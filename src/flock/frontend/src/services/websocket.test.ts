@@ -260,3 +260,53 @@ describe('WebSocketClient reconnects', () => {
     client.disconnect();
   });
 });
+
+describe('WebSocketClient run events', () => {
+  /** Hand the client one event, as the server sends it. */
+  const receive = (client: WebSocketClient, event_type: string, data: Record<string, unknown>) =>
+    (client as unknown as { handleMessage: (event: MessageEvent) => void }).handleMessage(
+      new MessageEvent('message', { data: JSON.stringify({ event_type, data, correlation_id: '', timestamp: '' }) }),
+    );
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    useGraphStore.setState({ agentStatus: new Map(), inFlight: new Map() });
+  });
+
+  afterEach(() => {
+    useGraphStore.setState(useGraphStore.getInitialState(), true);
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('knows which types are in flight to a running agent', () => {
+    vi.spyOn(useGraphStore.getState(), 'refreshCurrentView').mockResolvedValue();
+    const client = new WebSocketClient('ws://test/ws');
+
+    receive(client, 'agent_activated', { agent_name: 'billing', consumed_types: ['app.Ticket'] });
+    expect(useGraphStore.getState().inFlight.get('billing')).toEqual(['app.Ticket']);
+
+    // Another run of it goes on: still in flight
+    receive(client, 'agent_completed', { agent_name: 'billing', agent_status: 'running' });
+    expect(useGraphStore.getState().inFlight.get('billing')).toEqual(['app.Ticket']);
+
+    receive(client, 'agent_completed', { agent_name: 'billing', agent_status: 'idle' });
+    expect(useGraphStore.getState().inFlight.has('billing')).toBe(false);
+  });
+
+  it('reloads the board after a failure, which says what failed', () => {
+    const refresh = vi.spyOn(useGraphStore.getState(), 'refreshCurrentView').mockResolvedValue();
+    const client = new WebSocketClient('ws://test/ws');
+    receive(client, 'agent_activated', { agent_name: 'crm_sync', consumed_types: ['app.Reply'] });
+    vi.advanceTimersByTime(1000);
+    refresh.mockClear();
+
+    receive(client, 'agent_error', { agent_name: 'crm_sync', agent_status: 'error' });
+    vi.advanceTimersByTime(1000);
+
+    expect(useGraphStore.getState().agentStatus.get('crm_sync')).toBe('error');
+    expect(useGraphStore.getState().inFlight.has('crm_sync')).toBe(false);
+    expect(refresh).toHaveBeenCalledOnce();
+  });
+});

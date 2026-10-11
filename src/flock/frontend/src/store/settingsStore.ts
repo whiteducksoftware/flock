@@ -25,12 +25,6 @@ export interface SettingsState {
   };
 
   appearance: {
-    agentIdleColor: string;
-    agentActiveColor: string;
-    agentErrorColor: string;
-    nodeShadow: 'none' | 'small' | 'medium' | 'large';
-    showStatusPulse: boolean;
-    compactNodeView: boolean;
     theme: string;
   };
 
@@ -55,12 +49,6 @@ export interface SettingsState {
 
   // Appearance Actions
   setTheme: (theme: string) => void;
-  setAgentIdleColor: (color: string) => void;
-  setAgentActiveColor: (color: string) => void;
-  setAgentErrorColor: (color: string) => void;
-  setNodeShadow: (shadow: SettingsState['appearance']['nodeShadow']) => void;
-  setShowStatusPulse: (show: boolean) => void;
-  setCompactNodeView: (compact: boolean) => void;
 
   // Advanced Actions
   setLayoutDirection: (direction: SettingsState['advanced']['layoutDirection']) => void;
@@ -85,18 +73,12 @@ const DEFAULT_SETTINGS: Omit<SettingsState, keyof ReturnType<typeof createAction
 
   graph: {
     edgeType: 'bezier',
-    edgeStrokeWidth: 3,
+    edgeStrokeWidth: 1.5,
     edgeAnimation: true,
     showEdgeLabels: true,
   },
 
   appearance: {
-    agentIdleColor: '#60a5fa', // Blue
-    agentActiveColor: '#10b981', // Green
-    agentErrorColor: '#ef4444', // Red
-    nodeShadow: 'medium',
-    showStatusPulse: true,
-    compactNodeView: false,
     theme: 'graphite',
   },
 
@@ -136,24 +118,6 @@ const createActions = (set: any) => ({
   // Appearance Actions
   setTheme: (theme: string) =>
     set((state: SettingsState) => ({ appearance: { ...state.appearance, theme } })),
-
-  setAgentIdleColor: (color: string) =>
-    set((state: SettingsState) => ({ appearance: { ...state.appearance, agentIdleColor: color } })),
-
-  setAgentActiveColor: (color: string) =>
-    set((state: SettingsState) => ({ appearance: { ...state.appearance, agentActiveColor: color } })),
-
-  setAgentErrorColor: (color: string) =>
-    set((state: SettingsState) => ({ appearance: { ...state.appearance, agentErrorColor: color } })),
-
-  setNodeShadow: (shadow: SettingsState['appearance']['nodeShadow']) =>
-    set((state: SettingsState) => ({ appearance: { ...state.appearance, nodeShadow: shadow } })),
-
-  setShowStatusPulse: (show: boolean) =>
-    set((state: SettingsState) => ({ appearance: { ...state.appearance, showStatusPulse: show } })),
-
-  setCompactNodeView: (compact: boolean) =>
-    set((state: SettingsState) => ({ appearance: { ...state.appearance, compactNodeView: compact } })),
 
   // Advanced Actions
   setLayoutDirection: (direction: SettingsState['advanced']['layoutDirection']) =>

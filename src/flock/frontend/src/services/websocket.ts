@@ -176,6 +176,8 @@ export class WebSocketClient {
 
       // Update real-time status (fast, local)
       useGraphStore.getState().updateAgentStatus(data.agent_name, 'running');
+      // What it works on: the edges carrying these types are in flight
+      useGraphStore.getState().setInFlight(data.agent_name, data.consumed_types ?? []);
 
       // Schedule debounced refresh (batches within 500ms, then fetches backend snapshot)
       this.scheduleGraphRefresh();
@@ -264,8 +266,10 @@ export class WebSocketClient {
     this.on('agent_completed', (data) => {
       // UI Optimization Migration (Phase 2 - Spec 002): Use NEW updateAgentStatus()
       // for FAST real-time updates without backend calls
-      useGraphStore.getState().updateAgentStatus(data.agent_name, 'idle');
+      // The server's status over all of the agent's runs; older servers send none
+      useGraphStore.getState().updateAgentStatus(data.agent_name, data.agent_status ?? 'idle');
       useGraphStore.getState().updateStreamingTokens(data.agent_name, []); // Clear news ticker
+      if (data.agent_status !== 'running') useGraphStore.getState().setInFlight(data.agent_name, null);
 
       // OLD CODE REMOVED: Run status tracking (runs Map, batchUpdate)
       // Backend handles run data now
@@ -275,7 +279,10 @@ export class WebSocketClient {
     this.on('agent_error', (data) => {
       // UI Optimization Migration (Phase 2 - Spec 002): Use NEW updateAgentStatus()
       // for FAST real-time updates without backend calls
-      useGraphStore.getState().updateAgentStatus(data.agent_name, 'error');
+      useGraphStore.getState().updateAgentStatus(data.agent_name, data.agent_status ?? 'error');
+      if (data.agent_status !== 'running') useGraphStore.getState().setInFlight(data.agent_name, null);
+      // The snapshot says what failed (lastError)
+      this.scheduleGraphRefresh();
 
       // OLD CODE REMOVED: Run status tracking (runs Map, batchUpdate)
       // Backend handles run data now
@@ -438,6 +445,7 @@ export class WebSocketClient {
             agentStatus: new Map(),
             streamingTokens: new Map(),
             agentLogicOperations: new Map(),
+            inFlight: new Map(),
           });
           this.scheduleGraphRefresh();
           // The counts missed those artifacts too

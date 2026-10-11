@@ -180,29 +180,6 @@ const FAILED_COLOR = 'rgba(244, 63, 94, 0.85)';
 const NO_COLOR = 'rgba(148, 163, 184, 0.55)';
 const pct = (value: number) => `${Math.round(value * 1000) / 10}%`;
 
-export const DecisionBadge = memo(({ questions, compact }: { questions: string[]; compact: boolean }) => (
-  <span
-    aria-label="Decision agent"
-    title={`Decision agent: ${questions.join(', ')}`}
-    style={{
-      display: 'inline-flex',
-      alignItems: 'center',
-      padding: compact ? '1px 6px' : '2px 8px',
-      borderRadius: '999px',
-      background: DECISION_BG,
-      border: `1px solid ${DECISION_BORDER}`,
-      color: DECISION_TEXT,
-      fontSize: compact ? '10px' : '11px',
-      fontWeight: 700,
-      lineHeight: 1.2,
-      whiteSpace: 'nowrap',
-    }}
-  >
-    ◆ {questions[0]}{questions.length > 1 ? ` +${questions.length - 1}` : ''}
-  </span>
-));
-DecisionBadge.displayName = 'DecisionBadge';
-
 /** Thumbnail lanes of the options that have decided images. */
 const SampleLanes = memo(({ question }: { question: DeciderQuestion }) => {
   const rows = [...question.options, UNSURE].filter((option) => question.samples?.[option]?.length);

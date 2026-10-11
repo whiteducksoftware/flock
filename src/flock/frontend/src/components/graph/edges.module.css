@@ -1,0 +1,68 @@
+/* The board's edges (docs/internal/design-system/README.md, Edges) */
+
+.line {
+  fill: none;
+  stroke: var(--line-2);
+}
+
+/* An artifact on its way: amber, dashed, moving */
+.flight {
+  stroke: var(--signal);
+  stroke-dasharray: 3 7;
+  stroke-linecap: round;
+}
+
+.moving {
+  animation: edge-flow 0.9s linear infinite;
+}
+
+.unsure {
+  stroke-dasharray: 2 5;
+}
+
+.pending {
+  stroke: var(--text-3);
+  stroke-dasharray: 8 6;
+}
+
+.label {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: var(--radius-tag);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 11px;
+  white-space: nowrap;
+  pointer-events: all;
+}
+
+.dashed {
+  border-style: dashed;
+}
+
+.diamond {
+  color: var(--sure-ink);
+}
+
+.swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+@keyframes edge-flow {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .moving {
+    animation: none;
+  }
+}

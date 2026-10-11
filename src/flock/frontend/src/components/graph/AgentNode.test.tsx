@@ -1,11 +1,20 @@
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { ReactFlowProvider } from '@xyflow/react';
+import { afterEach, describe, it, expect, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { ReactFlowProvider, useStoreApi } from '@xyflow/react';
+import { useLayoutEffect } from 'react';
 import AgentNode from './AgentNode';
 import { NodeProps } from '@xyflow/react';
+import { useModuleStore } from '../../store/moduleStore';
 
 // UI Optimization Migration (Phase 4.1 - Spec 002): AgentNodeData removed, use Record<string, any>
 type AgentNodeData = Record<string, any>;
+
+/** Text split over nested elements (a colored ◆), matched on its innermost element. */
+const byText = (text: string) =>
+  screen.getByText(
+    (_, element) =>
+      element?.textContent === text && ![...(element?.children ?? [])].some((child) => child.textContent === text),
+  );
 
 describe('AgentNode', () => {
   const createNodeProps = (data: AgentNodeData, selected = false): NodeProps =>
@@ -55,8 +64,7 @@ describe('AgentNode', () => {
       </ReactFlowProvider>
     );
 
-    expect(screen.getByLabelText('OpenClaw agent')).toBeInTheDocument();
-    expect(screen.getByText('🦞 OpenClaw')).toBeInTheDocument();
+    expect(screen.getByTestId('card-tag').textContent).toBe('OpenClaw');
   });
 
   it('should render subscriptions', () => {
@@ -77,13 +85,14 @@ describe('AgentNode', () => {
     expect(screen.getByText('Tagline')).toBeInTheDocument();
   });
 
-  it('should render sent and received counts', () => {
+  it('should show each port with its count', () => {
     const data: AgentNodeData = {
       name: 'test-agent',
       status: 'idle',
-      subscriptions: [],
-      sentCount: 5,
-      recvCount: 3,
+      subscriptions: ['__main__.Movie'],
+      outputTypes: ['__main__.Tagline'],
+      receivedByType: { '__main__.Movie': 3 },
+      sentByType: { '__main__.Tagline': 5 },
     };
 
     render(
@@ -91,8 +100,9 @@ describe('AgentNode', () => {
         <AgentNode {...createNodeProps(data)} />
       </ReactFlowProvider>
     );
-    expect(screen.getByText(/↑ 5/)).toBeInTheDocument();
-    expect(screen.getByText(/↓ 3/)).toBeInTheDocument();
+    // Type names without their module path; the full one in the tooltip
+    expect(screen.getByTitle('__main__.Movie').textContent).toBe('inMovie3');
+    expect(screen.getByTitle('__main__.Tagline').textContent).toBe('outTagline5');
   });
 
   it('should render a decision agent with its options and counts', () => {
@@ -124,7 +134,7 @@ describe('AgentNode', () => {
         <AgentNode {...createNodeProps(data)} />
       </ReactFlowProvider>
     );
-    expect(screen.getByText('◆ Route')).toBeInTheDocument();
+    expect(byText('◆ Route')).toBeInTheDocument();
     expect(screen.getByText('billing')).toBeInTheDocument();
     expect(screen.getByText('41')).toBeInTheDocument();
     expect(screen.getByText('UNSURE')).toBeInTheDocument();
@@ -148,7 +158,7 @@ describe('AgentNode', () => {
         <AgentNode {...createNodeProps(data)} />
       </ReactFlowProvider>
     );
-    expect(screen.getByText('◆ Route.billing')).toBeInTheDocument();
+    expect(byText('◆ Route.billing')).toBeInTheDocument();
     expect(screen.queryByText('Decision[__main__.Route]')).not.toBeInTheDocument();
   });
 
@@ -232,7 +242,7 @@ describe('AgentNode', () => {
       </ReactFlowProvider>
     );
     // Header badge: first question plus how many more
-    expect(screen.getByText('◆ Route +2')).toBeInTheDocument();
+    expect(byText('◆ Route +2')).toBeInTheDocument();
     expect(screen.getByText('Urgent')).toBeInTheDocument();
     expect(screen.getByText('Anger')).toBeInTheDocument();
 
@@ -460,5 +470,152 @@ describe('AgentNode', () => {
       </ReactFlowProvider>
     );
     expect(screen.getByText(/1 item threshold$/)).toBeInTheDocument();
+  });
+
+  describe('states', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    const renderCard = (data: AgentNodeData) =>
+      render(
+        <ReactFlowProvider>
+          <AgentNode {...createNodeProps({ name: 'agent', status: 'idle', ...data })} />
+        </ReactFlowProvider>,
+      );
+
+    it('shows the latest tokens of a running LLM agent with a caret', () => {
+      const { container } = renderCard({ status: 'running', streamingTokens: ['we have', ' issued the refund'] });
+
+      expect(screen.getByTestId('ticker').textContent).toBe('…we have issued the refund▍');
+      expect(container.querySelector('[data-status="running"]')).not.toBeNull();
+    });
+
+    it('shows no ticker once the agent is idle again', () => {
+      renderCard({ status: 'idle', streamingTokens: ['left over'] });
+
+      expect(screen.queryByTestId('ticker')).toBeNull();
+    });
+
+    it('says what failed and opens that run in the trace viewer', () => {
+      useModuleStore.setState({ instances: new Map() });
+      renderCard({
+        status: 'error',
+        lastError: {
+          type: 'RateLimitError',
+          message: '429 Too Many Requests',
+          at: '2026-10-11T13:20:44Z',
+          correlationId: 'c-123',
+        },
+      });
+      const time = new Date('2026-10-11T13:20:44Z').toLocaleTimeString([], { hour12: false });
+
+      fireEvent.click(screen.getByRole('button', { name: `RateLimitError · ${time}` }));
+
+      const [viewer] = [...useModuleStore.getState().instances.values()];
+      expect(viewer).toMatchObject({ type: 'traceViewerJaeger', search: 'c-123' });
+    });
+
+    it('says only that it failed when the server does not say why', () => {
+      renderCard({ status: 'error' });
+
+      expect(screen.getByText('Failed')).toBeTruthy();
+      expect(screen.queryByRole('button')).toBeNull();
+    });
+
+    it('shows a scheduled agent\'s schedule, next run, run number and last run', () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-10-11T12:00:00Z'));
+      const { container } = renderCard({
+        scheduleSpec: { type: 'cron', cron: '0 9 * * 1-5' },
+        timerState: {
+          iteration: 14,
+          last_fire_time: '2026-10-10T13:00:00Z',
+          next_fire_time: '2026-10-12T04:34:00Z',
+          is_active: true,
+          is_completed: false,
+          is_stopped: false,
+        },
+      });
+
+      expect(screen.getByTestId('card-tag').textContent).toBe('0 9 * * 1-5');
+      expect(container.textContent).toContain('next in 16 h 34 m');
+      expect(container.textContent).toContain('run 14 · last 23 h ago');
+    });
+
+    it('labels an AND gate and a join, and shows the open join', () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-10-11T12:00:36Z'));
+      renderCard({
+        subscriptionGroups: [['app.TeamReply', 'app.CustomerScore']],
+        receivedByType: { 'app.TeamReply': 1 },
+        logicOperations: [
+          {
+            subscription_index: 0,
+            subscription_types: ['app.TeamReply', 'app.CustomerScore'],
+            join: { window_type: 'time', window_value: 60, window_unit: 'seconds' },
+            waiting_state: {
+              is_waiting: true,
+              correlation_groups: [
+                {
+                  correlation_key: "('9c34',)",
+                  created_at: '2026-10-11T12:00:00Z',
+                  collected_types: { 'app.TeamReply': 1 },
+                  required_types: { 'app.TeamReply': 1, 'app.CustomerScore': 1 },
+                  is_complete: false,
+                  is_expired: false,
+                },
+              ],
+            },
+          },
+        ],
+      });
+
+      expect(screen.getByTitle('app.CustomerScore').textContent).toBe('joinCustomerScore0');
+      expect(screen.getByTestId('join-wait').textContent).toBe('9c340:24');
+    });
+
+    it('shows a batch being collected, one cell per item', () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-10-11T12:00:19Z'));
+      renderCard({
+        logicOperations: [
+          {
+            subscription_index: 0,
+            subscription_types: ['app.TeamReply'],
+            batch: { strategy: 'hybrid', size: 5, timeout_seconds: 60 },
+            waiting_state: {
+              is_waiting: true,
+              batch_state: { created_at: '2026-10-11T12:00:00Z', items_collected: 3, items_target: 5, timeout_seconds: 60 },
+            },
+          },
+        ],
+      });
+
+      const batch = screen.getByTestId('batch-wait');
+      expect(batch.textContent).toBe('batch 3 / 5or in 0:41');
+      expect(batch.querySelectorAll('.hatch')).toHaveLength(2);
+    });
+  });
+
+  it('shows a chip when the board is zoomed out', () => {
+    const ZoomedOut = ({ children }: { children: React.ReactNode }) => {
+      const store = useStoreApi();
+      useLayoutEffect(() => {
+        store.setState({ transform: [0, 0, 0.4] });
+      }, [store]);
+      return <>{children}</>;
+    };
+
+    const { container } = render(
+      <ReactFlowProvider>
+        <ZoomedOut>
+          <AgentNode {...createNodeProps({ name: 'tech_support', status: 'idle', recvCount: 1, subscriptions: ['app.Ticket'] })} />
+        </ZoomedOut>
+      </ReactFlowProvider>,
+    );
+
+    expect(container.textContent).toBe('tech_support1');
+    expect(screen.queryByTitle('app.Ticket')).toBeNull();
   });
 });
