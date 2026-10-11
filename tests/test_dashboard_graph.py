@@ -590,6 +590,74 @@ async def test_agent_cards_get_the_tag_of_their_engine():
     assert tags["external"] == "source"
 
 
+async def test_agent_cards_get_their_description_and_model():
+    from pydantic import BaseModel
+
+    from flock.components.agent import EngineComponent
+    from flock.decisions import Choice, FakeDecider
+    from flock.engines import DSPyEngine
+    from flock.registry import flock_type
+
+    @flock_type(name="ModelCardTicket")
+    class ModelCardTicket(BaseModel):
+        text: str
+
+    @flock_type(name="ModelCardReply")
+    class ModelCardReply(BaseModel):
+        text: str
+
+    class ModelCardRoute(Choice):
+        """Which team?"""
+
+        billing = "Charges"
+        tech = "Bugs"
+
+    class ScriptedEngine(EngineComponent):
+        pass
+
+    orchestrator = Flock("openai/gpt-4.1")
+    orchestrator.agent("writer").description("Writes replies").consumes(
+        ModelCardTicket
+    ).publishes(ModelCardReply)
+    orchestrator.agent("tuned").consumes(ModelCardTicket).publishes(
+        ModelCardReply
+    ).with_engines(DSPyEngine(model="azure/gpt-4.1-mini"))
+    orchestrator.agent("unset").consumes(ModelCardTicket).publishes(
+        ModelCardReply
+    ).with_engines(DSPyEngine())
+    orchestrator.agent("scripted").consumes(ModelCardTicket).publishes(
+        ModelCardReply
+    ).with_engines(ScriptedEngine())
+    orchestrator.agent("triage").consumes(ModelCardTicket).decides(
+        ModelCardRoute, model=FakeDecider({"billing": 0.9, "tech": 0.1})
+    )
+    await orchestrator.store.publish(
+        Artifact(
+            type="ModelCardTicket",
+            payload={"text": "hi"},
+            produced_by="external",
+            visibility=PublicVisibility(),
+        )
+    )
+
+    collector = DashboardEventCollector(store=orchestrator.store)
+    await collector.load_persistent_snapshots()
+    assembler = GraphAssembler(orchestrator.store, collector, orchestrator)
+    snapshot = await assembler.build_snapshot(GraphRequest(view_mode="agent"))
+    data = {node.id: node.data for node in snapshot.nodes}
+
+    assert data["writer"]["description"] == "Writes replies"
+    assert data["tuned"]["description"] is None
+    # No engine of its own, or an engine without a model: the flock's model
+    assert data["writer"]["model"] == "openai/gpt-4.1"
+    assert data["unset"]["model"] == "openai/gpt-4.1"
+    assert data["tuned"]["model"] == "azure/gpt-4.1-mini"
+    # An engine that names no model, and a decider (its decision model is in its decider info)
+    assert data["scripted"]["model"] is None
+    assert data["triage"]["model"] is None
+    assert data["triage"]["decision"]["model"]
+
+
 def test_engines_label_themselves():
     from flock.engines import DSPyEngine
     from flock.integrations.openclaw.engine import OpenClawEngine

@@ -379,6 +379,8 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 "engineKind": "openclaw" if is_openclaw_agent else "native",
                 "isOpenClawAgent": is_openclaw_agent,
                 "engineTag": self._engine_tag(agent),
+                "description": agent.description,
+                "model": self._model(agent),
             }
             if node_data["status"] == "error":
                 node_data["lastError"] = self._last_error(
@@ -546,6 +548,23 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             kind = getattr(type(engine), "kind", None)
             if kind:
                 return kind
+        return None
+
+    @staticmethod
+    def _model(agent: object) -> str | None:
+        """The model the agent's engine runs on, for its card.
+
+        An agent without engines runs on the default DSPy engine with the
+        flock's model, and so does an engine whose ``model`` is unset. An
+        engine without a ``model`` attribute (a decider's, a scripted one)
+        names none.
+        """
+        engines = getattr(agent, "engines", None) or []
+        if not engines:
+            return getattr(agent, "model", None)
+        for engine in engines:
+            if hasattr(engine, "model"):
+                return engine.model or getattr(agent, "model", None)
         return None
 
     @staticmethod
