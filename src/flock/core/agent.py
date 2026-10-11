@@ -721,13 +721,15 @@ class AgentBuilder:
             )
             if (
                 batch is not None
+                or mode == "direct"
                 or not choice_refs
                 or any(ref.choice is not aggregator.question for ref in choice_refs)
             ):
                 raise ValueError(
-                    f"Agent '{self._agent.name}': .aggregates() adds one decision "
-                    "at a time; add only handle subscriptions of "
-                    f"{aggregator.question.__name__} without batch=."
+                    f"Agent '{self._agent.name}': .aggregates() adds one published "
+                    "decision at a time; add only handle subscriptions of "
+                    f"{aggregator.question.__name__}, without batch= and not "
+                    "direct-only."
                 )
         # Semantic matching: pass semantic_match parameter to Subscription
         # which will parse it into TextPredicate objects
@@ -1154,6 +1156,12 @@ class AgentBuilder:
             raise ValueError(
                 f"Agent '{self._agent.name}': .aggregates() adds one decision at "
                 "a time; batch subscriptions are not supported."
+            )
+        if any(not s.accepts_events() for s in self._agent.subscriptions):
+            raise ValueError(
+                f"Agent '{self._agent.name}': .aggregates() is driven by published "
+                "decisions; direct-only subscriptions (mode='direct') cannot "
+                "trigger it."
             )
         if combine not in COMBINES:
             raise ValueError(
