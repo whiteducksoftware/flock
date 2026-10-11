@@ -347,3 +347,34 @@ Verdant Rail                  2   39   52   9         30   82/91
 
 Coverage 'shown': precision 0.79, recall 1.00; 110 controls still unsure
 ```
+
+## 12_long_documents.py
+
+Builds one security manual per organisation from the compliance documents and checks each manual against the 100 controls twice: as a whole and in sections of at most 800 characters. The report compares both with the ground truth and lists, for one manual, which section showed each control.
+
+**Key Concepts:**
+- `.decides(Controls, sections=Sections(field="text", max_chars=MAX_CHARS))`
+- `decision.sections`: `field`, `spans` and `answered_by` per item
+- Sections cost one request each; on documents that fit, the whole is more precise
+
+**Run:**
+```bash
+# AZURE_API_BASE and AZURE_API_KEY set
+uv run examples/15-decisions/12_long_documents.py
+```
+
+**What You'll See (2026-10-11, Microsoft-Decision-1):**
+```
+decider    requests   yes    no    ?  precision  recall
+whole            12   269   826  105       0.87    0.98
+sectioned        51   320   765  115       0.74    1.00
+
+Brightwater Logistics: 4093 characters in 7 sections
+  section 1 [0:162] 'Information Security Policy'
+      shows -
+  section 2 [164:847] '1. Governance'
+      shows gov_01, gov_03, gov_06, gov_07, gov_08, dev_01
+  ...
+  section 7 [3340:4093] '4. Access control'
+      shows acc_02, acc_05, acc_06, acc_07, acc_10, acc_11, ops_02
+```
