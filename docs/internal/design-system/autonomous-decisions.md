@@ -69,6 +69,8 @@ Each entry says what was decided, why, and where it landed.
 - **The error row opens the existing trace viewer module** on the run's correlation ID (`ModuleInstance.search`) until the Traces tab (#561) and the timeline dock (#564) replace it.
 - **"In flight" means:** the edge's target agent is running and consumed that type (`consumed_types` of `agent_activated`). The edge animation setting now means "animate edges in flight"; the global always-on animation is gone.
 - **A subscription that needs a type several times** (`.consumes(A, A, A)`) shows one row with `×3`.
+- **Decision handles about the same subject read `AND`** (`pager`: `Route.tech AND Urgent.yes`), although they correlate like a join under the hood; `JOIN` is kept for joins by a key.
+- **The demo does not record traces,** so the error row's trace viewer opens empty there; the link carries the run's correlation ID.
 - **The chip shows the received count** as its one count.
 - **Join keys:**
   - shown without the tuple quoting;
