@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
 import {
+  boundOf,
   TimeRange,
   CorrelationIdMetadata,
   FilterFacets,
@@ -69,14 +70,14 @@ export const formatTimeRange = (range: TimeRange): string => {
   if (range.preset === 'last10min') return 'Last 10 min';
   if (range.preset === 'last1hour') return 'Last hour';
   if (range.preset === 'all') return 'All time';
-  if (range.preset === 'custom' && range.start && range.end) {
-    const startDate = new Date(range.start).toLocaleString();
-    const endDate = new Date(range.end).toLocaleString();
-    return `${startDate} - ${endDate}`;
-  }
-  // A range brushed up to now has a start only
-  if (range.preset === 'custom' && range.start) return `Since ${new Date(range.start).toLocaleString()}`;
   if (range.preset === 'custom') {
+    const start = boundOf(range.start);
+    const end = boundOf(range.end);
+    if (start !== undefined && end !== undefined) {
+      return `${new Date(start).toLocaleString()} - ${new Date(end).toLocaleString()}`;
+    }
+    // A range brushed up to now has a start only
+    if (start !== undefined) return `Since ${new Date(start).toLocaleString()}`;
     return 'Custom range';
   }
   return 'Last 10 min';

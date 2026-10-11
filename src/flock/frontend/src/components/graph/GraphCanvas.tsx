@@ -11,6 +11,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import AgentNode, { openTrace } from './AgentNode';
+import { useDockViewport } from './useDockViewport';
 import CanvasDock from './CanvasDock';
 import FocusStage from './focus/FocusStage';
 import MessageNode from './MessageNode';
@@ -48,6 +49,7 @@ const GraphCanvas: React.FC = () => {
   const mode = useUIStore((state) => state.mode);
   // With the timeline dock expanded the board is a strip of chips: no dock or minimap on it
   const dockOpen = useUIStore((state) => state.dockOpen);
+  useDockViewport(dockOpen);
   const openDetailWindow = useUIStore((state) => state.openDetailWindow);
   const autoLayoutEnabled = useUIStore((state) => state.autoLayoutEnabled);
   const setAutoLayoutEnabled = useUIStore((state) => state.setAutoLayoutEnabled);
