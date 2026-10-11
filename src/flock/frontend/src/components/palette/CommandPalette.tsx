@@ -29,6 +29,14 @@ const toFlow = () => {
 
 const setMode = (mode: VisualizationMode) => useUIStore.getState().setMode(mode);
 
+/** The time range widens to all time for a run that started before it, so its artifacts show. */
+const holdRun = (firstSeen: number) => {
+  const { preset, start } = useFilterStore.getState().timeRange;
+  const minutes = { last5min: 5, last10min: 10, last1hour: 60 }[preset as string];
+  const from = preset === 'custom' ? start : minutes !== undefined ? Date.now() - minutes * 60_000 : undefined;
+  if (from !== undefined && firstSeen < from) useFilterStore.getState().setTimeRange({ preset: 'all' });
+};
+
 /** The palette's commands, bound to the dashboard's stores */
 const commandsFor = (onShowShortcuts: () => void): PaletteCommands => ({
   showAgent: (name) => {
@@ -51,8 +59,12 @@ const commandsFor = (onShowShortcuts: () => void): PaletteCommands => ({
     useUIStore.getState().setPublishType(name);
     useSettingsStore.getState().setShowControls(true);
   },
-  filterRun: (correlationId) => useFilterStore.getState().setCorrelationId(correlationId),
-  showLane: (correlationId) => {
+  filterRun: (correlationId, firstSeen) => {
+    holdRun(firstSeen);
+    useFilterStore.getState().setCorrelationId(correlationId);
+  },
+  showLane: (correlationId, firstSeen) => {
+    holdRun(firstSeen);
     useFilterStore.getState().setCorrelationId(correlationId);
     useUIStore.getState().setBlackboardView('lanes');
     // Its lane shows whether or not it needs a review

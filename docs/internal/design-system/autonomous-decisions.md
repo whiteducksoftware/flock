@@ -218,3 +218,6 @@ Each entry says what was decided, why, and where it landed.
 - **Unfold and Focus wait for their agent like Show** (review), and **the newest request wins** (review): a command still waiting for the Flow's board is dropped when another comes.
 - **"running" next to an agent comes from the runs going on** (review): `/api/agents` reports ready or waiting, never running.
 - **Ctrl+K does not open the palette over the keyboard shortcuts** (review); the shortcuts dialog becomes a real modal in #569.
+- **A run from before the time range widens it to all time** when the palette filters by it or shows its lane (review); a run inside the range keeps it.
+- **Leaving the Flow drops what still waits for it** (review): a Show from the Blackboard abandoned by switching back does not select the agent on a later visit.
+- **Show its lane turns "Needs review only" off** and **the palette gives the focus back before an action opens another overlay** (review).

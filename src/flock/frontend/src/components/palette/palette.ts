@@ -43,8 +43,9 @@ export interface PaletteCommands {
   focusAgent: (name: string) => void;
   filterType: (name: string) => void;
   publishType: (name: string) => void;
-  filterRun: (correlationId: string) => void;
-  showLane: (correlationId: string) => void;
+  /** A run by its correlation ID, with when it started (the time range has to hold it) */
+  filterRun: (correlationId: string, firstSeen: number) => void;
+  showLane: (correlationId: string, firstSeen: number) => void;
   setMode: (mode: VisualizationMode) => void;
   publish: () => void;
   settings: () => void;
@@ -209,8 +210,8 @@ export function buildItems(ctx: PaletteContext): PaletteItem[] {
       )}`,
       keywords: [run.correlation_id],
       actions: [
-        { label: 'Filter by run', run: () => act.filterRun(run.correlation_id) },
-        { label: 'Show its lane', run: () => act.showLane(run.correlation_id) },
+        { label: 'Filter by run', run: () => act.filterRun(run.correlation_id, run.first_seen) },
+        { label: 'Show its lane', run: () => act.showLane(run.correlation_id, run.first_seen) },
       ],
     }));
 

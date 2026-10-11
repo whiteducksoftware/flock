@@ -7,7 +7,7 @@
  */
 
 import { useGraphStore } from '../../store/graphStore';
-import type { AutoLayoutMode } from '../../store/uiStore';
+import { type AutoLayoutMode, useUIStore } from '../../store/uiStore';
 import { AUTO_LAYOUT_DEBOUNCE_MS } from './autoLayoutTrigger';
 
 export interface CanvasCommands {
@@ -37,6 +37,12 @@ function newRequest(): void {
     waitingTimer = null;
   }
 }
+
+// Leaving the Flow drops what still waits for it: a later visit shows nothing on
+// its own (React's strict-mode remounts keep the view, and what waits)
+useUIStore.subscribe((state, previous) => {
+  if (previous.mode === 'agent' && state.mode !== 'agent') newRequest();
+});
 
 /**
  * Registers the mounted canvas; returns its unregister. `settleMs`: how long a

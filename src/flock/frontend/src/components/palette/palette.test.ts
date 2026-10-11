@@ -117,7 +117,7 @@ describe('buildItems', () => {
     const run = find(items, '4e7b1c2d');
     expect(run.actions.map((action) => action.label)).toEqual(['Filter by run', 'Show its lane']);
     run.actions[0]!.run();
-    expect(ctx.do.filterRun).toHaveBeenCalledWith('4e7b1c2d-0000-4000-8000-000000000000');
+    expect(ctx.do.filterRun).toHaveBeenCalledWith('4e7b1c2d-0000-4000-8000-000000000000', 1_000);
   });
 
   it('has a command for every action of the header and both docks', () => {

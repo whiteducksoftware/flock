@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Node } from '@xyflow/react';
 import { useGraphStore } from '../../store/graphStore';
+import { useUIStore } from '../../store/uiStore';
 import { type CanvasCommands, registerCanvas, whenOnBoard, withAgent, withCanvas } from './canvasCommands';
 
 const commands = (): CanvasCommands => ({
@@ -71,6 +72,25 @@ describe('canvasCommands', () => {
 
     expect(vi.mocked(canvas.show).mock.calls).toEqual([['urgency']]);
     unregister();
+  });
+
+  it('drops what waits for the Flow when the view leaves it', () => {
+    vi.useFakeTimers();
+    useUIStore.setState({ mode: 'agent' });
+    withCanvas((c) => c.show('triage'));
+    const canvas = commands();
+    const unregister = registerCanvas(canvas, 600);
+
+    // Back to the Blackboard before the board settled: the Flow unmounts
+    useUIStore.getState().setMode('blackboard');
+    unregister();
+    // A later visit to the Flow shows nothing on its own
+    useUIStore.getState().setMode('agent');
+    const later = registerCanvas(canvas, 600);
+    vi.advanceTimersByTime(1000);
+
+    expect(canvas.show).not.toHaveBeenCalled();
+    later();
   });
 
   it('forgets an unmounted canvas, and a newer one wins', () => {

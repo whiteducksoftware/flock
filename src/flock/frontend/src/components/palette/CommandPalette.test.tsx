@@ -171,6 +171,38 @@ describe('CommandPalette', () => {
     opener.remove();
   });
 
+  it('keeps the time range for a run inside it', () => {
+    useFilterStore.setState({
+      timeRange: { preset: 'last10min' },
+      availableCorrelationIds: [
+        { correlation_id: '4e7b1c2d-0000-4000-8000-000000000000', first_seen: Date.now() - 3_600_000, artifact_count: 5, run_count: 3 },
+        { correlation_id: 'b20c9a8e-0000-4000-8000-000000000000', first_seen: Date.now() - 60_000, artifact_count: 2, run_count: 1 },
+      ],
+    });
+    render(<CommandPalette onShowShortcuts={() => {}} />);
+
+    // A recent run keeps the time range
+    fireEvent.change(input(), { target: { value: 'b20c' } });
+    key('Enter');
+    expect(useFilterStore.getState().timeRange.preset).toBe('last10min');
+  });
+
+  it('shows the lane of a run from before the time range', () => {
+    useFilterStore.setState({
+      timeRange: { preset: 'last10min' },
+      availableCorrelationIds: [
+        { correlation_id: '4e7b1c2d-0000-4000-8000-000000000000', first_seen: Date.now() - 3_600_000, artifact_count: 5, run_count: 3 },
+      ],
+    });
+    render(<CommandPalette onShowShortcuts={() => {}} />);
+
+    fireEvent.change(input(), { target: { value: '4e7b' } });
+    key('Enter', { shiftKey: true });
+
+    expect(useFilterStore.getState().correlationId).toBe('4e7b1c2d-0000-4000-8000-000000000000');
+    expect(useFilterStore.getState().timeRange.preset).toBe('all');
+  });
+
   it('says when nothing matches', () => {
     render(<CommandPalette onShowShortcuts={() => {}} />);
 
