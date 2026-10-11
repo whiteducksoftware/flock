@@ -642,7 +642,11 @@ describe('MessageNode', () => {
               items: ['mfa', 'backup'],
               results: { mfa: 'yes', backup: 'UNSURE' },
               refusedItems: [],
-              votes: [{ model: 'a', results: { mfa: 'yes', backup: 'no' } }],
+              votes: [
+                { model: 'a', results: { mfa: 'yes', backup: 'no' } },
+                { model: 'b', results: { mfa: 'yes', backup: 'UNSURE' } },
+                { model: 'c', results: { mfa: 'UNSURE', backup: 'UNSURE' } },
+              ],
               confidence: null,
               threshold: 0.9,
               model: 'a + b',
@@ -654,7 +658,10 @@ describe('MessageNode', () => {
         />
       </ReactFlowProvider>
     );
-    expect(screen.getByTestId('decision-vote')).toHaveTextContent('a · 1 yes · 1 no');
+    const votes = screen.getAllByTestId('decision-vote');
+    expect(votes[0]).toHaveTextContent('a · 1 yes · 1 no');
+    // a contradicts the result for backup, b matches every item, c gave no firm answer
+    expect(votes.map((v) => v.getAttribute('data-vote'))).toEqual(['differs', 'agrees', 'unsure']);
   });
 });
 

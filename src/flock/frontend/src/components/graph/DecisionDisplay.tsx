@@ -817,6 +817,13 @@ const VOTE_STYLE: Record<VoteState, { background: string; color: string; title: 
   unsure: { background: '#f5f5f4', color: '#78716c', title: 'No vote: below the threshold or refused' },
 };
 
+function checklistVoteState(vote: Record<string, string>, results: Record<string, string>): VoteState {
+  const items = Object.entries(vote);
+  if (items.every(([item, result]) => results[item] === result)) return 'agrees';
+  // A firm item answer that differs from the decision's result did not carry
+  return items.some(([item, result]) => result !== UNSURE && results[item] !== result) ? 'differs' : 'unsure';
+}
+
 function voteState(vote: EscalationAttempt, choice: string, threshold: number | null): VoteState {
   if (vote.refused || !vote.choice) return 'unsure';
   const p = vote.probabilities?.[vote.choice] ?? vote.confidence;
@@ -826,18 +833,28 @@ function voteState(vote: EscalationAttempt, choice: string, threshold: number | 
 
 /** Ensemble: every model's vote, colored by how it relates to the decision. */
 const EnsembleVotes = memo(
-  ({ votes, choice, threshold }: { votes: EscalationAttempt[]; choice: string; threshold: number | null }) => (
+  ({
+    votes,
+    choice,
+    threshold,
+    results,
+  }: {
+    votes: EscalationAttempt[];
+    choice: string;
+    threshold: number | null;
+    results?: Record<string, string>;
+  }) => (
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px', fontSize: '10px', fontFamily: 'monospace' }}>
       {votes.map((vote, index) => {
-        // Checklist votes hold one result per item; they are shown neutral
-        const state = vote.results ? 'agrees' : voteState(vote, choice, threshold);
+        // Checklist votes hold one result per item, compared item by item
+        const state = vote.results ? checklistVoteState(vote.results, results ?? {}) : voteState(vote, choice, threshold);
         const style = VOTE_STYLE[state];
         return (
           <span
             key={index}
             data-testid="decision-vote"
-            data-vote={vote.results ? undefined : state}
-            title={vote.results ? undefined : style.title}
+            data-vote={state}
+            title={style.title}
             style={{ padding: '1px 6px', borderRadius: '999px', background: style.background, color: style.color, fontWeight: 600 }}
           >
             {`${vote.model} · ${voteLabel(vote)}`}
@@ -1062,7 +1079,7 @@ export const DecisionBars = memo(({ decision }: { decision: DecisionInfo }) => {
           <ChoiceBars decision={decision} />
         </>
       )}
-      {decision.votes && decision.votes.length > 0 && <EnsembleVotes votes={decision.votes} choice={decision.choice} threshold={decision.threshold} />}
+      {decision.votes && decision.votes.length > 0 && <EnsembleVotes votes={decision.votes} choice={decision.choice} threshold={decision.threshold} results={decision.results} />}
       {decision.shadow && <ShadowRow shadow={decision.shadow} choice={decision.choice} />}
       {decision.attempts && decision.attempts.length > 0 && (
         <EscalationTrail attempts={decision.attempts} model={decision.model} tier={decision.tier ?? decision.attempts.length} />
