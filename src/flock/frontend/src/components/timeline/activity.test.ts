@@ -27,7 +27,7 @@ describe('brushOf', () => {
 describe('rangeFromBrush', () => {
   const bucket = MIN;
 
-  it('gives the preset a brush to now of its length is, so both make the same filter', () => {
+  it('calls a brush to now as long as a preset that preset, so both make the same filter', () => {
     expect(rangeFromBrush(now - 10 * MIN, now, now, bucket)).toEqual({ preset: 'last10min' });
     expect(rangeFromBrush(now - 5 * MIN - 20_000, now - 10_000, now, bucket)).toEqual({ preset: 'last5min' });
     expect(rangeFromBrush(now - 60 * MIN, now, now, bucket)).toEqual({ preset: 'last1hour' });

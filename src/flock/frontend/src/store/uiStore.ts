@@ -90,12 +90,13 @@ export const useUIStore = create<UIState>()(
         dockOpen: false,
         dockTab: 'traces',
         traceSearch: '',
+        // The expanded dock and the focus stage each need the board's room: one closes the other
         openDock: (tab: DockTab, traceSearch?: string) =>
-          set((state) => ({ dockOpen: true, dockTab: tab, traceSearch: traceSearch ?? state.traceSearch })),
+          set((state) => ({ dockOpen: true, dockTab: tab, traceSearch: traceSearch ?? state.traceSearch, focusedNodeId: null })),
         closeDock: () => set({ dockOpen: false }),
 
         focusedNodeId: null,
-        focus: (nodeId: string) => set({ focusedNodeId: nodeId }),
+        focus: (nodeId: string) => set({ focusedNodeId: nodeId, dockOpen: false }),
         unfocus: () => set({ focusedNodeId: null }),
 
         detailWindows: new Map(),
