@@ -6,7 +6,7 @@ import functools
 import json
 import os
 from collections.abc import Iterable, Mapping, Sequence
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, field_serializer
@@ -262,6 +262,7 @@ class DSPyEngine(EngineComponent):
     normalization logic.
     """
 
+    kind: ClassVar[str | None] = "LLM"
     name: str | None = "dspy"
     model: str | None = None
     instructions: str | None = None

@@ -366,6 +366,7 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 "logicOperations": logic_operations,  # Phase 1.2
                 "engineKind": "openclaw" if is_openclaw_agent else "native",
                 "isOpenClawAgent": is_openclaw_agent,
+                "engineTag": self._engine_tag(agent),
             }
 
             # Decision agents and choice subscribers
@@ -442,6 +443,8 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 ),  # Phase 1.2: From snapshot
                 "engineKind": "openclaw" if is_openclaw_agent else "unknown",
                 "isOpenClawAgent": is_openclaw_agent,
+                # A snapshot does not keep the engines, only the OpenClaw label
+                "engineTag": "OpenClaw" if is_openclaw_agent else None,
             }
 
             nodes.append(
@@ -477,6 +480,8 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 "signature": None,
                 "engineKind": "unknown",
                 "isOpenClawAgent": False,
+                # Publishes without being an agent, such as "external"
+                "engineTag": "source" if produced and not consumed else None,
             }
 
             nodes.append(
@@ -491,6 +496,23 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             existing_names.add(name)
 
         return nodes
+
+    @staticmethod
+    def _engine_tag(agent: object) -> str | None:
+        """The label of the agent's engine for its card (``EngineComponent.kind``).
+
+        An agent without engines runs on the default DSPy engine.
+        """
+        engines = getattr(agent, "engines", None) or []
+        if not engines:
+            from flock.engines import DSPyEngine
+
+            return DSPyEngine.kind
+        for engine in engines:
+            kind = getattr(type(engine), "kind", None)
+            if kind:
+                return kind
+        return None
 
     @staticmethod
     def _is_openclaw_agent(agent: object) -> bool:

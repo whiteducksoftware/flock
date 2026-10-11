@@ -72,6 +72,22 @@ def test_the_demo_has_a_scheduled_agent(demo):
     assert digest.schedule_spec is not None
 
 
+async def test_the_demo_tags_its_reply_agents_as_llms(demo):
+    from flock.api.collector import DashboardEventCollector
+    from flock.api.graph_builder import GraphAssembler
+    from flock.components.server.models.graph import GraphRequest
+
+    flock = demo.build_flock()
+    collector = DashboardEventCollector(store=flock.store)
+    snapshot = await GraphAssembler(flock.store, collector, flock).build_snapshot(
+        GraphRequest(view_mode="agent")
+    )
+    tags = {node.id: node.data["engineTag"] for node in snapshot.nodes}
+
+    assert tags["billing_team"] == "LLM"
+    assert tags["triage"] is None  # a decider
+
+
 def test_the_demo_can_run_for_hours(demo):
     from flock.core.context_provider import DefaultContextProvider, EmptyContextProvider
 

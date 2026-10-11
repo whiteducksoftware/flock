@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING, ClassVar, Self
 
 from pydantic import BaseModel, Field, create_model
 from pydantic._internal._model_construction import ModelMetaclass
@@ -101,6 +101,10 @@ class AgentComponent(BaseModel, metaclass=TracedModelMeta):
 
 class EngineComponent(AgentComponent):
     """Base class for engine components with built-in conversation context support."""
+
+    # The engine's short label on its agent's card in the dashboard ("LLM");
+    # a subclass sets it as `kind = "..."`, and None shows no tag
+    kind: ClassVar[str | None] = None
 
     # Configuration for context fetching
     enable_context: bool = Field(
