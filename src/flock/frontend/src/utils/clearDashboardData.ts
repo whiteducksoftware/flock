@@ -17,6 +17,9 @@ export async function clearDashboardData(
   reload: () => void = () => window.location.reload(),
   onBlocked?: () => void,
 ): Promise<void> {
+  await indexedDBService.deleteDatabase(onBlocked);
+
+  // Cleared only once the database is gone; a failure leaves the dashboard as it was
   useGraphStore.setState({
     events: [],
     nodes: [],
@@ -26,8 +29,6 @@ export async function clearDashboardData(
     streamingTokens: new Map(),
   });
   useModuleStore.getState().instances.clear();
-
-  await indexedDBService.deleteDatabase(onBlocked);
   for (const store of [useFilterStore, useSettingsStore, useUIStore, useModuleStore]) {
     store.persist.clearStorage();
   }

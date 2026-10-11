@@ -1,6 +1,7 @@
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { indexedDBService } from '../services/indexeddb';
+import { useGraphStore } from '../store/graphStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { clearDashboardData } from './clearDashboardData';
 
@@ -50,6 +51,19 @@ describe('clearDashboardData', () => {
     expect(localStorage.getItem('another-app-key')).toBe('kept');
   });
 
+  it('is not blocked by its own connections when the dashboard opened the database again', async () => {
+    // Every mount of the saved filters initializes the database
+    await Promise.all([indexedDBService.initialize(), indexedDBService.initialize()]);
+    await indexedDBService.initialize();
+    const onBlocked = vi.fn();
+    const reload = vi.fn();
+
+    await clearDashboardData(reload, onBlocked);
+
+    expect(onBlocked).not.toHaveBeenCalled();
+    expect(reload).toHaveBeenCalledOnce();
+  });
+
   it('stops and says so when the database cannot be deleted', async () => {
     vi.spyOn(indexedDB, 'deleteDatabase').mockImplementation(() => {
       const request = {} as IDBOpenDBRequest;
@@ -61,9 +75,14 @@ describe('clearDashboardData', () => {
     });
     const reload = vi.fn();
 
+    const node = { id: 'triage', type: 'agent', position: { x: 0, y: 0 }, data: {} };
+    useGraphStore.setState({ nodes: [node] as never });
+
     await expect(clearDashboardData(reload)).rejects.toThrow('disk full');
 
     expect(reload).not.toHaveBeenCalled();
+    // The dashboard stays as it was
+    expect(useGraphStore.getState().nodes).toHaveLength(1);
     expect(localStorage.getItem('flock-flow-settings')).not.toBeNull();
   });
 

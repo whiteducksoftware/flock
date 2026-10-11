@@ -150,11 +150,14 @@ export class IndexedDBService {
   db: IDBDatabase | null = null;
   private inMemoryStore: Map<string, Map<string, any>> = new Map();
   private available = false;
+  // The one connection's opening, shared by every initialize() call
+  private opening: Promise<void> | null = null;
 
   /** Close the connection, for example before the database is deleted. */
   close(): void {
     this.db?.close();
     this.db = null;
+    this.opening = null;
   }
 
   /**
@@ -174,9 +177,18 @@ export class IndexedDBService {
   }
 
   /**
-   * Initialize database with schema and indexes
+   * Initialize database with schema and indexes. The service keeps one
+   * connection: later and concurrent calls share it.
    */
-  async initialize(): Promise<void> {
+  initialize(): Promise<void> {
+    this.opening ??= this.open().catch((error) => {
+      this.opening = null;
+      throw error;
+    });
+    return this.opening;
+  }
+
+  private async open(): Promise<void> {
     // Check if IndexedDB is available
     if (typeof indexedDB === 'undefined') {
       console.warn('[IndexedDB] IndexedDB not available, using in-memory fallback');
