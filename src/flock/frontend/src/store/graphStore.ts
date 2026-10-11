@@ -5,6 +5,7 @@ import { GraphSnapshot, GraphStatistics, GraphRequest, AgentLogicOperations } fr
 import { fetchGraphSnapshot, mergeNodePositions, overlayWebSocketState } from '../services/graphService';
 import { useFilterStore } from './filterStore';
 import { Message } from '../types/graph';
+import { boundOf } from '../types/filters';
 import { indexedDBService } from '../services/indexeddb';
 
 /**
@@ -96,11 +97,13 @@ function convertTimeRange(range: { preset: string; start?: number; end?: number 
     preset: range.preset as any,
   };
 
-  if (range.start !== undefined) {
-    result.start = new Date(range.start).toISOString();
+  const start = boundOf(range.start);
+  const end = boundOf(range.end);
+  if (start !== undefined) {
+    result.start = new Date(start).toISOString();
   }
-  if (range.end !== undefined) {
-    result.end = new Date(range.end).toISOString();
+  if (end !== undefined) {
+    result.end = new Date(end).toISOString();
   }
 
   return result;

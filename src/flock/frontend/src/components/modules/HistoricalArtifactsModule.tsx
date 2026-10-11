@@ -2,6 +2,7 @@ import { shortTypeName } from '../../utils/typeName';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchArtifactSummary, fetchArtifacts, type ArtifactListItem, type ArtifactQueryOptions } from '../../services/api';
 import { useFilterStore } from '../../store/filterStore';
+import { boundOf } from '../../types/filters';
 import JsonAttributeRenderer from './JsonAttributeRenderer';
 import ImageThumbnails from '../common/ImageThumbnails';
 import styles from './HistoricalArtifactsModule.module.css';
@@ -28,9 +29,11 @@ const resolveTimeRangeToIso = (range: TimeRangeSelection): { from?: string; to?:
   }
   if (range.preset === 'custom') {
     // Each bound on its own: a range brushed up to now has a start only
+    const start = boundOf(range.start);
+    const end = boundOf(range.end);
     return {
-      ...(range.start !== undefined && { from: new Date(range.start).toISOString() }),
-      ...(range.end !== undefined && { to: new Date(range.end).toISOString() }),
+      ...(start !== undefined && { from: new Date(start).toISOString() }),
+      ...(end !== undefined && { to: new Date(end).toISOString() }),
     };
   }
   return {};

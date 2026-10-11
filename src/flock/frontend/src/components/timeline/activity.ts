@@ -4,7 +4,7 @@
  * (docs/internal/design-system/README.md, Layout).
  */
 
-import type { TimeRange } from '../../types/filters';
+import { boundOf, type TimeRange } from '../../types/filters';
 
 const MINUTE = 60_000;
 
@@ -23,7 +23,8 @@ const PRESETS: { preset: TimeRange['preset']; ms: number }[] = [
 /** The last hour, reaching further back when a custom range starts earlier. */
 export function domainOf(range: TimeRange, now: number): Domain {
   const hour = now - 60 * MINUTE;
-  const start = range.preset === 'custom' && range.start !== undefined ? Math.min(range.start, hour) : hour;
+  const custom = range.preset === 'custom' ? boundOf(range.start) : undefined;
+  const start = custom !== undefined ? Math.min(custom, hour) : hour;
   return { start, end: now };
 }
 
@@ -33,8 +34,10 @@ export function brushOf(range: TimeRange, domain: Domain, now: number): { from: 
   const share = (at: number) => Math.min(1, Math.max(0, (at - domain.start) / span));
   const preset = PRESETS.find((entry) => entry.preset === range.preset);
   if (preset) return { from: share(now - preset.ms), to: 1 };
-  if (range.preset === 'custom' && range.start !== undefined) {
-    return { from: share(range.start), to: range.end === undefined ? 1 : share(range.end) };
+  const start = boundOf(range.start);
+  if (range.preset === 'custom' && start !== undefined) {
+    const end = boundOf(range.end);
+    return { from: share(start), to: end === undefined ? 1 : share(end) };
   }
   return { from: 0, to: 1 };
 }

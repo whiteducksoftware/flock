@@ -92,6 +92,18 @@ describe('TimeRangeFilter', () => {
     });
   });
 
+  it('keeps the range when a date field is cleared, so it never holds an invalid time', () => {
+    vi.mocked(useFilterStore).mockImplementation((selector: any) =>
+      selector({ timeRange: { preset: 'custom', start: Date.now() - 3600000, end: Date.now() }, setTimeRange: mockSetTimeRange }),
+    );
+    render(<TimeRangeFilter />);
+
+    fireEvent.change(screen.getByLabelText(/Start/i), { target: { value: '' } });
+    fireEvent.change(screen.getByLabelText(/End/i), { target: { value: '' } });
+
+    expect(mockSetTimeRange).not.toHaveBeenCalled();
+  });
+
   it('should display current custom range values in inputs', () => {
     const now = Date.now();
     const start = now - 3600000;

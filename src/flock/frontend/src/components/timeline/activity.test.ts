@@ -69,3 +69,16 @@ describe('histogramUrl', () => {
     );
   });
 });
+
+describe('a stored range with a broken bound', () => {
+  const none = { correlationId: null, selectedArtifactTypes: [], selectedProducers: [], selectedTags: [], selectedVisibility: [] };
+
+  it('reads it as no bound, so nothing throws (an older dashboard stored NaN, which is null after a reload)', () => {
+    for (const start of [NaN, null as unknown as number]) {
+      const domain = domainOf({ preset: 'custom', start }, now);
+      expect(domain.start).toBe(now - 60 * MIN);
+      expect(() => histogramUrl(domain, 60, none)).not.toThrow();
+      expect(brushOf({ preset: 'custom', start }, domain, now)).toEqual({ from: 0, to: 1 });
+    }
+  });
+});

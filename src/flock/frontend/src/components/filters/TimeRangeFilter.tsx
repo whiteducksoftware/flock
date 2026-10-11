@@ -24,8 +24,10 @@ const TimeRangeFilter: React.FC<TimeRangeFilterProps> = ({ onPreset }) => {
     onPreset?.(preset);
   };
 
+  // A cleared or half-typed field is no time: the range keeps its bound
   const handleStartChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const start = new Date(e.target.value).getTime();
+    if (!Number.isFinite(start)) return;
     setTimeRange({
       preset: 'custom',
       start,
@@ -35,6 +37,7 @@ const TimeRangeFilter: React.FC<TimeRangeFilterProps> = ({ onPreset }) => {
 
   const handleEndChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const end = new Date(e.target.value).getTime();
+    if (!Number.isFinite(end)) return;
     setTimeRange({
       preset: 'custom',
       start: timeRange.start || Date.now() - 3600000,

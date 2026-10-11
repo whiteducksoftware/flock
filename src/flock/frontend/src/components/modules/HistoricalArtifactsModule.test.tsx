@@ -29,6 +29,17 @@ describe('HistoricalArtifactsModule', () => {
     }
   );
 
+  it('leaves out a broken bound instead of failing', async () => {
+    useFilterStore.setState({ timeRange: { preset: 'custom', start: NaN, end: null as unknown as number } });
+
+    render(<HistoricalArtifactsModule />);
+
+    await waitFor(() => expect(fetchArtifacts).toHaveBeenCalled());
+    const options = vi.mocked(fetchArtifacts).mock.calls[0]![0]!;
+    expect(options.from).toBeUndefined();
+    expect(options.to).toBeUndefined();
+  });
+
   it('asks a range brushed up to now from its start, without an end', async () => {
     const start = Date.parse('2026-10-11T12:00:00Z');
     useFilterStore.setState({ timeRange: { preset: 'custom', start } });
