@@ -134,7 +134,7 @@ For detailed configuration options, see:
 Every agent run reports the tokens its models used and what they cost:
 
 - **LLM agents:** the DSPy engine records the usage LiteLLM reports for every request of a run, also when it streams.
-- **Decision agents:** each request to a decision model counts its input tokens once, whatever the number of questions in it, including escalation tiers, votes, sections and the shadow. Decision models generate no text, so they have no output tokens.
+- **Decision agents:** each request to a decision model counts its input tokens once, whatever the number of questions in it, including escalation tiers, votes, sections and the shadow. A shadow request cancelled at `shadow_timeout` returns no usage and is not counted. Decision models generate no text, so they have no output tokens.
 
 The run's metrics (`ctx.state["metrics"]`, the dashboard's Run Status, `AgentCompletedEvent.metrics`) carry:
 
