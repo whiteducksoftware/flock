@@ -628,6 +628,66 @@ describe('MessageNode', () => {
     expect(shadow).toHaveAttribute('title', 'TimeoutError: no reply');
   });
 
+  it('should show an explanation as text instead of JSON', () => {
+    render(
+      <ReactFlowProvider>
+        <MessageNode
+          {...createNodeProps({
+            artifactType: 'flock.decisions.explain.Explanation',
+            payload: { explanation: 'Both a crash and a charge.' },
+            producedBy: 'explainer',
+            consumedBy: [],
+            timestamp: Date.now(),
+            explanation: {
+              explanation: 'Both a crash and a charge.',
+              missing: 'Which came first.',
+              model: 'openai/gpt-4.1',
+              questions: ['Route'],
+            },
+          })}
+        />
+      </ReactFlowProvider>
+    );
+    const card = screen.getByTestId('explanation-card');
+    expect(card).toHaveTextContent('Explains Route');
+    expect(card).toHaveTextContent('Both a crash and a charge.');
+    expect(card).toHaveTextContent('Would settle it: Which came first.');
+    expect(card).toHaveTextContent('openai/gpt-4.1');
+  });
+
+  it('should show the explanation of a decision on its card', () => {
+    render(
+      <ReactFlowProvider>
+        <MessageNode
+          {...createNodeProps(
+            decisionNode({
+              question: 'Route',
+              kind: 'choice',
+              choice: 'UNSURE',
+              bestGuess: 'billing',
+              probabilities: { billing: 0.55, tech: 0.45 },
+              explanation: {
+                explanation: 'Both a crash and a charge.',
+                missing: 'Which came first.',
+                model: 'openai/gpt-4.1',
+                by: 'explainer',
+              },
+              confidence: 0.55,
+              threshold: 0.8,
+              model: 'fast',
+              latencyMs: 100,
+              score: null,
+              refused: false,
+            })
+          )}
+        />
+      </ReactFlowProvider>
+    );
+    const note = screen.getByTestId('decision-explanation');
+    expect(note).toHaveTextContent('explainer: Both a crash and a charge.');
+    expect(note).toHaveAttribute('title', expect.stringContaining('Which came first.'));
+  });
+
   it('should summarize the checklist votes of an ensemble', () => {
     render(
       <ReactFlowProvider>

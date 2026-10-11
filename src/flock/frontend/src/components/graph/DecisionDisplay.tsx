@@ -105,6 +105,7 @@ export interface DecisionInfo {
   attempts?: EscalationAttempt[]; // lower tiers that were not sure, oldest first
   votes?: EscalationAttempt[]; // ensemble: every model's answer, in model order
   shadow?: ShadowAnswer; // shadow mode: what the shadow model decided (never routed)
+  explanation?: { explanation: string; missing?: string | null; model: string; by?: string | null }; // latest LLM explanation
   confidence: number | null;
   threshold: number | null;
   model: string;
@@ -895,6 +896,54 @@ const ShadowRow = memo(({ shadow, choice }: { shadow: ShadowAnswer; choice: stri
 });
 ShadowRow.displayName = 'ShadowRow';
 
+export interface ExplanationInfo {
+  explanation: string;
+  missing?: string | null;
+  model: string;
+  questions: string[];
+}
+
+const NOTE_STYLE = { fontSize: '11px', color: '#44403c', lineHeight: 1.4 } as const;
+
+/** An Explanation artifact: the LLM's text instead of JSON. */
+export const ExplanationCard = memo(({ explanation }: { explanation: ExplanationInfo }) => (
+  <div data-testid="explanation-card" style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '10px', maxWidth: '420px' }}>
+    <div style={{ fontSize: '12px', fontWeight: 700, color: VIOLET_TEXT }}>
+      {`💬 Explains ${explanation.questions.join(', ') || 'a decision'}`}
+    </div>
+    <div style={NOTE_STYLE}>{explanation.explanation}</div>
+    {explanation.missing ? (
+      <div style={{ ...NOTE_STYLE, color: '#b45309' }}>{`Would settle it: ${explanation.missing}`}</div>
+    ) : null}
+    <div style={{ fontSize: '10px', color: STONE, fontFamily: 'monospace' }}>{explanation.model}</div>
+  </div>
+));
+ExplanationCard.displayName = 'ExplanationCard';
+
+/** The latest explanation of a decision, shown on the decision's card. */
+const ExplanationNote = memo(({ explanation }: { explanation: NonNullable<DecisionInfo['explanation']> }) => (
+  <div
+    data-testid="decision-explanation"
+    title={[explanation.explanation, explanation.missing ? `Would settle it: ${explanation.missing}` : '', explanation.model]
+      .filter(Boolean)
+      .join('\n\n')}
+    style={{
+      ...NOTE_STYLE,
+      maxWidth: '420px',
+      padding: '4px 8px',
+      borderLeft: `3px solid ${DECISION_COLOR}`,
+      background: '#f5f3ff',
+      display: '-webkit-box',
+      WebkitLineClamp: 3,
+      WebkitBoxOrient: 'vertical',
+      overflow: 'hidden',
+    }}
+  >
+    {`💬 ${explanation.by ?? explanation.model}: ${explanation.explanation}`}
+  </div>
+));
+ExplanationNote.displayName = 'ExplanationNote';
+
 /** Escalation: the lower tiers that were not sure, then the model that answered. */
 const EscalationTrail = memo(({ attempts, model, tier }: { attempts: EscalationAttempt[]; model: string; tier: number }) => (
   <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px', fontSize: '10px', fontFamily: 'monospace' }}>
@@ -1081,6 +1130,7 @@ export const DecisionBars = memo(({ decision }: { decision: DecisionInfo }) => {
       )}
       {decision.votes && decision.votes.length > 0 && <EnsembleVotes votes={decision.votes} choice={decision.choice} threshold={decision.threshold} results={decision.results} />}
       {decision.shadow && <ShadowRow shadow={decision.shadow} choice={decision.choice} />}
+      {decision.explanation && <ExplanationNote explanation={decision.explanation} />}
       {decision.attempts && decision.attempts.length > 0 && (
         <EscalationTrail attempts={decision.attempts} model={decision.model} tier={decision.tier ?? decision.attempts.length} />
       )}
