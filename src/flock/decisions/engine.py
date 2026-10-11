@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import json
 import time
 from collections import Counter
@@ -94,6 +93,25 @@ def _trivial_answer(candidates: dict[str, str]) -> DecisionAnswer:
 
 
 logger = get_logger(__name__)
+
+# Seconds a cancelled shadow gets to stop before the decision moves on
+SHADOW_STOP_GRACE = 1.0
+# Shadows that ignored cancellation, referenced until they end
+_ABANDONED_SHADOWS: set[asyncio.Task[Any]] = set()
+
+
+async def _stop_shadow(task: asyncio.Task[Any], label: str) -> None:
+    """Cancel ``task`` and wait for it at most ``SHADOW_STOP_GRACE`` seconds."""
+    task.cancel()
+    done, _ = await asyncio.wait({task}, timeout=SHADOW_STOP_GRACE)
+    if not done:
+        logger.warning(
+            f"Shadow decision model '{label}' ignored its cancellation; "
+            "the decision does not wait for it"
+        )
+        _ABANDONED_SHADOWS.add(task)
+        task.add_done_callback(_ABANDONED_SHADOWS.discard)
+
 
 VOTES = ("majority", "unanimous", "mean")
 
@@ -250,19 +268,20 @@ class DecisionEngine(EngineComponent):
             )
         except BaseException:
             if shadowed is not None:
-                shadowed.cancel()
-                # Wait until the shadow has stopped, not only asked it to
-                with contextlib.suppress(asyncio.CancelledError):
-                    await shadowed
+                assert self.shadow is not None
+                await _stop_shadow(shadowed, self.shadow.label)
             raise
         latency_ms = round((time.perf_counter() - started) * 1000, 3)
         shadow = None
         if shadowed is not None:
-            try:
-                shadow = await asyncio.wait_for(shadowed, self.shadow_timeout)
-            except TimeoutError:  # wait_for has cancelled the shadow
+            assert self.shadow is not None
+            done, _ = await asyncio.wait({shadowed}, timeout=self.shadow_timeout)
+            if done:
+                shadow = shadowed.result()
+            else:
                 shadow = f"TimeoutError: no answer within {self.shadow_timeout:g} s"
                 logger.warning(f"Shadow decision model '{self.shadow.label}': {shadow}")
+                await _stop_shadow(shadowed, self.shadow.label)
 
         subject_ids = [str(a.id) for a in inputs.artifacts]
         artifacts = []

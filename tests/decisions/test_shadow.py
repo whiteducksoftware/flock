@@ -214,6 +214,43 @@ async def test_a_slow_shadow_times_out_without_holding_the_decision():
     assert events == ["shadow stopped"]
 
 
+class _StubbornShadow(FakeDecider):
+    """Ignores the first cancellation, as a careless custom provider might."""
+
+    def __init__(self, release: asyncio.Event):
+        super().__init__({"billing": 0.5, "tech": 0.5}, label="candidate")
+        self.release = release
+
+    async def decide_many(self, state, questions, images=()):
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            await self.release.wait()  # swallows the cancellation
+        return await super().decide_many(state, questions, images)
+
+
+async def test_a_shadow_that_ignores_cancellation_cannot_hold_the_decision(
+    monkeypatch,
+):
+    monkeypatch.setattr("flock.decisions.engine.SHADOW_STOP_GRACE", 0.05)
+    release = asyncio.Event()
+    flock = Flock()
+    flock.agent("triage").consumes(ShadowTicket).decides(
+        ShadowRoute,
+        model=_route(0.95, "live"),
+        shadow=_StubbornShadow(release),
+        shadow_timeout=0.05,
+    )
+
+    await flock.publish(ShadowTicket(text="charged twice"))
+    await asyncio.wait_for(flock.run_until_idle(), timeout=5)
+
+    (decision,) = await _decisions(flock, ShadowRoute)
+    assert decision["choice"] == "billing"
+    assert "no answer within 0.05 s" in decision["shadow"]["error"]
+    release.set()  # let the abandoned shadow end
+
+
 def test_the_shadow_timeout_must_be_positive():
     with pytest.raises(ValueError, match="shadow_timeout"):
         Flock().agent("x").consumes(ShadowTicket).decides(
