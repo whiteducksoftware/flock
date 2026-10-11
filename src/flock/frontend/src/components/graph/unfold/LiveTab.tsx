@@ -12,8 +12,8 @@ export interface StreamEvent {
   is_final: boolean;
 }
 
-const same = (a: StreamEvent, b: StreamEvent) =>
-  a.run_id === b.run_id && a.sequence === b.sequence && a.output_type === b.output_type && a.content === b.content;
+/** An event's identity: the same run, place, kind and content. */
+const keyOf = (event: StreamEvent) => JSON.stringify([event.run_id, event.sequence, event.output_type, event.content]);
 
 /** The tab shows at most this much of the latest output. */
 export const MAX_LIVE_CHARS = 100_000;
@@ -75,7 +75,9 @@ const LiveTab: React.FC<{ agent: string; running: boolean }> = ({ agent, running
         const history = data.events ?? [];
         const pending = early ?? [];
         early = null;
-        setText(streamText([...history, ...pending.filter((event) => !history.some((known) => same(known, event)))]));
+        // One lookup per live event, however long the history (it can hold 100,000s)
+        const known = new Set(history.map(keyOf));
+        setText(streamText([...history, ...pending.filter((event) => !known.has(keyOf(event)))]));
       });
 
     return () => {

@@ -7,6 +7,7 @@
 import React, { useId, useState } from 'react';
 import { useUIStore } from '../../../store/uiStore';
 import { Icon } from '../../icons/Icon';
+import { nextTab } from '../tabKeys';
 import type { AgentData, PortRow } from '../card/cardModel';
 import type { AggregatorInfo, DeciderInfo } from '../DecisionDisplay';
 import { useAgentRuns } from './agentRuns';
@@ -136,8 +137,21 @@ const UnfoldedAgent: React.FC<UnfoldedAgentProps> = ({
             id={`${tabIds}-${key}`}
             aria-selected={tab === key}
             aria-controls={`${tabIds}-panel`}
+            // Only the selected tab is in the Tab order; the arrows move between them
+            tabIndex={tab === key ? 0 : -1}
             className={styles.tab}
             onClick={() => setTab(key)}
+            onKeyDown={(event) => {
+              const next = nextTab(
+                TABS.map((entry) => entry.key),
+                tab,
+                event.key,
+              );
+              if (!next) return;
+              event.preventDefault();
+              setTab(next);
+              document.getElementById(`${tabIds}-${next}`)?.focus();
+            }}
           >
             {label}
             {/* The space is for the tab's name ("History 15"); the flex gap spaces the look */}

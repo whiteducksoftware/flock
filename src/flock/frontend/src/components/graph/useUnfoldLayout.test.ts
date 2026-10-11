@@ -138,6 +138,8 @@ describe('useUnfoldLayout', () => {
   it('folds without moving anything when the node leaves the board', () => {
     render();
     act(() => useUIStore.getState().unfold('triage'));
+    // A layout came due meanwhile; it goes with the board it was due for
+    layoutDue.current = true;
     const blackboard = [card('artifact-1', 10, 10)];
 
     act(() => useGraphStore.setState({ nodes: blackboard }));
@@ -146,5 +148,6 @@ describe('useUnfoldLayout', () => {
     expect(useGraphStore.getState().nodes).toEqual(blackboard);
     expect(useGraphStore.getState().transientPositions).toBeNull();
     expect(relayout).not.toHaveBeenCalled();
+    expect(layoutDue.current).toBe(false);
   });
 });

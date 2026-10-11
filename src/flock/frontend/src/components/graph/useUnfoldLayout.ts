@@ -46,7 +46,11 @@ export function useUnfoldLayout(options: UnfoldLayoutOptions): void {
       const restore = before.current;
       before.current = null;
       setTransientPositions(null);
-      if (!restore) return;
+      if (!restore) {
+        // Nothing to put back (the node left the board): a layout due goes with that board
+        if (latest.current.layoutDue) latest.current.layoutDue.current = false;
+        return;
+      }
       // A layout that came due runs now; otherwise every node goes back, and one that came meanwhile stays
       const due = latest.current.layoutDue;
       if (!due?.current) {
@@ -88,6 +92,7 @@ export function useUnfoldLayout(options: UnfoldLayoutOptions): void {
         if (id === null || state.nodes.some((node) => node.id === id)) return;
         stop.current();
         before.current = null;
+        if (latest.current.layoutDue) latest.current.layoutDue.current = false;
         if (state.transientPositions) state.setTransientPositions(null);
         useUIStore.getState().fold();
       }),

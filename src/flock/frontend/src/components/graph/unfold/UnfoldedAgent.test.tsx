@@ -171,6 +171,26 @@ describe('UnfoldedAgent', () => {
     useUIStore.setState({ focusedNodeId: null });
   });
 
+  it('moves between tabs with the arrow keys, Home and End', () => {
+    renderAgent();
+    const overview = screen.getByRole('tab', { name: 'Overview' });
+    // One tab in the Tab order: the selected one
+    expect(screen.getAllByRole('tab').map((tab) => tab.tabIndex)).toEqual([0, -1, -1, -1, -1]);
+
+    fireEvent.keyDown(overview, { key: 'ArrowRight' });
+    expect(screen.getByRole('tab', { name: 'Live' }).getAttribute('aria-selected')).toBe('true');
+    expect(document.activeElement).toBe(screen.getByRole('tab', { name: 'Live' }));
+
+    fireEvent.keyDown(document.activeElement!, { key: 'End' });
+    expect(screen.getByRole('tab', { name: 'Traces' }).getAttribute('aria-selected')).toBe('true');
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowRight' });
+    expect(screen.getByRole('tab', { name: 'Overview' }).getAttribute('aria-selected')).toBe('true');
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowLeft' });
+    expect(screen.getByRole('tab', { name: 'Traces' }).getAttribute('aria-selected')).toBe('true');
+    fireEvent.keyDown(document.activeElement!, { key: 'Home' });
+    expect(screen.getByRole('tab', { name: 'Overview' }).getAttribute('aria-selected')).toBe('true');
+  });
+
   it('lists the runs with their result, tokens and cost', async () => {
     renderAgent();
     fireEvent.click(screen.getByRole('tab', { name: /Runs/ }));
