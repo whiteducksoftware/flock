@@ -1,6 +1,6 @@
 # Flock dashboard design system: "Unfold"
 
-The design for the dashboard rework, approved on 2026-10-11. It is built on the `ui-rework` branch; `main` keeps the current dashboard until the rework is complete. For the rework it supersedes `src/flock/frontend/docs/DESIGN_SYSTEM.md`, which still describes the dashboard on `main`.
+The design for the dashboard rework, approved on 2026-10-11. It is built on the `ui-rework` branch; `main` keeps the current dashboard until the rework is complete. The work is split into the issues of the epic [#557](https://github.com/whiteducksoftware/flock/issues/557) (#558–#569); each gets a branch from `ui-rework` and a PR into `ui-rework`. For the rework it supersedes `src/flock/frontend/docs/DESIGN_SYSTEM.md`, which still describes the dashboard on `main`.
 
 - **Tokens:** [`tokens.css`](tokens.css), both themes, ready to drop into `src/flock/frontend/src/styles/`.
 - **Mockups:** [`mockups/`](mockups/), the sources of the eight artboards of the design canvas (see [Mockups](#mockups)). Exact paddings, sizes and copy come from there.
