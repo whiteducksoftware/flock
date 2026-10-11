@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any, Optional
 
 from pydantic import PrivateAttr
 
+from flock.api.thumbnails import compact, image_summaries
 from flock.components.agent import AgentComponent
 from flock.components.server.models.events import (
     AgentActivatedEvent,
@@ -284,7 +285,9 @@ class DashboardEventCollector(AgentComponent):
             artifact_id=str(artifact.id),
             artifact_type=artifact.type,
             produced_by=artifact.produced_by,
-            payload=artifact.payload,
+            # Every client gets this event: images as description and thumbnails
+            payload=compact(artifact.payload),
+            images=image_summaries(artifact.payload) or None,
             visibility=visibility_spec,
             tags=list(artifact.tags) if artifact.tags else [],
             partition_key=artifact.partition_key,

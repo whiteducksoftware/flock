@@ -9,6 +9,7 @@ import duckdb
 from fastapi import HTTPException
 from pydantic import Field
 
+from flock.api.thumbnails import compact, image_summaries
 from flock.api.websocket import WebSocketManager
 from flock.components.server.base import ServerComponent, ServerComponentConfig
 from flock.core.store import FilterConfig
@@ -415,7 +416,8 @@ class TracingComponent(ServerComponent):
                         "id": str(artifact.id),
                         "type": artifact.type,
                         "direction": "published",
-                        "payload": artifact.payload,
+                        "payload": compact(artifact.payload),
+                        "images": image_summaries(artifact.payload) or None,
                         "timestamp": artifact.created_at.isoformat(),
                         "correlation_id": str(artifact.correlation_id)
                         if artifact.correlation_id
@@ -435,7 +437,8 @@ class TracingComponent(ServerComponent):
                         "id": str(envelope.artifact.id),
                         "type": envelope.artifact.type,
                         "direction": "consumed",
-                        "payload": envelope.artifact.payload,
+                        "payload": compact(envelope.artifact.payload),
+                        "images": image_summaries(envelope.artifact.payload) or None,
                         "timestamp": envelope.artifact.created_at.isoformat(),
                         "correlation_id": str(envelope.artifact.correlation_id)
                         if envelope.artifact.correlation_id

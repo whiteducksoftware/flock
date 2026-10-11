@@ -7,8 +7,9 @@ from uuid import uuid4
 from fastapi import HTTPException
 from pydantic import BaseModel, Field, ValidationError
 
-from flock.api.graph_builder import GraphAssembler
 from flock.api import image_uploads
+from flock.api.graph_builder import GraphAssembler
+from flock.api.thumbnails import compact, image_summaries
 from flock.api.websocket import WebSocketManager
 from flock.components.server.base import ServerComponent, ServerComponentConfig
 from flock.components.server.models.events import MessagePublishedEvent, VisibilitySpec
@@ -300,7 +301,8 @@ class ControlRoutesComponent(ServerComponent):
                     artifact_id=str(artifact.id),
                     artifact_type=artifact.type,
                     produced_by=artifact.produced_by,  # Will be "orchestrator" or similar for non-agent publishers
-                    payload=artifact.payload,
+                    payload=compact(artifact.payload),  # images as description
+                    images=image_summaries(artifact.payload) or None,
                     visibility=VisibilitySpec(
                         kind="Public"
                     ),  # Dashboard-published artifacts are public by default

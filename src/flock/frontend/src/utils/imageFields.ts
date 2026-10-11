@@ -79,3 +79,17 @@ export async function fileToImageUrl(file: File, maxSide: number = MAX_SIDE): Pr
     return original;
   }
 }
+
+/** Small preview of an image in a payload, as the server sends it with images=thumbnails. */
+export interface ImageSummary {
+  path: string; // e.g. "picture" or "album.pages[1]"
+  mime: string;
+  bytes: number;
+  thumb: string; // data URL, at most 160 px
+}
+
+/** The value at a path such as "album.pages[1]" (as image summaries name them). */
+export function valueAtPath(payload: any, path: string): any {
+  const steps = path.match(/[^.[\]]+/g) ?? [];
+  return steps.reduce((value, step) => (value == null ? undefined : value[step]), payload);
+}

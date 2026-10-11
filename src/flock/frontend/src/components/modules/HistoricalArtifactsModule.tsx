@@ -3,6 +3,7 @@ import { fetchArtifactSummary, fetchArtifacts, type ArtifactListItem, type Artif
 import { useFilterStore } from '../../store/filterStore';
 import type { ModuleContext } from './ModuleRegistry';
 import JsonAttributeRenderer from './JsonAttributeRenderer';
+import ImageThumbnails from '../common/ImageThumbnails';
 import styles from './HistoricalArtifactsModule.module.css';
 
 const PAGE_SIZE = 100;
@@ -95,6 +96,7 @@ const HistoricalArtifactsModule: React.FC<HistoricalArtifactsModuleProps> = ({ c
         limit: PAGE_SIZE,
         offset,
         embedMeta: true,
+        images: 'thumbnails', // full images are loaded when opened
       };
     },
     [timeRange, selectedArtifactTypes, selectedProducers, selectedTags, selectedVisibility, correlationId]
@@ -413,6 +415,9 @@ const HistoricalArtifactsModule: React.FC<HistoricalArtifactsModuleProps> = ({ c
                 </div>
                 <div className={styles.detailSection}>
                   <h4>Payload</h4>
+                  {selectedArtifact.images && (
+                    <ImageThumbnails artifactId={selectedArtifact.id} images={selectedArtifact.images} />
+                  )}
                   <JsonAttributeRenderer
                     value={JSON.stringify(selectedArtifact.payload, null, 2)}
                     maxStringLength={Number.POSITIVE_INFINITY}

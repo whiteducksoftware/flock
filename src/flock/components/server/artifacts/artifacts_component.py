@@ -3,7 +3,7 @@
 import json
 from dataclasses import replace
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, Query
@@ -12,6 +12,7 @@ from starlette.datastructures import UploadFile as StarletteUploadFile
 from starlette.requests import Request
 
 from flock.api import image_uploads
+from flock.api.thumbnails import compact, image_summaries
 from flock.components.server.artifacts.models import (
     ArtifactListResponse,
     ArtifactPublishRequest,
@@ -65,12 +66,17 @@ class ArtifactsComponent(ServerComponent):
     priority: int = Field(default=1, description="Registration priority. Default = 1")
 
     def _serialize_artifact(
-        self, artifact, consumptions: list[ConsumptionRecord] | None = None
+        self,
+        artifact,
+        consumptions: list[ConsumptionRecord] | None = None,
+        *,
+        thumbnails: bool = False,
     ) -> dict[str, Any]:
         data = {
             "id": str(artifact.id),
             "type": artifact.type,
-            "payload": artifact.payload,
+            # With thumbnails, image data becomes a description plus small previews
+            "payload": compact(artifact.payload) if thumbnails else artifact.payload,
             "produced_by": artifact.produced_by,
             "visibility": artifact.visibility.model_dump(mode="json"),
             "visibility_kind": getattr(artifact.visibility, "kind", "Unknown"),
@@ -82,6 +88,8 @@ class ArtifactsComponent(ServerComponent):
             "tags": sorted(artifact.tags),
             "version": artifact.version,
         }
+        if thumbnails and (images := image_summaries(artifact.payload)):
+            data["images"] = images
         if consumptions is not None:
             data["consumptions"] = [
                 {
@@ -407,7 +415,13 @@ class ArtifactsComponent(ServerComponent):
             limit: int = Query(50, ge=1, le=500),
             offset: int = Query(0, ge=0),
             embed_meta: bool = Query(False, alias="embed_meta"),
+            images: Literal["full", "thumbnails"] = Query("full"),
         ) -> ArtifactListResponse:
+            def serialize(artifact, consumptions=None):
+                return self._serialize_artifact(
+                    artifact, consumptions, thumbnails=images == "thumbnails"
+                )
+
             filters = self._make_filter_config(
                 type_names=type_names,
                 produced_by=produced_by,
@@ -429,12 +443,10 @@ class ArtifactsComponent(ServerComponent):
                 for artifact in artifacts:
                     if isinstance(artifact, ArtifactEnvelope):
                         items.append(
-                            self._serialize_artifact(
-                                artifact.artifact, artifact.consumptions
-                            )
+                            serialize(artifact.artifact, artifact.consumptions)
                         )
                     else:
-                        items.append(self._serialize_artifact(artifact))
+                        items.append(serialize(artifact))
                 return ArtifactListResponse(
                     items=items,
                     pagination={"limit": limit, "offset": offset, "total": total},
@@ -480,11 +492,9 @@ class ArtifactsComponent(ServerComponent):
                 items: list[dict[str, Any]] = []
                 for item in paged_slice:
                     if isinstance(item, ArtifactEnvelope):
-                        items.append(
-                            self._serialize_artifact(item.artifact, item.consumptions)
-                        )
+                        items.append(serialize(item.artifact, item.consumptions))
                     else:
-                        items.append(self._serialize_artifact(item))
+                        items.append(serialize(item))
                 return ArtifactListResponse(
                     items=items,
                     pagination={
@@ -513,13 +523,9 @@ class ArtifactsComponent(ServerComponent):
             items = []
             for artifact in paged_slice:
                 if isinstance(artifact, ArtifactEnvelope):
-                    items.append(
-                        self._serialize_artifact(
-                            artifact.artifact, artifact.consumptions
-                        )
-                    )
+                    items.append(serialize(artifact.artifact, artifact.consumptions))
                 else:
-                    items.append(self._serialize_artifact(artifact))
+                    items.append(serialize(artifact))
 
             return ArtifactListResponse(
                 items=items,
@@ -612,7 +618,11 @@ class ArtifactsComponent(ServerComponent):
             self._join_path(self.config.prefix, "artifacts/{artifact_id}"),
             tags=self.config.tags,
         )
-        async def get_artifact(artifact_id: UUID, request: Request) -> dict[str, Any]:
+        async def get_artifact(
+            artifact_id: UUID,
+            request: Request,
+            images: Literal["full", "thumbnails"] = Query("full"),
+        ) -> dict[str, Any]:
             artifact = await orchestrator.store.get(artifact_id)
             if artifact is None:
                 raise HTTPException(status_code=404, detail="artifact not found")
@@ -625,4 +635,4 @@ class ArtifactsComponent(ServerComponent):
                 )
                 if not allowed:
                     raise HTTPException(status_code=404, detail="artifact not found")
-            return self._serialize_artifact(artifact)
+            return self._serialize_artifact(artifact, thumbnails=images == "thumbnails")
