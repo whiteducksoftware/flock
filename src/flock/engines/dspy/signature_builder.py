@@ -298,6 +298,11 @@ class DSPySignatureBuilder:
                 field_name = self._pluralize(field_name)
                 output_type = list[output_schema]
 
+                # Same collision rule as single outputs: a list of the input
+                # type (tasks) must not replace the input list
+                if field_name in used_field_names:
+                    field_name = f"output_{field_name}"
+
                 # Create description with count or range hint
                 if fan_out_range is not None and not fan_out_range.is_fixed():
                     desc = (

@@ -695,6 +695,44 @@ class TestMultiInputAndBatching:
         assert input_fields["tasks"].annotation == list[Task]
 
     @pytest.mark.asyncio
+    async def test_a_fan_out_of_the_input_type_does_not_replace_the_input_list(self):
+        """.consumes(Task, Task).publishes(Task, fan_out=2): the output list is
+        output_tasks, so both lists reach the model and the answer is found."""
+        from types import SimpleNamespace
+
+        import dspy
+
+        engine = DSPyEngine(model="gpt-4")
+        mock_agent = Mock()
+        mock_agent.name = "test_agent"
+        mock_agent.description = "Split two tasks"
+        mock_agent.outputs = []
+        inputs = EvalInputs(
+            artifacts=[
+                Artifact(type="Task", payload={"description": d}, produced_by="test")
+                for d in ("Build prototype", "Write docs")
+            ],
+            state={},
+        )
+        output_group = create_output_group_with_semantic_types([(Task, 2)])
+
+        signature = engine._signature_builder.prepare_signature_for_output_group(
+            dspy,
+            agent=mock_agent,
+            inputs=inputs,
+            output_group=output_group,
+            has_context=False,
+            batched=False,
+        )
+        extracted = engine._signature_builder.extract_multi_output_payload(
+            SimpleNamespace(output_tasks=["a", "b"]), output_group
+        )
+
+        assert signature.input_fields["tasks"].annotation == list[Task]
+        assert signature.output_fields["output_tasks"].annotation == list[Task]
+        assert extracted == {"Task": ["a", "b"]}
+
+    @pytest.mark.asyncio
     async def test_batched_input_pluralized_field(self):
         """Test batching creates list[Type] for inputs (evaluate_batch).
 
