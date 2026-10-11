@@ -279,6 +279,9 @@ class DashboardEventCollector(AgentComponent):
                 run.produced_artifacts.append(artifact_id)
             await self._update_agent_snapshot_locked(agent)
 
+        # Thumbnails decode images: off the event loop
+        images = await asyncio.to_thread(image_summaries, artifact.payload)
+
         # Create and store event
         event = MessagePublishedEvent(
             correlation_id=correlation_id,
@@ -287,7 +290,7 @@ class DashboardEventCollector(AgentComponent):
             produced_by=artifact.produced_by,
             # Every client gets this event: images as description and thumbnails
             payload=compact(artifact.payload),
-            images=image_summaries(artifact.payload) or None,
+            images=images or None,
             visibility=visibility_spec,
             tags=list(artifact.tags) if artifact.tags else [],
             partition_key=artifact.partition_key,

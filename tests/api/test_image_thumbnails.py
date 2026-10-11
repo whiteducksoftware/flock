@@ -121,3 +121,49 @@ async def test_websocket_events_carry_thumbnails_not_images(orchestrator):
     assert event.images[0]["path"] == "picture"
     assert _side(event.images[0]["thumb"]) <= 160
     assert picture.base64_data not in event.model_dump_json()
+
+
+def test_summaries_carry_path_segments_for_any_key():
+    """Keys with dots or brackets stay unambiguous as segments (#512)."""
+    from flock.api.thumbnails import image_summaries
+
+    payload = {"photos": {"front.view": _picture((40, 30)).model_dump()}, "list": []}
+
+    (summary,) = image_summaries(payload)
+
+    assert summary["keys"] == ["photos", "front.view"]
+
+
+async def test_events_build_thumbnails_off_the_event_loop(orchestrator, monkeypatch):
+    import threading
+
+    from flock.api import thumbnails
+
+    threads: list[str] = []
+    original = thumbnails.thumbnail
+
+    def recording(url: str):
+        threads.append(threading.current_thread().name)
+        return original(url)
+
+    monkeypatch.setattr(thumbnails, "thumbnail", recording)
+    collector = DashboardEventCollector(store=InMemoryBlackboardStore())
+    agent = orchestrator.agent("camera2")._agent
+    ctx = Context(
+        board=orchestrator.store,
+        orchestrator=orchestrator,
+        task_id=f"task-{uuid4()}",
+        state={},
+        correlation_id=str(uuid4()),
+    )
+    artifact = Artifact(
+        type=type_registry.name_for(ThumbPhoto),
+        payload={"caption": "teal", "picture": _picture().model_dump()},
+        produced_by="camera2",
+        correlation_id=ctx.correlation_id,
+    )
+
+    await collector.on_post_publish(agent, ctx, artifact)
+
+    assert threads
+    assert threading.main_thread().name not in threads

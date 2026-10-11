@@ -1,3 +1,6 @@
+import asyncio
+
+
 """ServerComponent that serves control routes."""
 
 import json
@@ -302,7 +305,8 @@ class ControlRoutesComponent(ServerComponent):
                     artifact_type=artifact.type,
                     produced_by=artifact.produced_by,  # Will be "orchestrator" or similar for non-agent publishers
                     payload=compact(artifact.payload),  # images as description
-                    images=image_summaries(artifact.payload) or None,
+                    images=await asyncio.to_thread(image_summaries, artifact.payload)
+                    or None,
                     visibility=VisibilitySpec(
                         kind="Public"
                     ),  # Dashboard-published artifacts are public by default

@@ -1,3 +1,6 @@
+import asyncio
+
+
 """Trace-relate API routes."""
 
 import json
@@ -417,7 +420,7 @@ class TracingComponent(ServerComponent):
                         "type": artifact.type,
                         "direction": "published",
                         "payload": compact(artifact.payload),
-                        "images": image_summaries(artifact.payload) or None,
+                        "_raw": artifact.payload,
                         "timestamp": artifact.created_at.isoformat(),
                         "correlation_id": str(artifact.correlation_id)
                         if artifact.correlation_id
@@ -438,7 +441,7 @@ class TracingComponent(ServerComponent):
                         "type": envelope.artifact.type,
                         "direction": "consumed",
                         "payload": compact(envelope.artifact.payload),
-                        "images": image_summaries(envelope.artifact.payload) or None,
+                        "_raw": envelope.artifact.payload,
                         "timestamp": envelope.artifact.created_at.isoformat(),
                         "correlation_id": str(envelope.artifact.correlation_id)
                         if envelope.artifact.correlation_id
@@ -450,6 +453,13 @@ class TracingComponent(ServerComponent):
                     for consumption in envelope.consumptions
                     if consumption.consumer == node_id
                 ])
+                # Thumbnails decode images: build them off the event loop
+                raw_payloads = [message.pop("_raw") for message in messages]
+                summaries = await asyncio.to_thread(
+                    lambda: [image_summaries(raw) for raw in raw_payloads]
+                )
+                for message, images in zip(messages, summaries, strict=True):
+                    message["images"] = images or None
                 # Sort by timestamp (most recent first)
                 messages.sort(
                     key=lambda m: m.get("consumed_at", m["timestamp"]),

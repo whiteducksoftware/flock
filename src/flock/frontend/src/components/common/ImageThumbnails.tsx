@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { fetchArtifact } from '../../services/api';
-import { valueAtPath, type ImageSummary } from '../../utils/imageFields';
+import { valueAtKeys, type ImageSummary } from '../../utils/imageFields';
 import styles from './ImageThumbnails.module.css';
 
 interface ImageThumbnailsProps {
@@ -17,6 +17,52 @@ interface OpenImage {
 
 const sizeLabel = (bytes: number) => `${Math.max(1, Math.round(bytes / 1024))} KB`;
 
+/** The full image in a modal: focus on Close, Tab stays there, Escape closes. */
+const FullImageDialog: React.FC<{ image: OpenImage; onClose: () => void }> = ({ image, onClose }) => {
+  const closeRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+      } else if (event.key === 'Tab') {
+        // Modal: the close button is the only control, keep focus on it
+        event.preventDefault();
+        closeRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', onKeyDown, { capture: true });
+  }, [onClose]);
+
+  // Take focus from the thumbnail that opened the dialog and give it back on close
+  useEffect(() => {
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    closeRef.current?.focus();
+    return () => opener?.focus();
+  }, []);
+
+  // In document.body: detail windows are transformed, which would confine a fixed overlay
+  return createPortal(
+    <div className={styles.overlay} role="dialog" aria-modal="true" aria-label={`${image.path} full size`}>
+      <div className={styles.dialog}>
+        <div className={styles.dialogHeader}>
+          <span>{image.path}</span>
+          <button type="button" ref={closeRef} onClick={onClose} aria-label="Close" className={styles.close}>
+            ×
+          </button>
+        </div>
+        {image.url && <img src={image.url} alt={`${image.path} (full size)`} className={styles.full} />}
+        {image.error && <p className={styles.message}>{image.error}</p>}
+        {!image.url && !image.error && <p className={styles.message}>Loading…</p>}
+      </div>
+    </div>,
+    document.body
+  );
+};
+
 /**
  * Previews of an artifact's images (#512). The dashboard receives small thumbnails;
  * the full image is loaded only when one is opened, through the artifact endpoint,
@@ -25,13 +71,14 @@ const sizeLabel = (bytes: number) => `${Math.max(1, Math.round(bytes / 1024))} K
 const ImageThumbnails: React.FC<ImageThumbnailsProps> = ({ artifactId, images }) => {
   const [open, setOpen] = useState<OpenImage | null>(null);
 
-  const openImage = async (path: string) => {
+  const openImage = async (image: ImageSummary) => {
+    const { path } = image;
     setOpen({ path });
     try {
       const artifact = await fetchArtifact(artifactId);
-      const url = valueAtPath(artifact.payload, path)?.url;
+      const url = valueAtKeys(artifact.payload, image.keys ?? [path])?.url;
       if (typeof url !== 'string' || !url.startsWith('data:image/')) {
-        throw new Error('no image at this path');
+        throw new Error('no image at this location');
       }
       setOpen((current) => (current?.path === path ? { path, url } : current));
     } catch {
@@ -53,7 +100,7 @@ const ImageThumbnails: React.FC<ImageThumbnailsProps> = ({ artifactId, images })
             <button
               type="button"
               className={styles.thumbnailButton}
-              onClick={() => void openImage(image.path)}
+              onClick={() => void openImage(image)}
               aria-label={`Open ${image.path}`}
               title="Open the full image"
             >
@@ -65,23 +112,7 @@ const ImageThumbnails: React.FC<ImageThumbnailsProps> = ({ artifactId, images })
           </figure>
         ))}
       </div>
-      {/* In document.body: detail windows are transformed, which would confine a fixed overlay */}
-      {open && createPortal(
-        <div className={styles.overlay} role="dialog" aria-label={`${open.path} full size`}>
-          <div className={styles.dialog}>
-            <div className={styles.dialogHeader}>
-              <span>{open.path}</span>
-              <button type="button" onClick={() => setOpen(null)} aria-label="Close" className={styles.close}>
-                ×
-              </button>
-            </div>
-            {open.url && <img src={open.url} alt={`${open.path} (full size)`} className={styles.full} />}
-            {open.error && <p className={styles.message}>{open.error}</p>}
-            {!open.url && !open.error && <p className={styles.message}>Loading…</p>}
-          </div>
-        </div>,
-        document.body
-      )}
+      {open && <FullImageDialog image={open} onClose={() => setOpen(null)} />}
     </>
   );
 };
