@@ -79,6 +79,24 @@ const dataOf = (node: Node | undefined) =>
     typeLabels?: Record<string, string>;
   };
 
+const isHandle = (node: Node | undefined, type: string) => dataOf(node).typeLabels?.[type]?.startsWith('◆') ?? false;
+
+/**
+ * The types a decider decides about. In a screening network a decider reads
+ * the handles of deciders before it, which deliver their subjects: follow
+ * them back. A decision it reads itself (not by a handle) is its subject.
+ */
+const subjectsOf = (decider: Node, nodes: Node[], seen = new Set<string>()): string[] => {
+  seen.add(decider.id);
+  return (dataOf(decider).subscriptions ?? []).flatMap((type) =>
+    DECISION.test(type) && isHandle(decider, type)
+      ? nodes
+          .filter((node) => !seen.has(node.id) && (dataOf(node).outputTypes ?? []).includes(type))
+          .flatMap((before) => subjectsOf(before, nodes, seen))
+      : [type],
+  );
+};
+
 /**
  * The agent's contract. A decision handle delivers the subject the decider
  * read, so it shows that subject's fields; a decider's own decisions route to
@@ -105,9 +123,7 @@ export function contractOf(
         .filter(isDecider);
       const deciders =
         bringing.length > 0 ? bringing : nodes.filter((node) => (dataOf(node).outputTypes ?? []).includes(type) && isDecider(node));
-      const subjects = [
-        ...new Set(deciders.flatMap((decider) => (dataOf(decider).subscriptions ?? []).filter((subject) => !DECISION.test(subject)))),
-      ];
+      const subjects = [...new Set(deciders.flatMap((decider) => subjectsOf(decider, nodes)))];
       return {
         type,
         label: handle,
