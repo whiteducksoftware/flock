@@ -9,10 +9,12 @@ on:
     branches:
       - main # Replace with your default branch
       - 0.5.0b
+      - ui-rework # dashboard rework (#557): its item PRs target this branch
   pull_request:
     branches:
       - main # Replace with your default branch
       - 0.5.0b
+      - ui-rework
 
 jobs:
   # Backend quality checks

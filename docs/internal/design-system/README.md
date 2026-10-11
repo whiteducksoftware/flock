@@ -93,7 +93,7 @@ Nothing the current dashboard does is dropped silently; the table maps every fea
 | Title "🦆🐓 Flock 🐤🐧" | Wordmark with the flock mark (three chevrons, the lead one amber) |
 | View toggle Agent View / Blackboard View, Ctrl+M | Segmented control **Flow / Blackboard**, Ctrl+M |
 | Publish panel (right, open on first load), Ctrl+Shift+P | **Publish composer** (modal, closed by default), Ctrl+Shift+P |
-| Agent Details button: open a window for every agent, Ctrl+Shift+D | Nodes **unfold in place**; see [open questions](#open-questions) |
+| Agent Details button: open a window for every agent, Ctrl+Shift+D | Nodes **unfold in place**; Ctrl+Shift+D unfolds or folds the selected node ([decisions](#decisions)) |
 | Settings panel, Ctrl+, | Settings sheet, Ctrl+, |
 | Shortcuts dialog, Ctrl+/ | Shortcuts dialog (keyboard icon), Ctrl+/ |
 | Trash button "Clear all dashboard data" | Settings › Advanced |
@@ -211,12 +211,19 @@ The eight artboards of the design canvas. Each `.dc.html` file is a self-contain
 
 The data in the mockups comes from a ticket-triage flock (`triage` decides `Route`, `urgency` decides `Urgent`, four teams answer, `pager` handles urgent tech tickets).
 
-## Open questions
+## Decisions
 
-To settle during review, before or while the issues are implemented:
+The open questions of the design review, settled on 2026-10-11:
 
-1. **Ctrl+Shift+D** opened a detail window for every agent. Unfolding every node at once would bury the board. Proposal: Ctrl+Shift+D unfolds or folds the selected node.
-2. **Debug mode and performance mode** (Settings › Advanced) are stored but read nowhere. Wire them up or remove them.
-3. **Activity histogram:** bucket the artifacts the dashboard already loads on the client, or add a backend endpoint that returns counts per time bucket for the current filters.
-4. **Fonts:** an npm package (for example `@fontsource/geist` and `@fontsource/geist-mono`) or vendored `woff2` files.
-5. **Icons:** keep the inline SVGs from the mockups or use an icon library such as Lucide (ISC license) for the same shapes.
+1. **Ctrl+Shift+D** unfolds or folds the selected node.
+2. **Debug mode and performance mode** (Settings › Advanced) are removed; they were stored but read nowhere.
+3. **Activity histogram:** a backend endpoint returns counts per time bucket for the current filters. Bucketing on the client would be wrong for busy time ranges, since the graph loads at most the newest 500 artifacts. It lands on `main` as its own PR.
+4. **Fonts:** `@fontsource-variable/geist` and `@fontsource-variable/geist-mono` (OFL-1.1), bundled with the frontend.
+5. **Icons:** the inline SVGs of the mockups, as React components; no icon library.
+
+Also decided:
+
+- **Tokens and cost per run** (Focus › Runs, Overview) are required. The backend records LiteLLM usage per run and counts the usage that decision providers report; cost comes from LiteLLM's price table, with configurable prices for models it does not know. This lands on `main` as its own PR, before item 4.
+- **A demo flock** matching the mockups (ticket triage, `FakeDecider`, a scripted streaming engine, no API keys) produces every state shown here, for screenshots and the A/B comparison. It lands on `main` as its own PR.
+- **CI** runs on pull requests into `ui-rework`.
+- **Screenshots** of each PR, in both themes, go into `screenshots/` in this folder; they are removed before `ui-rework` merges into `main`.
