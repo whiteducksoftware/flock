@@ -664,6 +664,75 @@ class TestMultiInputAndBatching:
         assert output_fields["report"].annotation == Report
 
     @pytest.mark.asyncio
+    async def test_several_inputs_of_one_type_get_a_list_field(self):
+        """.consumes(Task, Task) hands over both tasks: one list field, not one task."""
+        import dspy
+
+        engine = DSPyEngine(model="gpt-4")
+        mock_agent = Mock()
+        mock_agent.name = "test_agent"
+        mock_agent.description = "Compare two tasks"
+        mock_agent.outputs = []
+        inputs = EvalInputs(
+            artifacts=[
+                Artifact(type="Task", payload={"description": d}, produced_by="test")
+                for d in ("Build prototype", "Write docs")
+            ],
+            state={},
+        )
+
+        signature = engine._signature_builder.prepare_signature_for_output_group(
+            dspy,
+            agent=mock_agent,
+            inputs=inputs,
+            output_group=create_output_group_with_semantic_types([(Report, 1)]),
+            has_context=False,
+            batched=False,
+        )
+
+        input_fields = signature.input_fields
+        assert "task" not in input_fields
+        assert input_fields["tasks"].annotation == list[Task]
+
+    @pytest.mark.asyncio
+    async def test_a_fan_out_of_the_input_type_does_not_replace_the_input_list(self):
+        """.consumes(Task, Task).publishes(Task, fan_out=2): the output list is
+        output_tasks, so both lists reach the model and the answer is found."""
+        from types import SimpleNamespace
+
+        import dspy
+
+        engine = DSPyEngine(model="gpt-4")
+        mock_agent = Mock()
+        mock_agent.name = "test_agent"
+        mock_agent.description = "Split two tasks"
+        mock_agent.outputs = []
+        inputs = EvalInputs(
+            artifacts=[
+                Artifact(type="Task", payload={"description": d}, produced_by="test")
+                for d in ("Build prototype", "Write docs")
+            ],
+            state={},
+        )
+        output_group = create_output_group_with_semantic_types([(Task, 2)])
+
+        signature = engine._signature_builder.prepare_signature_for_output_group(
+            dspy,
+            agent=mock_agent,
+            inputs=inputs,
+            output_group=output_group,
+            has_context=False,
+            batched=False,
+        )
+        extracted = engine._signature_builder.extract_multi_output_payload(
+            SimpleNamespace(output_tasks=["a", "b"]), output_group
+        )
+
+        assert signature.input_fields["tasks"].annotation == list[Task]
+        assert signature.output_fields["output_tasks"].annotation == list[Task]
+        assert extracted == {"Task": ["a", "b"]}
+
+    @pytest.mark.asyncio
     async def test_batched_input_pluralized_field(self):
         """Test batching creates list[Type] for inputs (evaluate_batch).
 
@@ -944,6 +1013,41 @@ class TestPayloadPreparation:
             "name": "AI Safety",
             "category": "Research",
         }
+
+    @pytest.mark.asyncio
+    async def test_payload_sends_every_input_of_one_type(self):
+        """.consumes(Task, Task, Topic): both tasks reach the LLM, the topic alone."""
+        engine = DSPyEngine(model="gpt-4")
+        inputs = EvalInputs(
+            artifacts=[
+                Artifact(type="Task", payload={"description": d}, produced_by="test")
+                for d in ("Build prototype", "Write docs")
+            ]
+            + [
+                Artifact(
+                    type="Topic",
+                    payload={"name": "AI Safety", "category": "Research"},
+                    produced_by="test",
+                )
+            ],
+            state={},
+        )
+
+        payload = engine._signature_builder.prepare_execution_payload_for_output_group(
+            inputs,
+            create_output_group_with_semantic_types([(Report, 1)]),
+            batched=False,
+            has_context=False,
+            context_history=None,
+            sys_desc="Compare tasks",
+        )
+
+        assert "task" not in payload
+        assert [t.description for t in payload["tasks"]] == [
+            "Build prototype",
+            "Write docs",
+        ]
+        assert payload["topic"].name == "AI Safety"
 
     @pytest.mark.asyncio
     async def test_payload_batched_input_pluralized(self):
