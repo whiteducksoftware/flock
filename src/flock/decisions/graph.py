@@ -203,6 +203,13 @@ def decision_view(
         view["votes"] = list(payload["votes"])
     if payload.get("shadow"):
         view["shadow"] = dict(payload["shadow"])
+    if payload.get("sections"):
+        sections = payload["sections"]
+        view["sections"] = {
+            "field": sections.get("field"),
+            "spans": [list(span) for span in sections.get("spans") or []],
+            "answeredBy": dict(sections.get("answered_by") or {}),
+        }
     if view["kind"] == "checklist":
         view["items"] = levels or list(payload.get("results") or {})
         view["results"] = dict(payload.get("results") or {})

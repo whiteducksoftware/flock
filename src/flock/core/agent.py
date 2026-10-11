@@ -782,6 +782,7 @@ class AgentBuilder:
         vote: str | None = None,
         shadow: str | Any | None = None,
         shadow_timeout: float = 10.0,
+        sections: Any | None = None,
     ) -> AgentBuilder:
         """Answer questions about each input with a decision model.
 
@@ -832,6 +833,11 @@ class AgentBuilder:
             shadow_timeout: Seconds the decision waits for the shadow after
                 its own answer; a slower shadow is cancelled and recorded as
                 an error, so it never holds up routing.
+            sections: A ``Sections`` that splits a long text field of the
+                input into sections; every question is asked about each
+                section. A checklist item is yes if any section shows it, other
+                questions take the most confident section. The decision's
+                ``sections`` records the spans and the section per answer.
             options: Restricts the single Choice or Checklist to a subset of its
                 options for each execution: a callable that receives the
                 context (``ctx.decisions`` holds the decisions that triggered
@@ -885,6 +891,13 @@ class AgentBuilder:
                 f"Agent '{self._agent.name}': escalate= is not supported together "
                 "with tournament= yet."
             )
+        if sections is not None:
+            for name, value in (("models=", models), ("tournament=", tournament)):
+                if value:
+                    raise ValueError(
+                        f"Agent '{self._agent.name}': sections= is not supported "
+                        f"together with {name} yet."
+                    )
         if shadow_timeout <= 0:
             raise ValueError(
                 f"Agent '{self._agent.name}': shadow_timeout must be positive, "
@@ -1019,6 +1032,7 @@ class AgentBuilder:
             vote=vote or "majority",
             shadow=None if shadow is None else with_budget(shadow),
             shadow_timeout=shadow_timeout,
+            sections=sections,
         )
         self.publishes(*(Decision.of(question) for question in questions))
         for output in self._agent.output_groups[-1].outputs:

@@ -174,6 +174,7 @@ flock.agent("audit").consumes(Decision.of(Route)).publishes(Entry)    # the deci
   - `shadow="openai/gpt-6-luna"` records a candidate model's answer in the decision's `shadow` without routing it; a failing shadow never fails the decision.
   - `.consumes(Route.UNSURE).explains(model=...)` lets an LLM write an `Explanation` (`flock.decisions.explain`) of each decision it receives, linked by `decision_ids`.
   - `.consumes(Controls.ANY).aggregates(by="organisation", combine="any" | "all")` publishes `Coverage.of(Controls)` (`flock.decisions.coverage`) per group as checklist decisions arrive.
+  - `sections=Sections(field="text", max_chars=4000)` decides a long text field section by section; the decision's `sections` records which section answered.
 - **Rules:**
   - A decision agent publishes only its decisions: no `.with_engines()` or `.publishes()` with `.decides()`.
   - Handles and `Decision.of(X)` cannot share an agent.

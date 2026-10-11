@@ -87,6 +87,12 @@ class Decision(BaseModel):
         "choice, best_guess, results, refused_items, latency_ms); model and "
         "error when the shadow failed",
     )
+    sections: dict[str, Any] | None = Field(
+        default=None,
+        description="Long documents: the split text field, the sections' spans "
+        "[start, end) in it and, per question (checklists: per item), the "
+        "section whose answer was kept (answered_by)",
+    )
     latency_ms: float | None = Field(
         default=None, description="Round trip of the decision request"
     )
