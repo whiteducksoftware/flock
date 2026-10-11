@@ -32,7 +32,13 @@ from flock.logging.logging import get_logger
 from flock.models.system_artifacts import TimerTick
 from flock.registry import function_registry, type_registry
 from flock.utils.runtime import Context, EvalInputs, EvalResult
-from flock.utils.usage import USAGE, merge_usage, run_metrics
+from flock.utils.usage import (
+    USAGE,
+    collecting_usage,
+    merge_usage,
+    report_usage,
+    run_metrics,
+)
 
 
 # How long several choice handles wait for decisions about the same subject
@@ -238,87 +244,81 @@ class Agent(metaclass=AutoTracedMeta):
 
     async def execute(self, ctx: Context, artifacts: list[Artifact]) -> list[Artifact]:
         async with self._semaphore:
-            try:
-                self._resolve_engines()
-                self._resolve_utilities()
-                await self._run_initialize(ctx)
-                processed_inputs = await self._run_pre_consume(ctx, artifacts)
-                eval_inputs = EvalInputs(
-                    artifacts=processed_inputs, state=dict(ctx.state)
-                )
-                eval_inputs = await self._run_pre_evaluate(ctx, eval_inputs)
+            # Engines report what their model requests use as they answer
+            with collecting_usage() as billed:
+                try:
+                    self._resolve_engines()
+                    self._resolve_utilities()
+                    await self._run_initialize(ctx)
+                    processed_inputs = await self._run_pre_consume(ctx, artifacts)
+                    eval_inputs = EvalInputs(
+                        artifacts=processed_inputs, state=dict(ctx.state)
+                    )
+                    eval_inputs = await self._run_pre_evaluate(ctx, eval_inputs)
 
-                # Phase 3: Call engine ONCE PER OutputGroup
-                all_outputs: list[Artifact] = []
+                    # Phase 3: Call engine ONCE PER OutputGroup
+                    all_outputs: list[Artifact] = []
 
-                if not self.output_groups:
-                    # No output groups: Utility agents that don't publish
-                    # Create empty OutputGroup for engines that may have side effects
-                    empty_group = OutputGroup(outputs=[], group_description=None)
-                    result = await self._run_engines(ctx, eval_inputs, empty_group)
-                    self._record_usage(ctx, result)
-                    # Run post_evaluate hooks for utility components (e.g., metrics)
-                    result = await self._run_post_evaluate(ctx, eval_inputs, result)
-                    # Utility agents return empty list (no outputs declared)
-                    outputs = []
-                else:
-                    # Loop over each output group
-                    for group_idx, output_group in enumerate(self.output_groups):
-                        # Prepare group-specific context
-                        group_ctx = self._prepare_group_context(
-                            ctx, group_idx, output_group
-                        )
+                    if not self.output_groups:
+                        # No output groups: Utility agents that don't publish
+                        # Create empty OutputGroup for engines that may have side effects
+                        empty_group = OutputGroup(outputs=[], group_description=None)
+                        result = await self._run_engines(ctx, eval_inputs, empty_group)
+                        # Run post_evaluate hooks for utility components (e.g., metrics)
+                        result = await self._run_post_evaluate(ctx, eval_inputs, result)
+                        # Utility agents return empty list (no outputs declared)
+                        outputs = []
+                    else:
+                        # Loop over each output group
+                        for group_idx, output_group in enumerate(self.output_groups):
+                            # Prepare group-specific context
+                            group_ctx = self._prepare_group_context(
+                                ctx, group_idx, output_group
+                            )
 
-                        # Phase 7: Single evaluation path with auto-detection
-                        # Engine's evaluate() auto-detects batch/fan-out from ctx and output_group
-                        result = await self._run_engines(
-                            group_ctx, eval_inputs, output_group
-                        )
-                        self._record_usage(ctx, result)
+                            # Phase 7: Single evaluation path with auto-detection
+                            # Engine's evaluate() auto-detects batch/fan-out from ctx and output_group
+                            result = await self._run_engines(
+                                group_ctx, eval_inputs, output_group
+                            )
 
-                        result = await self._run_post_evaluate(
-                            group_ctx, eval_inputs, result
-                        )
+                            result = await self._run_post_evaluate(
+                                group_ctx, eval_inputs, result
+                            )
 
-                        # Extract outputs for THIS group only
-                        group_outputs = await self._make_outputs_for_group(
-                            group_ctx, result, output_group
-                        )
+                            # Extract outputs for THIS group only
+                            group_outputs = await self._make_outputs_for_group(
+                                group_ctx, result, output_group
+                            )
 
-                        all_outputs.extend(group_outputs)
+                            all_outputs.extend(group_outputs)
 
-                    outputs = all_outputs
+                        outputs = all_outputs
 
-                await self._run_post_publish(ctx, outputs)
-                if self.calls_func:
-                    await self._invoke_call(ctx, outputs or processed_inputs)
-                return outputs
-            except Exception as exc:
-                await self._run_error(ctx, exc)
-                raise
-            finally:
-                self._trace_usage(ctx)
-                await self._run_terminate(ctx)
+                    await self._run_post_publish(ctx, outputs)
+                    if self.calls_func:
+                        await self._invoke_call(ctx, outputs or processed_inputs)
+                    return outputs
+                except Exception as exc:
+                    await self._run_error(ctx, exc)
+                    raise
+                finally:
+                    self._finish_usage(ctx, billed)
+                    await self._run_terminate(ctx)
 
-    def _record_usage(self, ctx: Context, result: EvalResult) -> None:
-        """Add the tokens an evaluation used to the run's metrics, and price them."""
-        usage = result.metrics.get(USAGE)
-        if not usage:
+    def _finish_usage(self, ctx: Context, billed: dict[str, Any]) -> None:
+        """Price what the run's model requests used, also of a failed run, in
+        the run's metrics and on its trace."""
+        if not billed.get(USAGE):
             return
         metrics = ctx.state.setdefault("metrics", {})
-        merge_usage(metrics, usage)
+        merge_usage(metrics, billed[USAGE])
         totals = run_metrics(metrics[USAGE], self._orchestrator.model_prices)
         metrics.update(totals)
-
-    def _trace_usage(self, ctx: Context) -> None:
-        """Put the run's tokens and cost on its trace, once all groups ran."""
-        metrics = ctx.state.get("metrics") or {}
-        if USAGE not in metrics:
-            return
         span = trace.get_current_span()
-        span.set_attribute("flock.usage.tokens", metrics["tokens_used"])
-        if metrics["cost_usd"] is not None:
-            span.set_attribute("flock.usage.cost_usd", metrics["cost_usd"])
+        span.set_attribute("flock.usage.tokens", totals["tokens_used"])
+        if totals["cost_usd"] is not None:
+            span.set_attribute("flock.usage.cost_usd", totals["cost_usd"])
 
     async def _get_mcp_tools(self, ctx: Context) -> list[Callable]:
         """Delegate to MCPIntegration module."""
@@ -377,6 +377,8 @@ class Agent(metaclass=AutoTracedMeta):
 
                 if isinstance(result, BaseModel) and not isinstance(result, ER):
                     result = ER.from_object(result, agent=self)
+                # Counted now, so a later engine's failure keeps it
+                report_usage(result.metrics.get(USAGE))
 
                 artifacts = result.artifacts
                 for artifact in artifacts:
@@ -386,11 +388,10 @@ class Agent(metaclass=AutoTracedMeta):
                     self, ctx, current_inputs, result
                 )
                 accumulated_logs.extend(result.logs)
-                # Every engine of the chain bills its own tokens
+                # The usage is the run's (reported above)
                 accumulated_metrics.update({
                     k: v for k, v in result.metrics.items() if k != USAGE
                 })
-                merge_usage(accumulated_metrics, result.metrics.get(USAGE))
                 merged_state = dict(current_inputs.state)
                 merged_state.update(result.state)
                 current_inputs = EvalInputs(
@@ -412,19 +413,11 @@ class Agent(metaclass=AutoTracedMeta):
         results = [task.result() for task in tasks]
         if not results:
             return EvalResult(artifacts=[], state={})
-        chosen = (
+        # One candidate is published; every candidate reported its usage
+        return (
             results[0]
             if self.best_of_score is None
             else max(results, key=self.best_of_score)
-        )
-        # One candidate is published, but every candidate was billed
-        billed: dict[str, Any] = {}
-        for result in results:
-            merge_usage(billed, result.metrics.get(USAGE))
-        if not billed:
-            return chosen
-        return chosen.model_copy(
-            update={"metrics": {**chosen.metrics, USAGE: billed[USAGE]}}
         )
 
     async def _run_post_evaluate(

@@ -20,7 +20,7 @@ from flock.engines.dspy.streaming_executor import DSPyStreamingExecutor
 from flock.logging.logging import get_logger
 from flock.registry import type_registry
 from flock.utils.runtime import EvalInputs, EvalResult
-from flock.utils.usage import merge_usage
+from flock.utils.usage import report_usage
 
 
 logger = get_logger(__name__)
@@ -588,6 +588,12 @@ class DSPyEngine(EngineComponent):
 
                     Agent._streaming_counter = max(0, Agent._streaming_counter - 1)
 
+        # The model answered: count its tokens now, so the run keeps them even
+        # when the prediction fails below
+        get_usage = getattr(raw_result, "get_lm_usage", None)
+        usage = get_usage() if callable(get_usage) else None
+        report_usage(usage if isinstance(usage, Mapping) else None)
+
         # Extract semantic fields from Prediction (delegated to SignatureBuilder)
         normalized_output = self._signature_builder.extract_multi_output_payload(
             raw_result, output_group
@@ -617,13 +623,7 @@ class DSPyEngine(EngineComponent):
         logs.extend(f"dspy.error={message}" for message in errors)
 
         result_artifacts = artifacts if artifacts else list(inputs.artifacts)
-        metrics: dict[str, Any] = {}
-        get_usage = getattr(raw_result, "get_lm_usage", None)
-        usage = get_usage() if callable(get_usage) else None
-        merge_usage(metrics, usage if isinstance(usage, Mapping) else None)
-        return EvalResult(
-            artifacts=result_artifacts, state=state, logs=logs, metrics=metrics
-        )
+        return EvalResult(artifacts=result_artifacts, state=state, logs=logs)
 
     # ------------------------------------------------------------------
     # Helpers mirroring the design engine

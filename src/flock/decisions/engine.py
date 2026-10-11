@@ -7,7 +7,6 @@ import json
 import time
 from collections import Counter
 from collections.abc import Callable, Iterable
-from contextvars import ContextVar
 from dataclasses import replace
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -29,7 +28,7 @@ from flock.decisions.tournament import Tournament
 from flock.logging.logging import get_logger
 from flock.registry import RegistryError, type_registry
 from flock.utils.runtime import EvalResult
-from flock.utils.usage import record_usage
+from flock.utils.usage import report_usage
 
 
 if TYPE_CHECKING:
@@ -172,22 +171,17 @@ def _attempt(label: str, answer: DecisionAnswer) -> dict[str, Any]:
     }
 
 
-# The usage of the decision being evaluated (see DecisionEngine.evaluate)
-_RUN_USAGE: ContextVar[dict[str, Any] | None] = ContextVar(
-    "flock_decision_usage", default=None
-)
-
-
-def _record_request_usage(
+def _report_request_usage(
     provider: DecisionProvider, answers: dict[str, DecisionAnswer]
 ) -> None:
-    """Count the input tokens of one request once: its answers all carry them."""
-    usage = _RUN_USAGE.get()
+    """Count the input tokens of one request once, for the agent run, as soon
+    as it is answered: its answers all carry them. Every request of a decision
+    (sections, escalation tiers, votes, the shadow) goes through here."""
     tokens = next(
         (a.input_tokens for a in answers.values() if a.input_tokens is not None), None
     )
-    if usage is not None and tokens is not None:
-        record_usage(usage, provider.label, tokens)
+    if tokens is not None:
+        report_usage({provider.label: {"prompt_tokens": tokens}})
 
 
 class DecisionEngine(EngineComponent):
@@ -266,20 +260,6 @@ class DecisionEngine(EngineComponent):
 
     async def evaluate(
         self, agent: Agent, ctx: Context, inputs: EvalInputs, output_group: OutputGroup
-    ) -> EvalResult:
-        # Every provider request of this decision (sections, escalation tiers,
-        # votes, the shadow) adds the tokens it reports
-        metrics: dict[str, Any] = {}
-        token = _RUN_USAGE.set(metrics)
-        try:
-            result = await self._decide(agent, ctx, inputs)
-        finally:
-            _RUN_USAGE.reset(token)
-        result.metrics.update(metrics)
-        return result
-
-    async def _decide(
-        self, agent: Agent, ctx: Context, inputs: EvalInputs
     ) -> EvalResult:
         if ctx.is_batch:
             raise ValueError(
@@ -525,7 +505,7 @@ class DecisionEngine(EngineComponent):
             else:
                 async with limit:
                     answers = await provider.decide_many(section, chunk, images)
-            _record_request_usage(provider, answers)
+            _report_request_usage(provider, answers)
             return answers
 
         requests = [

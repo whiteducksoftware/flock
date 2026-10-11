@@ -143,7 +143,12 @@ The run's metrics (`ctx.state["metrics"]`, the dashboard's Run Status, `AgentCom
 - `cost_usd`;
 - `unpriced_models`.
 
-The run's trace gets `flock.usage.tokens` and `flock.usage.cost_usd`.
+The run's trace gets `flock.usage.tokens` and `flock.usage.cost_usd`. A failed run reports the requests it made before it failed.
+
+A custom engine reports usage, as model -> tokens, in one of two ways:
+
+- `report_usage({"my/model": {"prompt_tokens": 120, "completion_tokens": 40}})` from `flock.utils.usage`, as soon as the model answers, which counts even if the engine fails afterwards;
+- the same mapping in `EvalResult.metrics["usage"]`, counted when the engine returns.
 
 Costs come from LiteLLM's price table. For models it does not know, such as a decision model deployment or a local model, give prices in USD per million tokens:
 

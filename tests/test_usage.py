@@ -42,9 +42,14 @@ class UsageUrgent(Choice):
 
 
 class RunMetrics(AgentComponent):
-    """Keeps the metrics of every finished run."""
+    """Keeps the metrics of every finished run, and the errors of failed ones."""
 
     seen: Any = None
+    errors: Any = None
+
+    async def on_error(self, agent, ctx, error):
+        if self.errors is not None:
+            self.errors.append(error)
 
     async def on_terminate(self, agent, ctx):
         self.seen.append(dict(ctx.state.get("metrics", {})))
@@ -399,7 +404,6 @@ async def test_the_trace_cost_covers_the_whole_run(monkeypatch):
     assert "flock.usage.cost_usd" not in attributes
 
 
-
 @pytest.mark.parametrize("fails", [False, True])
 async def test_run_durations_use_the_monotonic_clock(monkeypatch, fails):
     from types import SimpleNamespace
@@ -435,3 +439,98 @@ async def test_run_durations_use_the_monotonic_clock(monkeypatch, fails):
 
     assert run["status"] == ("error" if fails else "completed")
     assert run["duration_ms"] == pytest.approx(250.0)
+
+
+class BrokenEngine(EngineComponent):
+    """An engine whose model call fails."""
+
+    async def evaluate(self, agent, ctx, inputs, output_group):
+        raise RuntimeError("model unreachable")
+
+
+async def test_a_failed_chain_counts_the_engines_that_ran():
+    seen: list = []
+    errors: list = []
+    flock = Flock(no_output=True)
+    flock.agent("writer").consumes(UsageTicket).publishes(UsageReply).with_engines(
+        SpendingEngine(usage={"m": {"prompt_tokens": 100, "completion_tokens": 10}}),
+        BrokenEngine(),
+    ).with_utilities(RunMetrics(seen=seen, errors=errors))
+
+    await flock.publish(UsageTicket(text="hi"))
+    await flock.run_until_idle()
+
+    assert len(errors) == 1
+    (metrics,) = seen
+    # The first engine's call was billed before the second one failed
+    assert metrics["usage"] == {"m": {"prompt_tokens": 100, "completion_tokens": 10}}
+    assert metrics["tokens_used"] == 110
+
+
+class BrokenDecider(DecisionProvider):
+    """A provider whose requests fail."""
+
+    label = "strong"
+
+    async def decide_many(self, state, questions, images=()):
+        raise RuntimeError("provider down")
+
+
+async def test_a_failed_decision_counts_the_requests_that_were_answered():
+    seen: list = []
+    errors: list = []
+    fast = CountingDecider(
+        FakeDecider({"billing": 0.6, "tech": 0.4}), tokens=100, label="fast"
+    )
+    flock = Flock(no_output=True)
+    flock.agent("triage").consumes(UsageTicket).decides(
+        UsageRoute, model=fast, escalate=[BrokenDecider()], threshold=0.8
+    ).with_utilities(RunMetrics(seen=seen, errors=errors))
+
+    await flock.publish(UsageTicket(text="crash, then a charge"))
+    await flock.run_until_idle()
+
+    assert len(errors) == 1
+    (metrics,) = seen
+    assert metrics["usage"] == {"fast": {"prompt_tokens": 100, "completion_tokens": 0}}
+
+
+async def test_an_llm_answer_that_fails_later_is_still_counted(monkeypatch):
+    import dspy
+
+    from flock.engines.dspy_engine import DSPyEngine
+
+    async def answer(self, dspy_mod, program, *, description, payload):
+        prediction = dspy.Prediction(usage_reply=UsageReply(text="done"))
+        prediction.set_lm_usage({
+            "openai/gpt-4.1": {"prompt_tokens": 1000, "completion_tokens": 500}
+        })
+        return prediction
+
+    def malformed(self, prediction, output_group):
+        raise ValueError("malformed prediction")
+
+    monkeypatch.setattr(
+        "flock.engines.dspy.streaming_executor.DSPyStreamingExecutor.execute_standard",
+        answer,
+    )
+    monkeypatch.setattr(
+        "flock.engines.dspy.signature_builder.DSPySignatureBuilder"
+        ".extract_multi_output_payload",
+        malformed,
+    )
+    seen: list = []
+    errors: list = []
+    flock = Flock("openai/gpt-4.1", no_output=True)
+    flock.agent("writer").consumes(UsageTicket).publishes(UsageReply).with_engines(
+        DSPyEngine(model="openai/gpt-4.1", stream=False)
+    ).with_utilities(RunMetrics(seen=seen, errors=errors))
+
+    await flock.publish(UsageTicket(text="hi"))
+    await flock.run_until_idle()
+
+    assert len(errors) == 1
+    (metrics,) = seen
+    assert metrics["usage"] == {
+        "openai/gpt-4.1": {"prompt_tokens": 1000, "completion_tokens": 500}
+    }
