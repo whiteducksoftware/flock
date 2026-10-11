@@ -1174,7 +1174,8 @@ function ItemThresholds({ thresholds }: { thresholds: Record<string, number> }) 
 
 /** One decision: header, answer, its drawing by question kind, model and
  * threshold, then escalation, votes, shadow, explanation and review. */
-export const DecisionBars = memo(({ decision, artifactId }: { decision: DecisionInfo; artifactId?: string }) => {
+export const DecisionBars = memo(
+  ({ decision, artifactId, header = true }: { decision: DecisionInfo; artifactId?: string; header?: boolean }) => {
   const [bracketOpen, setBracketOpen] = useState(false);
   const kind = decision.kind ?? 'choice';
   const rounds = decision.rounds ?? [];
@@ -1184,7 +1185,8 @@ export const DecisionBars = memo(({ decision, artifactId }: { decision: Decision
 
   const body = (
     <div className={styles.decision}>
-      <Head question={decision.question} kind={KIND_LABEL[kind] ?? KIND_LABEL.choice} />
+      {/* A card that names the question in its own head leaves this one out */}
+      {header && <Head question={decision.question} kind={KIND_LABEL[kind] ?? KIND_LABEL.choice} />}
       <Answer decision={decision} />
       {kind === 'checklist' ? (
         <ChecklistGrid decision={decision} />

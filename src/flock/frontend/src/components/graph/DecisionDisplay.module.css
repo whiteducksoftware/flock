@@ -568,8 +568,9 @@
   gap: 6px;
 }
 
-.pick,
-.pick:hover {
+/* Over the global .btn, whichever loads last */
+:global(.btn).pick,
+:global(.btn).pick:hover {
   border-color: var(--sure);
   color: var(--sure-ink);
   background: var(--sure-soft);

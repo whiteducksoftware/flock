@@ -23,12 +23,20 @@ export interface ArtifactViews {
   images?: ImageSummary[];
 }
 
-/** `data` is the artifact node's data; the views it may carry are read from it */
-const ArtifactBody: React.FC<{ id: string; data: Record<string, unknown> }> = ({ id, data: node }) => {
+/**
+ * `data` is the artifact node's data; the views it may carry are read from it.
+ * Without `decisionHeader` a decision leaves out its question and kind, for a
+ * card whose head names them.
+ */
+const ArtifactBody: React.FC<{ id: string; data: Record<string, unknown>; decisionHeader?: boolean }> = ({
+  id,
+  data: node,
+  decisionHeader = true,
+}) => {
   const data = node as ArtifactViews;
   return (
     <>
-      {data.decision && <DecisionBars decision={data.decision} artifactId={id} />}
+      {data.decision && <DecisionBars decision={data.decision} artifactId={id} header={decisionHeader} />}
       {data.explanation && <ExplanationCard explanation={data.explanation} />}
       {data.coverage && <CoverageCard coverage={data.coverage} />}
       {data.images && data.images.length > 0 && <ImageThumbnails artifactId={id} images={data.images} />}

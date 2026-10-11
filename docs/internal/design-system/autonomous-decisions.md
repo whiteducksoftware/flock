@@ -165,3 +165,18 @@ Each entry says what was decided, why, and where it landed.
 - **No "One lane per run ▾" menu** (the mockup's): the spec has one grouping. The Lanes/Table choice is saved; the review filter is not.
 - **The artifact table** reads the newest page first and pages back ("Load Older"): the store keeps artifacts oldest first, and offsets of older artifacts hold as new ones are appended. Its scroll effect rendered without end once it had rows (a new range object each time); that and the reload on every page are fixed here, also for the timeline dock's History. The same component on `main` has these bugs.
 - **Removed:** the artifact detail windows (`DetailWindowContainer`, `MessageDetailWindow`, `uiStore.detailWindows`), `MessageNode` and `TransformEdge`. `MessageNode`'s decision tests moved to `ArtifactBody`. `react-rnd`, used only by the detail window, stays in `package.json` until a dependency cleanup.
+
+### #566 Decision kit
+
+- **The rebuild was done by a subagent from the spec and the mockup and reviewed here** (diff, tests, a fixture harness of every element in both themes, the triage demo live). Its calls, kept:
+  - Probabilities read 0.52, not 52 % (the mockup).
+  - The tournament bracket highlights on hover in `--text`, not amber (amber means "happening now"); its emoji are gone, the winner is marked ◆; its Close button is text.
+  - The yes/no bar's chosen side is blue; an unsure answer tints yes at 45 %, as the mockup does.
+  - A decider's scale columns are all blue (they count decided answers); "most often no" chips are neutral (coral is for failed only).
+  - Scores keep two decimals; "+N more options, each below 1 %" stays.
+  - A checklist's legend counts refused items apart from unsure ones (the mockup's legend).
+- **The Blackboard's unfolded card leaves out the decision's question and kind,** since its head names them; elsewhere a decision has its header.
+- **The question's instructions are not drawn:** decision views carry the question's name, not its text.
+- **The review buttons' preselected best guess wins over the global `.btn` style** whichever stylesheet loads last (the live build loaded `.btn` after the module).
+- **The decider's Needs review queue** comes from the graph snapshot (#610): at most 20 shown, newest first, "and N more" for the rest; each with the decided artifact's title (a field that names it), its run, the two best guesses and the review buttons; a review takes it out on the next refresh. It says where unsure answers route ("route to Route.UNSURE and wait here for a person").
+- **The paid examples in `examples/15-decisions/` were not run for this PR** (they call real decision models); the kit was checked with a harness of fixture decisions for every kind and on the triage demo (choice, yes/no, review queue).

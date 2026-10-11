@@ -127,6 +127,8 @@ describe('Blackboard', () => {
     const card = screen.getByRole('article', { name: '◆ Route by triage' });
     expect(card.textContent).toContain('by triage · 58 ms');
     expect(card.textContent).toContain('azure/decision-1');
+    // Its head names the question; the decision does not again
+    expect(within(card).queryByText('Choice')).toBeNull();
     // Its consumption history, from the artifact read by ID
     expect(await within(card).findByText('run 7f3a2b')).toBeTruthy();
     expect(card.textContent).toContain('support');
