@@ -492,6 +492,40 @@ In the dashboard, the decider shows how often the shadow agreed (`shadow openai/
   <img alt="Live UNSURE with best guess computer_vision; the shadow chose computer_vision at 0.99" src="../../assets/images/decisions/decision-shadow-card-unsure.png" width="320">
 </p>
 
+### Explain on demand
+
+Decision models give probabilities, no reasons. An explaining agent asks an LLM for a reason, only for the decisions it subscribes to, usually the `UNSURE` branch:
+
+```python
+from flock.decisions.explain import Explanation
+
+flock.agent("triage").consumes(Ticket).decides(Route, threshold=0.95)
+flock.agent("explainer").consumes(Route.UNSURE).explains(model="openai/gpt-4.1")
+flock.agent("review_queue").consumes(Explanation).publishes(ReviewItem)
+```
+
+For every decision that reaches it, the LLM gets the decided artifact (images included) and the decision: the question, the options and their criteria, the probabilities, the threshold and, for a Checklist, the result per item. It writes an `Explanation`:
+
+| Field | Meaning |
+|---|---|
+| `explanation` | Why the decision came out this way, citing the input |
+| `missing` | Information that would settle the question, if any |
+| `decision_ids`, `questions` | The explained decisions and their question names |
+| `subject_ids` | The decided artifacts |
+| `model` | The LLM that wrote the explanation |
+
+The link fields are set by Flock, not by the LLM, and the explanation keeps the subjects' visibility. The default instructions ask the LLM to explain, not to answer the question itself; `instructions=` replaces them. `model=` defaults to the flock's model.
+
+`.explains()` needs a decision handle subscription (`Route.UNSURE`, `Controls.failed`, `Route.billing`, or several handles for an AND) and cannot be combined with `.publishes()` or `.with_engines()`. With several handles, one explanation covers all decisions about the subject.
+
+On eight support tickets with Microsoft-Decision-1 at threshold 0.95 ([`10_explain.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/10_explain.py)), one ticket was unsure and the LLM ran once:
+
+> **Return label not working** → UNSURE (shipping 0.90, tech 0.10)
+> The subject and the reference to a "return label" support shipping, whose scope includes returns. However, "from the website gives an error when I print it" also suggests a technical bug, supporting tech as an alternative. [...]
+> *Would settle it:* the exact error message and whether the failure occurs while generating the label on the website or while printing a downloaded one.
+
+In the dashboard, an explanation shows as text instead of JSON, and the explained decision shows the explanation on its card.
+
 ## Visibility
 
 A decision inherits the visibility of its subject, so routing never widens who can read data. Agents that may not see the ticket do not see its decision either and are not triggered. If a decider consumes several inputs with different visibilities, it fails instead of guessing; pass `visibility=` to `.decides()` to choose the decision's readership explicitly.
@@ -683,4 +717,4 @@ They judge well when the answer can be read off the supplied state: routing, int
 
 ## Example
 
-[`examples/15-decisions/01_ticket_triage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/01_ticket_triage.py) routes support tickets with Microsoft-Decision-1 (or any other provider) and sends ambiguous tickets to a supervisor. [`02_arxiv_race.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/02_arxiv_race.py) races an LLM against the available decision models on 100 arXiv abstracts. [`03_color_sorter.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/03_color_sorter.py) sorts generated shapes into color bins from their images. [`04_question_types.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/04_question_types.py) asks a choice, a yes/no and a scale question about every ticket in one request. [`05_compliance_checklist.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/05_compliance_checklist.py) checks 24 fictional security documents against 100 controls and compares the answers with ground truth. [`06_control_mapping_tournament.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/06_control_mapping_tournament.py) maps evidence sentences to one of the 100 controls in three ways: a single choice, a tournament and a screening network. [`07_escalation.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/07_escalation.py) sorts the arXiv abstracts with a cascade of two decision models and shows which tier answered each paper. [`08_voting.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/08_voting.py) lets three decision models vote on them and compares each model with the ensemble. [`09_shadow.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/09_shadow.py) runs a candidate model in the shadow of the live one and lists where it would have routed differently.
+[`examples/15-decisions/01_ticket_triage.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/01_ticket_triage.py) routes support tickets with Microsoft-Decision-1 (or any other provider) and sends ambiguous tickets to a supervisor. [`02_arxiv_race.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/02_arxiv_race.py) races an LLM against the available decision models on 100 arXiv abstracts. [`03_color_sorter.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/03_color_sorter.py) sorts generated shapes into color bins from their images. [`04_question_types.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/04_question_types.py) asks a choice, a yes/no and a scale question about every ticket in one request. [`05_compliance_checklist.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/05_compliance_checklist.py) checks 24 fictional security documents against 100 controls and compares the answers with ground truth. [`06_control_mapping_tournament.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/06_control_mapping_tournament.py) maps evidence sentences to one of the 100 controls in three ways: a single choice, a tournament and a screening network. [`07_escalation.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/07_escalation.py) sorts the arXiv abstracts with a cascade of two decision models and shows which tier answered each paper. [`08_voting.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/08_voting.py) lets three decision models vote on them and compares each model with the ensemble. [`09_shadow.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/09_shadow.py) runs a candidate model in the shadow of the live one and lists where it would have routed differently. [`10_explain.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/10_explain.py) lets an LLM explain the tickets the router was unsure about.

@@ -172,6 +172,7 @@ flock.agent("audit").consumes(Decision.of(Route)).publishes(Entry)    # the deci
   - `escalate=["openai/gpt-6-luna"]` asks the next model about questions (or checklist items) that are not firm; the decision records `tier` and `attempts`.
   - `models=[...]` with `vote="majority" | "unanimous" | "mean"` lets several models answer and vote; the decision records `votes`.
   - `shadow="openai/gpt-6-luna"` records a candidate model's answer in the decision's `shadow` without routing it; a failing shadow never fails the decision.
+  - `.consumes(Route.UNSURE).explains(model=...)` lets an LLM write an `Explanation` (`flock.decisions.explain`) of each decision it receives, linked by `decision_ids`.
 - **Rules:**
   - A decision agent publishes only its decisions: no `.with_engines()` or `.publishes()` with `.decides()`.
   - Handles and `Decision.of(X)` cannot share an agent.
