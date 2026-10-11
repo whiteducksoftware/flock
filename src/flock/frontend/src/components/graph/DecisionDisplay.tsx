@@ -1091,6 +1091,53 @@ const ChecklistGrid = memo(({ decision }: { decision: DecisionInfo }) => {
 });
 ChecklistGrid.displayName = 'ChecklistGrid';
 
+export interface CoverageInfo extends Pick<DecisionInfo, 'question' | 'choice' | 'results' | 'items' | 'probabilities' | 'refusedItems'> {
+  kind: 'checklist';
+  group: string;
+  combine: string;
+  documents: number;
+}
+
+export interface AggregatorInfo {
+  question: string;
+  by: string;
+  combine: string;
+  groups: Record<string, number>; // passed, failed, UNSURE: groups by their latest outcome
+}
+
+/** An aggregating agent: what it combines, by what, and its groups' outcomes. */
+export const CoverageSummary = memo(({ aggregator }: { aggregator: AggregatorInfo }) => (
+  <div
+    data-testid="coverage-summary"
+    style={{ fontSize: '10px', color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-family-mono)', padding: '4px 0' }}
+  >
+    <div>{`◇ ${aggregator.question} by ${aggregator.by} (${aggregator.combine})`}</div>
+    <div>
+      {`${aggregator.groups.passed ?? 0} passed · ${aggregator.groups.failed ?? 0} failed · ${aggregator.groups[UNSURE] ?? 0} unsure`}
+    </div>
+  </div>
+));
+CoverageSummary.displayName = 'CoverageSummary';
+
+/** A coverage: one group's combined checklist, drawn like a checklist decision. */
+export const CoverageCard = memo(({ coverage }: { coverage: CoverageInfo }) => {
+  const values = Object.values(coverage.results ?? {});
+  const count = (result: string) => values.filter((value) => value === result).length;
+  const color = coverage.choice === 'passed' ? VIOLET_TEXT : coverage.choice === 'failed' ? '#be123c' : '#b45309';
+  return (
+    <div data-testid="coverage-card" style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '10px' }}>
+      <div style={{ fontSize: '12px', fontWeight: 700, color }}>
+        {`◇ ${coverage.question} coverage of ${coverage.group}: ${coverage.choice} · ${count('yes')} yes · ${count('no')} no · ${count(UNSURE)} unsure`}
+      </div>
+      <ChecklistGrid decision={coverage as unknown as DecisionInfo} />
+      <div style={{ fontSize: '10px', color: STONE, fontFamily: 'monospace' }}>
+        {`${coverage.combine} of ${coverage.documents} document${coverage.documents === 1 ? '' : 's'}`}
+      </div>
+    </div>
+  );
+});
+CoverageCard.displayName = 'CoverageCard';
+
 /** One decision: its answer drawn by question kind, with model and threshold. */
 export const DecisionBars = memo(({ decision }: { decision: DecisionInfo }) => {
   const [bracketOpen, setBracketOpen] = useState(false);

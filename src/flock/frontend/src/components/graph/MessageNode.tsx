@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { NodeProps, Handle, Position } from '@xyflow/react';
 import JsonView from '@uiw/react-json-view';
-import { DecisionBars, DecisionInfo, ExplanationCard, ExplanationInfo, ImageStrip, ImageSummary } from './DecisionDisplay';
+import { CoverageCard, CoverageInfo, DecisionBars, DecisionInfo, ExplanationCard, ExplanationInfo, ImageStrip, ImageSummary } from './DecisionDisplay';
 
 // UI Optimization Migration (Phase 4.1 - Spec 002): Backend GraphNode.data is Record<string, any>
 // Message/artifact-specific properties populated by backend snapshot
@@ -15,6 +15,7 @@ const MessageNode = memo(({ id, data, selected }: NodeProps) => {
   const streamingText = nodeData.streamingText || '';
   const decision = nodeData.decision as DecisionInfo | undefined; // Decision artifact view
   const explanation = nodeData.explanation as ExplanationInfo | undefined; // Explanation artifact view
+  const coverage = nodeData.coverage as CoverageInfo | undefined; // Coverage artifact view
   const images = nodeData.images as ImageSummary[] | undefined; // Thumbnails of Image fields
 
   // Phase 6: Show artifact ID for debugging/verification
@@ -111,10 +112,11 @@ const MessageNode = memo(({ id, data, selected }: NodeProps) => {
           <>
           {decision && <DecisionBars decision={decision} />}
           {explanation && <ExplanationCard explanation={explanation} />}
+          {coverage && <CoverageCard coverage={coverage} />}
           {images && images.length > 0 && <ImageStrip images={images} />}
           <JsonView
             value={payload}
-            collapsed={decision || explanation ? true : false}
+            collapsed={decision || explanation || coverage ? true : false}
             displayDataTypes={false}
             shortenTextAfterLength={0}
             style={{

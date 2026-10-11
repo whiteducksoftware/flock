@@ -628,6 +628,39 @@ describe('MessageNode', () => {
     expect(shadow).toHaveAttribute('title', 'TimeoutError: no reply');
   });
 
+  it('should show a coverage as a checklist grid for its group', () => {
+    render(
+      <ReactFlowProvider>
+        <MessageNode
+          {...createNodeProps({
+            artifactType: 'Coverage[__main__.Controls]',
+            payload: { group: 'acme' },
+            producedBy: 'coverage',
+            consumedBy: [],
+            timestamp: Date.now(),
+            coverage: {
+              question: 'Controls',
+              kind: 'checklist',
+              group: 'acme',
+              combine: 'any',
+              documents: 2,
+              choice: 'UNSURE',
+              results: { mfa: 'yes', backup: 'yes', logs: 'UNSURE' },
+              items: ['mfa', 'backup', 'logs'],
+              probabilities: {},
+              refusedItems: [],
+            },
+          })}
+        />
+      </ReactFlowProvider>
+    );
+    const card = screen.getByTestId('coverage-card');
+    expect(card).toHaveTextContent('Controls coverage of acme: UNSURE');
+    expect(card).toHaveTextContent('2 yes · 0 no · 1 unsure');
+    expect(card).toHaveTextContent('any of 2 documents');
+    expect(screen.getByRole('group', { name: 'Controls items' })).toBeInTheDocument();
+  });
+
   it('should show an explanation as text instead of JSON', () => {
     render(
       <ReactFlowProvider>
