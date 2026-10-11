@@ -72,8 +72,8 @@ interface GraphState {
   appendRunTail: (runId: string, text: string) => void;
   /** Runs going on when the page connected, which it heard no start event of (their types are not known) */
   seedInFlight: (runs: { runId: string; agent: string; artifacts: string[]; correlationId: string | null }[]) => void;
-  /** Drops the streaming previews of an agent's run (all of them without arguments) */
-  dropStreamingPreviews: (agent?: string, correlationId?: string | null) => void;
+  /** Drops the streaming previews of a run (all of them without arguments) */
+  dropStreamingPreviews: (agent?: string, correlationId?: string | null, runId?: string | null) => void;
   updateStreamingTokens: (agentId: string, tokens: string[]) => void;
   updateAgentLogicOperations: (agentId: string, logicOps: AgentLogicOperations[]) => void; // Phase 1.3
   addEvent: (message: Message) => void;
@@ -245,7 +245,12 @@ export const useGraphStore = create<GraphState>()(
           // board's filters let it through (it has no tags yet)
           const known = new Set(snapshot.nodes.map((node) => node.id));
           const filters = request.filters;
+          const timeRange = useFilterStore.getState().timeRange;
+          const from = timeRange.preset === 'custom' ? boundOf(timeRange.start) : undefined;
+          const to = timeRange.preset === 'custom' ? boundOf(timeRange.end) : undefined;
           const passes = (data: Record<string, any>) =>
+            (from === undefined || (data.timestamp ?? 0) >= from) &&
+            (to === undefined || (data.timestamp ?? 0) <= to) &&
             (!filters.correlation_id || data.correlationId === filters.correlation_id) &&
             (filters.artifactTypes.length === 0 || filters.artifactTypes.includes(data.artifactType)) &&
             (filters.producers.length === 0 || filters.producers.includes(data.producedBy)) &&
@@ -331,7 +336,9 @@ export const useGraphStore = create<GraphState>()(
         });
       },
 
-      dropStreamingPreviews: (agent, correlationId) => {
+      dropStreamingPreviews: (agent, correlationId, runId) => {
+        // A preview that knows its run goes with that run only; the agent may run again in the same workflow
+        const ofRun = (data: Record<string, any>) => !runId || !data.runId || data.runId === runId;
         set((state) => {
           const nodes = state.nodes.filter(
             (node) =>
@@ -339,7 +346,8 @@ export const useGraphStore = create<GraphState>()(
                 node.type === 'message' &&
                 node.data.isStreaming &&
                 (agent === undefined || node.data.producedBy === agent) &&
-                (correlationId === undefined || (node.data.correlationId ?? null) === correlationId)
+                (correlationId === undefined || (node.data.correlationId ?? null) === correlationId) &&
+                ofRun(node.data)
               ),
           );
           return nodes.length === state.nodes.length ? {} : { nodes };
@@ -494,6 +502,8 @@ export const useGraphStore = create<GraphState>()(
                 tags: [],
                 visibilityKind: 'Public',
                 correlationId: eventData?.correlation_id || '',
+                // The run streaming it: when the run ends, its preview goes
+                runId: eventData?.run_id ?? null,
               },
             };
             return { nodes: [...state.nodes, newNode] };

@@ -114,7 +114,8 @@ const Summary: React.FC<{ card: LaneCard }> = ({ card }) => {
 
 /** Everything about an unfolded artifact: its views, who consumed it, its payload and history, read by ID. */
 const Unfolded: React.FC<{ card: LaneCard }> = ({ card }) => {
-  const { artifact, error } = useArtifact(card.id);
+  // A streaming artifact is not on the record yet: it is read once it is published
+  const { artifact, error } = useArtifact(card.state === 'streaming' ? null : card.id);
   const data = card.data as {
     decision?: DecisionInfo;
     consumedBy?: string[];
@@ -163,7 +164,9 @@ const Unfolded: React.FC<{ card: LaneCard }> = ({ card }) => {
       </div>
       <div className={styles.section}>
         <span className={styles.label}>Consumed</span>
-        {error ? (
+        {streamed !== undefined ? (
+          <span className={styles.faint}>Not published yet</span>
+        ) : error ? (
           <span className={styles.faint}>{error}</span>
         ) : !artifact ? (
           <span className={styles.faint}>Loading…</span>

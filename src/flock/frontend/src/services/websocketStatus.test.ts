@@ -58,6 +58,30 @@ describe('WebSocketClient agent status', () => {
     expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual(['p2']);
   });
 
+  it('drops only the preview of the run that ended, when the agent runs twice in a run', () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    useGraphStore.setState({ viewMode: 'blackboard', nodes: [] });
+    const client = new WebSocketClient('ws://test/ws');
+    const token = (artifact_id: string, run_id: string) =>
+      receive(client, 'streaming_output', {
+        agent_name: 'billing',
+        correlation_id: 'c-1',
+        run_id,
+        artifact_id,
+        artifact_type: 'TeamReply',
+        output_type: 'llm_token',
+        content: 'Hi',
+        sequence: 1,
+      });
+    token('a-1', 'r-1');
+    token('a-2', 'r-2');
+
+    receive(client, 'agent_completed', { agent_name: 'billing', correlation_id: 'c-1', run_id: 'r-1', agent_status: 'running' });
+
+    expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual(['a-2']);
+  });
+
   it('remembers what a starting run consumed, and its run', () => {
     vi.useFakeTimers();
     const client = new WebSocketClient('ws://test/ws');

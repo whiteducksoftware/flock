@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { Edge, Node } from '@xyflow/react';
 import { useGraphStore } from '../../store/graphStore';
 import { useUIStore } from '../../store/uiStore';
@@ -135,12 +135,27 @@ describe('Blackboard', () => {
     expect(screen.queryByRole('article')).toBeNull();
   });
 
-  it('keeps the output so far of a streaming card it unfolds', () => {
+  it('keeps the output so far of a streaming card it unfolds, and reads it once it is published', async () => {
     render(<Blackboard />);
 
     fireEvent.click(within(lane('cccc')).getByRole('button', { name: 'TeamReply by billing_team', expanded: false }));
     const card = screen.getByRole('article', { name: 'TeamReply by billing_team' });
     expect(card.textContent).toContain('Hi, thanks for your patience');
+    // Not on the record yet: nothing to read
+    expect(card.textContent).toContain('Not published yet');
+    expect(vi.mocked(globalThis.fetch).mock.calls.map(([url]) => url)).not.toContain('/api/v1/artifacts/s1?images=thumbnails&embed_meta=true');
+
+    act(() =>
+      useGraphStore.setState({
+        nodes: nodes.map((node) =>
+          node.id === 's1' ? { ...node, data: { ...node.data, isStreaming: false, payload: { reply: 'Hi, thanks for your patience.' } } } : node,
+        ),
+        edges: [...edges, made('t3', 's1', 'billing_team')],
+      }),
+    );
+    await waitFor(() =>
+      expect(vi.mocked(globalThis.fetch).mock.calls.map(([url]) => url)).toContain('/api/v1/artifacts/s1?images=thumbnails&embed_meta=true'),
+    );
   });
 
   it('unfolds a card with the keyboard', () => {

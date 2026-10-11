@@ -277,6 +277,7 @@ export class WebSocketClient {
             agent_name: data.agent_name,
             correlation_id: data.correlation_id,
             artifact_type: data.artifact_type,  // Phase 6: Artifact type name for node header
+            run_id: data.run_id,
           }
         );
 
@@ -300,7 +301,7 @@ export class WebSocketClient {
       // Another run of it goes on: its ticker stays
       if (status !== 'running') useGraphStore.getState().updateStreamingTokens(data.agent_name, []);
       // A stream it never published is no artifact
-      useGraphStore.getState().dropStreamingPreviews(data.agent_name, data.correlation_id ?? null);
+      useGraphStore.getState().dropStreamingPreviews(data.agent_name, data.correlation_id ?? null, data.run_id ?? null);
       // This run is done; another one keeps its own types in flight
       useGraphStore.getState().setInFlight(data.run_id, data.agent_name, null);
       this.endedRuns.add(data.run_id);
@@ -320,7 +321,7 @@ export class WebSocketClient {
       // A failed run's tokens are not the next run's; another run of it keeps the ticker
       if (status !== 'running') useGraphStore.getState().updateStreamingTokens(data.agent_name, []);
       // The failed run's stream is no artifact
-      useGraphStore.getState().dropStreamingPreviews(data.agent_name, data.correlation_id ?? null);
+      useGraphStore.getState().dropStreamingPreviews(data.agent_name, data.correlation_id ?? null, data.run_id ?? null);
       useGraphStore.getState().setInFlight(data.run_id, data.agent_name, null);
       this.endedRuns.add(data.run_id);
       // The snapshot says what failed (lastError)
