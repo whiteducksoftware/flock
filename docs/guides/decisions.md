@@ -622,7 +622,7 @@ await flock.review(decision_id, choice="tech", reviewer="lead")  # the ticket re
 await flock.review(other_id)  # without choice: confirm the best guess
 ```
 
-The reviewed decision has the chosen option with probability 1.0, the reviewer as `model` and producer, `review_of` set to the reviewed decision's id, and the original's subjects, correlation and visibility; a scale review sets the score of the chosen level, so range handles match. Choice, yes/no and scale decisions can be reviewed; checklists cannot yet. An unknown id raises `LookupError`, an option the question does not have raises `ValueError`.
+The reviewed decision has the chosen option with probability 1.0, the reviewer as `model` and producer, `review_of` set to the reviewed decision's id, and the original's subjects, correlation and visibility; a scale review sets the score of the chosen level, so range handles match. Choice, yes/no and scale decisions can be reviewed; checklists cannot yet. An unknown id raises `LookupError`; an option the question does not have, or a reviewer named like one of the flock's agents (agents do not consume their own outputs, so the review would not reach that agent), raises `ValueError`.
 
 The control API offers the same: `POST /api/control/decisions/{id}/review` with `{"choice": "tech", "reviewer": "lead"}` (both optional). In the Blackboard View, an unsure decision shows review buttons, the most probable options first; a click publishes the review. A reviewed decision then shows its review, and the review names the decision it replaces. Reviewed decisions are labels: they record what a person decided where the model was not sure, which is the data needed to calibrate thresholds.
 

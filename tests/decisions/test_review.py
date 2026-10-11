@@ -154,6 +154,17 @@ async def test_unknown_choices_and_non_decisions_are_rejected():
         await flock.review("00000000-0000-0000-0000-000000000000", choice="billing")
 
 
+async def test_a_reviewer_cannot_share_an_agents_name():
+    flock = _flock()
+    await flock.publish(RevTicket(text="app crashed"))
+    await flock.run_until_idle()
+    (unsure,) = await _artifacts(flock, Decision.of(RevRoute))
+
+    # A review by "tech" would never reach the tech agent (no self-triggering)
+    with pytest.raises(ValueError, match="agent"):
+        await flock.review(unsure.id, choice="tech", reviewer="tech")
+
+
 async def test_checklists_cannot_be_reviewed_yet():
     flock = Flock()
     flock.agent("audit").consumes(RevTicket).decides(

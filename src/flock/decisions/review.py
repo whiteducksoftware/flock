@@ -33,6 +33,12 @@ async def review_decision(
     and keeps its subjects, correlation and visibility. Raises ``LookupError``
     for an unknown id and ``ValueError`` for anything that cannot be reviewed.
     """
+    if any(agent.name == reviewer for agent in flock.agents):
+        # Agents do not consume their own outputs: a review by "tech" would
+        # never reach the tech agent
+        raise ValueError(
+            f"Reviewer '{reviewer}' is also an agent's name; choose another name."
+        )
     original = await flock.store.get(UUID(str(decision_id)))
     if original is None:
         raise LookupError(f"There is no artifact {decision_id}.")

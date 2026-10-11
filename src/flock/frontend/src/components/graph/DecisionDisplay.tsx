@@ -1,5 +1,6 @@
 import { memo, useState } from 'react';
 import { reviewDecision } from '../../services/api';
+import { useGraphStore } from '../../store/graphStore';
 import { TournamentBracket } from './TournamentBracket';
 
 /**
@@ -1174,7 +1175,11 @@ const ReviewControl = memo(({ decision, artifactId }: { decision: DecisionInfo; 
     setBusy(true);
     setError(null);
     reviewDecision(artifactId, option)
-      .then((response) => setReviewed(response.choice))
+      .then((response) => {
+        setReviewed(response.choice);
+        // The review is a new decision; no event announces it
+        useGraphStore.getState().scheduleRefresh();
+      })
       .catch((caught: Error) => setError(caught.message))
       .finally(() => setBusy(false));
   };

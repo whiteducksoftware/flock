@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ReactFlowProvider } from '@xyflow/react';
 import MessageNode from './MessageNode';
+import { useGraphStore } from '../../store/graphStore';
 import { NodeProps } from '@xyflow/react';
 
 // UI Optimization Migration (Phase 4.1 - Spec 002): MessageNodeData removed, use Record<string, any>
@@ -705,6 +706,7 @@ describe('MessageNode', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       new Response(JSON.stringify({ artifact_id: 'r-1', choice: 'tech', correlation_id: 'c-1' }), { status: 200 })
     );
+    const refreshSpy = vi.spyOn(useGraphStore.getState(), 'scheduleRefresh').mockImplementation(() => {});
     try {
       render(
         <ReactFlowProvider>
@@ -718,11 +720,14 @@ describe('MessageNode', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Review as tech' }));
 
       await waitFor(() => expect(screen.getByTestId('decision-review')).toHaveTextContent('reviewed as tech'));
+      // The review is a new decision: the graph refreshes to show it
+      expect(refreshSpy).toHaveBeenCalled();
       const [url, init] = fetchSpy.mock.calls[0] ?? [];
       expect(url).toBe('/api/control/decisions/msg-1/review');
       expect(JSON.parse(String((init as RequestInit).body))).toEqual({ choice: 'tech' });
     } finally {
       fetchSpy.mockRestore();
+      refreshSpy.mockRestore();
     }
   });
 
