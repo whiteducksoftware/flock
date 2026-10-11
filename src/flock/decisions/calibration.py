@@ -106,9 +106,9 @@ def calibrate(
     artifact's id (the decision's first subject) to the right answer per
     question name: an option, or for a checklist a mapping of item to
     ``"yes"`` or ``"no"``. A choice, yes/no or scale answer is its best guess
-    with its probability; a checklist item's answer is yes or no, whichever is
-    more probable, with that probability. Human reviews themselves are left
-    out.
+    with its probability (its confidence when it has none, as in routing); a
+    checklist item's answer is yes or no, whichever is more probable, with
+    that probability. Human reviews themselves are left out.
     """
     _check(target_precision, min_support)
     points: dict[tuple[str | None, str, str | None], list[tuple[float, bool]]] = {}
@@ -142,11 +142,12 @@ def calibrate(
                 points.setdefault(key, []).append((confidence, answer == label[item]))
         elif payload.get("best_guess") is not None:
             best = payload["best_guess"]
+            # As in routing: the confidence when the choice has no probability
+            confidence = probabilities.get(best, payload.get("confidence"))
+            if confidence is None:
+                continue
             key = (decider, question, None)
-            points.setdefault(key, []).append((
-                probabilities.get(best, 0.0),
-                best == label,
-            ))
+            points.setdefault(key, []).append((confidence, best == label))
     suggestions = []
     for (decider, question, item), answers in points.items():
         if (decider, question) in multi_stage:
@@ -167,6 +168,12 @@ def calibrate(
         threshold, precision, coverage = suggest_threshold(
             answers, target_precision, min_support
         )
+        if threshold is not None:
+            note = None
+        elif len(answers) < min_support:
+            note = f"too few labels: {len(answers)}, min_support is {min_support}"
+        else:
+            note = f"no threshold with {min_support} or more answers reaches the target"
         suggestions.append(
             Suggestion(
                 decider=decider,
@@ -176,7 +183,7 @@ def calibrate(
                 threshold=threshold,
                 precision=precision,
                 coverage=coverage,
-                note=None if threshold is not None else "the target is out of reach",
+                note=note,
             )
         )
     return suggestions

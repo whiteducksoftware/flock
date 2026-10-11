@@ -106,6 +106,35 @@ def test_calibrate_suggests_a_threshold_per_question():
     assert suggestion.precision == 1.0
 
 
+def test_answers_without_a_probability_count_with_their_confidence():
+    # Routing falls back to the confidence too when the choice has no probability
+    decisions = [
+        {**_decision("t1", {"billing": 0.9, "tech": 0.1}), "probabilities": {}}
+        | {"confidence": 0.9},
+        _decision("t2", {"billing": 0.6, "tech": 0.4}),  # wrong
+        {**_decision("t3", {"billing": 0.9, "tech": 0.1}), "probabilities": {}},
+    ]
+    labels = {
+        "t1": {"CalRoute": "billing"},
+        "t2": {"CalRoute": "tech"},
+        "t3": {"CalRoute": "billing"},
+    }
+
+    (suggestion,) = calibrate(decisions, labels, min_support=1)
+
+    assert suggestion.labeled == 2  # t3 has neither a probability nor a confidence
+    assert suggestion.threshold == 0.9
+
+
+def test_too_few_labels_are_not_called_an_unreachable_target():
+    decisions = [_decision("t1", {"billing": 0.9, "tech": 0.1})]
+
+    (suggestion,) = calibrate(decisions, {"t1": {"CalRoute": "billing"}})
+
+    assert suggestion.threshold is None
+    assert suggestion.note == "too few labels: 1, min_support is 5"
+
+
 def test_checklists_get_a_threshold_per_item():
     def checklist(subject: str, mfa: float, logs: float) -> dict:
         return {
