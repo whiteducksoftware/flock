@@ -40,7 +40,7 @@ const shortcuts: Shortcut[] = [
   // Panels
   {
     keys: isMac ? ['⌘', 'Shift', 'P'] : ['Ctrl', 'Shift', 'P'],
-    description: 'Open or close the publish panel',
+    description: 'Open or close the publish composer',
     category: 'Panels',
   },
   {

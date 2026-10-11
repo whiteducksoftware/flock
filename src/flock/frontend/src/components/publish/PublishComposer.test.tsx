@@ -1,16 +1,35 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import PublishControl from './PublishControl';
+import PublishComposer from './PublishComposer';
+import Toast from '../common/Toast';
 import { useFilterStore } from '../../store/filterStore';
+import { useUIStore } from '../../store/uiStore';
+
+// "Picked up by" reads the agents; these tests count the requests for types and publishing
+vi.mock('../../services/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../services/api')>()),
+  fetchAgents: vi.fn(async () => []),
+}));
 
 // Mock fetch globally
 const mockFetch = vi.fn();
 globalThis.fetch = mockFetch;
 
-// The select is there before the artifact types load: wait for the type
-const waitForType = (name: string) => screen.findByRole('option', { name });
+// The list is there before the artifact types load: wait for the type
+// (an option reads "Idea 1 field")
+const waitForType = (name: string) => screen.findByRole('option', { name: new RegExp(`^${name}\\b`) });
+const pickType = (name: string) => fireEvent.click(screen.getByRole('option', { name: new RegExp(`^${name}\\b`) }));
+const publishButton = () => screen.getByRole('button', { name: /^publish$/i });
+// The composer shows its result in the toast
+const renderComposer = () =>
+  render(
+    <>
+      <PublishComposer />
+      <Toast />
+    </>
+  );
 
-describe('PublishControl', () => {
+describe('PublishComposer', () => {
   const mockArtifactTypes = [
     { name: 'Idea', schema: { type: 'object', properties: { content: { type: 'string' } } } },
     { name: 'Movie', schema: { type: 'object', properties: { title: { type: 'string' }, plot: { type: 'string' } } } },
@@ -20,39 +39,39 @@ describe('PublishControl', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetch.mockReset();
+    useUIStore.setState({ toast: null });
   });
 
-  it('should render publish form with artifact type dropdown and content textarea', async () => {
+  it('should render the type list and, for the picked type, its content field', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({ artifact_types: mockArtifactTypes }),
     });
 
-    render(<PublishControl />);
+    renderComposer();
 
     await waitForType('Idea');
 
-    // Select artifact type to trigger dynamic field rendering
-    const artifactTypeSelect = screen.getByLabelText(/artifact type/i);
-    fireEvent.change(artifactTypeSelect, { target: { value: 'Idea' } });
+    // Pick the artifact type to trigger dynamic field rendering
+    pickType('Idea');
 
     // Now the content field should appear
     expect(screen.getByLabelText(/content/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /publish artifact/i })).toBeInTheDocument();
+    expect(publishButton()).toBeInTheDocument();
   });
 
-  it('should populate artifact type dropdown from available types', async () => {
+  it('should list the available types', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({ artifact_types: mockArtifactTypes }),
     });
 
-    render(<PublishControl />);
+    renderComposer();
 
     await waitForType('Idea');
 
-    const dropdown = screen.getByLabelText(/artifact type/i) as HTMLSelectElement;
-    const optionValues = Array.from(dropdown.options).map(opt => opt.value);
+    const list = screen.getByRole('listbox', { name: 'Artifact types' });
+    const optionValues = Array.from(list.querySelectorAll('[role="option"]')).map((opt) => opt.getAttribute('title'));
 
     expect(optionValues).toContain('Idea');
     expect(optionValues).toContain('Movie');
@@ -88,20 +107,19 @@ describe('PublishControl', () => {
       json: async () => ({ artifact_types: arrayDefaultsType }),
     });
 
-    render(<PublishControl />);
+    renderComposer();
 
     await waitForType('CompetitorBrief');
 
-    const artifactTypeSelect = screen.getByLabelText(/artifact type/i);
-    fireEvent.change(artifactTypeSelect, { target: { value: 'CompetitorBrief' } });
+    pickType('CompetitorBrief');
 
     await waitFor(() => {
-      expect(screen.getByLabelText(/key differentiators/i)).toBeInTheDocument();
-      expect(screen.getByLabelText(/known competitors/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/key_differentiators/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/known_competitors/i)).toBeInTheDocument();
     });
 
-    const differentiators = screen.getByLabelText(/key differentiators/i) as HTMLTextAreaElement;
-    const competitors = screen.getByLabelText(/known competitors/i) as HTMLTextAreaElement;
+    const differentiators = screen.getByLabelText(/key_differentiators/i) as HTMLTextAreaElement;
+    const competitors = screen.getByLabelText(/known_competitors/i) as HTMLTextAreaElement;
 
     expect(differentiators.value).toBe('Blackboard architecture\nTyped artifacts');
     expect(competitors.value).toBe('CrewAI\nLangGraph\nAutoGen');
@@ -121,11 +139,11 @@ describe('PublishControl', () => {
         }),
       });
 
-    render(<PublishControl />);
+    renderComposer();
 
     await waitForType('Idea');
 
-    const submitButton = screen.getByRole('button', { name: /publish artifact/i });
+    const submitButton = publishButton();
 
     // Test 1: Try to submit without selecting type - should NOT call API
     fireEvent.click(submitButton);
@@ -134,9 +152,8 @@ describe('PublishControl', () => {
     await new Promise(resolve => setTimeout(resolve, 100));
     expect(mockFetch).toHaveBeenCalledTimes(1); // Only the initial artifact types fetch
 
-    // Test 2: Select artifact type but leave content empty - should NOT call API
-    const artifactTypeSelect = screen.getByLabelText(/artifact type/i);
-    fireEvent.change(artifactTypeSelect, { target: { value: 'Idea' } });
+    // Test 2: Pick artifact type but leave content empty - should NOT call API
+    pickType('Idea');
 
     await waitFor(() => {
       expect(screen.getByLabelText(/content/i)).toBeInTheDocument();
@@ -156,12 +173,11 @@ describe('PublishControl', () => {
       json: async () => ({ artifact_types: mockArtifactTypes }),
     });
 
-    render(<PublishControl />);
+    renderComposer();
 
     await waitForType('Idea');
 
-    const artifactTypeSelect = screen.getByLabelText(/artifact type/i);
-    fireEvent.change(artifactTypeSelect, { target: { value: 'Idea' } });
+    pickType('Idea');
 
     // Wait for content field to appear after selecting type
     await waitFor(() => {
@@ -169,7 +185,7 @@ describe('PublishControl', () => {
     });
 
     const contentInput = screen.getByLabelText(/content/i);
-    const submitButton = screen.getByRole('button', { name: /publish artifact/i });
+    const submitButton = publishButton();
 
     // Content field is now a text input, not textarea, and accepts any string
     // The validation is done on the backend, so this test is no longer relevant
@@ -198,19 +214,18 @@ describe('PublishControl', () => {
         }),
       });
 
-    render(<PublishControl />);
+    renderComposer();
 
     await waitForType('Idea');
 
-    const artifactTypeSelect = screen.getByLabelText(/artifact type/i);
-    fireEvent.change(artifactTypeSelect, { target: { value: 'Idea' } });
+    pickType('Idea');
 
     await waitFor(() => {
       expect(screen.getByLabelText(/content/i)).toBeInTheDocument();
     });
 
     const contentInput = screen.getByLabelText(/content/i);
-    const submitButton = screen.getByRole('button', { name: /publish artifact/i });
+    const submitButton = publishButton();
 
     fireEvent.change(contentInput, { target: { value: 'Test idea' } });
     fireEvent.click(submitButton);
@@ -230,7 +245,7 @@ describe('PublishControl', () => {
     });
   });
 
-  it('should display success message with correlation ID after successful publish', async () => {
+  it('should show a toast with the run of the correlation ID after successful publish', async () => {
     mockFetch
       .mockResolvedValueOnce({
         ok: true,
@@ -245,26 +260,26 @@ describe('PublishControl', () => {
         }),
       });
 
-    render(<PublishControl />);
+    renderComposer();
 
     await waitForType('Idea');
 
-    const artifactTypeSelect = screen.getByLabelText(/artifact type/i);
-    fireEvent.change(artifactTypeSelect, { target: { value: 'Idea' } });
+    pickType('Idea');
 
     await waitFor(() => {
       expect(screen.getByLabelText(/content/i)).toBeInTheDocument();
     });
 
     const contentInput = screen.getByLabelText(/content/i);
-    const submitButton = screen.getByRole('button', { name: /publish artifact/i });
+    const submitButton = publishButton();
 
     fireEvent.change(contentInput, { target: { value: 'Success test' } });
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(screen.getByText(/successfully published/i)).toBeInTheDocument();
-      expect(screen.getByText(/test-correlation-456/)).toBeInTheDocument();
+      expect(screen.getByText('Published Idea · run test')).toBeInTheDocument();
+      // The full correlation ID is the tooltip of the run
+      expect(screen.getByTitle('test-correlation-456')).toBeInTheDocument();
     });
   });
 
@@ -283,19 +298,18 @@ describe('PublishControl', () => {
         }),
       });
 
-    render(<PublishControl />);
+    renderComposer();
 
     await waitForType('Idea');
 
-    const artifactTypeSelect = screen.getByLabelText(/artifact type/i);
-    fireEvent.change(artifactTypeSelect, { target: { value: 'Idea' } });
+    pickType('Idea');
 
     await waitFor(() => {
       expect(screen.getByLabelText(/content/i)).toBeInTheDocument();
     });
 
     const contentInput = screen.getByLabelText(/content/i);
-    const submitButton = screen.getByRole('button', { name: /publish artifact/i });
+    const submitButton = publishButton();
 
     fireEvent.change(contentInput, { target: { value: 'Error test' } });
     fireEvent.click(submitButton);
@@ -320,29 +334,29 @@ describe('PublishControl', () => {
         }),
       });
 
-    render(<PublishControl />);
+    renderComposer();
 
     await waitForType('Idea');
 
-    const artifactTypeSelect = screen.getByLabelText(/artifact type/i) as HTMLSelectElement;
-    fireEvent.change(artifactTypeSelect, { target: { value: 'Idea' } });
+    pickType('Idea');
 
     await waitFor(() => {
       expect(screen.getByLabelText(/content/i)).toBeInTheDocument();
     });
 
     const contentInput = screen.getByLabelText(/content/i) as HTMLInputElement;
-    const submitButton = screen.getByRole('button', { name: /publish artifact/i });
+    const submitButton = publishButton();
 
     fireEvent.change(contentInput, { target: { value: 'Reset test' } });
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(screen.getByText(/successfully published/i)).toBeInTheDocument();
+      expect(screen.getByText(/^published idea/i)).toBeInTheDocument();
     });
 
     // Form should be reset - artifact type cleared means fields disappear
-    expect(artifactTypeSelect.value).toBe('');
+    expect(screen.queryByRole('option', { selected: true })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/content/i)).not.toBeInTheDocument();
   });
 
   it('should disable submit button during API call', async () => {
@@ -358,19 +372,18 @@ describe('PublishControl', () => {
       })
       .mockReturnValueOnce(publishPromise as any);
 
-    render(<PublishControl />);
+    renderComposer();
 
     await waitForType('Idea');
 
-    const artifactTypeSelect = screen.getByLabelText(/artifact type/i);
-    fireEvent.change(artifactTypeSelect, { target: { value: 'Idea' } });
+    pickType('Idea');
 
     await waitFor(() => {
       expect(screen.getByLabelText(/content/i)).toBeInTheDocument();
     });
 
     const contentInput = screen.getByLabelText(/content/i);
-    const submitButton = screen.getByRole('button', { name: /publish artifact/i });
+    const submitButton = publishButton();
 
     fireEvent.change(contentInput, { target: { value: 'Loading test' } });
     fireEvent.click(submitButton);
@@ -405,19 +418,18 @@ describe('PublishControl', () => {
       })
       .mockRejectedValueOnce(new Error('Network error'));
 
-    render(<PublishControl />);
+    renderComposer();
 
     await waitForType('Idea');
 
-    const artifactTypeSelect = screen.getByLabelText(/artifact type/i);
-    fireEvent.change(artifactTypeSelect, { target: { value: 'Idea' } });
+    pickType('Idea');
 
     await waitFor(() => {
       expect(screen.getByLabelText(/content/i)).toBeInTheDocument();
     });
 
     const contentInput = screen.getByLabelText(/content/i);
-    const submitButton = screen.getByRole('button', { name: /publish artifact/i });
+    const submitButton = publishButton();
 
     fireEvent.change(contentInput, { target: { value: 'Network error test' } });
     fireEvent.click(submitButton);
@@ -428,19 +440,19 @@ describe('PublishControl', () => {
   });
 
   // Auto-filter checkbox tests
-  it('should render auto-set filter checkbox unchecked by default', async () => {
+  it('should render the follow checkbox checked by default', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({ artifact_types: mockArtifactTypes }),
     });
 
-    render(<PublishControl />);
+    renderComposer();
 
     await waitForType('Idea');
 
-    const checkbox = screen.getByLabelText(/set filter to correlation id/i) as HTMLInputElement;
+    const checkbox = screen.getByLabelText(/follow this run on the board/i) as HTMLInputElement;
     expect(checkbox).toBeInTheDocument();
-    expect(checkbox.checked).toBe(false);
+    expect(checkbox.checked).toBe(true);
   });
 
   it('should set filter to correlation ID when checkbox is checked and publish succeeds', async () => {
@@ -458,25 +470,23 @@ describe('PublishControl', () => {
         }),
       });
 
-    render(<PublishControl />);
+    renderComposer();
 
     await waitForType('Idea');
 
-    const artifactTypeSelect = screen.getByLabelText(/artifact type/i);
-    const checkbox = screen.getByLabelText(/set filter to correlation id/i) as HTMLInputElement;
+    const checkbox = screen.getByLabelText(/follow this run on the board/i) as HTMLInputElement;
 
-    // Check the checkbox to enable auto-filter
-    fireEvent.click(checkbox);
+    // The checkbox is checked: following is the default
     expect(checkbox.checked).toBe(true);
 
-    fireEvent.change(artifactTypeSelect, { target: { value: 'Idea' } });
+    pickType('Idea');
 
     await waitFor(() => {
       expect(screen.getByLabelText(/content/i)).toBeInTheDocument();
     });
 
     const contentInput = screen.getByLabelText(/content/i);
-    const submitButton = screen.getByRole('button', { name: /publish artifact/i });
+    const submitButton = publishButton();
 
     fireEvent.change(contentInput, { target: { value: 'Auto-filter test' } });
     fireEvent.click(submitButton);
@@ -503,30 +513,30 @@ describe('PublishControl', () => {
         }),
       });
 
-    render(<PublishControl />);
+    renderComposer();
 
     await waitForType('Idea');
 
-    const artifactTypeSelect = screen.getByLabelText(/artifact type/i);
-    const checkbox = screen.getByLabelText(/set filter to correlation id/i) as HTMLInputElement;
+    const checkbox = screen.getByLabelText(/follow this run on the board/i) as HTMLInputElement;
 
-    // Checkbox should already be unchecked by default
+    // Uncheck the checkbox, checked by default
+    fireEvent.click(checkbox);
     expect(checkbox.checked).toBe(false);
 
-    fireEvent.change(artifactTypeSelect, { target: { value: 'Idea' } });
+    pickType('Idea');
 
     await waitFor(() => {
       expect(screen.getByLabelText(/content/i)).toBeInTheDocument();
     });
 
     const contentInput = screen.getByLabelText(/content/i);
-    const submitButton = screen.getByRole('button', { name: /publish artifact/i });
+    const submitButton = publishButton();
 
     fireEvent.change(contentInput, { target: { value: 'No filter test' } });
     fireEvent.click(submitButton);
 
     await waitFor(() => {
-      expect(screen.getByText(/correlation id: no-filter-456/i)).toBeInTheDocument();
+      expect(screen.getByTitle('no-filter-456')).toBeInTheDocument();
     });
 
     // Verify filter was NOT updated to the new correlation ID
@@ -540,21 +550,21 @@ describe('PublishControl', () => {
       json: async () => ({ artifact_types: mockArtifactTypes }),
     });
 
-    render(<PublishControl />);
+    renderComposer();
 
     await waitForType('Idea');
 
-    const checkbox = screen.getByLabelText(/set filter to correlation id/i) as HTMLInputElement;
+    const checkbox = screen.getByLabelText(/follow this run on the board/i) as HTMLInputElement;
 
-    // Initially unchecked
-    expect(checkbox.checked).toBe(false);
-
-    // Check
-    fireEvent.click(checkbox);
+    // Initially checked
     expect(checkbox.checked).toBe(true);
 
-    // Uncheck again
+    // Uncheck
     fireEvent.click(checkbox);
     expect(checkbox.checked).toBe(false);
+
+    // Check again
+    fireEvent.click(checkbox);
+    expect(checkbox.checked).toBe(true);
   });
 });

@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import PublishControl from './PublishControl';
+import PublishComposer from './PublishComposer';
+
+// "Picked up by" reads the agents; these tests count the requests for types and publishing
+vi.mock('../../services/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../services/api')>()),
+  fetchAgents: vi.fn(async () => []),
+}));
 
 const mockFetch = vi.fn();
 
@@ -84,13 +90,9 @@ const png = (name: string) =>
 
 async function openForm(typeName: string) {
   mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ artifact_types: photoTypes }) });
-  render(<PublishControl />);
-  await waitFor(() => expect(screen.getByLabelText(/artifact type/i)).toBeInTheDocument());
-  await waitFor(() => {
-    const select = screen.getByLabelText(/artifact type/i) as HTMLSelectElement;
-    expect(Array.from(select.options).map((o) => o.value)).toContain(typeName);
-  });
-  fireEvent.change(screen.getByLabelText(/artifact type/i), { target: { value: typeName } });
+  render(<PublishComposer />);
+  await waitFor(() => expect(screen.getByRole('listbox', { name: 'Artifact types' })).toBeInTheDocument());
+  fireEvent.click(await screen.findByRole('option', { name: new RegExp(`^${typeName}\\b`) }));
 }
 
 function publishedContent() {
@@ -98,7 +100,7 @@ function publishedContent() {
   return JSON.parse(call![1].body).content;
 }
 
-describe('PublishControl image fields', () => {
+describe('PublishComposer image fields', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetch.mockReset();
@@ -125,7 +127,7 @@ describe('PublishControl image fields', () => {
     fireEvent.change(screen.getByLabelText(/caption/i), { target: { value: 'a red square' } });
     fireEvent.change(screen.getByLabelText(/picture/i), { target: { files: [png('red.png')] } });
     await waitFor(() => expect(screen.getByAltText(/red\.png/i)).toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: /publish artifact/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^publish$/i }));
 
     await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
     const content = publishedContent();
@@ -137,7 +139,7 @@ describe('PublishControl image fields', () => {
     await openForm('Photo');
 
     fireEvent.change(screen.getByLabelText(/caption/i), { target: { value: 'no picture' } });
-    fireEvent.click(screen.getByRole('button', { name: /publish artifact/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^publish$/i }));
 
     await waitFor(() => expect(screen.getByText(/picture is required/i)).toBeInTheDocument());
     expect(mockFetch).toHaveBeenCalledTimes(1); // only the artifact types
@@ -153,7 +155,7 @@ describe('PublishControl image fields', () => {
     fireEvent.change(picker, { target: { files: [png('a.png'), png('b.png'), png('c.png')] } });
     await waitFor(() => expect(screen.getByAltText(/c\.png/i)).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: /remove b\.png/i }));
-    fireEvent.click(screen.getByRole('button', { name: /publish artifact/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^publish$/i }));
 
     await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
     const content = publishedContent();
@@ -167,7 +169,7 @@ describe('PublishControl image fields', () => {
 
     expect((screen.getByLabelText(/pages/i) as HTMLInputElement).multiple).toBe(true);
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'empty' } });
-    fireEvent.click(screen.getByRole('button', { name: /publish artifact/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^publish$/i }));
 
     await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
     expect(publishedContent()).toEqual({ title: 'empty' });
@@ -178,7 +180,7 @@ describe('PublishControl image fields', () => {
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ correlation_id: 'c-4' }) });
 
     fireEvent.change(screen.getByLabelText(/note/i), { target: { value: 'no picture' } });
-    fireEvent.click(screen.getByRole('button', { name: /publish artifact/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^publish$/i }));
 
     await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
     expect(publishedContent()).toEqual({ note: 'no picture', picture: null });
@@ -189,7 +191,7 @@ describe('PublishControl image fields', () => {
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ correlation_id: 'c-5' }) });
 
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'blank' } });
-    fireEvent.click(screen.getByRole('button', { name: /publish artifact/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^publish$/i }));
 
     await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
     expect(publishedContent()).toEqual({ title: 'blank', frames: [] });

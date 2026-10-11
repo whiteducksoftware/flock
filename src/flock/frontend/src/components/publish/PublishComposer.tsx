@@ -1,35 +1,67 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { fetchArtifactTypes, publishArtifact, ArtifactType } from '../../services/api';
+/**
+ * The publish composer: pick a type, fill in its form or JSON, see which
+ * agents pick it up, publish with Ctrl/⌘+Enter
+ * (docs/internal/design-system/README.md, Overlays; mockups/Publish.dc.html).
+ */
+
+import React, { useEffect, useId, useRef, useState } from 'react';
+import { fetchAgents, fetchArtifactTypes, publishArtifact, type Agent, type ArtifactType } from '../../services/api';
 import { useFilterStore } from '../../store/filterStore';
 import { useSettingsStore } from '../../store/settingsStore';
-import { IMAGE_ACCEPT, fileToImageUrl, imageFieldKind, isNullable } from '../../utils/imageFields';
-import './PublishControl.css';
+import { useUIStore } from '../../store/uiStore';
+import { IMAGE_ACCEPT, fileToImageUrl, imageFieldKind } from '../../utils/imageFields';
+import { shortTypeName } from '../../utils/typeName';
+import { shortId } from '../graph/unfold/format';
+import { Icon } from '../icons/Icon';
+import {
+  type FormValues,
+  type PickedImage,
+  type Schema,
+  fieldType,
+  formToPayload,
+  initialFormData,
+  isRequiredField,
+  lines,
+  minPictures,
+  payloadToForm,
+} from './form';
+import PickedUpBy from './PickedUpBy';
+import { schemaErrors } from './schemaErrors';
+import TypeList from './TypeList';
+import styles from './PublishComposer.module.css';
 
 interface ValidationErrors {
   artifactType?: string;
   [key: string]: string | undefined; // Allow dynamic field errors
 }
 
-interface FormData {
-  [key: string]: any;
+type EditorMode = 'form' | 'json';
+
+const pretty = (value: unknown) => JSON.stringify(value, null, 2);
+
+/** The JSON of the editor as a value, or why it does not parse. */
+function parseJson(text: string): { value: unknown } | { error: string } {
+  try {
+    return { value: JSON.parse(text) };
+  } catch (error: any) {
+    return { error: `The JSON does not parse: ${error.message}` };
+  }
 }
 
-/** A picture chosen in the form: shown as a preview, published as an Image. */
-interface PickedImage {
-  name: string;
-  url: string;
-}
-
-const PublishControl: React.FC = () => {
+const PublishComposer: React.FC = () => {
   const [artifactTypes, setArtifactTypes] = useState<ArtifactType[]>([]);
+  // The agents, read once, for "Picked up by"; null until they arrive
+  const [agents, setAgents] = useState<Agent[] | null>(null);
   const [selectedType, setSelectedType] = useState('');
-  const [formData, setFormData] = useState<FormData>({});
+  const [formData, setFormData] = useState<FormValues>({});
+  const [mode, setMode] = useState<EditorMode>('form');
+  const [jsonText, setJsonText] = useState('');
+  const [jsonError, setJsonError] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingTypes, setLoadingTypes] = useState(true);
   const [errors, setErrors] = useState<ValidationErrors>({});
-  const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-  const [autoSetFilter, setAutoSetFilter] = useState(false); // Default: unchecked (user can opt-in to auto-filter)
+  const [follow, setFollow] = useState(true);
   // Picture conversions finish asynchronously: these counters let a result land
   // only if no newer choice (or another artifact type) replaced it meanwhile
   const typeGeneration = useRef(0);
@@ -42,12 +74,28 @@ const PublishControl: React.FC = () => {
   );
 
   const setShowControls = useSettingsStore((state) => state.setShowControls);
+  const showToast = useUIStore((state) => state.showToast);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const ids = useId();
+  // Whatever had the focus before the composer opened gets it back
+  const [opener] = useState(() => document.activeElement as HTMLElement | null);
+
+  const artifactType = artifactTypes.find((t) => t.name === selectedType);
+  const schema = artifactType?.schema as Schema | undefined;
 
   const handleClose = () => {
     setShowControls(false);
   };
 
-  // Fetch artifact types on mount
+  // The type search takes the focus
+  useEffect(() => {
+    searchRef.current?.focus();
+    return () => opener?.focus?.();
+  }, [opener]);
+
+  // Fetch artifact types and agents on mount
   useEffect(() => {
     const loadArtifactTypes = async () => {
       try {
@@ -63,6 +111,10 @@ const PublishControl: React.FC = () => {
     };
 
     loadArtifactTypes();
+    // Without the agents the composer still publishes; it only cannot preview
+    fetchAgents()
+      .then((list) => setAgents(list ?? []))
+      .catch((error) => console.error('Failed to fetch agents:', error));
   }, []);
 
   // Reset form data when artifact type changes
@@ -70,39 +122,20 @@ const PublishControl: React.FC = () => {
     typeGeneration.current += 1;
     fieldGeneration.current = {};
     setPendingConversions({});
-    if (selectedType) {
-      const artifactType = artifactTypes.find((t) => t.name === selectedType);
-      if (artifactType && artifactType.schema.properties) {
-        // Initialize formData with empty values based on schema
-        const initialData: FormData = {};
-        Object.keys(artifactType.schema.properties).forEach((key) => {
-          const prop = artifactType.schema.properties[key];
-          const imageKind = imageFieldKind(prop, artifactType.schema);
-          if (imageKind) {
-            initialData[key] = imageKind === 'many' ? [] : null;
-          } else if (prop.type === 'boolean') {
-            initialData[key] = false;
-          } else if (prop.type === 'array') {
-            // Represent arrays (e.g. list[str] / list[int]) as a newline-separated string in the UI.
-            // If the schema has a default (e.g. default_factory=list), show it to the user.
-            if (Array.isArray(prop.default)) {
-              initialData[key] = prop.default.join('\n');
-            } else {
-              initialData[key] = '';
-            }
-          } else if (prop.type === 'number' || prop.type === 'integer') {
-            initialData[key] = prop.default ?? '';
-          } else {
-            initialData[key] = prop.default ?? '';
-          }
-        });
-        setFormData(initialData);
-      }
-    } else {
-      setFormData({});
-    }
+    const type = artifactTypes.find((t) => t.name === selectedType);
+    const initialData = type ? initialFormData(type.schema) : {};
+    setFormData(initialData);
+    setJsonText(type ? pretty(formToPayload(initialData, type.schema)) : '');
+    setJsonError('');
     setErrors({});
   }, [selectedType, artifactTypes]);
+
+  const clearError = (key: string) =>
+    setErrors((previous) => {
+      const next = { ...previous };
+      delete next[key];
+      return next;
+    });
 
   const validateForm = (): boolean => {
     const newErrors: ValidationErrors = {};
@@ -113,197 +146,130 @@ const PublishControl: React.FC = () => {
       return false;
     }
 
-    const artifactType = artifactTypes.find((t) => t.name === selectedType);
-    if (!artifactType) {
+    if (!artifactType || !schema) {
       newErrors.artifactType = 'Invalid artifact type';
       setErrors(newErrors);
       return false;
     }
 
-    // JSON Schema may include a "required" array listing required fields.
-    // Fall back to empty array if not present.
-    const requiredFields: string[] = Array.isArray((artifactType.schema as any).required)
-      ? (artifactType.schema as any).required
-      : [];
-
     // Validate each field based on schema
-    if (artifactType.schema.properties) {
-      Object.entries(artifactType.schema.properties).forEach(([key, prop]: [string, any]) => {
-        const value = formData[key];
+    Object.entries(schema.properties ?? {}).forEach(([key, prop]: [string, any]) => {
+      const value = formData[key];
 
-        const isExplicitlyRequired = requiredFields.includes(key);
-        const hasDefault = prop.default !== undefined;
-
-        // Image fields: a picture must be chosen unless the field is optional
-        const imageKind = imageFieldKind(prop, artifactType.schema);
-        if (imageKind === 'many') {
-          // An empty list is valid unless the schema asks for a minimum
-          const arraySchema = prop.anyOf?.find((option: any) => option?.type === 'array') ?? prop;
-          const minItems = arraySchema.minItems ?? 0;
-          if ((value?.length ?? 0) < minItems) {
-            newErrors[key] = `${key} needs at least ${minItems} picture${minItems === 1 ? '' : 's'}`;
-          }
-          return;
+      // Image fields: a picture must be chosen unless the field is optional
+      const imageKind = imageFieldKind(prop, schema);
+      if (imageKind === 'many') {
+        // An empty list is valid unless the schema asks for a minimum
+        const minItems = minPictures(prop);
+        if ((value?.length ?? 0) < minItems) {
+          newErrors[key] = `${key} needs at least ${minItems} picture${minItems === 1 ? '' : 's'}`;
         }
-        if (imageKind === 'one') {
-          const required = isExplicitlyRequired || !hasDefault;
-          // A required field that may be None is valid without a picture (null)
-          if (!value && required && !isNullable(prop)) {
-            newErrors[key] = `${key} is required`;
-          }
-          return;
-        }
-
-        // Required heuristic:
-        // - If schema.required lists the field, it's required.
-        // - If field has an explicit default, treat as optional.
-        // - Arrays default to optional unless explicitly required.
-        // - Scalar fields with no default are treated as required.
-        const isRequired =
-          isExplicitlyRequired ||
-          (!hasDefault && prop.type !== 'array');
-
-        // Check required fields based on JSON Schema "required"
-        if (isRequired && (value === '' || value === null || value === undefined)) {
+        return;
+      }
+      if (imageKind === 'one') {
+        // A required field that may be None is valid without a picture (null)
+        if (!value && isRequiredField(key, prop, schema)) {
           newErrors[key] = `${key} is required`;
+        }
+        return;
+      }
+
+      // Check required fields based on JSON Schema "required" (and the defaults)
+      if (isRequiredField(key, prop, schema) && (value === '' || value === null || value === undefined)) {
+        newErrors[key] = `${key} is required`;
+        return;
+      }
+
+      // Type validation
+      if (prop.type === 'number' || prop.type === 'integer') {
+        if (isNaN(Number(value))) {
+          newErrors[key] = `${key} must be a number`;
+        }
+      } else if (prop.type === 'array') {
+        // For arrays we expect a newline-separated string in the UI.
+        if (typeof value !== 'string') {
+          newErrors[key] = `${key} must be a list (one item per line)`;
           return;
         }
 
-        // Type validation
-        if (prop.type === 'number' || prop.type === 'integer') {
-          if (isNaN(Number(value))) {
-            newErrors[key] = `${key} must be a number`;
-          }
-        } else if (prop.type === 'array') {
-          // For arrays we expect a newline-separated string in the UI.
-          if (typeof value !== 'string') {
-            newErrors[key] = `${key} must be a list (one item per line)`;
-            return;
-          }
-
-          // Optional extra validation for numeric arrays
-          if (prop.items && (prop.items.type === 'number' || prop.items.type === 'integer')) {
-            const parts = value
-              .split('\n')
-              .map((v: string) => v.trim())
-              .filter((v: string) => v.length > 0);
-            const invalid = parts.some((v: string) => Number.isNaN(Number(v)));
-            if (invalid) {
-              newErrors[key] = `${key} must be a list of numbers (one per line)`;
-            }
+        // Optional extra validation for numeric arrays
+        if (prop.items && (prop.items.type === 'number' || prop.items.type === 'integer')) {
+          const invalid = lines(value).some((v: string) => Number.isNaN(Number(v)));
+          if (invalid) {
+            newErrors[key] = `${key} must be a list of numbers (one per line)`;
           }
         }
-      });
-    }
+      }
+    });
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  /** The payload to send, or null after showing why there is none. */
+  const payloadToSend = (): Record<string, any> | null => {
+    if (mode === 'form' || !schema) {
+      return validateForm() && schema ? formToPayload(formData, schema) : null;
+    }
+    const parsed = parseJson(jsonText);
+    if ('error' in parsed) {
+      setJsonError(parsed.error);
+      return null;
+    }
+    const problems = schemaErrors(parsed.value, schema);
+    setErrors(problems);
+    return Object.keys(problems).length === 0 ? (parsed.value as Record<string, any>) : null;
+  };
 
+  const publish = async () => {
     // Clear previous messages
-    setSuccessMessage('');
     setErrorMessage('');
 
     // A picture still being converted would be missing from the request
-    if (pendingPictures > 0) {
+    if (pendingPictures > 0 || loading) {
       return;
     }
 
-    // Validate form
-    if (!validateForm()) {
+    const payload = payloadToSend();
+    if (!payload) {
       return;
     }
 
     setLoading(true);
 
     try {
-      // Convert formData values to proper types
-      const artifactType = artifactTypes.find((t) => t.name === selectedType);
-      const processedData: any = {};
+      const response = await publishArtifact(selectedType, payload);
+      const correlationId = response.correlation_id;
+      const run = shortId(correlationId, 4);
+      const following = follow && Boolean(correlationId);
 
-      if (artifactType && artifactType.schema.properties) {
-        Object.entries(formData).forEach(([key, value]) => {
-          const prop = artifactType.schema.properties[key];
-          if (!prop) return; // not a field of this type
-          const imageKind = imageFieldKind(prop, artifactType.schema);
-          if (imageKind === 'many') {
-            const images = value as PickedImage[];
-            // No pictures chosen: keep the schema default (e.g. None or a preset list)
-            if (images.length > 0 || prop.default === undefined) {
-              processedData[key] = images.map((image) => ({ url: image.url }));
-            }
-          } else if (imageKind === 'one') {
-            if (value) {
-              processedData[key] = { url: (value as PickedImage).url };
-            } else if (isNullable(prop) && prop.default === undefined) {
-              processedData[key] = null; // required, but may be None
-            } // otherwise the schema default applies
-          } else if (prop.type === 'number' || prop.type === 'integer') {
-            processedData[key] = Number(value);
-          } else if (prop.type === 'boolean') {
-            processedData[key] = Boolean(value);
-          } else if (prop.type === 'array') {
-            // Convert newline-separated string into arrays for list-like fields
-            if (prop.items && prop.items.type === 'string') {
-              if (typeof value === 'string') {
-                const parts = value
-                  .split('\n')
-                  .map((v: string) => v.trim())
-                  .filter((v: string) => v.length > 0);
-                processedData[key] = parts;
-              } else if (Array.isArray(value)) {
-                processedData[key] = value;
-              } else {
-                processedData[key] = [];
-              }
-            } else if (prop.items && (prop.items.type === 'number' || prop.items.type === 'integer')) {
-              if (typeof value === 'string') {
-                const parts = value
-                  .split('\n')
-                  .map((v: string) => v.trim())
-                  .filter((v: string) => v.length > 0);
-                const numbers = parts
-                  .map((v: string) => Number(v))
-                  .filter((v: number) => !Number.isNaN(v));
-                processedData[key] = numbers;
-              } else if (Array.isArray(value)) {
-                processedData[key] = value.map((v: any) => Number(v));
-              } else {
-                processedData[key] = [];
-              }
-            } else {
-              // For other array item types, pass through as-is for now
-              processedData[key] = value;
-            }
-          } else {
-            processedData[key] = value;
-          }
-        });
+      // Follow the run: the board shows only its correlation ID
+      if (following) {
+        useFilterStore.getState().setCorrelationId(correlationId);
       }
-
-      const response = await publishArtifact(selectedType, processedData);
-
-      // Auto-set filter to correlation ID if checkbox is checked
-      if (autoSetFilter && response.correlation_id) {
-        useFilterStore.setState({ correlationId: response.correlation_id });
-        // Show a concise message focused on the filter for this mode
-        setSuccessMessage(`Filter set to: ${response.correlation_id}`);
-      } else {
-        setSuccessMessage(`Successfully published artifact. Correlation ID: ${response.correlation_id}`);
-      }
+      showToast({
+        message: `Published ${shortTypeName(selectedType)}${run ? ` · run ${run}` : ''}`,
+        title: correlationId || undefined,
+        ...(following && {
+          detail: `Following run ${run}`,
+          action: {
+            label: 'Stop following',
+            onClick: () => {
+              // Unless another filter replaced it meanwhile
+              if (useFilterStore.getState().correlationId === correlationId) {
+                useFilterStore.getState().setCorrelationId(null);
+              }
+            },
+          },
+        }),
+      });
 
       // Reset form
       setSelectedType('');
+      setMode('form');
       setFormData({});
       setErrors({});
-
-      // Auto-close the panel after a brief delay to show success message
-      setTimeout(() => {
-        setShowControls(false);
-      }, 800);
+      handleClose();
     } catch (error: any) {
       // Handle errors
       if (error.message.includes('Network error') || error.message.includes('Failed to connect')) {
@@ -316,17 +282,97 @@ const PublishControl: React.FC = () => {
     }
   };
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    void publish();
+  };
+
+  const showJson = () => {
+    if (mode === 'json' || !schema) return;
+    setJsonText(pretty(formToPayload(formData, schema)));
+    setJsonError('');
+    setErrors({});
+    setMode('json');
+  };
+
+  // Back to the form only with JSON it can show
+  const showForm = () => {
+    if (mode === 'form' || !schema) return;
+    const parsed = parseJson(jsonText);
+    if ('error' in parsed) {
+      setJsonError(parsed.error);
+      return;
+    }
+    const value = parsed.value;
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+      setJsonError('The JSON must be an object to show it as a form');
+      return;
+    }
+    setFormData(payloadToForm(value as Record<string, any>, schema));
+    setJsonError('');
+    setErrors({});
+    setMode('form');
+  };
+
+  const onDialogKeyDown = (event: React.KeyboardEvent) => {
+    // Ctrl+Enter or ⌘+Enter publishes from anywhere in the composer
+    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      formRef.current?.requestSubmit();
+      return;
+    }
+    // Modal: Tab and Shift+Tab go round inside it
+    if (event.key === 'Tab' && dialogRef.current) {
+      // In document order (a selector list may come back grouped by selector)
+      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('*')).filter((element) =>
+        element.matches('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]')
+      );
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
+    }
+  };
+
+  // The label of a field: its name, then its type and a description or "required"
+  const fieldLabel = (key: string, prop: any, extra?: string) => (
+    <label htmlFor={`field-${key}`} className={styles.flabel}>
+      <span className="mono">{key}</span>{' '}
+      <span className={styles.hint}>
+        {[
+          fieldType(prop, schema!),
+          prop.description || (isRequiredField(key, prop, schema!) ? 'required' : ''),
+          extra,
+        ]
+          .filter(Boolean)
+          .join(' · ')}
+      </span>
+    </label>
+  );
+
+  const errorText = (key: string) =>
+    errors[key] && (
+      <div id={`field-${key}-error`} className={styles.errorText}>
+        {errors[key]}
+      </div>
+    );
+
   // Helper to render form field based on schema property type
-  const renderField = (key: string, prop: any, schema: any) => {
+  const renderField = (key: string, prop: any, schema: Schema) => {
     const value = formData[key] ?? '';
     const hasError = !!errors[key];
+    const inputClass = `${styles.input} ${hasError ? styles.invalid : ''}`;
+    const errorProps = hasError ? { 'aria-invalid': true, 'aria-describedby': `field-${key}-error` } : {};
 
     const handleChange = (newValue: any) => {
       setFormData({ ...formData, [key]: newValue });
       if (errors[key]) {
-        const newErrors = { ...errors };
-        delete newErrors[key];
-        setErrors(newErrors);
+        clearError(key);
       }
     };
 
@@ -359,11 +405,7 @@ const PublishControl: React.FC = () => {
             ...previous,
             [key]: imageKind === 'many' ? [...(previous[key] ?? []), ...picked] : picked[0],
           }));
-          setErrors((previous) => {
-            const next = { ...previous };
-            delete next[key];
-            return next;
-          });
+          clearError(key);
         } catch {
           if (isStale()) return;
           setErrors((previous) => ({ ...previous, [key]: `Could not read the picture for ${key}` }));
@@ -387,17 +429,9 @@ const PublishControl: React.FC = () => {
         }));
       };
 
-      // $ref fields carry no title in the schema: fall back to the field name
-      const title = prop.title || key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ');
       return (
-        <div key={key} className="publish-control__field">
-          <label htmlFor={`field-${key}`} className="publish-control__label">
-            {title}
-            {prop.description && (
-              <span className="publish-control__field-hint"> — {prop.description}</span>
-            )}
-            <span className="publish-control__field-hint"> — scaled to 1024 px</span>
-          </label>
+        <div key={key} className={styles.field}>
+          {fieldLabel(key, prop, 'scaled to 1024 px')}
           <input
             type="file"
             id={`field-${key}`}
@@ -409,126 +443,92 @@ const PublishControl: React.FC = () => {
               e.target.value = '';
               void addFiles(files);
             }}
-            className="publish-control__file-input"
+            className={styles.fileInput}
+            {...errorProps}
           />
           <button
             type="button"
             onClick={() => document.getElementById(`field-${key}`)?.click()}
             disabled={loading}
-            className={`publish-control__file-button ${hasError ? 'publish-control__input--error' : ''}`}
+            className={`btn sm ${styles.fileButton} ${hasError ? styles.invalid : ''}`}
           >
             {imageKind === 'many' ? 'Add images…' : images.length ? 'Replace image…' : 'Choose image…'}
           </button>
           {images.length > 0 && (
-            <div className="publish-control__images">
+            <div className={styles.images}>
               {images.map((image, index) => (
-                <figure key={`${image.name}-${index}`} className="publish-control__image">
+                <figure key={`${image.name}-${index}`} className={styles.image}>
                   <img src={image.url} alt={image.name} />
                   <button
                     type="button"
                     onClick={() => removeImage(index)}
                     disabled={loading}
                     aria-label={`Remove ${image.name}`}
-                    className="publish-control__image-remove"
+                    className={styles.imageRemove}
                   >
-                    ×
+                    <Icon name="close" size={12} />
                   </button>
                 </figure>
               ))}
             </div>
           )}
-          {hasError && <div className="publish-control__error-text">{errors[key]}</div>}
+          {errorText(key)}
         </div>
       );
     }
 
     if (prop.type === 'boolean') {
       return (
-        <div key={key} className="publish-control__field">
-          <div className="publish-control__checkbox-wrapper">
+        <div key={key} className={styles.field}>
+          <div className={styles.checkboxField}>
             <input
               type="checkbox"
               id={`field-${key}`}
               checked={Boolean(value)}
               onChange={(e) => handleChange(e.target.checked)}
               disabled={loading}
-              className="publish-control__checkbox"
+              className={styles.checkbox}
+              {...errorProps}
             />
-            <label htmlFor={`field-${key}`} className="publish-control__checkbox-label">
-              {prop.title || key}
-              {prop.description && (
-                <span className="publish-control__field-hint"> — {prop.description}</span>
-              )}
-            </label>
+            {fieldLabel(key, prop)}
           </div>
-          {hasError && <div className="publish-control__error-text">{errors[key]}</div>}
+          {errorText(key)}
         </div>
       );
     }
 
     // Arrays of strings: use a textarea where each line is one item.
-    if (prop.type === 'array' && prop.items && prop.items.type === 'string') {
-      return (
-        <div key={key} className="publish-control__field">
-          <label htmlFor={`field-${key}`} className="publish-control__label">
-            {prop.title || key}
-            {prop.description && (
-              <span className="publish-control__field-hint"> — {prop.description}</span>
-            )}
-            <span className="publish-control__field-hint">
-              {' '}
-              — One item per line
-            </span>
-          </label>
-          <textarea
-            id={`field-${key}`}
-            value={value}
-            onChange={(e) => handleChange(e.target.value)}
-            disabled={loading}
-            rows={3}
-            className={`publish-control__textarea ${hasError ? 'publish-control__textarea--error' : ''}`}
-          />
-          {hasError && <div className="publish-control__error-text">{errors[key]}</div>}
-        </div>
-      );
-    }
-
     // Arrays of numbers/integers: textarea, one number per line.
-    if (prop.type === 'array' && prop.items && (prop.items.type === 'number' || prop.items.type === 'integer')) {
+    const listItems =
+      prop.type === 'array' && prop.items
+        ? prop.items.type === 'string'
+          ? 'one item per line'
+          : prop.items.type === 'number' || prop.items.type === 'integer'
+            ? 'one number per line'
+            : null
+        : null;
+    if (listItems) {
       return (
-        <div key={key} className="publish-control__field">
-          <label htmlFor={`field-${key}`} className="publish-control__label">
-            {prop.title || key}
-            {prop.description && (
-              <span className="publish-control__field-hint"> — {prop.description}</span>
-            )}
-            <span className="publish-control__field-hint">
-              {' '}
-              — One number per line
-            </span>
-          </label>
+        <div key={key} className={styles.field}>
+          {fieldLabel(key, prop, listItems)}
           <textarea
             id={`field-${key}`}
             value={value}
             onChange={(e) => handleChange(e.target.value)}
             disabled={loading}
             rows={3}
-            className={`publish-control__textarea ${hasError ? 'publish-control__textarea--error' : ''}`}
+            className={inputClass}
+            {...errorProps}
           />
-          {hasError && <div className="publish-control__error-text">{errors[key]}</div>}
+          {errorText(key)}
         </div>
       );
     }
 
     if (prop.type === 'number' || prop.type === 'integer') {
       return (
-        <div key={key} className="publish-control__field">
-          <label htmlFor={`field-${key}`} className="publish-control__label">
-            {prop.title || key}
-            {prop.description && (
-              <span className="publish-control__field-hint"> — {prop.description}</span>
-            )}
-          </label>
+        <div key={key} className={styles.field}>
+          {fieldLabel(key, prop)}
           <input
             type="number"
             id={`field-${key}`}
@@ -536,28 +536,25 @@ const PublishControl: React.FC = () => {
             onChange={(e) => handleChange(e.target.value)}
             disabled={loading}
             step={prop.type === 'integer' ? 1 : 'any'}
-            className={`publish-control__input ${hasError ? 'publish-control__input--error' : ''}`}
+            className={inputClass}
+            {...errorProps}
           />
-          {hasError && <div className="publish-control__error-text">{errors[key]}</div>}
+          {errorText(key)}
         </div>
       );
     }
 
     if (prop.enum && Array.isArray(prop.enum)) {
       return (
-        <div key={key} className="publish-control__field">
-          <label htmlFor={`field-${key}`} className="publish-control__label">
-            {prop.title || key}
-            {prop.description && (
-              <span className="publish-control__field-hint"> — {prop.description}</span>
-            )}
-          </label>
+        <div key={key} className={styles.field}>
+          {fieldLabel(key, prop)}
           <select
             id={`field-${key}`}
             value={value}
             onChange={(e) => handleChange(e.target.value)}
             disabled={loading}
-            className={`publish-control__select ${hasError ? 'publish-control__select--error' : ''}`}
+            className={inputClass}
+            {...errorProps}
           >
             <option value="">Select...</option>
             {prop.enum.map((option: any) => (
@@ -566,7 +563,7 @@ const PublishControl: React.FC = () => {
               </option>
             ))}
           </select>
-          {hasError && <div className="publish-control__error-text">{errors[key]}</div>}
+          {errorText(key)}
         </div>
       );
     }
@@ -576,34 +573,25 @@ const PublishControl: React.FC = () => {
 
     if (isLongText) {
       return (
-        <div key={key} className="publish-control__field">
-          <label htmlFor={`field-${key}`} className="publish-control__label">
-            {prop.title || key}
-            {prop.description && (
-              <span className="publish-control__field-hint"> — {prop.description}</span>
-            )}
-          </label>
+        <div key={key} className={styles.field}>
+          {fieldLabel(key, prop)}
           <textarea
             id={`field-${key}`}
             value={value}
             onChange={(e) => handleChange(e.target.value)}
             disabled={loading}
             rows={4}
-            className={`publish-control__textarea ${hasError ? 'publish-control__textarea--error' : ''}`}
+            className={inputClass}
+            {...errorProps}
           />
-          {hasError && <div className="publish-control__error-text">{errors[key]}</div>}
+          {errorText(key)}
         </div>
       );
     }
 
     return (
-      <div key={key} className="publish-control__field">
-        <label htmlFor={`field-${key}`} className="publish-control__label">
-          {prop.title || key}
-          {prop.description && (
-            <span className="publish-control__field-hint"> — {prop.description}</span>
-          )}
-        </label>
+      <div key={key} className={styles.field}>
+        {fieldLabel(key, prop)}
         <input
           type="text"
           id={`field-${key}`}
@@ -611,123 +599,165 @@ const PublishControl: React.FC = () => {
           onChange={(e) => handleChange(e.target.value)}
           disabled={loading}
           placeholder={prop.examples?.[0] || ''}
-          className={`publish-control__input ${hasError ? 'publish-control__input--error' : ''}`}
+          className={inputClass}
+          {...errorProps}
         />
-        {hasError && <div className="publish-control__error-text">{errors[key]}</div>}
+        {errorText(key)}
       </div>
     );
   };
 
+  const jsonProblems = Object.values(errors).filter(Boolean) as string[];
+
   return (
-    <div className="publish-control-panel">
-      <div className="publish-control-panel-inner">
-        {/* Header */}
-        <div className="publish-control-header">
-          <h2 className="publish-control-title">Publish Artifact</h2>
+    <div className={styles.overlay}>
+      <div className={styles.scrim} aria-hidden onClick={handleClose} data-testid="publish-scrim" />
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={`${ids}-title`}
+        aria-describedby={`${ids}-subtitle`}
+        className={styles.dialog}
+        onKeyDown={onDialogKeyDown}
+      >
+        <div className={styles.header}>
+          <div className={styles.titles}>
+            <h2 id={`${ids}-title`} className={styles.title}>
+              Publish to the blackboard
+            </h2>
+            <span id={`${ids}-subtitle`} className={styles.subtitle}>
+              Agents subscribed to the type pick it up right away
+            </span>
+          </div>
           <button
+            type="button"
             onClick={handleClose}
-            className="publish-control-close-button"
-            aria-label="Close publish panel"
-            title="Close publish panel (Esc)"
+            className={`btn icon ghost ${styles.close}`}
+            aria-label="Close"
+            title="Close (Esc)"
           >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path
-                d="M15 5L5 15M5 5l10 10"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+            <Icon name="close" />
           </button>
         </div>
 
-        {/* Content */}
-        <div className="publish-control-content">
-          <form className="publish-control__form" onSubmit={handleSubmit}>
-        {/* Artifact Type Dropdown */}
-        <div className="publish-control__field">
-          <label htmlFor="artifact-type" className="publish-control__label">
-            Artifact Type
-          </label>
-          <select
-            id="artifact-type"
-            value={selectedType}
-            onChange={(e) => {
-              setSelectedType(e.target.value);
+        <div className={styles.body}>
+          <TypeList
+            types={artifactTypes}
+            loading={loadingTypes}
+            selected={selectedType}
+            disabled={loading}
+            onSelect={(name) => {
+              setSelectedType(name);
               setErrors({ ...errors, artifactType: undefined });
             }}
-            disabled={loadingTypes || loading}
-            className={`publish-control__select ${errors.artifactType ? 'publish-control__select--error' : ''}`}
-          >
-            <option value="">Select an artifact type...</option>
-            {artifactTypes.map((type) => (
-              <option key={type.name} value={type.name}>
-                {type.name}
-              </option>
-            ))}
-          </select>
-          {errors.artifactType && (
-            <div className="publish-control__error-text">
-              {errors.artifactType}
-            </div>
-          )}
-        </div>
-
-        {/* Dynamic Form Fields based on Schema */}
-        {selectedType && (() => {
-          const artifactType = artifactTypes.find((t) => t.name === selectedType);
-          if (artifactType && artifactType.schema.properties) {
-            return Object.entries(artifactType.schema.properties).map(([key, prop]) =>
-              renderField(key, prop, artifactType.schema)
-            );
-          }
-          return (
-            <div className="publish-control__field">
-              <p className="publish-control__hint">
-                Select an artifact type to see form fields
-              </p>
-            </div>
-          );
-        })()}
-
-        {/* Auto-set Filter Checkbox */}
-        <div className="publish-control__checkbox-wrapper">
-          <input
-            type="checkbox"
-            id="auto-set-filter"
-            checked={autoSetFilter}
-            onChange={(e) => setAutoSetFilter(e.target.checked)}
-            disabled={loading}
-            className="publish-control__checkbox"
+            searchRef={searchRef}
           />
-          <label htmlFor="auto-set-filter" className="publish-control__checkbox-label">
-            Set filter to correlation ID (show only this execution)
-          </label>
-        </div>
 
-        {/* Submit Button */}
-        <button
-          type="submit"
-          disabled={loading || loadingTypes || pendingPictures > 0}
-          className="publish-control__submit"
-        >
-          {pendingPictures > 0 ? 'Processing pictures…' : loading ? 'Publishing...' : 'Publish Artifact'}
-        </button>
+          <form ref={formRef} className={styles.main} onSubmit={handleSubmit}>
+            {artifactType && schema ? (
+              <>
+                <div className={styles.head}>
+                  <div className={styles.heading}>
+                    <span className={`mono ${styles.typeTitle}`} title={artifactType.name}>
+                      {shortTypeName(artifactType.name)}
+                    </span>
+                    {schema.description && <span className={styles.description}>{schema.description}</span>}
+                  </div>
+                  <div role="group" aria-label="Editor" className={styles.segs}>
+                    <button type="button" className="seg" aria-pressed={mode === 'form'} onClick={showForm}>
+                      Form
+                    </button>
+                    <button
+                      type="button"
+                      className="seg"
+                      aria-pressed={mode === 'json'}
+                      onClick={showJson}
+                      disabled={pendingPictures > 0}
+                    >
+                      JSON
+                    </button>
+                  </div>
+                </div>
 
-        {/* Success Message */}
-        {successMessage && (
-          <div className="publish-control__message publish-control__message--success">
-            {successMessage}
-          </div>
-        )}
+                <div className={styles.content}>
+                  {mode === 'form' ? (
+                    <div className={styles.fields}>
+                      {Object.entries(schema.properties ?? {}).map(([key, prop]) => renderField(key, prop, schema))}
+                    </div>
+                  ) : (
+                    <div className={styles.field}>
+                      <label htmlFor="publish-json" className={styles.srOnly}>
+                        {shortTypeName(artifactType.name)} as JSON
+                      </label>
+                      <textarea
+                        id="publish-json"
+                        value={jsonText}
+                        onChange={(e) => {
+                          setJsonText(e.target.value);
+                          setJsonError('');
+                          setErrors({});
+                        }}
+                        disabled={loading}
+                        rows={9}
+                        spellCheck={false}
+                        className={`mono ${styles.input} ${styles.json} ${jsonError || jsonProblems.length ? styles.invalid : ''}`}
+                      />
+                      {jsonError && <div className={styles.errorText}>{jsonError}</div>}
+                      {jsonProblems.length > 0 && (
+                        <ul className={styles.problems}>
+                          {jsonProblems.map((problem) => (
+                            <li key={problem}>{problem}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
 
-        {/* Error Message */}
-        {errorMessage && (
-          <div className="publish-control__message publish-control__message--error">
-            {errorMessage}
-          </div>
-        )}
+                  {agents && <PickedUpBy typeName={artifactType.name} agents={agents} />}
+                </div>
+              </>
+            ) : (
+              <div className={styles.content}>
+                <p className={styles.empty}>
+                  {loadingTypes ? 'Loading types…' : 'Pick a type to fill in its fields.'}
+                </p>
+                {errors.artifactType && <div className={styles.errorText}>{errors.artifactType}</div>}
+              </div>
+            )}
+
+            {errorMessage && (
+              <div role="alert" className={styles.message}>
+                <Icon name="error" size={15} />
+                {errorMessage}
+              </div>
+            )}
+
+            <div className={styles.footer}>
+              <label className={styles.follow}>
+                <input
+                  type="checkbox"
+                  checked={follow}
+                  onChange={(e) => setFollow(e.target.checked)}
+                  disabled={loading}
+                />
+                <span>Follow this run on the board</span>
+              </label>
+              <div className={styles.actions}>
+                <button type="button" className="btn ghost" onClick={handleClose}>
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading || loadingTypes || pendingPictures > 0}
+                  className={`btn primary ${styles.publish}`}
+                  aria-keyshortcuts="Control+Enter Meta+Enter"
+                >
+                  {pendingPictures > 0 ? 'Processing pictures…' : loading ? 'Publishing…' : 'Publish'}
+                  {pendingPictures === 0 && !loading && <kbd aria-hidden>⌘↵</kbd>}
+                </button>
+              </div>
+            </div>
           </form>
         </div>
       </div>
@@ -735,4 +765,4 @@ const PublishControl: React.FC = () => {
   );
 };
 
-export default PublishControl;
+export default PublishComposer;

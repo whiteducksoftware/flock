@@ -32,7 +32,7 @@ const SPACE_TAKEN =
  * - Ctrl+F (or Cmd+F): Open the filters on the correlation search
  * - Ctrl+, (or Cmd+,): Toggle Settings Panel
  * - Ctrl+Shift+F: Toggle Filters Panel
- * - Ctrl+Shift+P: Toggle Publish Panel
+ * - Ctrl+Shift+P: Open or close the publish composer
  * - Space, Ctrl+Shift+D: Unfold or fold the selected node
  * - Ctrl+/ (or Cmd+/): Toggle Keyboard Shortcuts Help
  * - Esc: Close a panel, else leave focus mode, else collapse the timeline dock, else fold the unfolded node, else close the artifact windows
@@ -59,7 +59,7 @@ export const useKeyboardShortcuts = (config: KeyboardShortcutConfig = {}) => {
         return;
       }
 
-      // Ctrl+Shift+P: Toggle Publish/Controls Panel
+      // Ctrl+Shift+P: Open or close the publish composer
       if (modifier && event.shiftKey && event.key === 'P') {
         event.preventDefault();
         const showControls = useSettingsStore.getState().ui.showControls;

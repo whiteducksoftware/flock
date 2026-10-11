@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import GraphCanvas from '../graph/GraphCanvas';
 import Blackboard from '../blackboard/Blackboard';
-import PublishControl from '../controls/PublishControl';
+import PublishComposer from '../publish/PublishComposer';
 import SettingsPanel from '../settings/SettingsPanel';
 import KeyboardShortcutsDialog from '../common/KeyboardShortcutsDialog';
+import Toast from '../common/Toast';
 import { useSettingsStore } from '../../store/settingsStore';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import { useBoardData } from '../../hooks/useBoardData';
@@ -51,13 +52,15 @@ const DashboardLayout: React.FC = () => {
               <Blackboard />
             )}
             <BoardStates onPublish={() => setShowControls(true)} />
+            {/* Bottom center of the board, so above the timeline dock */}
+            <Toast />
           </div>
           <TimelineDock />
         </main>
       </div>
 
-      {/* Publish Control Panel - Slides in from right */}
-      {showControls && <PublishControl />}
+      {/* Publish composer: a modal over the board */}
+      {showControls && <PublishComposer />}
 
       {/* Settings Panel - Slides in from right */}
       {showSettings && <SettingsPanel />}

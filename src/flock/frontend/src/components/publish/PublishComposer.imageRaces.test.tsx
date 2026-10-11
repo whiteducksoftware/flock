@@ -1,11 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
-import PublishControl from './PublishControl';
+import PublishComposer from './PublishComposer';
 import { fileToImageUrl } from '../../utils/imageFields';
 
 vi.mock('../../utils/imageFields', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../utils/imageFields')>()),
   fileToImageUrl: vi.fn(),
+}));
+
+// "Picked up by" reads the agents; these tests count the requests for types and publishing
+vi.mock('../../services/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../services/api')>()),
+  fetchAgents: vi.fn(async () => []),
 }));
 
 const mockFetch = vi.fn();
@@ -35,14 +41,15 @@ function deferred() {
 
 const file = (name: string) => new File([new Uint8Array([1])], name, { type: 'image/png' });
 
+// Pick a type from the list (an option reads "Photo, 1 field")
+const pickType = (typeName: string) =>
+  fireEvent.click(screen.getByRole('option', { name: new RegExp(`^${typeName}\\b`) }));
+
 async function openForm(typeName: string) {
   mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ artifact_types: types }) });
-  render(<PublishControl />);
-  await waitFor(() => {
-    const select = screen.getByLabelText(/artifact type/i) as HTMLSelectElement;
-    expect(Array.from(select.options).map((o) => o.value)).toContain(typeName);
-  });
-  fireEvent.change(screen.getByLabelText(/artifact type/i), { target: { value: typeName } });
+  render(<PublishComposer />);
+  await screen.findByRole('option', { name: new RegExp(`^${typeName}\\b`) });
+  pickType(typeName);
 }
 
 function publishedContent() {
@@ -50,7 +57,7 @@ function publishedContent() {
   return JSON.parse(call![1].body).content;
 }
 
-describe('PublishControl image conversions that finish late', () => {
+describe('PublishComposer image conversions that finish late', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetch.mockReset();
@@ -67,11 +74,11 @@ describe('PublishControl image conversions that finish late', () => {
     await openForm('Photo');
     fireEvent.change(screen.getByLabelText(/picture/i), { target: { files: [file('old.png')] } });
 
-    fireEvent.change(screen.getByLabelText(/artifact type/i), { target: { value: 'Note' } });
+    pickType('Note');
     await act(async () => pending.resolve('data:image/png;base64,T0xE'));
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ correlation_id: 'c' }) });
     fireEvent.change(screen.getByLabelText(/text/i), { target: { value: 'hello' } });
-    fireEvent.click(screen.getByRole('button', { name: /publish artifact/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^publish$/i }));
 
     await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
     expect(publishedContent()).toEqual({ text: 'hello' });
@@ -92,7 +99,7 @@ describe('PublishControl image conversions that finish late', () => {
     expect(screen.getByAltText('second.png')).toBeInTheDocument();
     expect(screen.queryByAltText('first.png')).not.toBeInTheDocument();
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ correlation_id: 'c' }) });
-    fireEvent.click(screen.getByRole('button', { name: /publish artifact/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^publish$/i }));
     await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
     expect(publishedContent().picture.url).toBe('data:image/png;base64,U0VDT05E');
   });
@@ -110,7 +117,7 @@ describe('PublishControl image conversions that finish late', () => {
 
     await act(async () => pending.resolve('data:image/png;base64,U0xPVw=='));
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ correlation_id: 'c' }) });
-    fireEvent.click(screen.getByRole('button', { name: /publish artifact/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^publish$/i }));
     await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
     expect(publishedContent().picture.url).toBe('data:image/png;base64,U0xPVw==');
   });
@@ -143,7 +150,7 @@ describe('PublishControl image conversions that finish late', () => {
     fireEvent.change(picker, { target: { files: [file('new.png')] } });
 
     await waitFor(() => expect(screen.getByAltText('new.png')).toBeInTheDocument());
-    expect(screen.getByRole('button', { name: /publish artifact/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /^publish$/i })).toBeEnabled();
   });
 
   it('does not stay disabled for a stalled conversion after the type changed', async () => {
@@ -151,10 +158,10 @@ describe('PublishControl image conversions that finish late', () => {
     await openForm('Photo');
     fireEvent.change(screen.getByLabelText(/picture/i), { target: { files: [file('stalled.png')] } });
 
-    fireEvent.change(screen.getByLabelText(/artifact type/i), { target: { value: 'Note' } });
+    pickType('Note');
 
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: /publish artifact/i })).toBeEnabled()
+      expect(screen.getByRole('button', { name: /^publish$/i })).toBeEnabled()
     );
   });
 });
