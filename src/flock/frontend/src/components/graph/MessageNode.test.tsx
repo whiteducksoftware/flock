@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ReactFlowProvider } from '@xyflow/react';
 import MessageNode from './MessageNode';
 import { NodeProps } from '@xyflow/react';
@@ -682,6 +682,71 @@ describe('MessageNode', () => {
     );
     expect(screen.getByRole('img', { name: 'backup · yes · p 0.96 · section 2' })).toBeInTheDocument();
     expect(screen.getByText(/2 sections of text/)).toBeInTheDocument();
+  });
+
+  const unsureRoute = (extra: Record<string, unknown> = {}) =>
+    decisionNode({
+      question: 'Route',
+      kind: 'choice',
+      choice: 'UNSURE',
+      bestGuess: 'billing',
+      probabilities: { billing: 0.55, tech: 0.45 },
+      confidence: 0.55,
+      threshold: 0.8,
+      model: 'fast',
+      latencyMs: 100,
+      score: null,
+      refused: false,
+      ...extra,
+    });
+
+  it('should let a person review an unsure decision', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ artifact_id: 'r-1', choice: 'tech', correlation_id: 'c-1' }), { status: 200 })
+    );
+    try {
+      render(
+        <ReactFlowProvider>
+          <MessageNode {...createNodeProps(unsureRoute())} />
+        </ReactFlowProvider>
+      );
+      // Options by probability; the best guess first
+      const buttons = screen.getAllByRole('button', { name: /^Review as / });
+      expect(buttons.map((b) => b.textContent)).toEqual(['billing', 'tech']);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Review as tech' }));
+
+      await waitFor(() => expect(screen.getByTestId('decision-review')).toHaveTextContent('reviewed as tech'));
+      const [url, init] = fetchSpy.mock.calls[0] ?? [];
+      expect(url).toBe('/api/control/decisions/msg-1/review');
+      expect(JSON.parse(String((init as RequestInit).body))).toEqual({ choice: 'tech' });
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it('should show the review of a reviewed decision instead of the controls', () => {
+    render(
+      <ReactFlowProvider>
+        <MessageNode {...createNodeProps(unsureRoute({ review: { choice: 'tech', by: 'alice' } }))} />
+      </ReactFlowProvider>
+    );
+    expect(screen.getByTestId('decision-review')).toHaveTextContent('reviewed as tech by alice');
+    expect(screen.queryAllByRole('button', { name: /^Review as / })).toHaveLength(0);
+  });
+
+  it('should name the decision a review replaces', () => {
+    render(
+      <ReactFlowProvider>
+        <MessageNode
+          {...createNodeProps(
+            unsureRoute({ choice: 'tech', bestGuess: 'tech', probabilities: { tech: 1 }, model: 'alice', reviewOf: 'abcdef12-3456-7890' })
+          )}
+        />
+      </ReactFlowProvider>
+    );
+    expect(screen.getByText(/review of abcdef12/)).toBeInTheDocument();
+    expect(screen.queryAllByRole('button', { name: /^Review as / })).toHaveLength(0);
   });
 
   it('should show a coverage as a checklist grid for its group', () => {

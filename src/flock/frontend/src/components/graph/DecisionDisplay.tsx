@@ -1,4 +1,5 @@
 import { memo, useState } from 'react';
+import { reviewDecision } from '../../services/api';
 import { TournamentBracket } from './TournamentBracket';
 
 /**
@@ -106,6 +107,8 @@ export interface DecisionInfo {
   votes?: EscalationAttempt[]; // ensemble: every model's answer, in model order
   shadow?: ShadowAnswer; // shadow mode: what the shadow model decided (never routed)
   sections?: { field: string; spans: number[][]; answeredBy: Record<string, number> }; // long documents
+  review?: { choice: string; by: string | null }; // the latest review of this decision
+  reviewOf?: string; // this decision is a person's review of that decision
   explanation?: { explanation: string; missing?: string | null; model: string; by?: string | null }; // latest LLM explanation
   confidence: number | null;
   threshold: number | null;
@@ -1153,8 +1156,73 @@ function SectionsNote({ decision, sections }: { decision: DecisionInfo; sections
   );
 }
 
+const MAX_REVIEW_OPTIONS = 6;
+
+/** Review: a person confirms or overrides an unsure decision. */
+const ReviewControl = memo(({ decision, artifactId }: { decision: DecisionInfo; artifactId: string }) => {
+  const [reviewed, setReviewed] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  if (reviewed) {
+    return <ReviewNote text={`✓ reviewed as ${reviewed}`} />;
+  }
+  // The most probable options first, the best guess leading
+  const options = Object.entries(decision.probabilities)
+    .sort((a, b) => b[1] - a[1])
+    .map(([option]) => option)
+    .slice(0, MAX_REVIEW_OPTIONS);
+  const review = (option: string) => {
+    setBusy(true);
+    setError(null);
+    reviewDecision(artifactId, option)
+      .then((response) => setReviewed(response.choice))
+      .catch((caught: Error) => setError(caught.message))
+      .finally(() => setBusy(false));
+  };
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px', fontSize: '10px' }}>
+      <span style={{ color: '#78716c', fontWeight: 600 }}>Review:</span>
+      {options.map((option) => (
+        <button
+          key={option}
+          type="button"
+          className="nodrag nopan"
+          aria-label={`Review as ${option}`}
+          disabled={busy}
+          onClick={(event) => {
+            event.stopPropagation();
+            review(option);
+          }}
+          style={{
+            padding: '1px 7px',
+            borderRadius: '999px',
+            border: `1px solid ${DECISION_COLOR}`,
+            background: option === decision.bestGuess ? '#ede9fe' : 'white',
+            color: VIOLET_TEXT,
+            fontSize: '10px',
+            fontWeight: 700,
+            cursor: busy ? 'wait' : 'pointer',
+          }}
+        >
+          {option}
+        </button>
+      ))}
+      {error ? <span style={{ color: '#be123c' }}>{error}</span> : null}
+    </div>
+  );
+});
+ReviewControl.displayName = 'ReviewControl';
+
+function ReviewNote({ text }: { text: string }) {
+  return (
+    <div data-testid="decision-review" style={{ fontSize: '11px', color: '#15803d', fontWeight: 700 }}>
+      {text}
+    </div>
+  );
+}
+
 /** One decision: its answer drawn by question kind, with model and threshold. */
-export const DecisionBars = memo(({ decision }: { decision: DecisionInfo }) => {
+export const DecisionBars = memo(({ decision, artifactId }: { decision: DecisionInfo; artifactId?: string }) => {
   const [bracketOpen, setBracketOpen] = useState(false);
   const kind = decision.kind ?? 'choice';
   const rounds = decision.rounds ?? [];
@@ -1206,6 +1274,11 @@ export const DecisionBars = memo(({ decision }: { decision: DecisionInfo }) => {
       {decision.votes && decision.votes.length > 0 && <EnsembleVotes votes={decision.votes} choice={decision.choice} threshold={decision.threshold} results={decision.results} />}
       {decision.shadow && <ShadowRow shadow={decision.shadow} choice={decision.choice} />}
       {decision.explanation && <ExplanationNote explanation={decision.explanation} />}
+      {decision.review ? (
+        <ReviewNote text={`✓ reviewed as ${decision.review.choice}${decision.review.by ? ` by ${decision.review.by}` : ''}`} />
+      ) : unsure && kind !== 'checklist' && !decision.reviewOf && artifactId ? (
+        <ReviewControl decision={decision} artifactId={artifactId} />
+      ) : null}
       {decision.attempts && decision.attempts.length > 0 && (
         <EscalationTrail attempts={decision.attempts} model={decision.model} tier={decision.tier ?? decision.attempts.length} />
       )}
@@ -1217,6 +1290,7 @@ export const DecisionBars = memo(({ decision }: { decision: DecisionInfo }) => {
           <span title={decision.candidates.join(', ')}>{` · among ${decision.candidates.length} candidates`}</span>
         ) : null}
         {decision.sections ? <SectionsNote decision={decision} sections={decision.sections} /> : null}
+        {decision.reviewOf ? <span title={decision.reviewOf}>{` · review of ${decision.reviewOf.slice(0, 8)}`}</span> : null}
       </div>
     </div>
   );
