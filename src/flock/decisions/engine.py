@@ -439,9 +439,18 @@ class DecisionEngine(EngineComponent):
         provider = provider or self.provider
         size = self.questions_per_request
         chunks = [wire[i : i + size] for i in range(0, len(wire), size)]
-        replies = await asyncio.gather(
-            *(provider.decide_many(state, chunk, images) for chunk in chunks)
-        )
+        requests = [
+            asyncio.ensure_future(provider.decide_many(state, chunk, images))
+            for chunk in chunks
+        ]
+        try:
+            replies = await asyncio.gather(*requests)
+        except BaseException:
+            # One request failed: stop the others instead of leaving them running
+            for request in requests:
+                request.cancel()
+            await asyncio.gather(*requests, return_exceptions=True)
+            raise
         return {name: answer for reply in replies for name, answer in reply.items()}
 
     async def _escalate(
