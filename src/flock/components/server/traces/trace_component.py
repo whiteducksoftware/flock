@@ -591,6 +591,17 @@ class TracingComponent(ServerComponent):
                     status_code=500, detail=f"Failed to get run history: {ex!s}"
                 ) from ex
 
+        @app.get(
+            self._join_path(self.config.prefix, "runs/active"),
+            tags=self.config.tags,
+        )
+        async def get_active_runs() -> dict[str, Any]:
+            """The runs going on now (run_id, agent_name, correlation_id,
+            consumed_artifacts, start_time), for a dashboard that connects
+            while they go on; empty without the dashboard."""
+            collector = getattr(orchestrator, "_dashboard_collector", None)
+            return {"runs": await collector.active_runs() if collector else []}
+
     async def on_shutdown_async(self, orchestrator):
         # No-op
         pass

@@ -127,6 +127,27 @@ Get statistics about the trace database.
 }
 ```
 
+### GET /api/plugin/runs/active
+
+The runs going on now, oldest first, from the dashboard's event collector: a dashboard that connects (or reconnects) while runs go on learns of them here, since it otherwise hears of a run only from its start event. Without the dashboard (no event collector) the list is empty.
+
+**Response:**
+```json
+{
+  "runs": [
+    {
+      "run_id": "<uuid>",
+      "agent_name": "billing_team",
+      "correlation_id": "<uuid>",
+      "consumed_artifacts": ["<artifact uuid>"],
+      "start_time": "2026-10-11T12:00:01+00:00"
+    }
+  ]
+}
+```
+
+`consumed_artifacts` are the IDs the run's start event named (for a decision handle, the decision). An agent's past runs with their tokens and cost are at `GET /api/agents/{name}/runs`.
+
 ## Best Practices
 
 ### 1. Debug with Local DuckDB Analysis
