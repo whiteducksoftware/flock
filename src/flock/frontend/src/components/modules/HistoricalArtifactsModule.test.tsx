@@ -52,6 +52,26 @@ describe('HistoricalArtifactsModule', () => {
     expect(options.to).toBeUndefined();
   });
 
+  it('keeps the time bounds of its first page while it pages back', async () => {
+    vi.mocked(fetchArtifacts).mockImplementation(async (options) => ({
+      items: [],
+      pagination: { limit: options?.limit ?? 100, offset: options?.offset ?? 0, total: 250 },
+    }));
+    let now = Date.parse('2026-10-11T12:00:00Z');
+    vi.spyOn(Date, 'now').mockImplementation(() => now);
+    useFilterStore.setState({ timeRange: { preset: 'last10min' } });
+    render(<HistoricalArtifactsModule />);
+    await waitFor(() => expect(fetchArtifacts).toHaveBeenCalledTimes(2));
+
+    // A minute later, "the last 10 minutes" would start a minute later and shift the offsets
+    now += 60_000;
+    fireEvent.click(screen.getByRole('button', { name: 'Load Older' }));
+    await waitFor(() => expect(fetchArtifacts).toHaveBeenCalledTimes(3));
+    const froms = vi.mocked(fetchArtifacts).mock.calls.map(([options]) => options!.from);
+    expect(new Set(froms)).toEqual(new Set(['2026-10-11T11:50:00.000Z']));
+    vi.mocked(Date.now).mockRestore();
+  });
+
   it('shows the newest artifacts first, and loads older ones on demand', async () => {
     // The store keeps artifacts oldest first: 250 of them, a0 the oldest
     vi.mocked(fetchArtifacts).mockImplementation(async (options) => {

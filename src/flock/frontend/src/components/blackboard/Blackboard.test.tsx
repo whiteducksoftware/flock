@@ -135,6 +135,14 @@ describe('Blackboard', () => {
     expect(screen.queryByRole('article')).toBeNull();
   });
 
+  it('keeps the output so far of a streaming card it unfolds', () => {
+    render(<Blackboard />);
+
+    fireEvent.click(within(lane('cccc')).getByRole('button', { name: 'TeamReply by billing_team', expanded: false }));
+    const card = screen.getByRole('article', { name: 'TeamReply by billing_team' });
+    expect(card.textContent).toContain('Hi, thanks for your patience');
+  });
+
   it('unfolds a card with the keyboard', () => {
     render(<Blackboard />);
 

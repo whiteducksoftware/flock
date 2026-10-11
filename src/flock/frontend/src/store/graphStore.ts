@@ -70,6 +70,8 @@ interface GraphState {
   updateAgentStatus: (agentId: string, status: string) => void;
   setInFlight: (runId: string, agentId: string, types: string[] | null, artifacts?: string[], correlationId?: string | null) => void;
   appendRunTail: (runId: string, text: string) => void;
+  /** Drops the streaming previews of an agent's run (all of them without arguments) */
+  dropStreamingPreviews: (agent?: string, correlationId?: string | null) => void;
   updateStreamingTokens: (agentId: string, tokens: string[]) => void;
   updateAgentLogicOperations: (agentId: string, logicOps: AgentLogicOperations[]) => void; // Phase 1.3
   addEvent: (message: Message) => void;
@@ -237,9 +239,19 @@ export const useGraphStore = create<GraphState>()(
           const snapshot: GraphSnapshot = await fetchGraphSnapshot(request);
 
           // The lanes place artifacts themselves (no positions); an artifact
-          // that still streams is not on the record yet and stays
+          // that still streams is not on the record yet and stays, if the
+          // board's filters let it through (it has no tags yet)
           const known = new Set(snapshot.nodes.map((node) => node.id));
-          const streaming = get().nodes.filter((node) => node.type === 'message' && node.data.isStreaming && !known.has(node.id));
+          const filters = request.filters;
+          const passes = (data: Record<string, any>) =>
+            (!filters.correlation_id || data.correlationId === filters.correlation_id) &&
+            (filters.artifactTypes.length === 0 || filters.artifactTypes.includes(data.artifactType)) &&
+            (filters.producers.length === 0 || filters.producers.includes(data.producedBy)) &&
+            filters.tags.length === 0 &&
+            (filters.visibility.length === 0 || filters.visibility.includes(data.visibilityKind ?? 'Public'));
+          const streaming = get().nodes.filter(
+            (node) => node.type === 'message' && node.data.isStreaming && !known.has(node.id) && passes(node.data),
+          );
 
           set({
             nodes: [...(snapshot.nodes as Node[]), ...streaming],
@@ -314,6 +326,21 @@ export const useGraphStore = create<GraphState>()(
           const runTails = new Map(state.runTails);
           runTails.delete(runId);
           return { inFlight, runTails };
+        });
+      },
+
+      dropStreamingPreviews: (agent, correlationId) => {
+        set((state) => {
+          const nodes = state.nodes.filter(
+            (node) =>
+              !(
+                node.type === 'message' &&
+                node.data.isStreaming &&
+                (agent === undefined || node.data.producedBy === agent) &&
+                (correlationId === undefined || (node.data.correlationId ?? null) === correlationId)
+              ),
+          );
+          return nodes.length === state.nodes.length ? {} : { nodes };
         });
       },
 

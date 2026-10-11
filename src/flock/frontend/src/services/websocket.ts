@@ -274,6 +274,8 @@ export class WebSocketClient {
       useGraphStore.getState().updateAgentStatus(data.agent_name, status);
       // Another run of it goes on: its ticker stays
       if (status !== 'running') useGraphStore.getState().updateStreamingTokens(data.agent_name, []);
+      // A stream it never published is no artifact
+      useGraphStore.getState().dropStreamingPreviews(data.agent_name, data.correlation_id ?? null);
       // This run is done; another one keeps its own types in flight
       useGraphStore.getState().setInFlight(data.run_id, data.agent_name, null);
       // A newer run failed: the snapshot says what (lastError)
@@ -291,6 +293,8 @@ export class WebSocketClient {
       useGraphStore.getState().updateAgentStatus(data.agent_name, status);
       // A failed run's tokens are not the next run's; another run of it keeps the ticker
       if (status !== 'running') useGraphStore.getState().updateStreamingTokens(data.agent_name, []);
+      // The failed run's stream is no artifact
+      useGraphStore.getState().dropStreamingPreviews(data.agent_name, data.correlation_id ?? null);
       useGraphStore.getState().setInFlight(data.run_id, data.agent_name, null);
       // The snapshot says what failed (lastError)
       this.scheduleGraphRefresh();
@@ -459,6 +463,7 @@ export class WebSocketClient {
             inFlight: new Map(),
             runTails: new Map(),
           });
+          useGraphStore.getState().dropStreamingPreviews();
           this.scheduleGraphRefresh();
           // The counts missed those artifacts too
           fetchArtifactSummary()

@@ -289,6 +289,12 @@
   overflow-wrap: anywhere;
 }
 
+.streamFull {
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
 .waiting {
   display: flex;
   flex-direction: column;

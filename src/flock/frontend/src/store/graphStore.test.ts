@@ -340,6 +340,35 @@ describe('graphStore - NEW Simplified Architecture', () => {
       expect(state.nodes.map((node) => node.id)).toEqual(['msg1', 'live']);
       expect(state.truncated).toBe(true);
     });
+
+    it('keeps only the streaming artifacts the board\'s filters let through', async () => {
+      const preview = (id: string, correlationId: string) =>
+        ({ id, type: 'message', position: { x: 0, y: 0 }, data: { artifactType: 'TeamReply', producedBy: 'billing', correlationId, isStreaming: true } }) as Node;
+      useGraphStore.setState({ nodes: [preview('in-c2', 'c2'), preview('in-c1', 'c1')] });
+      vi.mocked(useFilterStore.getState).mockReturnValue({
+        correlationId: 'c2',
+        timeRange: { preset: 'last10min' },
+        selectedArtifactTypes: [],
+        selectedProducers: [],
+        selectedTags: [],
+        selectedVisibility: [],
+        updateFacets: vi.fn(),
+      } as any);
+      vi.mocked(fetchGraphSnapshot).mockResolvedValue({
+        nodes: [],
+        edges: [],
+        statistics: null,
+        viewMode: 'blackboard',
+        filters: { correlation_id: 'c2', time_range: { preset: 'last10min' }, artifactTypes: [], producers: [], tags: [], visibility: [] },
+        generatedAt: '2026-10-11T00:00:00Z',
+        totalArtifacts: 0,
+        truncated: false,
+      });
+
+      await useGraphStore.getState().generateBlackboardViewGraph();
+
+      expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual(['in-c2']);
+    });
   });
 
   describe('updateAgentStatus() - Real-time WebSocket updates', () => {

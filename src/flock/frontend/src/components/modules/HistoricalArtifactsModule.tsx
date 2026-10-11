@@ -75,9 +75,14 @@ const HistoricalArtifactsModule: React.FC = () => {
     }
   }, [artifacts, selectedArtifactId]);
 
+  // The time bounds of the first page: "the last 10 minutes" moves on, and
+  // older pages' offsets hold only for the bounds they were counted in
+  const bounds = useRef<{ from?: string; to?: string }>({});
+
   const buildQueryOptions = useCallback(
-    (offset: number): ArtifactQueryOptions => {
-      const range = resolveTimeRangeToIso(timeRange);
+    (offset: number, fresh = false): ArtifactQueryOptions => {
+      if (fresh) bounds.current = resolveTimeRangeToIso(timeRange);
+      const range = bounds.current;
       return {
         types: selectedArtifactTypes,
         producers: selectedProducers,
@@ -129,7 +134,7 @@ const HistoricalArtifactsModule: React.FC = () => {
       setLoading(true);
       try {
         let offset = 0;
-        let queryOptions = buildQueryOptions(0);
+        let queryOptions = buildQueryOptions(0, reset);
         let response;
         if (reset) {
           // The first page says how many there are; the newest are the last ones

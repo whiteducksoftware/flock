@@ -134,9 +134,20 @@ const Unfolded: React.FC<{ card: LaneCard }> = ({ card }) => {
     ['id', <span className="mono">{card.id}</span>],
   ];
   const consumptions = artifact?.consumptions;
+  // Until it is published, a streaming artifact is its output so far
+  const streamed = card.state === 'streaming' ? (card.data as { streamingText?: string }).streamingText : undefined;
 
   return (
     <>
+      {streamed !== undefined && (
+        <div className={styles.section}>
+          <span className={styles.label}>Output so far</span>
+          <span className={`mono ${styles.stream} ${styles.streamFull}`}>
+            {streamed}
+            <span className={styles.caret}>▍</span>
+          </span>
+        </div>
+      )}
       <ArtifactBody id={card.id} data={card.data} />
       <div className={styles.meta}>
         {meta.map(([key, value]) => (

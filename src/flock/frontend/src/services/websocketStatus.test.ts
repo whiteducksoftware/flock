@@ -42,6 +42,22 @@ describe('WebSocketClient agent status', () => {
     expect(useGraphStore.getState().streamingTokens.get('billing')).toEqual([]);
   });
 
+  it('drops the streaming preview of a run that ended without publishing it', () => {
+    vi.useFakeTimers();
+    const client = new WebSocketClient('ws://test/ws');
+    const preview = (id: string, producedBy: string, correlationId: string) => ({
+      id,
+      type: 'message',
+      position: { x: 0, y: 0 },
+      data: { artifactType: 'TeamReply', producedBy, correlationId, isStreaming: true },
+    });
+    useGraphStore.setState({ nodes: [preview('p1', 'billing', 'c-1'), preview('p2', 'billing', 'c-2')] as never });
+
+    receive(client, 'agent_error', { agent_name: 'billing', correlation_id: 'c-1', agent_status: 'error' });
+
+    expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual(['p2']);
+  });
+
   it('remembers what a starting run consumed, and its run', () => {
     vi.useFakeTimers();
     const client = new WebSocketClient('ws://test/ws');
