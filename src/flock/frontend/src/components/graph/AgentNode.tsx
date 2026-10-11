@@ -4,7 +4,7 @@ import { useUIStore } from '../../store/uiStore';
 import { useSettingsStore } from '../../store/settingsStore';
 import LogicOperationsDisplay from './LogicOperationsDisplay';
 import ScheduledAgentDisplay from './ScheduledAgentDisplay';
-import { DeciderInfo, DeciderOptions, DecisionBadge } from './DecisionDisplay';
+import { AggregatorInfo, CoverageSummary, DeciderInfo, DeciderOptions, DecisionBadge } from './DecisionDisplay';
 import { ScheduleSpecDisplay, TimerStateDisplay } from '../../types/graph';
 
 // UI Optimization Migration (Phase 4.1 - Spec 002): Backend GraphNode.data is Record<string, any>
@@ -25,6 +25,7 @@ const AgentNode = memo(({ data, selected }: NodeProps) => {
   const scheduleSpec = nodeData.scheduleSpec as ScheduleSpecDisplay | undefined; // Phase 1.6: Schedule spec
   const timerState = nodeData.timerState as TimerStateDisplay | undefined; // Phase 1.6: Timer state
   const decider = nodeData.decision as DeciderInfo | undefined; // Decision agent: questions + answer counts
+  const aggregator = nodeData.coverage as AggregatorInfo | undefined; // Aggregating agent: coverage per group
   const typeLabels = (nodeData.typeLabels || {}) as Record<string, string>; // Choice handles, e.g. "◆ Route.billing"
 
   // Merge known types with actual counts - show all types even with 0 count
@@ -371,6 +372,7 @@ const AgentNode = memo(({ data, selected }: NodeProps) => {
           })}
           {/* Decision agent: options and how often each was chosen */}
           {decider && <DeciderOptions decider={decider} />}
+          {aggregator && <CoverageSummary aggregator={aggregator} />}
           {/* Fallback to totals if no per-type data yet */}
           {!decider && Object.keys(displayReceivedByType).length === 0 && Object.keys(displaySentByType).length === 0 && (
             <div style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', opacity: 0.6 }}>

@@ -392,5 +392,24 @@ describe('AgentNode', () => {
     );
     expect(screen.getByTestId('decider-shadow')).toHaveTextContent('shadow candidate · agrees 2/3');
   });
-});
 
+  it('should summarize the coverage of an aggregating agent', () => {
+    const data: AgentNodeData = {
+      name: 'coverage',
+      status: 'idle',
+      subscriptions: ['Decision'],
+      sentCount: 3,
+      recvCount: 3,
+      coverage: { question: 'Controls', by: 'organisation', combine: 'any', groups: { passed: 1, failed: 10, UNSURE: 1 } },
+    };
+
+    render(
+      <ReactFlowProvider>
+        <AgentNode {...createNodeProps(data)} />
+      </ReactFlowProvider>
+    );
+    const summary = screen.getByTestId('coverage-summary');
+    expect(summary).toHaveTextContent('Controls by organisation (any)');
+    expect(summary).toHaveTextContent('1 passed · 10 failed · 1 unsure');
+  });
+});

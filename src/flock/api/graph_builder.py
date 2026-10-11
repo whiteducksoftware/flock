@@ -34,12 +34,15 @@ from flock.core.store import (
 )
 from flock.decisions.choice import UNSURE
 from flock.decisions.graph import (
+    aggregator_info,
     choice_type_labels,
+    coverage_view,
     decider_info,
     decision_label,
     decision_view,
     explanation_view,
     explanations_by_decision,
+    is_coverage_type,
     is_decision_type,
     is_explanation_type,
 )
@@ -285,6 +288,17 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             )
             if decision:
                 node_data["decision"] = decision
+            # Order does not matter: each group's highest revision counts
+            coverage = aggregator_info(
+                agent,
+                (
+                    (artifact.artifact_type, artifact.payload)
+                    for artifact in artifacts.values()
+                    if artifact.produced_by == agent.name
+                ),
+            )
+            if coverage:
+                node_data["coverage"] = coverage
             type_labels = choice_type_labels(agent)
             if type_labels:
                 node_data["typeLabels"] = type_labels
@@ -447,6 +461,10 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                     ]
             elif is_explanation_type(artifact.artifact_type):
                 node_data["explanation"] = explanation_view(artifact.payload)
+            elif is_coverage_type(artifact.artifact_type):
+                node_data["coverage"] = coverage_view(
+                    artifact.artifact_type, artifact.payload
+                )
 
             nodes.append(
                 GraphNode(
