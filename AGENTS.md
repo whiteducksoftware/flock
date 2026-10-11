@@ -128,6 +128,10 @@ pitches = await flock.store.get_by_type(Pitch)  # list[Pitch]
   - Dapr state stores: [Dapr guide](docs/guides/dapr-state-store.md).
 - **Webhooks:** `WebhookDeliveryComponent` (`flock.components.orchestrator`) delivers artifacts to the webhook URL and secret given with a REST publish request ([webhooks guide](docs/guides/webhooks.md)).
 - **Dashboard and API:** `await flock.serve(dashboard=True)` serves the REST API (OpenAPI at `/docs`) and the dashboard on port 8344.
+- **Usage and cost:**
+  - Every run reports `tokens_used`, `cost_usd` and `usage` per model in its metrics, the dashboard's Run Status and its trace (`flock.usage.*`).
+  - LLM usage comes from DSPy/LiteLLM, decision usage from the provider's input tokens.
+  - `Flock(model_prices={"azure/decision-1": (input, output)})` prices models LiteLLM does not know, in USD per million tokens ([configuration](docs/reference/configuration.md#token-usage-and-cost)).
 
 ### Decision models
 

@@ -118,6 +118,13 @@ class SQLiteSchemaManager:
             ON artifacts(produced_by, created_at)
             """
         )
+        # Time ranges without a type or producer (the activity histogram)
+        await conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_artifacts_created
+            ON artifacts(created_at)
+            """
+        )
         await conn.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_artifacts_correlation

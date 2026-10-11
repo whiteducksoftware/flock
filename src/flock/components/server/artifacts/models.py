@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -113,3 +114,14 @@ class ArtifactSummaryResponse(BaseModel):
     """Response for GET /api/v1/artifacts/summary."""
 
     summary: dict[str, Any] = Field(description="Summary statistics")
+
+
+class ArtifactHistogramResponse(BaseModel):
+    """Response for GET /api/v1/artifacts/histogram."""
+
+    start: datetime = Field(description="Start of the first bucket (UTC)")
+    end: datetime = Field(description="End of the last bucket (UTC)")
+    bucket_seconds: float = Field(description="Width of one bucket in seconds")
+    counts: list[int] = Field(description="Artifacts per bucket, oldest first")
+    errors: list[int] = Field(description="Workflow errors per bucket")
+    total: int = Field(description="Artifacts in the range")

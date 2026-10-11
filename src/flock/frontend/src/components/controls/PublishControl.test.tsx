@@ -7,6 +7,9 @@ import { useFilterStore } from '../../store/filterStore';
 const mockFetch = vi.fn();
 globalThis.fetch = mockFetch;
 
+// The select is there before the artifact types load: wait for the type
+const waitForType = (name: string) => screen.findByRole('option', { name });
+
 describe('PublishControl', () => {
   const mockArtifactTypes = [
     { name: 'Idea', schema: { type: 'object', properties: { content: { type: 'string' } } } },
@@ -27,9 +30,7 @@ describe('PublishControl', () => {
 
     render(<PublishControl />);
 
-    await waitFor(() => {
-      expect(screen.getByLabelText(/artifact type/i)).toBeInTheDocument();
-    });
+    await waitForType('Idea');
 
     // Select artifact type to trigger dynamic field rendering
     const artifactTypeSelect = screen.getByLabelText(/artifact type/i);
@@ -48,10 +49,7 @@ describe('PublishControl', () => {
 
     render(<PublishControl />);
 
-    await waitFor(() => {
-      const dropdown = screen.getByLabelText(/artifact type/i) as HTMLSelectElement;
-      expect(dropdown.options.length).toBeGreaterThan(0);
-    });
+    await waitForType('Idea');
 
     const dropdown = screen.getByLabelText(/artifact type/i) as HTMLSelectElement;
     const optionValues = Array.from(dropdown.options).map(opt => opt.value);
@@ -92,9 +90,7 @@ describe('PublishControl', () => {
 
     render(<PublishControl />);
 
-    await waitFor(() => {
-      expect(screen.getByLabelText(/artifact type/i)).toBeInTheDocument();
-    });
+    await waitForType('CompetitorBrief');
 
     const artifactTypeSelect = screen.getByLabelText(/artifact type/i);
     fireEvent.change(artifactTypeSelect, { target: { value: 'CompetitorBrief' } });
@@ -127,9 +123,7 @@ describe('PublishControl', () => {
 
     render(<PublishControl />);
 
-    await waitFor(() => {
-      expect(screen.getByLabelText(/artifact type/i)).toBeInTheDocument();
-    });
+    await waitForType('Idea');
 
     const submitButton = screen.getByRole('button', { name: /publish artifact/i });
 
@@ -164,9 +158,7 @@ describe('PublishControl', () => {
 
     render(<PublishControl />);
 
-    await waitFor(() => {
-      expect(screen.getByLabelText(/artifact type/i)).toBeInTheDocument();
-    });
+    await waitForType('Idea');
 
     const artifactTypeSelect = screen.getByLabelText(/artifact type/i);
     fireEvent.change(artifactTypeSelect, { target: { value: 'Idea' } });
@@ -208,9 +200,7 @@ describe('PublishControl', () => {
 
     render(<PublishControl />);
 
-    await waitFor(() => {
-      expect(screen.getByLabelText(/artifact type/i)).toBeInTheDocument();
-    });
+    await waitForType('Idea');
 
     const artifactTypeSelect = screen.getByLabelText(/artifact type/i);
     fireEvent.change(artifactTypeSelect, { target: { value: 'Idea' } });
@@ -257,9 +247,7 @@ describe('PublishControl', () => {
 
     render(<PublishControl />);
 
-    await waitFor(() => {
-      expect(screen.getByLabelText(/artifact type/i)).toBeInTheDocument();
-    });
+    await waitForType('Idea');
 
     const artifactTypeSelect = screen.getByLabelText(/artifact type/i);
     fireEvent.change(artifactTypeSelect, { target: { value: 'Idea' } });
@@ -297,9 +285,7 @@ describe('PublishControl', () => {
 
     render(<PublishControl />);
 
-    await waitFor(() => {
-      expect(screen.getByLabelText(/artifact type/i)).toBeInTheDocument();
-    });
+    await waitForType('Idea');
 
     const artifactTypeSelect = screen.getByLabelText(/artifact type/i);
     fireEvent.change(artifactTypeSelect, { target: { value: 'Idea' } });
@@ -336,9 +322,7 @@ describe('PublishControl', () => {
 
     render(<PublishControl />);
 
-    await waitFor(() => {
-      expect(screen.getByLabelText(/artifact type/i)).toBeInTheDocument();
-    });
+    await waitForType('Idea');
 
     const artifactTypeSelect = screen.getByLabelText(/artifact type/i) as HTMLSelectElement;
     fireEvent.change(artifactTypeSelect, { target: { value: 'Idea' } });
@@ -376,9 +360,7 @@ describe('PublishControl', () => {
 
     render(<PublishControl />);
 
-    await waitFor(() => {
-      expect(screen.getByLabelText(/artifact type/i)).toBeInTheDocument();
-    });
+    await waitForType('Idea');
 
     const artifactTypeSelect = screen.getByLabelText(/artifact type/i);
     fireEvent.change(artifactTypeSelect, { target: { value: 'Idea' } });
@@ -425,9 +407,7 @@ describe('PublishControl', () => {
 
     render(<PublishControl />);
 
-    await waitFor(() => {
-      expect(screen.getByLabelText(/artifact type/i)).toBeInTheDocument();
-    });
+    await waitForType('Idea');
 
     const artifactTypeSelect = screen.getByLabelText(/artifact type/i);
     fireEvent.change(artifactTypeSelect, { target: { value: 'Idea' } });
@@ -456,9 +436,7 @@ describe('PublishControl', () => {
 
     render(<PublishControl />);
 
-    await waitFor(() => {
-      expect(screen.getByLabelText(/artifact type/i)).toBeInTheDocument();
-    });
+    await waitForType('Idea');
 
     const checkbox = screen.getByLabelText(/set filter to correlation id/i) as HTMLInputElement;
     expect(checkbox).toBeInTheDocument();
@@ -482,9 +460,7 @@ describe('PublishControl', () => {
 
     render(<PublishControl />);
 
-    await waitFor(() => {
-      expect(screen.getByLabelText(/artifact type/i)).toBeInTheDocument();
-    });
+    await waitForType('Idea');
 
     const artifactTypeSelect = screen.getByLabelText(/artifact type/i);
     const checkbox = screen.getByLabelText(/set filter to correlation id/i) as HTMLInputElement;
@@ -529,9 +505,7 @@ describe('PublishControl', () => {
 
     render(<PublishControl />);
 
-    await waitFor(() => {
-      expect(screen.getByLabelText(/artifact type/i)).toBeInTheDocument();
-    });
+    await waitForType('Idea');
 
     const artifactTypeSelect = screen.getByLabelText(/artifact type/i);
     const checkbox = screen.getByLabelText(/set filter to correlation id/i) as HTMLInputElement;
@@ -568,9 +542,7 @@ describe('PublishControl', () => {
 
     render(<PublishControl />);
 
-    await waitFor(() => {
-      expect(screen.getByLabelText(/artifact type/i)).toBeInTheDocument();
-    });
+    await waitForType('Idea');
 
     const checkbox = screen.getByLabelText(/set filter to correlation id/i) as HTMLInputElement;
 
