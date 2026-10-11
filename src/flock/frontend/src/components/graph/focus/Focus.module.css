@@ -235,7 +235,8 @@ button.entry:focus-visible {
   gap: 8px;
 }
 
-.cardHead > :last-child {
+/* What sits at the right end of a card's head */
+.end {
   margin-left: auto;
 }
 

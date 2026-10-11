@@ -27,7 +27,7 @@ const MessageCard: React.FC<{ title: string; message: Message | undefined; statu
           <TypeLabel type={message.type} />
         </span>
       )}
-      {status ?? (message && <span className={`mono ${styles.faint}`}>{shortId(message.correlationId, 4)}</span>)}
+      {status ?? (message && <span className={`mono ${styles.faint} ${styles.end}`}>{shortId(message.correlationId, 4)}</span>)}
     </div>
     {message ? (
       <div className={styles.kv}>
@@ -71,7 +71,7 @@ const FocusLive: React.FC<FocusLiveProps> = ({ agent, running, messages, runs, t
           <div className={styles.card}>
             <div className={styles.cardHead}>
               <span className={styles.label}>Output</span>
-              <span className={styles.quiet}>streaming</span>
+              <span className={`${styles.quiet} ${styles.end}`}>streaming</span>
             </div>
             <span className="mono">…{tokens.join('').slice(-160)}</span>
           </div>

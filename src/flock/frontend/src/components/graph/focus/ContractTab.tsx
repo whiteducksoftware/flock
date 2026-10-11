@@ -10,7 +10,7 @@ const Entry: React.FC<{ entry: ContractEntry }> = ({ entry }) => (
         {entry.decision && <span className={styles.diamond}>◆ </span>}
         {entry.label}
       </span>
-      {entry.note && <span className={styles.faint}>{entry.note}</span>}
+      {entry.note && <span className={`${styles.faint} ${styles.end}`}>{entry.note}</span>}
     </div>
     {entry.fields.length > 0 && (
       <div className={`mono ${styles.kv}`}>
