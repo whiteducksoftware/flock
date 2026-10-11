@@ -1173,12 +1173,14 @@ const ReviewControl = memo(({ decision, artifactId }: { decision: DecisionInfo; 
   if (reviewed) {
     return <ReviewNote text={`✓ reviewed as ${reviewed}`} />;
   }
-  // The most probable options first, the best guess leading; a refusal has no
-  // probabilities, so its question's options are offered in order
+  // The most probable options first, the best guess leading (a refusal has no
+  // probabilities),
   const ranked = Object.entries(decision.probabilities)
     .sort((a, b) => b[1] - a[1])
     .map(([option]) => option);
-  const options = (ranked.length > 0 ? ranked : (decision.options ?? [])).slice(0, MAX_REVIEW_OPTIONS);
+  // then the options a sparse answer left out
+  const rest = (decision.options ?? []).filter((option) => !ranked.includes(option));
+  const options = [...ranked, ...rest].slice(0, MAX_REVIEW_OPTIONS);
   const review = (option: string) => {
     setBusy(true);
     setError(null);
