@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 from grpc import StatusCode
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from flock.core.artifacts import Artifact
 from flock.core.store import (
@@ -557,6 +557,27 @@ async def test_get_by_type_casts_and_filters_correlation(monkeypatch) -> None:
     assert len(result) == 1
     assert isinstance(result[0], DemoModel)
     assert result[0].value == 10
+
+
+async def test_get_by_type_returns_models_with_aliases(monkeypatch) -> None:
+    store, _ = _make_store(monkeypatch)
+
+    class AliasedModel(BaseModel):
+        order_id: str = Field(alias="orderId")
+
+    # Payloads are stored with model_dump(): field names, not aliases
+    stored = Artifact(
+        type="AliasedModel", payload={"order_id": "42"}, produced_by="agent"
+    )
+
+    async def _list_by_type(_type):
+        return [stored]
+
+    monkeypatch.setattr(store, "list_by_type", _list_by_type)
+
+    (result,) = await store.get_by_type(AliasedModel)
+
+    assert result.order_id == "42"
 
 
 async def test_record_consumptions_dispatches_by_transaction_flag(monkeypatch) -> None:

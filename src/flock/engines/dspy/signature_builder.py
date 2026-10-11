@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from flock.core.artifacts import Artifact
+from flock.core.artifacts import Artifact, model_from_payload
 from flock.core.fan_out import FanOutRange
 from flock.engines.dspy.image_inputs import (
     describe_context_images,
@@ -503,7 +503,7 @@ class DSPySignatureBuilder:
         if schema is None:
             return data
         try:
-            return schema(**data)
+            return model_from_payload(schema, data)
         except Exception:
             return data
 

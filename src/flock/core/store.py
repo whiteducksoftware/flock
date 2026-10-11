@@ -23,7 +23,7 @@ import aiosqlite
 from opentelemetry import trace
 from pydantic_core import to_jsonable_python
 
-from flock.core.artifacts import Artifact
+from flock.core.artifacts import Artifact, model_from_payload
 from flock.registry import type_registry
 from flock.utils.time_utils import as_utc
 from flock.utils.type_resolution import TypeResolutionHelper
@@ -234,7 +234,10 @@ class InMemoryBlackboardStore(BlackboardStore):
                     for artifact in artifacts
                     if artifact.correlation_id == correlation_id
                 ]
-            return [artifact_type(**artifact.payload) for artifact in artifacts]  # type: ignore
+            return [
+                model_from_payload(artifact_type, artifact.payload)
+                for artifact in artifacts
+            ]
 
     async def extend(
         self, artifacts: Iterable[Artifact]
@@ -611,7 +614,7 @@ class SQLiteBlackboardStore(BlackboardStore):
             results: list[T] = []
             for row in rows:
                 payload = json.loads(row["payload"])
-                results.append(artifact_type(**payload))  # type: ignore[arg-type]
+                results.append(model_from_payload(artifact_type, payload))
             return results
 
     async def query_artifacts(
