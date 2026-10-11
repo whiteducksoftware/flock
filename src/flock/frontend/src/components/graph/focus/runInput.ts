@@ -1,9 +1,10 @@
 /**
  * What an agent's running run works on. The history records a run's input
  * only once the run has published, so the run's start event names it: the
- * artifact it consumed, or the decision a handle brought, whose subject is
- * what the handle delivers. A consumer of the decision itself gets the
- * decision (an agent has handles or `Decision.of`, never both).
+ * artifacts it consumed (several for an AND gate or a batch), or the
+ * decisions a handle brought, whose subjects are what the handle delivers.
+ * A consumer of the decision itself gets the decision (an agent has handles
+ * or `Decision.of`, never both).
  */
 
 import { useEffect, useState } from 'react';
@@ -12,6 +13,9 @@ import type { ImageSummary } from '../../../utils/imageFields';
 import type { Message } from '../unfold/messageHistory';
 
 const DECISION = /^(?:.*\.)?Decision\[(.+)\]$/;
+
+/** The consumed artifacts read for a run; a batch can hold many more */
+const MAX_INPUTS = 5;
 
 interface ApiArtifact {
   id: string;
@@ -29,52 +33,67 @@ const read = async (id: string): Promise<ApiArtifact> => {
   return response.json();
 };
 
-/**
- * The input of the agent's latest started run: `undefined` while it loads,
- * `null` when no running run of it is known (one started before the page
- * connected, or one that consumed nothing).
- */
-export function useRunInput(agent: string): Message | null | undefined {
-  const id = useGraphStore((state) => {
-    let first: string | null = null;
-    for (const run of state.inFlight.values()) {
-      if (run.agent === agent && run.artifacts.length > 0) first = run.artifacts[0]!;
+const messageOf = (artifact: ApiArtifact): Message => ({
+  id: artifact.id,
+  type: artifact.type,
+  direction: 'consumed',
+  payload: artifact.payload,
+  images: artifact.images ?? undefined,
+  at: artifact.created_at,
+  correlationId: artifact.correlation_id ?? null,
+});
+
+export interface RunInput {
+  /** The agent's latest started run, if one is known to be running */
+  runId: string | null;
+  /** Its inputs: `undefined` while they load, `null` when no run is known (one started before the page connected, or one that consumed nothing) */
+  inputs: Message[] | null | undefined;
+  /** Consumed artifacts beyond the ones read */
+  more: number;
+}
+
+export function useRunInput(agent: string): RunInput {
+  const runId = useGraphStore((state) => {
+    let latest: string | null = null;
+    for (const [id, run] of state.inFlight) {
+      if (run.agent === agent && run.artifacts.length > 0) latest = id;
     }
-    return first;
+    return latest;
   });
+  const artifacts = useGraphStore((state) => (runId ? state.inFlight.get(runId)?.artifacts : undefined));
   const handles = useGraphStore((state) => {
     const labels = (state.nodes.find((node) => node.id === agent)?.data as { typeLabels?: Record<string, string> } | undefined)
       ?.typeLabels;
     return Object.values(labels ?? {}).some((label) => label.startsWith('◆'));
   });
-  const [read_, setRead] = useState<{ id: string; message: Message | null } | null>(null);
+  const [read_, setRead] = useState<{ runId: string; inputs: Message[] | null } | null>(null);
 
   useEffect(() => {
-    if (!id) return;
+    if (!runId || !artifacts) return;
     let current = true;
     (async () => {
-      let artifact = await read(id);
-      const subject = handles && DECISION.test(artifact.type)
-        ? (artifact.payload as { subject_ids?: string[] } | null)?.subject_ids?.[0]
-        : undefined;
-      if (subject) artifact = await read(subject);
-      return {
-        id: artifact.id,
-        type: artifact.type,
-        direction: 'consumed' as const,
-        payload: artifact.payload,
-        images: artifact.images ?? undefined,
-        at: artifact.created_at,
-        correlationId: artifact.correlation_id ?? null,
-      };
+      const consumed = await Promise.all(artifacts.slice(0, MAX_INPUTS).map(read));
+      // A handle's decisions stand for their subjects
+      const resolved = await Promise.all(
+        consumed.map(async (artifact) => {
+          const subjects = handles && DECISION.test(artifact.type) ? ((artifact.payload as { subject_ids?: string[] } | null)?.subject_ids ?? []) : [];
+          return subjects.length > 0 ? Promise.all(subjects.map(read)) : [artifact];
+        }),
+      );
+      const unique = new Map(resolved.flat().map((artifact) => [artifact.id, messageOf(artifact)]));
+      return [...unique.values()];
     })()
-      .then((message) => current && setRead({ id, message }))
-      .catch(() => current && setRead({ id, message: null }));
+      .then((inputs) => current && setRead({ runId, inputs }))
+      .catch(() => current && setRead({ runId, inputs: null }));
     return () => {
       current = false;
     };
-  }, [id, handles]);
+  }, [runId, artifacts, handles]);
 
-  if (!id) return null;
-  return read_?.id === id ? read_.message : undefined;
+  if (!runId || !artifacts) return { runId: null, inputs: null, more: 0 };
+  return {
+    runId,
+    inputs: read_?.runId === runId ? read_.inputs : undefined,
+    more: Math.max(0, artifacts.length - MAX_INPUTS),
+  };
 }

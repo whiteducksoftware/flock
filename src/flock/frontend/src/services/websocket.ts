@@ -230,6 +230,7 @@ export class WebSocketClient {
       // Phase 6: Agent streaming tokens (for yellow ticker in agent nodes)
       // Note: artifact_id is now always present (Phase 6), so we removed the !artifact_id check
       if (data.agent_name && data.output_type === 'llm_token') {
+        if (data.run_id) useGraphStore.getState().appendRunTail(data.run_id, data.content ?? '');
         const { streamingTokens } = useGraphStore.getState();
         const currentTokens = streamingTokens.get(data.agent_name) || [];
 
@@ -454,6 +455,7 @@ export class WebSocketClient {
             streamingTokens: new Map(),
             agentLogicOperations: new Map(),
             inFlight: new Map(),
+            runTails: new Map(),
           });
           this.scheduleGraphRefresh();
           // The counts missed those artifacts too
