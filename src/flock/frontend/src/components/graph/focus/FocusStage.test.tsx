@@ -82,7 +82,8 @@ const serve = () =>
         '/api/v1/artifacts/t-2?images=thumbnails': {
           id: 't-2',
           type: 'app.SupportTicket',
-          payload: { subject: 'Charged twice' },
+          payload: { subject: 'Charged twice', photo: 'A photo, 1200 × 800 PNG' },
+          images: [{ path: 'photo', mime_type: 'image/png', thumb: 'data:image/png;base64,AAAA' }],
           created_at: '2026-10-11T12:01:08Z',
           correlation_id: '5d21bbbb',
         },
@@ -105,6 +106,7 @@ describe('FocusStage', () => {
       nodes,
       edges,
       inFlight: new Map([['7c1e04aa', { agent: 'billing_team', types: ['Decision[app.Route]'], artifacts: ['d-1'] }]]),
+      runTails: new Map([['7c1e04aa', 'Hi, thanks']]),
     });
     useUIStore.setState({ focusedNodeId: 'billing_team' });
   });
@@ -150,12 +152,34 @@ describe('FocusStage', () => {
   });
 
   it('waits for the running run\'s output instead of showing an earlier one', async () => {
-    useGraphStore.setState({
-      nodes: nodes.map((node) => (node.id === 'billing_team' ? { ...node, data: { ...node.data, streamingTokens: [] } } : node)),
-    });
+    useGraphStore.setState({ runTails: new Map() });
     render(<FocusStage onOpenTrace={() => {}} />);
 
     expect(await screen.findByText('Waiting for output')).toBeTruthy();
+  });
+
+  it('shows the output of the run whose input it shows, when runs overlap', async () => {
+    useGraphStore.setState({
+      inFlight: new Map([
+        ['older', { agent: 'billing_team', types: ['app.SupportTicket'], artifacts: ['t-9'] }],
+        ['7c1e04aa', { agent: 'billing_team', types: ['Decision[app.Route]'], artifacts: ['d-1'] }],
+      ]),
+      runTails: new Map([
+        ['older', 'An answer to another ticket'],
+        ['7c1e04aa', 'About the double charge'],
+      ]),
+    });
+    render(<FocusStage onOpenTrace={() => {}} />);
+
+    expect(await screen.findByText('Charged twice')).toBeTruthy();
+    expect(screen.getByText('…About the double charge')).toBeTruthy();
+    expect(screen.queryByText(/another ticket/)).toBeNull();
+  });
+
+  it('shows the thumbnails of an input\'s images', async () => {
+    render(<FocusStage onOpenTrace={() => {}} />);
+
+    expect(await screen.findByRole('button', { name: 'Open photo' })).toBeTruthy();
   });
 
   it('says when the running run\'s input is not known, and shows the last input once idle', async () => {

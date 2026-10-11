@@ -1,4 +1,6 @@
 import React from 'react';
+import { useGraphStore } from '../../../store/graphStore';
+import ImageThumbnails from '../../common/ImageThumbnails';
 import type { AgentRun } from '../unfold/agentRuns';
 import { count, duration, shortId } from '../unfold/format';
 import { TypeLabel } from '../unfold/HistoryTab';
@@ -32,14 +34,17 @@ const MessageCard: React.FC<{ title: string; message: Message | undefined; statu
       {status ?? (message && <span className={`mono ${styles.faint} ${styles.end}`}>{shortId(message.correlationId, 4)}</span>)}
     </div>
     {message ? (
-      <div className={styles.kv}>
-        {fieldsOf(message.payload).map(([key, value]) => (
-          <React.Fragment key={key}>
-            <span className="mono">{key}</span>
-            <span>{value}</span>
-          </React.Fragment>
-        ))}
-      </div>
+      <>
+        <div className={styles.kv}>
+          {fieldsOf(message.payload).map(([key, value]) => (
+            <React.Fragment key={key}>
+              <span className="mono">{key}</span>
+              <span>{value}</span>
+            </React.Fragment>
+          ))}
+        </div>
+        {message.images && message.images.length > 0 && <ImageThumbnails artifactId={message.id} images={message.images} />}
+      </>
     ) : (
       <span className={styles.faint}>{empty}</span>
     )}
@@ -58,9 +63,11 @@ interface FocusLiveProps {
 
 /** The stream on the left; on the right what the agent works on, its output so far and earlier runs. */
 const FocusLive: React.FC<FocusLiveProps> = ({ agent, running, messages, runs, tokens, onRuns }) => {
-  // While it runs, the running run's input; the history has it only once the run has published
-  const runInput = useRunInput(agent);
-  const input = running ? (runInput ?? undefined) : messages?.find((message) => message.direction === 'consumed');
+  // While it runs, the running run's inputs; the history has them only once the run has published
+  const run = useRunInput(agent);
+  // That run's output (the agent's ticker mixes overlapping runs); the ticker when no run is known
+  const tail = useGraphStore((state) => (run.runId ? (state.runTails.get(run.runId) ?? '') : tokens.join('')));
+  const inputs = running ? (run.inputs ?? []) : messages?.filter((message) => message.direction === 'consumed').slice(0, 1) ?? [];
   const output = messages?.find((message) => message.direction === 'published');
   const earlier = (runs ?? []).filter((run) => run.status !== 'active').slice(0, 3);
 
@@ -70,20 +77,27 @@ const FocusLive: React.FC<FocusLiveProps> = ({ agent, running, messages, runs, t
         <LiveTab agent={agent} running={running} />
       </section>
       <aside className={styles.aside}>
-        <MessageCard
-          title="Input"
-          message={input}
-          empty={!running ? 'None yet' : runInput === undefined ? 'Loading…' : 'Not known for this run'}
-        />
+        {inputs.length === 0 ? (
+          <MessageCard
+            title="Input"
+            message={undefined}
+            empty={!running ? 'None yet' : run.inputs === undefined ? 'Loading…' : 'Not known for this run'}
+          />
+        ) : (
+          inputs.map((input, index) => (
+            <MessageCard key={input.id} title={inputs.length > 1 ? `Input ${index + 1}` : 'Input'} message={input} />
+          ))
+        )}
+        {running && run.more > 0 && <span className={styles.faint}>and {run.more} more consumed</span>}
         {running ? (
           // This run's output only; an earlier run's is not this one's
           <div className={styles.card}>
             <div className={styles.cardHead}>
               <span className={styles.label}>Output</span>
-              <span className={`${styles.quiet} ${styles.end}`}>{tokens.length > 0 ? 'streaming' : 'running'}</span>
+              <span className={`${styles.quiet} ${styles.end}`}>{tail ? 'streaming' : 'running'}</span>
             </div>
-            {tokens.length > 0 ? (
-              <span className="mono">…{tokens.join('').slice(-160)}</span>
+            {tail ? (
+              <span className="mono">…{tail.slice(-160)}</span>
             ) : (
               <span className={styles.faint}>Waiting for output</span>
             )}
