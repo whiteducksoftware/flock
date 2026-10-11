@@ -165,6 +165,29 @@ class Image(BaseModel):
         return f"Image({self.mime_type}, {len(self.base64_data)} base64 chars)"
 
 
+def _enforce_limits(url: str) -> None:
+    """Raise if ``url`` is image data over the size or pixel limit.
+
+    Only the limits are enforced here: a value that is not valid image data
+    (no match, or base64 that does not decode) is left alone as ordinary text.
+    """
+    match = _DATA_URL.match(url)
+    if match is None:
+        return
+    encoded = match.group(2)
+    padding = len(encoded) - len(encoded.rstrip("="))
+    if len(encoded) * 3 // 4 - padding > MAX_IMAGE_BYTES:  # before decoding
+        raise ValueError(
+            f"Image data is larger than {MAX_IMAGE_BYTES / (1024 * 1024):g} MB; "
+            "downscale it, e.g. with Image.from_file()."
+        )
+    try:
+        data = base64.b64decode(encoded, validate=True)
+    except (binascii.Error, ValueError):
+        return
+    _check_pixels(data)
+
+
 def check_inline_images(value: Any) -> None:
     """Raise ``ValueError`` if a payload holds inline image data over the limits.
 
@@ -178,8 +201,8 @@ def check_inline_images(value: Any) -> None:
         check_inline_images(value.model_dump())
     elif isinstance(value, dict):
         url = value.get("url")
-        if isinstance(url, str) and _DATA_URL.match(url):
-            Image(url=url)  # size and pixel limits; ValidationError is a ValueError
+        if isinstance(url, str):
+            _enforce_limits(url)
         for key, item in value.items():
             if key != "url" or not isinstance(
                 item, str

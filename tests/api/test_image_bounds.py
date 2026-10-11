@@ -83,6 +83,7 @@ async def test_raw_artifacts_keep_image_like_text_that_is_not_image_data():
         payload={
             "link": {"url": "data:image/svg+xml,<svg/>"},
             "pseudo": {"url": "data:image/😀"},
+            "broken": {"url": "data:image/png;base64,AAAA="},  # image shape, bad base64
         },
         produced_by="external",
     )
