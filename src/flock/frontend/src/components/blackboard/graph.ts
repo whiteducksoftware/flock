@@ -202,10 +202,15 @@ export function packRuns(
   return { positions, newestRow };
 }
 
+const overlaps = (a: ReturnType<typeof boxOf>, b: ReturnType<typeof boxOf>) =>
+  a.left < b.left + b.width && b.left < a.left + a.width && a.top < b.top + b.height && b.top < a.top + a.height;
+
 /**
  * Places new cards and leaves the other runs where they are: a run that gets
- * a card is laid out again from where it starts, in its slot; new runs take
- * the free slots after the last row's runs, then rows below (`packRuns`).
+ * a card is laid out again from where it starts, in its slot, or, when it
+ * outgrew the slot and would cover a neighbour, moves to free room as new
+ * runs do: the free slots after the last row's runs, then rows below
+ * (`packRuns`).
  */
 export function placeFresh(
   nodes: ArtifactNode[],
@@ -218,27 +223,39 @@ export function placeFresh(
 ): Map<string, XYPosition> {
   const direction: HierarchicalMode = mode === 'hierarchical-vertical' ? 'hierarchical-vertical' : 'hierarchical-horizontal';
   const positions = new Map<string, XYPosition>();
-  const newRuns: ArtifactNode[] = [];
-  const placedBoxes: ReturnType<typeof boxOf>[] = [];
-  for (const members of runsOf(nodes)) {
+  const runs = runsOf(nodes);
+  // Where every run with placed cards is now
+  const boxes = new Map<ArtifactNode[], ReturnType<typeof boxOf>>();
+  for (const members of runs) {
     const placed = members.filter((node) => !fresh.has(node.id));
-    const arriving = members.filter((node) => fresh.has(node.id));
-    if (placed.length > 0) placedBoxes.push(boxOf(placed.map((node) => [node.id, node.position]), sizes));
-    if (arriving.length === 0) continue;
-    if (placed.length === 0) {
-      newRuns.push(...arriving);
+    if (placed.length > 0) boxes.set(members, boxOf(placed.map((node) => [node.id, node.position]), sizes));
+  }
+  const moving: ArtifactNode[] = [];
+  for (const members of runs) {
+    if (!members.some((node) => fresh.has(node.id))) continue;
+    const corner = boxes.get(members);
+    if (!corner) {
+      moving.push(...members);
       continue;
     }
-    // The run laid out again from where it starts, inside its slot (its decisions
-    // fan out under its ticket: a layout around one placed card would reach the next run)
-    const corner = boxOf(placed.map((node) => [node.id, node.position]), sizes);
+    // The run laid out again from where it starts (its decisions fan out under
+    // its ticket: a layout around one placed card would reach the next run)
     const layout = [...layoutRun(members, edges, direction, sizes).entries()];
     const box = boxOf(layout, sizes);
-    for (const [id, at] of layout) positions.set(id, { x: corner.left + at.x - box.left, y: corner.top + at.y - box.top });
+    const placed = layout.map(([id, at]): [string, XYPosition] => [id, { x: corner.left + at.x - box.left, y: corner.top + at.y - box.top }]);
+    const grown = boxOf(placed, sizes);
+    if ([...boxes].some(([other, otherBox]) => other !== members && overlaps(grown, otherBox))) {
+      // Outgrew its slot: to free room, all its cards
+      boxes.delete(members);
+      moving.push(...members);
+      continue;
+    }
+    for (const [id, at] of placed) positions.set(id, at);
   }
-  if (newRuns.length === 0) return positions;
+  if (moving.length === 0) return positions;
+  const placedBoxes = [...boxes.values()];
   if (placedBoxes.length === 0) {
-    for (const [id, at] of packRuns(newRuns, edges, direction, sizes, rowWidth, { gap }).positions) positions.set(id, at);
+    for (const [id, at] of packRuns(moving, edges, direction, sizes, rowWidth, { gap }).positions) positions.set(id, at);
     return positions;
   }
   // The slots of the placed runs; the last row's free slots first
@@ -248,10 +265,34 @@ export function placeFresh(
   const lastRow = placedBoxes.filter((box) => box.top === rowTop);
   const next = Math.max(...lastRow.map((box) => box.left + Math.max(slot.width, box.width))) + gap - left;
   const rowHeight = Math.max(slot.height, ...lastRow.map((box) => box.height));
-  const room = next + slot.width <= rowWidth;
+  // A run that moves for room is larger than the slot: the slot grows with it
+  const moved = runsOf(moving).map((members) => boxOf([...layoutRun(members, edges, direction, sizes).entries()], sizes));
+  const cell = slotOf([slot, ...moved]);
+  const room = next + cell.width <= rowWidth;
   const options: PackOptions = room
-    ? { origin: { x: left, y: rowTop }, startX: next, slot, gap }
-    : { origin: { x: left, y: rowTop + rowHeight + gap }, slot, gap };
-  for (const [id, at] of packRuns(newRuns, edges, direction, sizes, rowWidth, options).positions) positions.set(id, at);
+    ? { origin: { x: left, y: rowTop }, startX: next, slot: cell, gap }
+    : { origin: { x: left, y: rowTop + rowHeight + gap }, slot: cell, gap };
+  for (const [id, at] of packRuns(moving, edges, direction, sizes, rowWidth, options).positions) positions.set(id, at);
   return positions;
+}
+
+/** How to place a snapshot's cards: all of them, or only the new ones around the placed. */
+export function placementOf({
+  autoArrange,
+  firstLoad,
+  fresh,
+}: {
+  autoArrange: boolean;
+  /** Nothing is on the board yet */
+  firstLoad: boolean;
+  fresh: Set<string>;
+}): 'all' | Set<string> {
+  return autoArrange || firstLoad ? 'all' : fresh;
+}
+
+/** The cards that new edges between cards on the board reach (an edge drawn once its run finished). */
+export function newEdgeTargets(known: Set<string>, edges: Edge[], cards: Set<string>): Set<string> {
+  return new Set(
+    edges.filter((edge) => !known.has(edge.id) && cards.has(edge.source) && cards.has(edge.target)).map((edge) => edge.target),
+  );
 }

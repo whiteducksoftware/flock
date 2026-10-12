@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Edge, Node } from '@xyflow/react';
-import { graphOf, packRuns, placeFresh } from './graph';
+import { graphOf, newEdgeTargets, packRuns, placeFresh, placementOf } from './graph';
 
 const artifact = (id: string, data: Record<string, unknown> = {}): Node => ({
   id,
@@ -175,5 +175,59 @@ describe('placeFresh', () => {
     const narrow = placeFresh(now, moreEdges, new Set(['c-t']), 'hierarchical-horizontal', { ...sizes, 'c-t': size }, 300);
     expect(narrow.get('c-t')!.y).toBeGreaterThanOrEqual(900 + size.height);
     expect(narrow.get('c-t')!.x).toBe(0);
+  });
+});
+
+describe('placeFresh, a run that outgrows its slot', () => {
+  const size = { width: 236, height: 120 };
+
+  it('moves to free room instead of growing into its neighbour', () => {
+    // Two runs of one card each: slots only one card wide
+    const raw = [
+      artifact('a-t', { correlationId: 'a', timestamp: 1 }),
+      artifact('b-t', { correlationId: 'b', timestamp: 2 }),
+      artifact('a-1', { correlationId: 'a', timestamp: 3 }),
+      artifact('a-2', { correlationId: 'a', timestamp: 4 }),
+    ];
+    const { nodes: all, edges } = graphOf(raw, [edge('a-t', 'a-1'), edge('a-t', 'a-2')], false);
+    const placed = new Map([
+      ['a-t', { x: 0, y: 0 }],
+      ['b-t', { x: 316, y: 0 }],
+    ]);
+    const nodes = all.map((node) => ({ ...node, position: placed.get(node.id) ?? node.position }));
+    const sizes = Object.fromEntries(nodes.map((node) => [node.id, size]));
+
+    // Top down, a's two children fan out to 512 px: at its corner it would cover b
+    const positions = placeFresh(nodes, edges, new Set(['a-1', 'a-2']), 'hierarchical-vertical', sizes, 5000);
+
+    const at = (id: string) => positions.get(id) ?? placed.get(id)!;
+    const boxes = ['a-t', 'a-1', 'a-2', 'b-t'].map((id) => ({ id, ...at(id) }));
+    for (let i = 0; i < boxes.length; i += 1)
+      for (let j = i + 1; j < boxes.length; j += 1) {
+        const p = boxes[i]!;
+        const q = boxes[j]!;
+        expect(p.x + size.width <= q.x || q.x + size.width <= p.x || p.y + size.height <= q.y || q.y + size.height <= p.y).toBe(true);
+      }
+    // b stays; a's cards keep together, its root above its children
+    expect(positions.has('b-t')).toBe(false);
+    expect(at('a-t').y).toBeLessThan(at('a-1').y);
+  });
+});
+
+describe('placementOf', () => {
+  it('lays all cards out on the first load and with auto-arrange, else only the new ones', () => {
+    const fresh = new Set(['x']);
+    expect(placementOf({ autoArrange: false, firstLoad: true, fresh })).toBe('all');
+    expect(placementOf({ autoArrange: false, firstLoad: false, fresh })).toBe(fresh);
+    expect(placementOf({ autoArrange: true, firstLoad: false, fresh })).toBe('all');
+  });
+});
+
+describe('newEdgeTargets', () => {
+  it('names the cards an edge newly reaches between cards already on the board', () => {
+    const known = new Set(['a-t-a-d']);
+    const cards = new Set(['a-t', 'a-d', 'b-t', 'b-d']);
+
+    expect(newEdgeTargets(known, [edge('a-t', 'a-d'), edge('b-t', 'b-d'), edge('b-t', 'gone')], cards)).toEqual(new Set(['b-d']));
   });
 });

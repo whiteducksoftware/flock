@@ -3,8 +3,9 @@
  * canvas, arrows from what a run consumed to what it published. A click
  * unfolds a card in place, as in the lanes. The canvas dock lays it out.
  * Without auto-arrange (the default) placed cards stay where they are: new
- * ones join their run, new runs start a row below; moved cards keep their
- * place (IndexedDB).
+ * ones join their run, new runs take the next free slot. Moved cards stay
+ * while the view is open; a new visit lays the board out afresh (its window
+ * of artifacts and its slots differ, so saved places would scatter a run).
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -21,7 +22,6 @@ import {
   useNodesInitialized,
   useReactFlow,
 } from '@xyflow/react';
-import { indexedDBService } from '../../services/indexeddb';
 import { applyCircularLayout, applyGridLayout, applyRandomLayout } from '../../services/layout';
 import { useGraphStore } from '../../store/graphStore';
 import { type AutoLayoutMode, useUIStore } from '../../store/uiStore';
@@ -30,7 +30,7 @@ import CanvasDock from '../graph/CanvasDock';
 import { registerCanvas } from '../graph/canvasCommands';
 import MiniMap from '../graph/MiniMap';
 import ArtifactCard from './ArtifactCard';
-import { type ArtifactNode, graphOf, packRuns, placeFresh } from './graph';
+import { type ArtifactNode, graphOf, newEdgeTargets, packRuns, placeFresh, placementOf } from './graph';
 import styles from './Blackboard.module.css';
 
 /** A card's size before it is measured (a folded card is 236 px wide) */
@@ -129,22 +129,9 @@ const Canvas: React.FC = () => {
   );
 
   const [nodes, setNodes] = useState<ArtifactNode[]>([]);
-  // Where moved cards were left, from earlier visits (null until read)
-  const [saved, setSaved] = useState<Map<string, XYPosition> | null>(null);
   // A layout to run again once the new cards are measured: all cards, or the new ones
   const pending = useRef<'all' | Set<string> | null>(null);
   const fitted = useRef(false);
-
-  useEffect(() => {
-    let live = true;
-    indexedDBService
-      .getAllBlackboardViewLayouts()
-      .then((layouts) => live && setSaved(new Map(layouts.map((layout) => [layout.node_id, { x: layout.x, y: layout.y }]))))
-      .catch(() => live && setSaved(new Map()));
-    return () => {
-      live = false;
-    };
-  }, []);
 
   const board = useRef<HTMLDivElement>(null);
   // The newest row of runs, which the first view shows
@@ -174,26 +161,33 @@ const Canvas: React.FC = () => {
     [graph.edges],
   );
 
+  // The edges the board has seen: one drawn later (once its run finished) lays its run out again
+  const knownEdges = useRef<Set<string> | null>(null);
+
   // The snapshot's cards: kept ones keep their place and size, new ones get a place
   useEffect(() => {
-    if (saved === null) return;
     setNodes((previous) => {
       const before = new Map(previous.map((node) => [node.id, node]));
       const fresh = new Set<string>();
       const next = graph.nodes.map((node) => {
         const kept = before.get(node.id);
         if (kept) return { ...kept, data: node.data };
-        const place = autoArrange ? undefined : saved.get(node.id);
-        if (!place) fresh.add(node.id);
-        return { ...node, position: place ?? node.position };
+        fresh.add(node.id);
+        return node;
       });
+      const firstLoad = previous.length === 0;
+      if (knownEdges.current && !firstLoad) {
+        const placed = new Set(previous.map((node) => node.id));
+        for (const id of newEdgeTargets(knownEdges.current, graph.edges, placed)) fresh.add(id);
+      }
+      knownEdges.current = new Set(graph.edges.map((edge) => edge.id));
       if (fresh.size === 0) return next;
-      // Auto-arrange lays out the whole board, else only the new cards
-      const which = autoArrange || previous.length === 0 ? 'all' : fresh;
+      // Auto-arrange lays out the whole board, else only the new cards (a first visit all of them)
+      const which = placementOf({ autoArrange, firstLoad, fresh });
       pending.current = which;
       return arrange(which, layoutMode, next);
     });
-  }, [graph.nodes, saved, autoArrange, layoutMode, arrange]);
+  }, [graph.nodes, graph.edges, autoArrange, layoutMode, arrange]);
 
   // Once the new cards have their size, the layout runs again with it
   const firstView = useRef<ArtifactNode[] | null>(null);
@@ -231,13 +225,6 @@ const Canvas: React.FC = () => {
 
   const onNodesChange = useCallback((changes: NodeChange<ArtifactNode>[]) => {
     setNodes((current) => applyNodeChanges(changes, current));
-  }, []);
-
-  // A moved card keeps its place
-  const onNodeDragStop = useCallback((_event: React.MouseEvent | MouseEvent, node: ArtifactNode) => {
-    void indexedDBService
-      .saveBlackboardViewLayout({ node_id: node.id, x: node.position.x, y: node.position.y, last_updated: new Date().toISOString() })
-      .catch(console.error);
   }, []);
 
   const layout = useCallback(
@@ -320,7 +307,6 @@ const Canvas: React.FC = () => {
         edges={graph.edges}
         nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
-        onNodeDragStop={onNodeDragStop}
         nodesConnectable={false}
         minZoom={0.1}
         style={{ backgroundColor: 'var(--board)' }}
