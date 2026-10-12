@@ -159,7 +159,8 @@ async def test_a_retried_move_is_played_once(snake, monkeypatch):
     await snake.move(envelope)  # the sink retries after a failed answer
 
     assert snake.games[game].step == 1
-    assert published == [0, 1, 1]  # the start, the step, the same step again
+    # The start and the step; Flock has that step, so the retry publishes nothing
+    assert published == [0, 1]
 
 
 async def test_quick_draw_answers_strokes_drawn_ahead_in_order(quick_draw, monkeypatch):
@@ -390,3 +391,76 @@ async def test_overlapping_resumes_publish_a_step_once(snake, monkeypatch):
     await asyncio.gather(first, snake.resume(game))
 
     assert published == [0, 1]
+
+
+@pytest.mark.parametrize(
+    ("snake_cells", "heading", "food", "move", "ended"),
+    [
+        ([(9, 5), (8, 5), (7, 5)], "east", (0, 0), "up", "wall"),
+        ([(5, 5), (5, 4), (6, 4), (6, 5), (6, 6)], "south", (0, 0), "left", "body"),
+    ],
+)
+def test_a_game_says_why_it_ended(snake, snake_cells, heading, food, move, ended):
+    game = snake.Game()
+    game.snake, game.heading, game.food = snake_cells, heading, food
+
+    game.apply(move)
+
+    assert not game.alive
+    assert game.ended == ended
+    assert snake.view(game)["ended"] == ended
+
+
+def test_a_snake_that_only_circles_starves(snake, monkeypatch):
+    monkeypatch.setattr(snake, "MAX_HUNGRY", 3)
+    game = snake.Game()
+    game.food = (0, 0)
+
+    for move in ("right", "right", "right", "right"):
+        game.apply(move)
+
+    assert game.ended == "starved"
+
+
+async def test_a_move_that_lands_before_flock_answers_still_gets_its_step(
+    snake, monkeypatch
+):
+    """The decision for step 1 comes back (its own request) while its publication
+    still waits for Flock's answer: step 2 is published next, not dropped."""
+    import asyncio
+
+    published: list[int] = []
+    landed: list[asyncio.Task] = []
+    game_id = None
+
+    async def publish(game):
+        published.append(game.step)
+        if game.step == 1:  # Flock decides before it answers the publish
+            landed.append(
+                asyncio.create_task(
+                    snake.move({
+                        "id": "decision-2",
+                        "correlation_id": game_id,
+                        "payload": {
+                            "choice": "up",
+                            "best_guess": None,
+                            "probabilities": {"up": 0.9},
+                        },
+                    })
+                )
+            )
+            await asyncio.sleep(0.01)
+
+    monkeypatch.setattr(snake, "publish", publish)
+    game_id = (await snake.new_game())["game"]
+    await snake.pause(game_id)
+    await snake.move({
+        "id": "decision-1",
+        "correlation_id": game_id,
+        "payload": {"choice": "up", "best_guess": None, "probabilities": {"up": 0.9}},
+    })
+
+    await snake.resume(game_id)
+    await asyncio.gather(*landed)
+
+    assert published == [0, 1, 2]

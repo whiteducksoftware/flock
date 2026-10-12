@@ -109,8 +109,9 @@ class Game:
         self.alive = True
         self.applied: set[str] = set()  # decisions already played (sink retries)
         self.paused = False
-        self.waiting = False  # the next step is ready, held while paused
+        self.published = -1  # the last step Flock got: a newer one is waiting
         self.publishing = asyncio.Lock()  # one publication of a step at a time
+        self.ended: str | None = None  # why it ended: wall, body, starved or won
         self.hungry = 0  # steps since the last food
         self.food = self._place_food()
 
@@ -152,8 +153,10 @@ class Game:
     def apply(self, move: str) -> None:
         heading, cell = self._target(move)
         eats = cell == self.food
-        if self._blocked(cell, eats):
+        blocked = self._blocked(cell, eats)
+        if blocked:
             self.alive = False
+            self.ended = blocked
             return
         self.heading = heading
         self.snake.insert(0, cell)
@@ -163,6 +166,7 @@ class Game:
             self.hungry = 0
             if len(self.snake) == SIZE * SIZE:
                 self.alive = False  # the board is full: won
+                self.ended = "won"
                 return
             self.food = self._place_food()
         else:
@@ -171,6 +175,7 @@ class Game:
             # A snake that only circles would play forever
             if self.hungry > MAX_HUNGRY:
                 self.alive = False
+                self.ended = "starved"
 
     def state(self) -> SnakeState:
         return SnakeState(
@@ -217,6 +222,7 @@ def view(game: Game, decision: dict | None = None, error: str | None = None) -> 
         "step": game.step,
         "eaten": game.eaten,
         "alive": game.alive,
+        "ended": game.ended,
         "paused": game.paused,
         "probabilities": (decision or {}).get("probabilities"),
         "move": (decision or {}).get("move"),
@@ -229,14 +235,15 @@ def unreachable(exc: Exception) -> str:
 
 async def advance(game: Game) -> None:
     """Publish the next step, or hold it while the game is paused."""
-    game.waiting = True
     if game.paused:
-        return
+        return  # held: the step stays newer than the last one published
     async with game.publishing:
-        if not game.waiting:
+        step = game.step
+        if game.published >= step:
             return  # an overlapping Resume published it meanwhile
-        await publish(game)  # a failed publish keeps the step waiting, to retry
-        game.waiting = False
+        await publish(game)  # a failed publish leaves it waiting, to retry
+        # The next move may have landed meanwhile; that newer step still waits
+        game.published = max(game.published, step)
 
 
 @app.post("/games")
@@ -245,7 +252,7 @@ async def new_game():
     games[game.id] = game
     push(view(game))
     try:
-        await publish(game)
+        await advance(game)
     except httpx.HTTPError as exc:
         game.alive = False
         error = unreachable(exc)
@@ -267,7 +274,7 @@ async def resume(game_id: str):
     game = games[game_id]
     game.paused = False
     push(view(game))
-    if game.alive and game.waiting:
+    if game.alive and game.published < game.step:
         try:
             await advance(game)
         except httpx.HTTPError as exc:
@@ -349,7 +356,14 @@ PAGE = """<!doctype html>
 <title>Flock plays Snake</title>
 <style>
   body { font: 15px system-ui, sans-serif; background: #0e0f11; color: #eceef1; display: flex; gap: 28px; padding: 28px; }
-  canvas { background: #16181b; border-radius: 10px; }
+  canvas { background: #16181b; border-radius: 10px; display: block; }
+  .stage { position: relative; }
+  .overlay { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+    background: rgba(14, 15, 17, 0.78); border-radius: 10px; text-align: center; }
+  .overlay.shown { display: flex; }
+  .overlay h1 { margin: 0; font-size: 34px; }
+  .overlay .why { color: #b0b6bf; }
+  .overlay .score { font-family: monospace; font-size: 18px; }
   .side { display: flex; flex-direction: column; gap: 14px; min-width: 260px; }
   .bar { display: grid; grid-template-columns: 56px 1fr 44px; gap: 10px; align-items: center; font-family: monospace; }
   .track { height: 8px; background: #23262b; border-radius: 4px; overflow: hidden; }
@@ -364,7 +378,15 @@ PAGE = """<!doctype html>
   input { font-family: monospace; font-size: 13px; }
   .hint { font-size: 12px; color: #858c96; }
 </style>
-<canvas id="board" width="420" height="420"></canvas>
+<div class="stage">
+  <canvas id="board" width="420" height="420"></canvas>
+  <div class="overlay" id="over">
+    <h1 id="over-title">Game over</h1>
+    <div class="why" id="over-why"></div>
+    <div class="score" id="over-score"></div>
+    <button id="again">Play again</button>
+  </div>
+</div>
 <div class="side">
   <h2 style="margin:0">Flock plays Snake</h2>
   <div id="stats">Press Start to play.</div>
@@ -412,6 +434,17 @@ PAGE = """<!doctype html>
     draw(state);
     bars(state.probabilities, state.move);
     document.getElementById('stats').textContent = `${state.game} · step ${state.step} · food ${state.eaten}`;
+    // Game over: why, and how far it got (a game that never started has no screen)
+    const why = { wall: 'Flock steered into the wall.', body: 'Flock ran into its own tail.',
+      starved: 'Flock circled until the snake starved.', won: 'Flock filled the whole board.' };
+    const ended = !state.alive && state.ended;
+    document.getElementById('over').classList.toggle('shown', !!ended);
+    if (ended) {
+      document.getElementById('over-title').textContent = state.ended === 'won' ? 'Flock wins!' : 'Game over';
+      document.getElementById('over-why').textContent = why[state.ended];
+      document.getElementById('over-score').textContent =
+        `${state.eaten} food in ${state.step} step${state.step === 1 ? '' : 's'}`;
+    }
     // The event carries a failure, so it shows whichever of the two answers comes first
     document.getElementById('status').innerHTML = state.error
       ? `<span class="over">${state.error}</span>`
@@ -421,6 +454,7 @@ PAGE = """<!doctype html>
   };
   async function start() {
     current = null;
+    document.getElementById('over').classList.remove('shown');
     const response = await fetch('/games', { method: 'POST' });
     const answer = await response.json();
     if (!response.ok) {
@@ -438,6 +472,7 @@ PAGE = """<!doctype html>
     }
   };
   document.getElementById('new').onclick = start;
+  document.getElementById('again').onclick = start;
   // Flock's address: shown from the game's settings, saved on Enter or when the field is left
   const flock = document.getElementById('flock'), hint = document.getElementById('hint');
   fetch('/settings').then((r) => r.json()).then((s) => { flock.value = s.flock_url; });
