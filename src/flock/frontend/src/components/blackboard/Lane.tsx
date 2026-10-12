@@ -12,6 +12,10 @@ const StatusMark: React.FC<{ kind: LaneModel['status']['kind'] }> = ({ kind }) =
     <span className="sdot run" aria-hidden="true" />
   ) : kind === 'review' ? (
     <span className={`hatch ${styles.reviewMark}`} aria-hidden="true" />
+  ) : kind === 'failed' ? (
+    <span className={styles.failedMark}>
+      <Icon name="error" size={12} />
+    </span>
   ) : (
     <Icon name="check" size={12} />
   );
@@ -34,7 +38,13 @@ const Lane: React.FC<{ lane: LaneModel }> = ({ lane }) => (
         run {shortId(lane.id, 4) || '—'} · {clockTime(lane.startedAt)}
       </span>
       {lane.title && <span className={styles.title}>{lane.title}</span>}
-      <span className={lane.status.kind === 'running' ? styles.statusRunning : styles.status}>{lane.status.text}</span>
+      <span
+        className={
+          lane.status.kind === 'running' ? styles.statusRunning : lane.status.kind === 'failed' ? styles.statusFailed : styles.status
+        }
+      >
+        {lane.status.text}
+      </span>
     </header>
     <div className={styles.columns}>
       {lane.columns.map((column, index) => (

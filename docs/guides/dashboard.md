@@ -53,6 +53,7 @@ The Flow shows the agents and how artifacts move between them.
 
 - **Agent cards:** a status dot (amber while it runs, coral after a failure), the name and a tag (`LLM`, `source`, `◆ Route` for a decider, the schedule of a timer agent). Below it, its ports: `IN` per subscription (`AND` and `JOIN` rows for AND gates and joins), `OUT` per published type, each with a count that flashes when it changes. A running agent shows the tail of what it writes; a join or batch shows what it waits for and its countdown.
 - **Deciders** show their answers as bars per option, with the threshold; uncertainty is hatched.
+- **Sinks** (see [Sinks](sinks.md)) carry their method and path as the tag (`↗ POST /billing`) and count their deliveries: delivered, failed (coral) and the last answer. Unfolded, the Overview shows the counts and why the last delivery failed.
 - **Edges** carry what went along them (`SupportTicket · 75`, `◆ billing · 25`); they move while an artifact is on its way.
 - **Zoomed out**, cards become chips with the name and status.
 
@@ -73,7 +74,7 @@ The Blackboard shows the artifacts themselves, as **Lanes** or as a **Graph**.
   <i>The Blackboard as lanes: one lane per run, newest on top</i>
 </p>
 
-**Lanes:** one lane per run (correlation ID), newest on top. The lane's header says how the run stands: which agent is deciding or writing, *needs review* for an unsure decision no one reviewed, or *done in 2.3 s · 5 artifacts*. Artifacts follow left to right as cards: their type, producer and two fields of the payload, or the decision's answer. A card that still streams shows the text as it arrives.
+**Lanes:** one lane per run (correlation ID), newest on top. The lane's header says how the run stands: which agent is deciding or writing, *needs review* for an unsure decision no one reviewed, or *done in 2.3 s · 5 artifacts*, in coral with *· 1 delivery failed* when a sink could not deliver one of the run's artifacts. Artifacts follow left to right as cards: their type, producer and two fields of the payload, the decision's answer, or for a sink's receipt where it went and how the target answered (a failed delivery's card is coral). A card that still streams shows the text as it arrives.
 
 **Graph:** the same cards on a canvas, arrows from what a run consumed to what it published (dashed after an unsure decision, amber and moving to a card that still streams). Each run is laid out on its own, top down by default, and the runs fill rows, oldest first; the first view shows the whole board if it reads at that size, else the newest row. Cards stay where they are while the board fills: a run that grows keeps its place, new runs take the next free slot. The canvas dock lays it out again; Auto-arrange is off here by default.
 
@@ -98,7 +99,7 @@ A decision model's answers (see [Decision models](decisions.md)) show wherever t
 
 ## The timeline dock
 
-The strip at the bottom shows the last hour's activity for the board's filters: artifacts per minute, failed workflows marked. Dragging over it sets the time range. Its tabs open it upwards:
+The strip at the bottom shows the last hour's activity for the board's filters: artifacts per minute, failed workflows and failed deliveries marked. Dragging over it sets the time range. Its tabs open it upwards:
 
 - **Traces:** the traces with their spans as a waterfall, and every span's input and output. Its search takes free text and `agent:billing_team`, `status:error` or `service:DecisionEngine`, not the board's filters; a trace link anywhere in the dashboard opens it here on that run. Tracing needs `FLOCK_AUTO_TRACE=true` (see [Tracing](tracing/index.md)).
 - **History:** every artifact, newest first, with *Load older*.

@@ -21,6 +21,8 @@ import {
 } from './card/cardModel';
 import { cardSizes } from './cardSizes';
 import { AggregatorInfo, CoverageSummary, DeciderInfo, DeciderOptions } from './DecisionDisplay';
+import { lastText, type SinkInfo } from '../sinks/deliveries';
+import { count } from './unfold/format';
 import UnfoldedAgent from './unfold/UnfoldedAgent';
 import styles from './AgentNode.module.css';
 
@@ -139,6 +141,21 @@ const ScheduleLine: React.FC<{ timer: NonNullable<AgentData['timerState']>; now:
   );
 };
 
+/** A sink's deliveries: how many went out, how many failed, and the last one. */
+const DeliveryLine: React.FC<{ sink: SinkInfo }> = ({ sink }) => (
+  <div className={styles.schedule} data-testid="deliveries">
+    <span>
+      <span className={`mono num ${styles.strong}`}>{count(sink.delivered)}</span> delivered
+    </span>
+    {sink.failed > 0 && (
+      <span className={styles.failedCount}>
+        <span className="mono num">{count(sink.failed)}</span> failed
+      </span>
+    )}
+    {sink.last && <span className={sink.last.ok ? styles.quiet : styles.failedCount}>last {lastText(sink.last)}</span>}
+  </div>
+);
+
 const JoinBox: React.FC<{ wait: NonNullable<ReturnType<typeof joinWait>> }> = ({ wait }) => {
   const share = wait.required > 0 ? Math.min(1, wait.collected / wait.required) : 0;
   const urgent = wait.secondsLeft !== null && wait.secondsLeft < URGENT_SECONDS;
@@ -256,6 +273,7 @@ const AgentNode = memo(({ id, data, selected }: NodeProps) => {
   const rows = portRows(agent);
   const decider = agent.decision as DeciderInfo | undefined;
   const aggregator = (data as Record<string, unknown>).coverage as AggregatorInfo | undefined;
+  const sink = agent.sink;
   const tokens = agent.streamingTokens ?? [];
   // Seconds since the snapshot came, on the monotonic clock (`now` re-renders every second)
   const age = agent.snapshotAt !== undefined ? (performance.now() - agent.snapshotAt) / 1000 : 0;
@@ -290,6 +308,7 @@ const AgentNode = memo(({ id, data, selected }: NodeProps) => {
         states={states}
         decider={decider}
         aggregator={aggregator}
+        sink={sink}
         onOpenTrace={openTrace}
       />
     );
@@ -313,6 +332,7 @@ const AgentNode = memo(({ id, data, selected }: NodeProps) => {
       )}
       {decider && <DeciderOptions decider={decider} />}
       {aggregator && <CoverageSummary aggregator={aggregator} />}
+      {sink && <DeliveryLine sink={sink} />}
       {states}
     </div>
   );

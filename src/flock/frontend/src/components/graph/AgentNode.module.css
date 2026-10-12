@@ -177,6 +177,11 @@ button.error:focus-visible {
   color: var(--text-3);
 }
 
+/* A sink's failed deliveries */
+.failedCount {
+  color: var(--error-ink);
+}
+
 .quietStrong {
   color: var(--text-2);
 }

@@ -144,7 +144,11 @@ Receipts are artifacts like any other, so agents can consume them, for example t
 flock.agent("ops").consumes(DeliveryFailed).publishes(Incident)
 ```
 
-The dashboard's activity timeline counts a `DeliveryFailed` as an error, as it does a workflow error.
+### On the dashboard
+
+- A sink's card carries its method and path as the tag (`↗ POST /billing`) and counts its deliveries below its ports: delivered, failed and the last answer (`last 200 · 41 ms`, `last HTTP 503` in coral). Unfolded, its Overview shows the counts and the last failure's error.
+- On the Blackboard, a receipt's card shows where it went (`to POST myapp:/billing`) and the answer (`200 · 41 ms`); a failed delivery's card is coral, and so is its run's lane header (*done in 93 ms · 4 artifacts · 1 delivery failed*).
+- The activity timeline counts a `DeliveryFailed` as an error, as it does a workflow error.
 
 ---
 
