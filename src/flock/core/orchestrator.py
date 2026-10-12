@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
     from flock.components import ServerComponent
     from flock.core.conditions import RunCondition
+    from flock.sinks import Endpoint, SinkBuilder
 
 from flock.components.orchestrator import (
     CollectionResult,
@@ -109,6 +110,7 @@ class Flock(metaclass=AutoTracedMeta):
         decision_model: str | Any | None = None,
         decision_rate_limit: str | None = None,
         model_prices: Mapping[str, PriceLike] | None = None,
+        endpoints: Mapping[str, Endpoint] | None = None,
     ) -> None:
         """Initialize the Flock orchestrator for blackboard-based agent coordination.
 
@@ -134,6 +136,9 @@ class Flock(metaclass=AutoTracedMeta):
                 does not price, as ``{"azure/decision-1": (input, output)}``;
                 they win over LiteLLM's price table. Every run reports its
                 tokens and, when all its models have a price, its cost.
+            endpoints: The systems sinks deliver to, by name, as
+                ``{"myapp": Endpoint("https://myapp.example", auth=Bearer(env=...))}``;
+                ``flock.sink(...).post("myapp:/billing")`` names one.
 
         Examples:
             >>> flock = Flock("openai/gpt-4.1")
@@ -155,6 +160,7 @@ class Flock(metaclass=AutoTracedMeta):
             RequestBudget.parse(decision_rate_limit)  # fail early on a bad value
         self.decision_rate_limit = decision_rate_limit
         self._decision_budgets: dict[str, RequestBudget] = {}
+        self.endpoints: dict[str, Endpoint] = dict(endpoints or {})
 
         # Phase 3: Initialize all components using OrchestratorInitializer
         components = OrchestratorInitializer.initialize_components(
@@ -289,6 +295,23 @@ class Flock(metaclass=AutoTracedMeta):
         if name in self._agents:
             raise ValueError(f"Agent '{name}' already registered.")
         return AgentBuilder(self, name)
+
+    def sink(self, name: str) -> SinkBuilder:
+        """Create a sink: an external system as a consumer on the blackboard.
+
+        A sink consumes like an agent and delivers what it consumes over HTTP
+        to a target on one of ``Flock(endpoints=...)``, then publishes
+        ``Delivered`` or ``DeliveryFailed``.
+
+        Examples:
+            >>> flock = Flock(endpoints={"myapp": Endpoint("https://myapp.example")})
+            >>> flock.sink("billing-api").consumes(Reply).post("myapp:/billing")
+        """
+        from flock.sinks.builder import SinkBuilder
+
+        if name in self._agents:
+            raise ValueError(f"Agent '{name}' already registered.")
+        return SinkBuilder(self, name)
 
     def openclaw_agent(
         self,

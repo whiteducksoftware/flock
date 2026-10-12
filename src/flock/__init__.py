@@ -134,6 +134,7 @@ from flock.integrations.openclaw import GatewayConfig, OpenClawConfig, OpenClawD
 # =============================================================================
 from flock.logging.logging import configure_logging, get_logger
 from flock.registry import flock_tool, flock_type
+from flock.sinks import Bearer, Delivered, DeliveryFailed, Endpoint, Header, Hmac
 
 # =============================================================================
 # Runtime - Context and evaluation types for custom engines/components
@@ -152,18 +153,23 @@ __all__ = [
     "Artifact",
     # Engines
     "BAMLAdapter",
-    # Application
-    "CompletionPolicy",
     # Subscriptions
     "BatchSpec",
+    # Sinks
+    "Bearer",
     "ChatAdapter",
     # Decisions
     "Checklist",
     "Choice",
+    # Application
+    "CompletionPolicy",
     # Runtime
     "Context",
     "DSPyEngine",
     "Decision",
+    "Delivered",
+    "DeliveryFailed",
+    "Endpoint",
     "EngineComponent",
     "EvalInputs",
     "EvalResult",
@@ -172,10 +178,12 @@ __all__ = [
     # Core
     "Flock",
     "FlockApplication",
-    # Images
-    "Image",
     # Integrations - OpenClaw
     "GatewayConfig",
+    "Header",
+    "Hmac",
+    # Images
+    "Image",
     "JSONAdapter",
     "JoinSpec",
     "LabelledVisibility",

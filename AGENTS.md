@@ -58,6 +58,7 @@ Pre-commit hooks run Ruff and other checks; a pre-push hook (`scripts/check_vers
 | `src/flock/decisions/` | Decision models: question types, providers, engine, routing, request budgets |
 | `src/flock/application/` | `FlockApplication`: one isolated workflow per request, for hosts |
 | `src/flock/integrations/` | Microsoft Foundry hosting (`foundry`), OpenClaw |
+| `src/flock/sinks/` | Sinks: endpoints, the sink builder and engine, `Delivered` / `DeliveryFailed` |
 | `src/flock/storage/` | Dapr state-store blackboard (`flock-core[dapr]`) |
 | `src/flock/semantic/` | Embeddings for semantic subscriptions and `SemanticContextProvider` (`flock-core[semantic]`) |
 | `src/flock/api/` | REST API services, dashboard event collector, graph builder |
@@ -127,6 +128,7 @@ pitches = await flock.store.get_by_type(Pitch)  # list[Pitch]
   - Maintenance: `flock-flow sqlite-maintenance DB --delete-before ISO --vacuum`.
   - Dapr state stores: [Dapr guide](docs/guides/dapr-state-store.md).
 - **Webhooks:** `WebhookDeliveryComponent` (`flock.components.orchestrator`) delivers artifacts to the webhook URL and secret given with a REST publish request ([webhooks guide](docs/guides/webhooks.md)).
+- **Sinks:** `Flock(endpoints={"myapp": Endpoint(url, auth=Bearer(env="MYAPP_TOKEN"))})` and `flock.sink("billing-api").consumes(Reply).post("myapp:/billing", body=, response=)` deliver artifacts over HTTP and publish `Delivered` / `DeliveryFailed`; `publishes(Reply, post="myapp:/audit")` is the shorthand. Retries, order per correlation and receipts: [sinks guide](docs/guides/sinks.md).
 - **Dashboard and API:** `await flock.serve(dashboard=True)` serves the REST API (OpenAPI at `/docs`) and the dashboard on port 8344.
 - **Usage and cost:**
   - Every run reports `tokens_used`, `cost_usd` and `usage` per model in its metrics, the dashboard's Run Status and its trace (`flock.usage.*`).
@@ -303,7 +305,7 @@ for name, service, ms, status, error in conn.execute(
 |---|---|
 | Concepts | [Blackboard](docs/guides/blackboard.md), [agents](docs/guides/agents.md), [patterns](docs/guides/patterns.md), [use cases](docs/guides/use-cases.md) |
 | Subscriptions | [Predicates](docs/guides/predicates.md), [joins](docs/guides/join-operations.md), [batching](docs/guides/batch-processing.md), [semantic](docs/guides/semantic-subscriptions.md), [workflow control](docs/guides/workflow-control.md) |
-| Publishing | [Fan-out](docs/guides/fan-out.md), [images](docs/guides/images.md), [visibility](docs/guides/visibility.md), [webhooks](docs/guides/webhooks.md) |
+| Publishing | [Fan-out](docs/guides/fan-out.md), [images](docs/guides/images.md), [visibility](docs/guides/visibility.md), [webhooks](docs/guides/webhooks.md), [sinks](docs/guides/sinks.md) |
 | Decisions | [Decision models](docs/guides/decisions.md) |
 | Hosting | [Applications](docs/guides/applications.md), [Microsoft Foundry](docs/guides/foundry.md), [REST API](docs/guides/rest-api.md), [server components](docs/guides/server-components.md) |
 | Extending | [Agent components](docs/guides/components.md), [orchestrator components](docs/guides/orchestrator-components.md), [DSPy engine](docs/guides/dspy-engine.md), [local models](docs/guides/local-models.md), [context providers](docs/guides/context-providers.md) |

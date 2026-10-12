@@ -580,8 +580,9 @@ class GraphAssembler(metaclass=AutoTracedMeta):
 
             return DSPyEngine.kind
         for engine in engines:
-            kind = getattr(type(engine), "kind", None)
-            if kind:
+            # A sink's engine names its method and path per instance
+            kind = getattr(engine, "kind", None)
+            if isinstance(kind, str) and kind:
                 return kind
         return None
 

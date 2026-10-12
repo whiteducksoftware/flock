@@ -89,6 +89,8 @@ class OutputProcessor:
             if not isinstance(fan_out_range, FanOutRange):
                 fan_out_range = None
             actual_count = len(matching_artifacts)
+            if actual_count == 0 and getattr(output_decl, "optional", False) is True:
+                continue
 
             if fan_out_range is None:
                 # Legacy / fixed-count behavior: expect exact count
