@@ -231,6 +231,21 @@ describe('Blackboard', () => {
     expect(useUIStore.getState().unfoldedArtifactId).toBeNull();
   });
 
+  it('lays a run out again when an edge between its cards arrives before the first view', async () => {
+    useUIStore.setState({ blackboardView: 'graph' });
+    render(<Blackboard />);
+    await waitFor(() => expect(document.querySelectorAll('.react-flow__node')).toHaveLength(nodes.length));
+    // jsdom measures nothing, so the first view never comes: the board is still before it
+    const top = (id: string) => Number(/translate\([-\d.]+px, ?([-\d.]+)px\)/.exec(document.querySelector<HTMLElement>(`.react-flow__node[data-id="${id}"]`)!.style.transform)![1]);
+    // The refund run has no edge yet: its ticket and reply stand side by side
+    expect(top('s1')).toBe(top('t3'));
+
+    act(() => useGraphStore.setState({ edges: [...edges, made('t3', 's1', 'billing_team')] }));
+
+    // Top down, the reply goes under the ticket it answers
+    await waitFor(() => expect(top('s1')).toBeGreaterThan(top('t3')));
+  });
+
   it('narrows the graph to the runs that need a review', async () => {
     useUIStore.setState({ blackboardView: 'graph', needsReviewOnly: true });
     render(<Blackboard />);

@@ -204,17 +204,17 @@ const Canvas: React.FC = () => {
         fresh.add(node.id);
         return node;
       });
-      // Until the first view is shown the board lays out whole: a card that streams
-      // can come before the snapshot, which would else only be added below it
-      const firstLoad = previous.length === 0 || !fitted.current;
+      const firstLoad = previous.length === 0;
       if (knownEdges.current && !firstLoad) {
         const placed = new Set(previous.map((node) => node.id));
         for (const id of newEdgeTargets(knownEdges.current, graph.edges, placed)) fresh.add(id);
       }
       knownEdges.current = new Set(graph.edges.map((edge) => edge.id));
       if (fresh.size === 0) return next;
-      // Auto-arrange lays out the whole board, else only the new cards (a first visit all of them)
-      const which = placementOf({ autoArrange, firstLoad, fresh });
+      // Auto-arrange lays out the whole board, else only the new cards (a first visit all
+      // of them). Until the first view is shown, all of them too: a card that streams can
+      // come before the snapshot, whose cards would else only be added below it
+      const which = placementOf({ autoArrange, firstLoad: firstLoad || !fitted.current, fresh });
       pending.current = which;
       return arrange(which, layoutMode, next);
     });
