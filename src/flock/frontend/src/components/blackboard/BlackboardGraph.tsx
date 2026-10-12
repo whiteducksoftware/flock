@@ -24,7 +24,7 @@ import {
 } from '@xyflow/react';
 import { applyCircularLayout, applyGridLayout, applyRandomLayout } from '../../services/layout';
 import { useFilterStore } from '../../store/filterStore';
-import { useGraphStore } from '../../store/graphStore';
+import { blackboardFilterKey, useGraphStore } from '../../store/graphStore';
 import { type AutoLayoutMode, useUIStore } from '../../store/uiStore';
 import { motionMs } from '../graph/animatePositions';
 import CanvasDock from '../graph/CanvasDock';
@@ -40,6 +40,9 @@ const ESTIMATE = { width: 236, height: 120 };
 
 /** The margin around what a view shows, in pixels */
 const EDGE = 24;
+
+/** The smallest zoom at which a whole board is still read: smaller, the first view shows the newest row */
+const READABLE_ZOOM = 0.6;
 
 /** At this zoom the first row of runs fills the board's width */
 const FIRST_ROW_ZOOM = 0.75;
@@ -117,10 +120,11 @@ const Canvas: React.FC = () => {
   const autoArrange = useUIStore((state) => state.graphAutoArrange);
   const dockOpen = useUIStore((state) => state.dockOpen);
   // With the timeline dock expanded the board is a strip: the cards in view fit
-  // into it (all 500 would be specks), and the view comes back on collapse
+  // into it (all 500 would be specks), and the view comes back on collapse. Opened
+  // with the dock expanded, the graph's first view is its own
   const board = useRef<HTMLDivElement>(null);
   const { getNodes, getViewport: viewportNow } = useReactFlow();
-  useDockViewport(dockOpen, (pane) => {
+  const forgetDockView = useDockViewport(dockOpen, (pane) => {
     const { x, y, zoom } = viewportNow();
     return getNodes()
       .filter((node) => {
@@ -131,7 +135,7 @@ const Canvas: React.FC = () => {
         return right > 0 && left < pane.width && bottom > 0 && top < pane.height;
       })
       .map((node) => node.id);
-  });
+  }, { fitOnMount: false });
   const { fitView, zoomIn, zoomOut, getViewport, setViewport, setCenter, getNode } = useReactFlow();
   const initialized = useNodesInitialized();
 
@@ -150,6 +154,9 @@ const Canvas: React.FC = () => {
   );
 
   const [nodes, setNodes] = useState<ArtifactNode[]>([]);
+  const nodesRef = useRef(nodes);
+  nodesRef.current = nodes;
+  const [viewTick, setViewTick] = useState(0);
   // A layout to run again once the new cards are measured: all cards, or the new ones
   const pending = useRef<'all' | Set<string> | null>(null);
   const fitted = useRef(false);
@@ -222,16 +229,34 @@ const Canvas: React.FC = () => {
     });
   }, [initialized, arrange, layoutMode]);
 
-  // The first view: the newest row of runs at the top, readable; Fit shows them all.
+  // The first view: the whole board if it reads at READABLE_ZOOM, else the newest row
+  // of runs at the top, readable; Fit shows them all.
   // From the positions just set, which React Flow may not have yet
   useEffect(() => {
     const laid = firstView.current;
     if (!laid || fitted.current) return;
     firstView.current = null;
     fitted.current = true;
+    const width = board.current?.clientWidth ?? 0;
+    const height = board.current?.clientHeight ?? 0;
+    // A board that fits at a readable zoom shows whole (a filtered one, a small one)
+    const rightOf = (node: ArtifactNode) => node.position.x + (node.measured?.width ?? ESTIMATE.width);
+    const bottomOf = (node: ArtifactNode) => node.position.y + (node.measured?.height ?? ESTIMATE.height);
+    const whole = laid.length > 0 && {
+      left: Math.min(...laid.map((node) => node.position.x)),
+      top: Math.min(...laid.map((node) => node.position.y)),
+      right: Math.max(...laid.map(rightOf)),
+      bottom: Math.max(...laid.map(bottomOf)),
+    };
+    if (whole && width > 0 && height > 0) {
+      const zoom = Math.min(1, (width - 2 * EDGE) / (whole.right - whole.left), (height - 2 * EDGE) / (whole.bottom - whole.top));
+      if (zoom >= READABLE_ZOOM) {
+        void setViewport({ x: EDGE - whole.left * zoom, y: EDGE - whole.top * zoom, zoom });
+        return;
+      }
+    }
     const ids = new Set(newestRow.current);
     const row = laid.filter((node) => ids.has(node.id));
-    const width = board.current?.clientWidth ?? 0;
     if (row.length === 0 || width === 0) {
       requestAnimationFrame(() => void fitView({ padding: 0.08, maxZoom: 1 }));
       return;
@@ -241,50 +266,52 @@ const Canvas: React.FC = () => {
     const right = Math.max(...row.map((node) => node.position.x + (node.measured?.width ?? ESTIMATE.width)));
     const zoom = Math.min(1, (width - 2 * EDGE) / Math.max(1, right - left));
     void setViewport({ x: EDGE - left * zoom, y: EDGE - top * zoom, zoom });
-  }, [nodes, fitView, setViewport]);
+  }, [nodes, viewTick, fitView, setViewport]);
 
   // A change of what the board shows (its filters, Needs review only) lays it out
   // afresh and shows its newest row, as a first visit does, once the result is in:
-  // the snapshot for new filters, at once for the review filter, which the graph
-  // applies itself. The cards kept their places from the full board, too far apart
-  // to fit. Live updates keep the layout and the view
-  const loading = useGraphStore((state) => state.isLoading);
-  const filterKey = useFilterStore((state) =>
-    JSON.stringify([
-      state.correlationId,
-      state.selectedArtifactTypes,
-      state.selectedProducers,
-      state.selectedTags,
-      state.selectedVisibility,
-      state.timeRange,
-    ]),
-  );
-  const refit = useRef<'snapshot' | 'local' | null>(null);
-  const snapshotLoaded = useRef(false);
-  const showing = useRef({ filterKey, reviewOnly });
+  // the snapshot that answers the new filters (whatever answers arrive in between),
+  // at once for the review filter, which the graph applies itself. The cards kept
+  // their places from the full board, too far apart to fit. Live updates keep the
+  // layout and the view
+  const answered = useGraphStore((state) => state.blackboardFilters);
+  const asked = useFilterStore(() => blackboardFilterKey());
+  // The filters the layout was made for (null: none yet, the first load lays out)
+  const laidOutFor = useRef<string | null>(null);
+  const viewAfterDock = useRef(false);
   useEffect(() => {
-    if (showing.current.filterKey !== filterKey) {
-      refit.current = 'snapshot';
-      snapshotLoaded.current = false;
-    } else if (showing.current.reviewOnly !== reviewOnly) {
-      refit.current = 'local';
+    if (dockOpen || !viewAfterDock.current) return;
+    viewAfterDock.current = false;
+    fitted.current = false;
+    firstView.current = nodesRef.current;
+    setViewTick((tick) => tick + 1);
+  }, [dockOpen]);
+  const reviewShown = useRef(reviewOnly);
+  useEffect(() => {
+    if (!initialized || pending.current || answered === null) return;
+    // The board holds the snapshot's cards (they are set a render after it arrives)
+    const synced = nodes.length === graph.nodes.length && graph.nodes.every((node, index) => nodes[index]?.id === node.id);
+    if (!synced) return;
+    if (laidOutFor.current === null) {
+      laidOutFor.current = answered;
+      reviewShown.current = reviewOnly;
+      return;
     }
-    showing.current = { filterKey, reviewOnly };
-  }, [filterKey, reviewOnly]);
-  useEffect(() => {
-    if (refit.current === 'snapshot' && loading) snapshotLoaded.current = true;
-  }, [loading]);
-  useEffect(() => {
-    if (!refit.current || !initialized || pending.current) return;
-    if (refit.current === 'snapshot' && (!snapshotLoaded.current || loading)) return;
-    refit.current = null;
+    const newFilters = answered === asked && answered !== laidOutFor.current;
+    const newReview = reviewShown.current !== reviewOnly;
+    if (!newFilters && !newReview) return;
+    laidOutFor.current = answered;
+    reviewShown.current = reviewOnly;
+    forgetDockView();
+    // Laid out in the dock's strip: the first view comes again for the full board
+    viewAfterDock.current = useUIStore.getState().dockOpen;
     fitted.current = false;
     setNodes((current) => {
       const next = arrange('all', layoutMode, current);
       firstView.current = next;
       return next;
     });
-  }, [nodes, initialized, loading, arrange, layoutMode]);
+  }, [nodes, graph.nodes, initialized, answered, asked, reviewOnly, arrange, layoutMode]);
 
   // The graph shows artifacts; it removes none (only the snapshot does)
   const onNodesChange = useCallback((changes: NodeChange<ArtifactNode>[]) => {

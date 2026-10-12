@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { useGraphStore } from './graphStore';
+import { blackboardFilterKey, useGraphStore } from './graphStore';
 import { fetchGraphSnapshot, mergeNodePositions, overlayWebSocketState } from '../services/graphService';
 import { useFilterStore } from './filterStore';
 import { GraphSnapshot, GraphNode } from '../types/graph';
@@ -364,6 +364,37 @@ describe('graphStore - NEW Simplified Architecture', () => {
       vi.mocked(fetchGraphSnapshot).mockRejectedValue(new Error('API error'));
 
       await expect(useGraphStore.getState().generateAgentViewGraph()).rejects.toThrow('API error');
+    });
+  });
+
+  describe('overlapping snapshot requests', () => {
+    const snapshot = (id: string) =>
+      ({ nodes: [{ id, type: 'message', data: {}, position: { x: 0, y: 0 } }], edges: [], statistics: null, truncated: false }) as unknown as GraphSnapshot;
+
+    it('apply only the newest: an older answer arriving last does not replace it', async () => {
+      let answerOld: (value: GraphSnapshot) => void = () => {};
+      vi.mocked(fetchGraphSnapshot)
+        .mockImplementationOnce(() => new Promise((resolve) => (answerOld = resolve)))
+        .mockResolvedValueOnce(snapshot('new'));
+
+      const older = useGraphStore.getState().generateBlackboardViewGraph();
+      vi.mocked(useFilterStore.getState).mockReturnValue({
+        correlationId: 'c-2',
+        timeRange: { preset: 'last10min' },
+        selectedArtifactTypes: [],
+        selectedProducers: [],
+        selectedTags: [],
+        selectedVisibility: [],
+      } as any);
+      await useGraphStore.getState().generateBlackboardViewGraph();
+      answerOld(snapshot('old'));
+      await older;
+
+      expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual(['new']);
+      expect(useGraphStore.getState().isLoading).toBe(false);
+      // The board knows which filters its snapshot answers
+      expect(useGraphStore.getState().blackboardFilters).toBe(blackboardFilterKey());
+      expect(useGraphStore.getState().blackboardFilters).toContain('c-2');
     });
   });
 

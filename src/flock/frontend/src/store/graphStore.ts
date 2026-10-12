@@ -35,6 +35,8 @@ interface GraphState {
   agentStatus: Map<string, string>;
   /** Per running run, its agent and what it consumed: the types (edges in flight) and artifact IDs; its run (correlation) */
   inFlight: Map<string, { agent: string; types: string[]; artifacts: string[]; correlationId?: string | null }>;
+  /** The filters the Blackboard's snapshot answers (`blackboardFilterKey` when they are the board's) */
+  blackboardFilters: string | null;
   /** Per running run, the end of its streamed output (an agent's ticker mixes its runs) */
   runTails: Map<string, string>;
   streamingTokens: Map<string, string[]>;
@@ -164,6 +166,12 @@ function previewFilter(): (data: Record<string, any>) => boolean {
     (filters.visibility.length === 0 || filters.visibility.includes(data.visibilityKind ?? 'Public'));
 }
 
+// Counts the snapshot requests: only the newest one's answer is applied
+let snapshotRequest = 0;
+
+/** The board's filters as the Blackboard's snapshot request carries them, to compare with `blackboardFilters`. */
+export const blackboardFilterKey = (): string => JSON.stringify(buildGraphRequest('blackboard').filters);
+
 function buildGraphRequest(viewMode: 'agent' | 'blackboard'): GraphRequest {
   const filterState = useFilterStore.getState();
 
@@ -203,6 +211,7 @@ export const useGraphStore = create<GraphState>()(
       // Initial state
       agentStatus: new Map(),
       inFlight: new Map(),
+      blackboardFilters: null,
       runTails: new Map(),
       streamingTokens: new Map(),
       agentLogicOperations: new Map(), // Phase 1.3
@@ -221,6 +230,7 @@ export const useGraphStore = create<GraphState>()(
       // Backend integration actions
       generateAgentViewGraph: async () => {
         set({ isLoading: true, error: null, viewMode: 'agent' });
+        const mine = ++snapshotRequest;
 
         try {
           // Load saved positions from IndexedDB first
@@ -228,6 +238,8 @@ export const useGraphStore = create<GraphState>()(
 
           const request = buildGraphRequest('agent');
           const snapshot: GraphSnapshot = await fetchGraphSnapshot(request);
+          // A newer request (other filters, the other view) answers for the board
+          if (mine !== snapshotRequest) return;
           // The snapshot's countdowns (joins, batches) go on from here, on the monotonic clock
           const snapshotAt = performance.now();
 
@@ -274,6 +286,7 @@ export const useGraphStore = create<GraphState>()(
             }
           }
         } catch (error) {
+          if (mine !== snapshotRequest) return;
           const errorMessage = error instanceof Error ? error.message : 'Failed to fetch graph';
           set({
             error: errorMessage,
@@ -285,10 +298,13 @@ export const useGraphStore = create<GraphState>()(
 
       generateBlackboardViewGraph: async () => {
         set({ isLoading: true, error: null, viewMode: 'blackboard' });
+        const mine = ++snapshotRequest;
 
         try {
           const request = buildGraphRequest('blackboard');
           const snapshot: GraphSnapshot = await fetchGraphSnapshot(request);
+          // A newer request (other filters, the other view) answers for the board
+          if (mine !== snapshotRequest) return;
 
           // The lanes place artifacts themselves (no positions); an artifact
           // that still streams is not on the record yet and stays, if the
@@ -304,6 +320,7 @@ export const useGraphStore = create<GraphState>()(
             edges: snapshot.edges as Edge[],
             statistics: snapshot.statistics,
             truncated: snapshot.truncated,
+            blackboardFilters: JSON.stringify(request.filters),
             isLoading: false,
           });
 
@@ -328,6 +345,7 @@ export const useGraphStore = create<GraphState>()(
             }
           }
         } catch (error) {
+          if (mine !== snapshotRequest) return;
           const errorMessage = error instanceof Error ? error.message : 'Failed to fetch graph';
           set({
             error: errorMessage,
