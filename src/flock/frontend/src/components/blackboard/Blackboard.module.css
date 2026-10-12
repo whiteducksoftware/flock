@@ -55,11 +55,22 @@
   color: var(--sure-ink);
 }
 
-.table {
+/* The graph: the cards on a canvas with the canvas dock */
+.graph {
+  position: relative;
   flex: 1 1 0;
   min-height: 0;
-  overflow: auto;
 }
+
+.graph :global(.react-flow__node) {
+  cursor: default;
+}
+
+.handle {
+  opacity: 0;
+  pointer-events: none;
+}
+
 
 .lanes {
   flex: 1 1 0;

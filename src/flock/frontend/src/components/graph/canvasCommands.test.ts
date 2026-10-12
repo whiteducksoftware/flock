@@ -4,7 +4,8 @@ import { useGraphStore } from '../../store/graphStore';
 import { useUIStore } from '../../store/uiStore';
 import { type CanvasCommands, registerCanvas, whenOnBoard, withAgent, withCanvas } from './canvasCommands';
 
-const commands = (): CanvasCommands => ({
+const commands = (kind: CanvasCommands['kind'] = 'flow'): CanvasCommands => ({
+  kind,
   zoomIn: vi.fn(),
   zoomOut: vi.fn(),
   fit: vi.fn(),
@@ -91,6 +92,33 @@ describe('canvasCommands', () => {
 
     expect(canvas.show).not.toHaveBeenCalled();
     later();
+  });
+
+  it('keeps a command for the Flow from the Blackboard graph, and gives it to the Flow', () => {
+    vi.useFakeTimers();
+    const graph = commands('graph');
+    const unregisterGraph = registerCanvas(graph);
+
+    // Show an agent: the graph is mounted until the switch to the Flow renders
+    withCanvas((c) => c.show('triage'), 'flow');
+    expect(graph.show).not.toHaveBeenCalled();
+    unregisterGraph();
+
+    const flow = commands('flow');
+    const unregisterFlow = registerCanvas(flow, 600);
+    vi.advanceTimersByTime(600);
+    expect(flow.show).toHaveBeenCalledWith('triage');
+    unregisterFlow();
+  });
+
+  it('runs a command for any canvas on the mounted one', () => {
+    const graph = commands('graph');
+    const unregister = registerCanvas(graph);
+
+    withCanvas((c) => c.fit());
+
+    expect(graph.fit).toHaveBeenCalled();
+    unregister();
   });
 
   it('forgets an unmounted canvas, and a newer one wins', () => {

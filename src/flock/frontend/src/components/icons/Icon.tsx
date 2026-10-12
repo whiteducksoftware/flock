@@ -80,7 +80,14 @@ const SHAPES = {
   ),
   open: <path d="M7 17L17 7M9 7h8v8" />,
   lanes: <path d="M3 6h4M10 6h4M17 6h4M3 12h4M10 12h4M3 18h4M10 18h4M17 18h4" />,
-  table: <path d="M3 6h18M3 12h18M3 18h18" />,
+  graph: (
+    <>
+      <circle cx="6" cy="6" r="2.5" />
+      <circle cx="18" cy="12" r="2.5" />
+      <circle cx="6" cy="18" r="2.5" />
+      <path d="M8.3 7.2l7.4 3.6M8.3 16.8l7.4-3.6" />
+    </>
+  ),
   person: (
     <>
       <circle cx="12" cy="8" r="3.5" />

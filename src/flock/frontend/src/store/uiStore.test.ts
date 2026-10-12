@@ -95,14 +95,26 @@ describe('uiStore', () => {
     useUIStore.getState().unfoldArtifact('artifact-1');
     useUIStore.getState().setNeedsReviewOnly(true);
     useUIStore.getState().setMode('blackboard');
-    useUIStore.getState().setBlackboardView('table');
+    useUIStore.getState().setBlackboardView('graph');
+    useUIStore.getState().setGraphLayout('grid');
+    useUIStore.getState().setGraphAutoArrange(false);
 
     const saved = JSON.stringify(memoryStorage.get('ui-storage'));
     expect(saved).toContain('blackboard');
-    expect(saved).toContain('"blackboardView":"table"');
+    expect(saved).toContain('"blackboardView":"graph"');
+    expect(saved).toContain('"graphLayout":"grid"');
+    expect(saved).toContain('"graphAutoArrange":false');
     expect(saved).not.toContain('triage');
     expect(saved).not.toContain('artifact-1');
     expect(saved).not.toContain('needsReviewOnly');
+  });
+
+  it('shows the lanes where an older dashboard saved the table, which is gone', async () => {
+    memoryStorage.set('ui-storage', { state: { blackboardView: 'table' }, version: 0 } as unknown as string);
+
+    await (useUIStore as any).persist.rehydrate();
+
+    expect(useUIStore.getState().blackboardView).toBe('lanes');
   });
 
   it('drops the windows an older dashboard saved', async () => {

@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { useGraphStore } from './graphStore';
+import { blackboardFilterKey, useGraphStore } from './graphStore';
 import { fetchGraphSnapshot, mergeNodePositions, overlayWebSocketState } from '../services/graphService';
 import { useFilterStore } from './filterStore';
 import { GraphSnapshot, GraphNode } from '../types/graph';
@@ -364,6 +364,88 @@ describe('graphStore - NEW Simplified Architecture', () => {
       vi.mocked(fetchGraphSnapshot).mockRejectedValue(new Error('API error'));
 
       await expect(useGraphStore.getState().generateAgentViewGraph()).rejects.toThrow('API error');
+    });
+  });
+
+  describe('overlapping snapshot requests', () => {
+    const snapshot = (id: string) =>
+      ({ nodes: [{ id, type: 'message', data: {}, position: { x: 0, y: 0 } }], edges: [], statistics: null, truncated: false }) as unknown as GraphSnapshot;
+
+    it('apply an answer for the same filters while newer requests still load (live refreshes in a row)', async () => {
+      const answers: ((value: GraphSnapshot) => void)[] = [];
+      vi.mocked(fetchGraphSnapshot).mockImplementation(() => new Promise((resolve) => answers.push(resolve)));
+
+      const first = useGraphStore.getState().generateBlackboardViewGraph();
+      const second = useGraphStore.getState().generateBlackboardViewGraph();
+      answers[0]!(snapshot('first'));
+      await first;
+      // Newer than nothing applied, and asked for the board's filters: it shows
+      expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual(['first']);
+
+      answers[1]!(snapshot('second'));
+      await second;
+      expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual(['second']);
+      expect(useGraphStore.getState().isLoading).toBe(false);
+    });
+
+    it('compare an Agent View answer with the filters its request was built for, after the saved positions load', async () => {
+      const filters = (correlationId: string | null) =>
+        vi.mocked(useFilterStore.getState).mockReturnValue({
+          correlationId,
+          timeRange: { preset: 'last10min' },
+          selectedArtifactTypes: [],
+          selectedProducers: [],
+          selectedTags: [],
+          selectedVisibility: [],
+          updateFacets: vi.fn(),
+        } as any);
+      vi.mocked(mergeNodePositions).mockImplementation((nodes) => nodes as Node[]);
+      vi.mocked(overlayWebSocketState).mockImplementation((nodes) => nodes);
+      let positionsLoaded: () => void = () => {};
+      vi.spyOn(indexedDBService, 'getAllAgentViewLayouts').mockImplementationOnce(
+        () => new Promise((resolve) => (positionsLoaded = () => resolve([]))),
+      );
+      let answer: (value: GraphSnapshot) => void = () => {};
+      vi.mocked(fetchGraphSnapshot).mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)));
+
+      // Asked under no filter; a run is filtered before the request goes out, then the filter is lifted
+      const asked = useGraphStore.getState().generateAgentViewGraph();
+      filters('c-2');
+      positionsLoaded();
+      await vi.waitFor(() => expect(fetchGraphSnapshot).toHaveBeenCalledTimes(1));
+      expect(vi.mocked(fetchGraphSnapshot).mock.calls[0]![0].filters.correlation_id).toBe('c-2');
+      filters(null);
+      answer(snapshot('for-c-2'));
+      await asked;
+
+      // The answer is for the run's filter, not for the board's
+      expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual([]);
+    });
+
+    it('apply only the newest: an older answer arriving last does not replace it', async () => {
+      let answerOld: (value: GraphSnapshot) => void = () => {};
+      vi.mocked(fetchGraphSnapshot)
+        .mockImplementationOnce(() => new Promise((resolve) => (answerOld = resolve)))
+        .mockResolvedValueOnce(snapshot('new'));
+
+      const older = useGraphStore.getState().generateBlackboardViewGraph();
+      vi.mocked(useFilterStore.getState).mockReturnValue({
+        correlationId: 'c-2',
+        timeRange: { preset: 'last10min' },
+        selectedArtifactTypes: [],
+        selectedProducers: [],
+        selectedTags: [],
+        selectedVisibility: [],
+      } as any);
+      await useGraphStore.getState().generateBlackboardViewGraph();
+      answerOld(snapshot('old'));
+      await older;
+
+      expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual(['new']);
+      expect(useGraphStore.getState().isLoading).toBe(false);
+      // The board knows which filters its snapshot answers
+      expect(useGraphStore.getState().blackboardFilters).toBe(blackboardFilterKey());
+      expect(useGraphStore.getState().blackboardFilters).toContain('c-2');
     });
   });
 

@@ -5,7 +5,6 @@ import { useGraphStore } from '../../store/graphStore';
 import { useUIStore } from '../../store/uiStore';
 import Blackboard from './Blackboard';
 
-vi.mock('../modules/HistoricalArtifactsModule', () => ({ default: () => <div data-testid="table" /> }));
 
 const artifact = (id: string, correlationId: string, type: string, producedBy: string, timestamp: number, data: Record<string, unknown> = {}): Node => ({
   id,
@@ -44,6 +43,15 @@ const lane = (run: string) => screen.getByRole('region', { name: `Run ${run}` })
 
 describe('Blackboard', () => {
   beforeEach(() => {
+    // React Flow (the graph) watches its sizes
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
     useGraphStore.setState({
       viewMode: 'blackboard',
       nodes,
@@ -174,12 +182,76 @@ describe('Blackboard', () => {
     expect(screen.getByText(/newest 500 artifacts/)).toBeTruthy();
   });
 
-  it('switches to the table', () => {
+  it('switches to the graph: every artifact a card, no table', async () => {
     render(<Blackboard />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Table' }));
-    expect(screen.getByTestId('table')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Table' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Graph' }));
+    expect(useUIStore.getState().blackboardView).toBe('graph');
     expect(screen.queryAllByRole('region')).toHaveLength(0);
-    expect(useUIStore.getState().blackboardView).toBe('table');
+
+    // jsdom measures nothing, so React Flow draws no arrows here (graph.test.ts has them)
+    await waitFor(() => expect(document.querySelectorAll('.react-flow__node')).toHaveLength(nodes.length));
+    // The streaming reply is a streaming card; a click unfolds a card in place.
+    // React Flow hides a node until it is measured, which jsdom does not do, so
+    // the cards have no accessible name here: they are found by their label
+    const card = (label: string) => document.querySelector<HTMLElement>(`[role="button"][aria-label="${label}"]`)!;
+    expect(card('TeamReply by billing_team').textContent).toContain('Hi, thanks');
+    fireEvent.click(card('◆ Route by triage'));
+    expect(useUIStore.getState().unfoldedArtifactId).toBe('d1');
+  });
+
+  it('keeps a selected card on Backspace: the graph shows artifacts, it does not delete them', async () => {
+    useUIStore.setState({ blackboardView: 'graph' });
+    render(<Blackboard />);
+    await waitFor(() => expect(document.querySelectorAll('.react-flow__node')).toHaveLength(nodes.length));
+
+    const node = document.querySelector<HTMLElement>('.react-flow__node[data-id="t1"]')!;
+    fireEvent.click(node);
+    fireEvent.keyDown(node, { key: 'Backspace' });
+    fireEvent.keyDown(document.body, { key: 'Backspace' });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(document.querySelectorAll('.react-flow__node')).toHaveLength(nodes.length);
+  });
+
+  it('folds a card from the keyboard after it was unfolded with the mouse', async () => {
+    useUIStore.setState({ blackboardView: 'graph' });
+    render(<Blackboard />);
+    await waitFor(() => expect(document.querySelectorAll('.react-flow__node')).toHaveLength(nodes.length));
+    const card = document.querySelector<HTMLElement>('[role="button"][aria-label="SupportTicket by external"]')!;
+
+    fireEvent.pointerDown(card, { clientX: 100, clientY: 100 });
+    fireEvent.click(card, { clientX: 100, clientY: 100, detail: 1 });
+    expect(useUIStore.getState().unfoldedArtifactId).toBe('t1');
+
+    // Enter or Space on the Fold button: a click at (0, 0) with no pointer behind it
+    const fold = document.querySelector<HTMLElement>('[aria-label="Fold"]')!;
+    fireEvent.click(fold, { clientX: 0, clientY: 0, detail: 0 });
+    expect(useUIStore.getState().unfoldedArtifactId).toBeNull();
+  });
+
+  it('lays a run out again when an edge between its cards arrives before the first view', async () => {
+    useUIStore.setState({ blackboardView: 'graph' });
+    render(<Blackboard />);
+    await waitFor(() => expect(document.querySelectorAll('.react-flow__node')).toHaveLength(nodes.length));
+    // jsdom measures nothing, so the first view never comes: the board is still before it
+    const top = (id: string) => Number(/translate\([-\d.]+px, ?([-\d.]+)px\)/.exec(document.querySelector<HTMLElement>(`.react-flow__node[data-id="${id}"]`)!.style.transform)![1]);
+    // The refund run has no edge yet: its ticket and reply stand side by side
+    expect(top('s1')).toBe(top('t3'));
+
+    act(() => useGraphStore.setState({ edges: [...edges, made('t3', 's1', 'billing_team')] }));
+
+    // Top down, the reply goes under the ticket it answers
+    await waitFor(() => expect(top('s1')).toBeGreaterThan(top('t3')));
+  });
+
+  it('narrows the graph to the runs that need a review', async () => {
+    useUIStore.setState({ blackboardView: 'graph', needsReviewOnly: true });
+    render(<Blackboard />);
+
+    // Only the run whose decision is unsure: its ticket and the decision
+    await waitFor(() => expect(document.querySelectorAll('.react-flow__node')).toHaveLength(2));
+    expect([...document.querySelectorAll('.react-flow__node')].map((node) => node.getAttribute('data-id')).sort()).toEqual(['d2', 't2']);
   });
 });

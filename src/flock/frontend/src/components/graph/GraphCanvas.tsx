@@ -377,6 +377,7 @@ const GraphCanvas: React.FC = () => {
     () =>
       registerCanvas(
         {
+          kind: 'flow',
           zoomIn: () => void zoomIn({ duration: motionMs(200) }),
           zoomOut: () => void zoomOut({ duration: motionMs(200) }),
           fit: () => void fitView({ padding: 0.1, duration: motionMs(300) }),
@@ -477,6 +478,8 @@ const GraphCanvas: React.FC = () => {
         onNodeDoubleClick={onNodeDoubleClick}
         // Space unfolds and folds the selected node; dragging the board pans it
         panActivationKeyCode={null}
+        // Backspace would remove an agent from the view, not from the flock
+        deleteKeyCode={null}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         defaultEdgeOptions={defaultEdgeOptions}
