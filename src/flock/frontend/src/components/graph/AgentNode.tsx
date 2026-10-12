@@ -255,14 +255,25 @@ const AgentNode = memo(({ id, data, selected }: NodeProps) => {
     </>
   );
 
-  // Making room for the unfolded node starts from its card's size
+  // Making room for the unfolded node starts from its card's size; Auto-arrange
+  // compares it with the last layout's (#655). Kept up to date also when the
+  // card resizes without rendering (fonts loading)
   useLayoutEffect(() => {
     if (card.current) cardSizes.set(id, { width: card.current.offsetWidth, height: card.current.offsetHeight });
   });
+  const shownAsCard = !chip && !unfolded;
+  useEffect(() => {
+    const element = card.current;
+    if (!shownAsCard || !element || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => cardSizes.set(id, { width: element.offsetWidth, height: element.offsetHeight }));
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [id, shownAsCard]);
 
   // A card that grows (a new row of thumbnails) opens the part it grew by while
   // the board lays itself out around it, instead of popping (#655)
   const lastHeight = useRef<number | null>(null);
+  const autoArrange = useUIStore((state) => state.autoLayoutEnabled);
   useLayoutEffect(() => {
     const element = card.current;
     if (!element) {
@@ -272,7 +283,8 @@ const AgentNode = memo(({ id, data, selected }: NodeProps) => {
     const was = lastHeight.current;
     const height = element.offsetHeight;
     lastHeight.current = height;
-    if (was === null || height - was < RESIZE_THRESHOLD_PX || prefersLessMotion() || typeof element.animate !== 'function') return;
+    // Only when the board makes room (Auto-arrange); a board arranged by hand keeps still
+    if (was === null || height - was < RESIZE_THRESHOLD_PX || !autoArrange || prefersLessMotion() || typeof element.animate !== 'function') return;
     element.animate([{ clipPath: `inset(0px 0px ${height - was}px 0px)` }, { clipPath: 'inset(0px 0px 0px 0px)' }], {
       duration: MOVE_MS,
       // animatePositions' easeOut, for CSS

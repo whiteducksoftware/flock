@@ -134,17 +134,13 @@ const GraphCanvas: React.FC = () => {
       useGraphStore.setState({ nodes: updatedNodes });
 
       // With Auto-arrange on, a card that changed its size lays the board out again, centred, and
-      // the nodes glide there (#655); an unfolded agent keeps its card's size and does not count
-      if (
-        autoLayoutEnabled &&
-        changes.some((change) => change.type === 'dimensions') &&
-        !useUIStore.getState().unfoldedNodeId &&
-        cardsResized(laidOutRef.current, cardSizes)
-      ) {
+      // the nodes glide there (#655); an unfolded agent keeps its card's size and does not count.
+      // Compared a moment later: the cards' sizes (AgentNode) are measured by then
+      if (autoLayoutEnabled && changes.some((change) => change.type === 'dimensions') && !autoLayoutDebounceRef.current) {
         scheduleDebouncedAutoLayout(
           autoLayoutDebounceRef,
           () => {
-            if (useUIStore.getState().unfoldedNodeId) return;
+            if (useUIStore.getState().unfoldedNodeId || !cardsResized(laidOutRef.current, cardSizes)) return;
             applyLayoutRef.current(latestAutoLayoutModeRef.current, { updateStoredMode: false });
           },
           RESIZE_LAYOUT_DELAY_MS,
