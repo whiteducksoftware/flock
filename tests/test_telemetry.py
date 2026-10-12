@@ -847,6 +847,49 @@ class TestFlushTraces:
             released.set()
             provider.shutdown()
 
+    def test_flushes_again_after_waiting_for_an_older_flush(self, monkeypatch):
+        import threading
+
+        from opentelemetry.sdk.trace import SpanProcessor, TracerProvider
+
+        from flock.logging.telemetry import flush_traces
+
+        released = threading.Event()
+        calls = []
+
+        class SlowOnce(SpanProcessor):
+            def force_flush(self, timeout_millis: int = 30000) -> bool:
+                calls.append(timeout_millis)
+                return released.wait(5) if len(calls) == 1 else True
+
+        provider = TracerProvider()
+        provider.add_span_processor(SlowOnce())
+        monkeypatch.setattr(trace, "get_tracer_provider", lambda: provider)
+        try:
+            assert flush_traces(timeout_millis=50) is False
+            # Spans that ended meanwhile need a flush of their own
+            threading.Timer(0.2, released.set).start()
+            assert flush_traces(timeout_millis=3000) is True
+            assert len(calls) == 2
+        finally:
+            released.set()
+            provider.shutdown()
+
+    def test_a_stopped_provider_has_nothing_left_to_write(self, monkeypatch):
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+            InMemorySpanExporter,
+        )
+
+        from flock.logging.telemetry import flush_traces
+
+        provider = TracerProvider()
+        provider.add_span_processor(BatchSpanProcessor(InMemorySpanExporter()))
+        provider.shutdown()  # drains the queue; force_flush returns False after it
+        monkeypatch.setattr(trace, "get_tracer_provider", lambda: provider)
+
+        assert flush_traces() is True
+
     def test_reports_a_flush_that_failed(self, monkeypatch):
         from opentelemetry.sdk.trace import SpanProcessor, TracerProvider
 

@@ -3,6 +3,7 @@
 import os
 import sys
 import threading
+import time
 import weakref
 
 from opentelemetry import trace
@@ -228,18 +229,20 @@ _flushes: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
 _flushes_lock = threading.Lock()
 
 
-def flush_traces(timeout_millis: int = 5_000) -> bool:
-    """Write the spans still waiting in a batch, waiting at most ``timeout_millis``.
+def _stopped(provider) -> bool:
+    """Whether every batch processor of the provider was shut down (and so drained)."""
+    processors = getattr(
+        getattr(provider, "_active_span_processor", None), "_span_processors", ()
+    )
+    batches = [p for p in processors if isinstance(p, BatchSpanProcessor)]
+    return bool(batches) and all(
+        getattr(getattr(p, "_batch_processor", None), "_shutdown", False)
+        for p in batches
+    )
 
-    OpenTelemetry's ``force_flush`` can block longer than its timeout on a slow
-    exporter, so it runs in a thread of its own that is left behind after the
-    timeout; a later call waits for that flush instead of starting another.
-    Returns whether the flush finished in time and succeeded.
-    """
-    provider = trace.get_tracer_provider()
-    flush = getattr(provider, "force_flush", None)
-    if not callable(flush):
-        return True
+
+def _flush_in_thread(provider, flush, timeout_millis: int):
+    """The provider's flush running now, else a new one."""
     with _flushes_lock:
         running = _flushes.get(provider)
         if running is None or not running[0].is_alive():
@@ -252,6 +255,30 @@ def flush_traces(timeout_millis: int = 5_000) -> bool:
             worker.start()
             running = (worker, outcome)
             _flushes[provider] = running
-    worker, outcome = running
-    worker.join(timeout_millis / 1000)
+        return running
+
+
+def flush_traces(timeout_millis: int = 5_000) -> bool:
+    """Write the spans still waiting in a batch, waiting at most ``timeout_millis``.
+
+    OpenTelemetry's ``force_flush`` can block longer than its timeout on a slow
+    exporter, so it runs in a thread of its own that is left behind after the
+    timeout. A later call waits for that flush and then flushes again, for the
+    spans that ended meanwhile. Returns whether the flush finished in time and
+    succeeded; a provider that was shut down has nothing left to write.
+    """
+    provider = trace.get_tracer_provider()
+    flush = getattr(provider, "force_flush", None)
+    if not callable(flush) or _stopped(provider):
+        return True
+    deadline = time.monotonic() + timeout_millis / 1000
+    with _flushes_lock:
+        older = _flushes.get(provider)
+    if older is not None and older[0].is_alive():
+        older[0].join(max(0.0, deadline - time.monotonic()))
+        if older[0].is_alive():
+            return False
+    remaining = max(0, int((deadline - time.monotonic()) * 1000))
+    worker, outcome = _flush_in_thread(provider, flush, remaining)
+    worker.join(max(0.0, deadline - time.monotonic()))
     return not worker.is_alive() and outcome == [True]
