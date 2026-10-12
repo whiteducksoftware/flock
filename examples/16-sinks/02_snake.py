@@ -239,8 +239,8 @@ async def advance(game: Game) -> None:
         return  # held: the step stays newer than the last one published
     async with game.publishing:
         step = game.step
-        if game.published >= step:
-            return  # an overlapping Resume published it meanwhile
+        if game.paused or game.published >= step:
+            return  # paused while it waited, or an overlapping Resume published it
         await publish(game)  # a failed publish leaves it waiting, to retry
         # The next move may have landed meanwhile; that newer step still waits
         game.published = max(game.published, step)

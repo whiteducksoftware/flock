@@ -464,3 +464,30 @@ async def test_a_move_that_lands_before_flock_answers_still_gets_its_step(
     await asyncio.gather(*landed)
 
     assert published == [0, 1, 2]
+
+
+async def test_a_pause_while_a_step_waits_for_the_lock_holds_it(snake, monkeypatch):
+    import asyncio
+
+    published: list[int] = []
+
+    async def publish(game):
+        published.append(game.step)
+        await asyncio.sleep(0.02)
+
+    monkeypatch.setattr(snake, "publish", publish)
+    game_id = (await snake.new_game())["game"]
+    game = snake.games[game_id]
+    # Step 1 is being published when step 2 becomes ready, then the user pauses
+    game.step = 1
+    first = asyncio.create_task(snake.advance(game))
+    await asyncio.sleep(0)
+    game.step = 2
+    queued = asyncio.create_task(snake.advance(game))
+    await asyncio.sleep(0)
+    await snake.pause(game_id)
+    await asyncio.gather(first, queued)
+
+    assert published == [0, 1]
+    await snake.resume(game_id)
+    assert published == [0, 1, 2]
