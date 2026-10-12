@@ -4,7 +4,7 @@
  * artifact is the timeline dock's History.
  */
 
-import React, { useLayoutEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { prefersLessMotion } from '../graph/animatePositions';
 import { useGraphStore } from '../../store/graphStore';
 import { useUIStore } from '../../store/uiStore';
@@ -60,7 +60,9 @@ const Blackboard: React.FC = () => {
   // below: they glide from where they show instead of jumping (FLIP). Measured
   // on screen without the glide's own offset, so a scroll position the browser
   // keeps (scroll anchoring) moves nothing, and a glide that is interrupted
-  // continues from where the lane is. A scroll measures again: it moves no lane
+  // continues from where the lane is. A scroll measures again: it moves no lane.
+  // A lane that changes its size while the board does not render (a card
+  // unfolds, its details arrive) moves the lanes below as well (ResizeObserver)
   const lanesRef = useRef<HTMLDivElement>(null);
   const tops = useRef(new Map<string, number>());
   const glides = useRef(new Map<string, Animation>());
@@ -71,7 +73,7 @@ const Blackboard: React.FC = () => {
     }
     return now;
   };
-  useLayoutEffect(() => {
+  const flip = () => {
     const before = tops.current;
     const now = measure();
     for (const slot of lanesRef.current?.querySelectorAll<HTMLElement>('[data-lane]') ?? []) {
@@ -98,7 +100,33 @@ const Blackboard: React.FC = () => {
       glides.current.delete(id);
     }
     tops.current = now;
+  };
+  const resizes = useRef<ResizeObserver | null>(null);
+  const watched = useRef(new Set<Element>());
+  const watch = () => {
+    const observer = resizes.current;
+    if (!observer) return;
+    const slots = new Set<Element>(lanesRef.current?.querySelectorAll('[data-lane]') ?? []);
+    for (const slot of watched.current) if (!slots.has(slot)) observer.unobserve(slot);
+    for (const slot of slots) if (!watched.current.has(slot)) observer.observe(slot);
+    watched.current = slots;
+  };
+  useLayoutEffect(() => {
+    flip();
+    watch();
   });
+  useEffect(() => {
+    if (typeof ResizeObserver === 'undefined') return;
+    resizes.current = new ResizeObserver(() => flip());
+    watch();
+    return () => {
+      resizes.current?.disconnect();
+      resizes.current = null;
+      watched.current = new Set();
+    };
+    // Once: flip and watch read refs only
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const shown = reviewOnly ? lanes.filter((lane) => lane.needsReview) : lanes;
   const artifacts = lanes.reduce((sum, lane) => sum + lane.count, 0);
   const review = lanes.filter((lane) => lane.needsReview).length;

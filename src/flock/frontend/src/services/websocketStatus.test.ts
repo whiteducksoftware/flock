@@ -93,6 +93,21 @@ describe('WebSocketClient agent status', () => {
     expect(useGraphStore.getState().inFlight.has('r-9')).toBe(false);
   });
 
+  it('keeps a run that ended until what it published is on the board, and one that published nothing not at all (#642)', () => {
+    vi.useFakeTimers();
+    const client = new WebSocketClient('ws://test/ws');
+    const start = (run_id: string) =>
+      receive(client, 'agent_activated', { agent_name: 'billing', run_id, consumed_types: [], consumed_artifacts: [], correlation_id: 'c-1' });
+
+    start('r-1');
+    receive(client, 'agent_completed', { agent_name: 'billing', run_id: 'r-1', correlation_id: 'c-1', agent_status: 'idle', artifacts_produced: ['a-1'] });
+    expect(useGraphStore.getState().settling.get('r-1')?.published).toEqual(['a-1']);
+
+    start('r-2');
+    receive(client, 'agent_error', { agent_name: 'billing', run_id: 'r-2', correlation_id: 'c-1', agent_status: 'error', artifacts_produced: [] });
+    expect(useGraphStore.getState().settling.has('r-2')).toBe(false);
+  });
+
   it('remembers what a starting run consumed, its run and what its agent publishes', () => {
     vi.useFakeTimers();
     const client = new WebSocketClient('ws://test/ws');

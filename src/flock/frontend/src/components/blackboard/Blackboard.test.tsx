@@ -239,6 +239,40 @@ describe('Blackboard', () => {
     delete (HTMLElement.prototype as any).animate;
   });
 
+  it('lets the lanes below a lane that resizes without a new snapshot glide (a card unfolds) (#642)', () => {
+    const tops = new Map<string, number>([['Run cccc', 0], ['Run bbbb', 100], ['Run aaaa', 200]]);
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const label = this.querySelector('section')?.getAttribute('aria-label') ?? '';
+      return { top: tops.get(label) ?? 0 } as DOMRect;
+    });
+    const animate = vi.fn(() => ({ cancel: vi.fn(), onfinish: null }));
+    (HTMLElement.prototype as any).animate = animate;
+    const observers: ResizeObserverCallback[] = [];
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          observers.push(callback);
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    render(<Blackboard />);
+
+    // A card in the top lane unfolds: the lane grows by 300 px, the board does not render
+    tops.set('Run bbbb', 400);
+    tops.set('Run aaaa', 500);
+    act(() => observers.forEach((callback) => callback([], {} as ResizeObserver)));
+
+    expect(animate).toHaveBeenCalledTimes(2);
+    expect((animate.mock.calls[0] as unknown[])[0]).toEqual([{ transform: 'translateY(-300px)' }, { transform: 'translateY(0)' }]);
+    rect.mockRestore();
+    vi.unstubAllGlobals();
+    delete (HTMLElement.prototype as any).animate;
+  });
+
   it('lets go of glides that ended and of lanes that left (#642)', () => {
     const tops = new Map<string, number>([['Run cccc', 0], ['Run bbbb', 100], ['Run aaaa', 200]]);
     const glides: { cancel: ReturnType<typeof vi.fn>; onfinish: null | (() => void) }[] = [];

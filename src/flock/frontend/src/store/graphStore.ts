@@ -68,7 +68,7 @@ interface GraphState {
    * Runs that ended and whose output is not on the board yet: it comes with the
    * next snapshot. The lanes keep their placeholders meanwhile (#642).
    */
-  settling: Map<string, InFlightRun & { known: string[] }>;
+  settling: Map<string, InFlightRun & { known: string[]; published?: string[] }>;
   /** The filters the Blackboard's snapshot answers (`blackboardFilterKey` when they are the board's) */
   blackboardFilters: string | null;
   /** Per running run, the end of its streamed output (an agent's ticker mixes its runs) */
@@ -105,6 +105,13 @@ interface GraphState {
   // Actions - Real-time WebSocket updates
   updateAgentStatus: (agentId: string, status: string) => void;
   setInFlight: (runId: string, agentId: string, types: string[] | null, artifacts?: string[], correlationId?: string | null, produces?: string[]) => void;
+  /**
+   * A run ended: it settles until a snapshot brings what it published, and one
+   * that published nothing goes at once. Without `published` (null types to
+   * setInFlight) it settles until the board shows an artifact of its agent in
+   * its workflow that was not there when it started.
+   */
+  endRun: (runId: string, published?: string[]) => void;
   /** A run that ended stops settling: its output is on the board, or it waited long enough */
   settle: (runId: string) => void;
   appendRunTail: (runId: string, text: string) => void;
@@ -361,14 +368,16 @@ export const useGraphStore = create<GraphState>()(
             (node) => node.type === 'message' && node.data.isStreaming && !known.has(node.id) && passes(node.data),
           );
 
-          // Runs that ended settle once their output is on the board
+          // Runs that ended settle once their output is on the board: what they
+          // published, or (not told) a new artifact of the agent in the workflow
           const settling = new Map(get().settling);
           for (const [runId, run] of settling) {
-            const published = snapshot.nodes.some(
-              (node) =>
-                node.data?.producedBy === run.agent &&
-                (node.data?.correlationId ?? null) === (run.correlationId ?? null) &&
-                !run.known.includes(node.id),
+            const published = snapshot.nodes.some((node) =>
+              run.published
+                ? run.published.includes(node.id)
+                : node.data?.producedBy === run.agent &&
+                  (node.data?.correlationId ?? null) === (run.correlationId ?? null) &&
+                  !run.known.includes(node.id),
             );
             if (published) settling.delete(runId);
           }
@@ -441,32 +450,39 @@ export const useGraphStore = create<GraphState>()(
 
       // Real-time WebSocket update actions
       setInFlight: (runId, agentId, types, artifacts = [], correlationId = null, produces = []) => {
-        const ended = types === null ? get().inFlight.get(runId) : undefined;
+        // A run that consumed nothing (a direct invocation, a timer) runs too; null ends it
+        if (types === null) return get().endRun(runId);
         set((state) => {
           const inFlight = new Map(state.inFlight);
-          // A run that consumed nothing (a direct invocation, a timer) runs too; null ends it
-          if (types !== null) {
-            const known = state.inFlight.get(runId)?.known ?? outputsBefore(state.nodes, agentId, correlationId, runId);
-            inFlight.set(runId, { agent: agentId, types, artifacts, correlationId, produces, known });
-          } else inFlight.delete(runId);
+          const known = state.inFlight.get(runId)?.known ?? outputsBefore(state.nodes, agentId, correlationId, runId);
+          inFlight.set(runId, { agent: agentId, types, artifacts, correlationId, produces, known });
+          return { inFlight };
+        });
+      },
+
+      endRun: (runId, published) => {
+        const ended = get().inFlight.get(runId);
+        // A run that ended settles until the board shows what it published
+        const settles = ended !== undefined && (published === undefined || published.length > 0);
+        set((state) => {
+          const inFlight = new Map(state.inFlight);
+          inFlight.delete(runId);
           const changes: Partial<GraphState> = { inFlight };
-          // A run that ended settles until the board shows what it published: an
-          // output of the agent in the workflow that was not there when it started
-          if (ended) {
+          if (ended && settles) {
             const settling = new Map(state.settling);
-            settling.set(runId, { ...ended, known: ended.known ?? [] });
+            settling.set(runId, { ...ended, known: ended.known ?? [], published });
             changes.settling = settling;
           }
           // A run that ends takes its output's tail along
-          if (types === null && state.runTails.has(runId)) {
+          if (state.runTails.has(runId)) {
             const runTails = new Map(state.runTails);
             runTails.delete(runId);
             changes.runTails = runTails;
           }
           return changes;
         });
-        // One that published nothing (or whose snapshot never comes) goes after a while
-        if (ended) setTimeout(() => get().settle(runId), SETTLE_MS);
+        // One whose snapshot never comes (its output filtered out, a lost request) goes after a while
+        if (settles) setTimeout(() => get().settle(runId), SETTLE_MS);
       },
 
       settle: (runId) => {

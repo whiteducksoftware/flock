@@ -221,6 +221,29 @@ describe('graphStore - NEW Simplified Architecture', () => {
       expect(useGraphStore.getState().settling.has('r1')).toBe(false);
     });
 
+    it('settles each of two runs of the agent in a workflow by what it published', async () => {
+      const second = { ...decided, id: 'd2' };
+      useGraphStore.getState().setInFlight('r1', 'triage', ['app.Ticket'], ['t1'], 'c-1');
+      useGraphStore.getState().setInFlight('r2', 'triage', ['app.Ticket'], ['t1'], 'c-1');
+      useGraphStore.getState().endRun('r1', ['d1']);
+      useGraphStore.getState().endRun('r2', ['d2']);
+
+      vi.mocked(fetchGraphSnapshot).mockResolvedValueOnce({ nodes: [ticket, decided], edges: [], statistics: null } as unknown as GraphSnapshot);
+      await useGraphStore.getState().generateBlackboardViewGraph();
+      expect([...useGraphStore.getState().settling.keys()]).toEqual(['r2']);
+
+      vi.mocked(fetchGraphSnapshot).mockResolvedValueOnce({ nodes: [ticket, decided, second], edges: [], statistics: null } as unknown as GraphSnapshot);
+      await useGraphStore.getState().generateBlackboardViewGraph();
+      expect(useGraphStore.getState().settling.size).toBe(0);
+    });
+
+    it('does not keep a run that published nothing', () => {
+      useGraphStore.getState().setInFlight('r1', 'triage', ['app.Ticket'], ['t1'], 'c-1');
+      useGraphStore.getState().endRun('r1', []);
+      expect(useGraphStore.getState().inFlight.has('r1')).toBe(false);
+      expect(useGraphStore.getState().settling.has('r1')).toBe(false);
+    });
+
     it('lets a run that published nothing go after a few seconds', () => {
       vi.useFakeTimers();
       end();

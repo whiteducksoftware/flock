@@ -381,6 +381,8 @@ class DashboardEventCollector(AgentComponent):
             for artifact_id in artifacts_produced:
                 if artifact_id not in run.produced_artifacts:
                     run.produced_artifacts.append(artifact_id)
+            # What the run published: the dashboard waits for exactly these (#642)
+            event.artifacts_produced = list(run.produced_artifacts)
             self._agent_status[agent.name] = self._derived_status_locked(agent.name)
             event.agent_status = self._agent_status[agent.name]
             await self._update_agent_snapshot_locked(agent)
@@ -439,6 +441,7 @@ class DashboardEventCollector(AgentComponent):
             run.error_type = error_type
             run.completed_at = datetime.now(UTC)
             run.duration_ms = duration_ms
+            event.artifacts_produced = list(run.produced_artifacts)
             self._agent_status[agent.name] = self._derived_status_locked(agent.name)
             event.agent_status = self._agent_status[agent.name]
             await self._update_agent_snapshot_locked(agent)

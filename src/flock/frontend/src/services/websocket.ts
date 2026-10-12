@@ -312,8 +312,9 @@ export class WebSocketClient {
       if (status !== 'running') useGraphStore.getState().updateStreamingTokens(data.agent_name, []);
       // A stream it never published is no artifact
       useGraphStore.getState().dropStreamingPreviews(data.agent_name, data.correlation_id ?? null, data.run_id ?? null);
-      // This run is done; another one keeps its own types in flight
-      useGraphStore.getState().setInFlight(data.run_id, data.agent_name, null);
+      // This run is done; another one keeps its own types in flight. Its lane
+      // waits for what it published (#642)
+      useGraphStore.getState().endRun(data.run_id, data.artifacts_produced);
       this.endedRuns.add(data.run_id);
       // The snapshot draws a run's deliveries once it ended, and says what a
       // newer run that failed did wrong (lastError)
@@ -333,7 +334,8 @@ export class WebSocketClient {
       if (status !== 'running') useGraphStore.getState().updateStreamingTokens(data.agent_name, []);
       // The failed run's stream is no artifact
       useGraphStore.getState().dropStreamingPreviews(data.agent_name, data.correlation_id ?? null, data.run_id ?? null);
-      useGraphStore.getState().setInFlight(data.run_id, data.agent_name, null);
+      // Its lane waits for what it published before it failed, if anything (#642)
+      useGraphStore.getState().endRun(data.run_id, data.artifacts_produced);
       this.endedRuns.add(data.run_id);
       // The snapshot says what failed (lastError)
       this.scheduleGraphRefresh();

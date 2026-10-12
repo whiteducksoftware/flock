@@ -185,6 +185,9 @@ class AgentErrorEvent(BaseModel):
     error_message: str  # Exception message
     traceback: str  # Full Python traceback
     failed_at: str  # ISO timestamp of failure
+    artifacts_produced: list[str] = Field(
+        default_factory=list
+    )  # [artifact_id] it published before it failed
     # The agent's status after this run: another run may still be going
     agent_status: str | None = None
 

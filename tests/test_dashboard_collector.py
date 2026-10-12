@@ -286,6 +286,49 @@ async def test_on_error_emits_agent_error(collector, test_agent, test_context):
 
 
 @pytest.mark.asyncio
+async def test_a_run_that_ends_names_the_artifacts_it_published(
+    collector, test_agent, test_context
+):
+    """agent_completed and agent_error name what the run published (#642):
+    the dashboard keeps a run's placeholder until exactly those are on the board."""
+    published = []
+    for _ in range(2):
+        output = Artifact(
+            id=uuid4(),
+            type="TestOutput",
+            payload={"n": len(published)},
+            produced_by="test_agent",
+            visibility=PublicVisibility(),
+            correlation_id=test_context.correlation_id,
+        )
+        await collector.on_post_publish(test_agent, test_context, output)
+        published.append(str(output.id))
+    collector.events.clear()
+
+    await collector.on_terminate(test_agent, test_context)
+    assert collector.events[0].artifacts_produced == published
+
+    # A run of it that fails after publishing names its artifacts too; one that
+    # published nothing names none
+    failing = test_context.model_copy(update={"task_id": f"task-{uuid4()}"})
+    output = Artifact(
+        id=uuid4(),
+        type="TestOutput",
+        payload={},
+        produced_by="test_agent",
+        visibility=PublicVisibility(),
+        correlation_id=test_context.correlation_id,
+    )
+    await collector.on_post_publish(test_agent, failing, output)
+    await collector.on_error(test_agent, failing, ValueError("late"))
+    assert collector.events[-1].artifacts_produced == [str(output.id)]
+
+    early = test_context.model_copy(update={"task_id": f"task-{uuid4()}"})
+    await collector.on_error(test_agent, early, ValueError("early"))
+    assert collector.events[-1].artifacts_produced == []
+
+
+@pytest.mark.asyncio
 async def test_correlation_id_propagation(
     collector, test_agent, test_artifacts, orchestrator
 ):
