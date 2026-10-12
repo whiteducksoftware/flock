@@ -114,8 +114,9 @@ Every frame is a JPEG (quality 95) in `out/frames-<name>/`, then `ffmpeg -c:v li
 Check every recording for motion before it goes on the stage, and the rendered frames before they go out:
 
 ```bash
-uv run --with numpy --with pillow python tools/check_motion.py recording frames/clip-lanes-raw [--calm 4.5]
-uv run --with numpy --with pillow python tools/check_motion.py rendered out/frames-flock-v0.5.8-16x9
+# in tools/, like the steps before
+uv run --with numpy --with pillow python check_motion.py recording ../frames/clip-lanes-raw [--calm 4.5]
+uv run --with numpy --with pillow python check_motion.py rendered ../out/frames-flock-v0.5.8-16x9
 ```
 
 - **Recording:** every shift of the whole frame ("moved", with its time and size) and of a part of it ("local", a 4 x 4 grid: a button pushed down by a line above it), and the shifts that turn back within two seconds ("turn-backs"). Moves in a row over 10 to 20 frames are glides; one large move in one or two frames is a jump. Local moves also find what moves on purpose (the snake, a stroke), and the first frame of a panel that appears can read as a large move: look at the frames before you call it a bug. `--calm` finds the quietest window of a long take.

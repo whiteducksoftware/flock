@@ -1,5 +1,6 @@
 // Recording helpers for Flock videos: launch Chromium, screencast a page into
 // JPEG frames with timestamps, and drive the dashboard (see ../README.md).
+import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 import fs from 'fs';
 import path from 'path';
@@ -8,7 +9,7 @@ const require = createRequire(import.meta.url);
 export const { chromium } = require('playwright');
 
 /** docs/internal/video: frames/ and out/ live here (both gitignored). */
-export const VIDEO = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+export const VIDEO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const FRAMES = path.join(VIDEO, 'frames');
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 /**
