@@ -23,6 +23,7 @@ import {
   useReactFlow,
 } from '@xyflow/react';
 import { applyCircularLayout, applyGridLayout, applyRandomLayout } from '../../services/layout';
+import { useFilterStore } from '../../store/filterStore';
 import { useGraphStore } from '../../store/graphStore';
 import { type AutoLayoutMode, useUIStore } from '../../store/uiStore';
 import { motionMs } from '../graph/animatePositions';
@@ -223,8 +224,52 @@ const Canvas: React.FC = () => {
     void setViewport({ x: EDGE - left * zoom, y: EDGE - top * zoom, zoom });
   }, [nodes, fitView, setViewport]);
 
+  // A change of what the board shows (its filters, Needs review only) lays it out
+  // afresh and shows its newest row, as a first visit does, once the result is in:
+  // the snapshot for new filters, at once for the review filter, which the graph
+  // applies itself. The cards kept their places from the full board, too far apart
+  // to fit. Live updates keep the layout and the view
+  const loading = useGraphStore((state) => state.isLoading);
+  const filterKey = useFilterStore((state) =>
+    JSON.stringify([
+      state.correlationId,
+      state.selectedArtifactTypes,
+      state.selectedProducers,
+      state.selectedTags,
+      state.selectedVisibility,
+      state.timeRange,
+    ]),
+  );
+  const refit = useRef<'snapshot' | 'local' | null>(null);
+  const snapshotLoaded = useRef(false);
+  const showing = useRef({ filterKey, reviewOnly });
+  useEffect(() => {
+    if (showing.current.filterKey !== filterKey) {
+      refit.current = 'snapshot';
+      snapshotLoaded.current = false;
+    } else if (showing.current.reviewOnly !== reviewOnly) {
+      refit.current = 'local';
+    }
+    showing.current = { filterKey, reviewOnly };
+  }, [filterKey, reviewOnly]);
+  useEffect(() => {
+    if (refit.current === 'snapshot' && loading) snapshotLoaded.current = true;
+  }, [loading]);
+  useEffect(() => {
+    if (!refit.current || !initialized || pending.current) return;
+    if (refit.current === 'snapshot' && (!snapshotLoaded.current || loading)) return;
+    refit.current = null;
+    fitted.current = false;
+    setNodes((current) => {
+      const next = arrange('all', layoutMode, current);
+      firstView.current = next;
+      return next;
+    });
+  }, [nodes, initialized, loading, arrange, layoutMode]);
+
+  // The graph shows artifacts; it removes none (only the snapshot does)
   const onNodesChange = useCallback((changes: NodeChange<ArtifactNode>[]) => {
-    setNodes((current) => applyNodeChanges(changes, current));
+    setNodes((current) => applyNodeChanges(changes.filter((change) => change.type !== 'remove'), current));
   }, []);
 
   const layout = useCallback(
@@ -308,6 +353,8 @@ const Canvas: React.FC = () => {
         nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
         nodesConnectable={false}
+        // Backspace would remove a card from the view, not from the blackboard
+        deleteKeyCode={null}
         minZoom={0.1}
         style={{ backgroundColor: 'var(--board)' }}
       >

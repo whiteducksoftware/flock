@@ -214,6 +214,43 @@ describe('placeFresh, a run that outgrows its slot', () => {
   });
 });
 
+describe('placeFresh, a run that grows and a new run at once', () => {
+  const size = { width: 236, height: 120 };
+
+  it('places the new run clear of what the growing run takes now', () => {
+    // Three one-card runs fill a 900 px row; a grows a child below its root, d is new
+    const raw = [
+      artifact('a-t', { correlationId: 'a', timestamp: 1 }),
+      artifact('b-t', { correlationId: 'b', timestamp: 2 }),
+      artifact('c-t', { correlationId: 'c', timestamp: 3 }),
+      artifact('a-1', { correlationId: 'a', timestamp: 4 }),
+      artifact('d-t', { correlationId: 'd', timestamp: 5 }),
+    ];
+    const { nodes: all, edges } = graphOf(raw, [edge('a-t', 'a-1')], false);
+    const placed = new Map([
+      ['a-t', { x: 0, y: 0 }],
+      ['b-t', { x: 316, y: 0 }],
+      ['c-t', { x: 632, y: 0 }],
+    ]);
+    const nodes = all.map((node) => ({ ...node, position: placed.get(node.id) ?? node.position }));
+    const sizes = Object.fromEntries(nodes.map((node) => [node.id, size]));
+
+    const positions = placeFresh(nodes, edges, new Set(['a-1', 'd-t']), 'hierarchical-vertical', sizes, 900);
+
+    const at = (id: string) => positions.get(id) ?? placed.get(id)!;
+    const ids = ['a-t', 'a-1', 'b-t', 'c-t', 'd-t'];
+    for (let i = 0; i < ids.length; i += 1)
+      for (let j = i + 1; j < ids.length; j += 1) {
+        const p = at(ids[i]!);
+        const q = at(ids[j]!);
+        expect(
+          p.x + size.width <= q.x || q.x + size.width <= p.x || p.y + size.height <= q.y || q.y + size.height <= p.y,
+          `${ids[i]} and ${ids[j]} overlap`,
+        ).toBe(true);
+      }
+  });
+});
+
 describe('placementOf', () => {
   it('lays all cards out on the first load and with auto-arrange, else only the new ones', () => {
     const fresh = new Set(['x']);

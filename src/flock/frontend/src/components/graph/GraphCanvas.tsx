@@ -464,6 +464,8 @@ const GraphCanvas: React.FC = () => {
         onNodeDoubleClick={onNodeDoubleClick}
         // Space unfolds and folds the selected node; dragging the board pans it
         panActivationKeyCode={null}
+        // Backspace would remove an agent from the view, not from the flock
+        deleteKeyCode={null}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         defaultEdgeOptions={defaultEdgeOptions}

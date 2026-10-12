@@ -251,6 +251,8 @@ export function placeFresh(
       continue;
     }
     for (const [id, at] of placed) positions.set(id, at);
+    // What it takes now counts for the runs placed after it
+    boxes.set(members, grown);
   }
   if (moving.length === 0) return positions;
   const placedBoxes = [...boxes.values()];

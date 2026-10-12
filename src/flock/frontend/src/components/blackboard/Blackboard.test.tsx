@@ -201,6 +201,20 @@ describe('Blackboard', () => {
     expect(useUIStore.getState().unfoldedArtifactId).toBe('d1');
   });
 
+  it('keeps a selected card on Backspace: the graph shows artifacts, it does not delete them', async () => {
+    useUIStore.setState({ blackboardView: 'graph' });
+    render(<Blackboard />);
+    await waitFor(() => expect(document.querySelectorAll('.react-flow__node')).toHaveLength(nodes.length));
+
+    const node = document.querySelector<HTMLElement>('.react-flow__node[data-id="t1"]')!;
+    fireEvent.click(node);
+    fireEvent.keyDown(node, { key: 'Backspace' });
+    fireEvent.keyDown(document.body, { key: 'Backspace' });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(document.querySelectorAll('.react-flow__node')).toHaveLength(nodes.length);
+  });
+
   it('narrows the graph to the runs that need a review', async () => {
     useUIStore.setState({ blackboardView: 'graph', needsReviewOnly: true });
     render(<Blackboard />);
