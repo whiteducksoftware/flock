@@ -228,11 +228,12 @@ describe('graphStore - NEW Simplified Architecture', () => {
       useGraphStore.getState().endRun('r1', ['d1']);
       useGraphStore.getState().endRun('r2', ['d2']);
 
-      vi.mocked(fetchGraphSnapshot).mockResolvedValueOnce({ nodes: [ticket, decided], edges: [], statistics: null } as unknown as GraphSnapshot);
+      const placing = (...ids: string[]) => ids.map((id) => ({ id: `t1__${id}`, source: 't1', target: id }));
+      vi.mocked(fetchGraphSnapshot).mockResolvedValueOnce({ nodes: [ticket, decided], edges: placing('d1'), statistics: null } as unknown as GraphSnapshot);
       await useGraphStore.getState().generateBlackboardViewGraph();
       expect([...useGraphStore.getState().settling.keys()]).toEqual(['r2']);
 
-      vi.mocked(fetchGraphSnapshot).mockResolvedValueOnce({ nodes: [ticket, decided, second], edges: [], statistics: null } as unknown as GraphSnapshot);
+      vi.mocked(fetchGraphSnapshot).mockResolvedValueOnce({ nodes: [ticket, decided, second], edges: placing('d1', 'd2'), statistics: null } as unknown as GraphSnapshot);
       await useGraphStore.getState().generateBlackboardViewGraph();
       expect(useGraphStore.getState().settling.size).toBe(0);
     });
@@ -242,6 +243,28 @@ describe('graphStore - NEW Simplified Architecture', () => {
       // The snapshot came before the completion event: the decision and its edge are there
       useGraphStore.setState({ nodes: [ticket as any, decided as any], edges: [{ id: 't1__d1', source: 't1', target: 'd1' } as any] });
       useGraphStore.getState().endRun('r1', ['d1']);
+      expect(useGraphStore.getState().settling.has('r1')).toBe(false);
+    });
+
+    it('keeps a run until a snapshot also draws the edges that place its output', async () => {
+      useGraphStore.getState().setInFlight('r1', 'triage', ['app.Ticket'], ['t1'], 'c-1');
+      useGraphStore.getState().endRun('r1', ['d1']);
+      // Taken while the server still counted the run as active: no edge yet
+      vi.mocked(fetchGraphSnapshot).mockResolvedValueOnce({ nodes: [ticket, decided], edges: [], statistics: null } as unknown as GraphSnapshot);
+      await useGraphStore.getState().generateBlackboardViewGraph();
+      expect(useGraphStore.getState().settling.has('r1')).toBe(true);
+
+      const placed = [{ id: 't1__d1', source: 't1', target: 'd1' }];
+      vi.mocked(fetchGraphSnapshot).mockResolvedValueOnce({ nodes: [ticket, decided], edges: placed, statistics: null } as unknown as GraphSnapshot);
+      await useGraphStore.getState().generateBlackboardViewGraph();
+      expect(useGraphStore.getState().settling.has('r1')).toBe(false);
+    });
+
+    it('settles a run that consumed nothing once its output is there (no edge places it)', async () => {
+      useGraphStore.getState().setInFlight('r1', 'triage', [], [], 'c-1');
+      useGraphStore.getState().endRun('r1', ['d1']);
+      vi.mocked(fetchGraphSnapshot).mockResolvedValueOnce({ nodes: [ticket, decided], edges: [], statistics: null } as unknown as GraphSnapshot);
+      await useGraphStore.getState().generateBlackboardViewGraph();
       expect(useGraphStore.getState().settling.has('r1')).toBe(false);
     });
 

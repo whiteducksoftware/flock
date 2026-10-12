@@ -40,6 +40,17 @@ export interface InFlightRun {
   correlationId?: string | null;
   produces?: string[];
   known?: string[];
+  /** What it published, once it ended (`endRun`) */
+  published?: string[];
+}
+
+/**
+ * An artifact a run published is drawn where it belongs: it is on the board
+ * with the edge from what the run consumed (the server draws those once the
+ * run is done); an output of a run that consumed nothing has none
+ */
+function drawn(id: string, run: InFlightRun, on: Set<string>, edges: Edge[]): boolean {
+  return on.has(id) && (run.artifacts.length === 0 || edges.some((edge) => edge.target === id));
 }
 
 /** The agent's artifacts in a workflow on the board, but for a run's own streamed previews (they carry its artifacts' IDs) */
@@ -68,7 +79,7 @@ interface GraphState {
    * Runs that ended and whose output is not on the board yet: it comes with the
    * next snapshot. The lanes keep their placeholders meanwhile (#642).
    */
-  settling: Map<string, InFlightRun & { known: string[]; published?: string[] }>;
+  settling: Map<string, InFlightRun & { known: string[] }>;
   /** The filters the Blackboard's snapshot answers (`blackboardFilterKey` when they are the board's) */
   blackboardFilters: string | null;
   /** Per running run, the end of its streamed output (an agent's ticker mixes its runs) */
@@ -371,14 +382,16 @@ export const useGraphStore = create<GraphState>()(
           // Runs that ended settle once their output is on the board: what they
           // published, or (not told) a new artifact of the agent in the workflow
           const settling = new Map(get().settling);
+          const inSnapshot = new Set(snapshot.nodes.map((node) => node.id));
           for (const [runId, run] of settling) {
-            const published = snapshot.nodes.some((node) =>
-              run.published
-                ? run.published.includes(node.id)
-                : node.data?.producedBy === run.agent &&
-                  (node.data?.correlationId ?? null) === (run.correlationId ?? null) &&
-                  !run.known.includes(node.id),
-            );
+            const published = run.published
+              ? run.published.some((id) => drawn(id, run, inSnapshot, snapshot.edges as Edge[]))
+              : snapshot.nodes.some(
+                  (node) =>
+                    node.data?.producedBy === run.agent &&
+                    (node.data?.correlationId ?? null) === (run.correlationId ?? null) &&
+                    !run.known.includes(node.id),
+                );
             if (published) settling.delete(runId);
           }
 
@@ -465,10 +478,9 @@ export const useGraphStore = create<GraphState>()(
         const ended = running.get(runId);
         // A run that ended settles until the board shows what it published,
         // unless a snapshot already drew all of it (with the edges that place it)
-        const drawn = (id: string) =>
-          nodes.some((node) => node.id === id && !node.data.isStreaming && node.data.streamingText === undefined) &&
-          edges.some((edge) => edge.target === id);
-        const settles = ended !== undefined && (published === undefined || (published.length > 0 && !published.every(drawn)));
+        const recorded = new Set(nodes.filter((node) => !node.data.isStreaming && node.data.streamingText === undefined).map((node) => node.id));
+        const settles =
+          ended !== undefined && (published === undefined || (published.length > 0 && !published.every((id) => drawn(id, ended, recorded, edges))));
         set((state) => {
           const inFlight = new Map(state.inFlight);
           inFlight.delete(runId);

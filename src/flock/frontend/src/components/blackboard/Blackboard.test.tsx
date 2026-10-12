@@ -86,6 +86,9 @@ describe('Blackboard', () => {
   });
 
   afterEach(() => {
+    // Also when a test fails before its own clean-up: geometry, styles, animations
+    vi.restoreAllMocks();
+    delete (HTMLElement.prototype as any).animate;
     vi.unstubAllGlobals();
     useGraphStore.setState(useGraphStore.getInitialState(), true);
     useUIStore.setState({ blackboardView: 'lanes', needsReviewOnly: false, unfoldedArtifactId: null });

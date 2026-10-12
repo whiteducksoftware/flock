@@ -20,6 +20,8 @@ export interface RunningRun {
   /** The types it consumed, and those its agent publishes: who makes what a run waits for */
   types?: string[];
   produces?: string[];
+  /** What it published, once it ended */
+  published?: string[];
 }
 
 export interface LaneCard {
@@ -201,20 +203,34 @@ export function lanesOf(nodes: Node[], edges: Edge[], running: RunningRun[]): La
       return inputsShown.length > 0 ? 1 + Math.max(...inputsShown) : last + 1;
     };
     // A run that consumed something not on the board yet (a stream, or a
-    // placeholder) goes after the placeholders of the runs that will publish it:
-    // those that publish a type it waits for, placed the same way themselves
-    // (a chain of them). It keeps its column when the snapshot brings the input (#642)
+    // placeholder) goes after the placeholders of the runs that publish it: a
+    // run that ended and published it, else one still running whose agent
+    // publishes a type it waits for; placed the same way themselves (a chain
+    // of them). It keeps its column when the snapshot brings the input (#642)
     const waits = (agent: string, runId?: string | null) => runOf(agent, runId)?.artifacts.some((artifact) => !byId.has(artifact)) ?? false;
     const afterMakers = (agent: string, runId: string | null | undefined, depth: number) => {
       const run = runOf(agent, runId);
       if (!run || !waits(agent, runId)) return depth;
+      const absent = run.artifacts.filter((artifact) => !byId.has(artifact));
+      const published = runs.filter((each) => each.published?.some((artifact) => absent.includes(artifact)));
+      const claimed = new Set(published.flatMap((each) => each.published!.filter((artifact) => absent.includes(artifact))));
       const shown = new Set(run.artifacts.filter((artifact) => byId.has(artifact)).map((artifact) => dataOf(byId.get(artifact)!).artifactType));
       const missing = (run.types ?? []).filter((type) => !shown.has(type));
-      const makers = runs.filter(
-        (each) => each.agent !== agent && !showsOutput(each.agent) && (each.produces ?? []).some((type) => missing.includes(type)),
-      );
-      const before = makers.map((run) => streamDepth(run.agent, run.runId));
-      return before.length > 0 ? Math.max(depth, 1 + Math.max(...before)) : depth;
+      const publishing =
+        claimed.size < absent.length
+          ? runs.filter(
+              (each) =>
+                !each.published &&
+                each.agent !== agent &&
+                !showsOutput(each.agent) &&
+                (each.produces ?? []).some((type) => missing.includes(type)),
+            )
+          : [];
+      const makers = [...published, ...publishing];
+      // After its inputs on the board and its makers; the lane's end only when it knows neither
+      const inputs = run.artifacts.map(shownDepth).filter((each): each is number => each !== null);
+      const before = [...inputs, ...makers.map((each) => streamDepth(each.agent, each.runId))];
+      return before.length > 0 ? 1 + Math.max(...before) : depth;
     };
     const streams = new Map<string, number>();
     const busy = new Set<string>();

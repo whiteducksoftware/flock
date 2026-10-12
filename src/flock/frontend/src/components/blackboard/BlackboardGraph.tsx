@@ -160,6 +160,7 @@ const Canvas: React.FC = () => {
               artifacts: run.artifacts,
               types: run.types,
               produces: run.produces,
+              published: run.published,
             })),
           )
         : { nodes: [], edges: [] },
