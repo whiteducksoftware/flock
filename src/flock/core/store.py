@@ -16,7 +16,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 from uuid import UUID
 
 import aiosqlite
@@ -28,6 +28,10 @@ from flock.registry import type_registry
 from flock.utils.time_utils import as_utc
 from flock.utils.type_resolution import TypeResolutionHelper
 from flock.utils.visibility_utils import deserialize_visibility
+
+
+if TYPE_CHECKING:
+    from flock.storage.flow import FlowCounts
 
 
 T = TypeVar("T")
@@ -203,6 +207,19 @@ class BlackboardStore:
         """Return aggregate artifact statistics for the given filters."""
         raise NotImplementedError
 
+    async def flow_counts(self, filters: FilterConfig | None = None) -> FlowCounts:
+        """What flowed where in the filter range: artifacts per producer and
+        type, consumptions per producer, consumer and type, decision tallies,
+        unsure decisions, reviews and coverage groups (the dashboard's Agent
+        View, #640). Counts in one pass over the range; stores that can count
+        in their query language override it."""
+        from flock.storage.flow import count_flow
+
+        envelopes, _ = await self.fetch_graph_artifacts(
+            filters or FilterConfig(), limit=0
+        )
+        return count_flow(envelopes)
+
     async def artifact_histogram(
         self, filters: FilterConfig, *, buckets: int
     ) -> tuple[list[int], list[int]]:
@@ -313,6 +330,24 @@ class InMemoryBlackboardStore(BlackboardStore):
         async with self._lock:
             for record in records:
                 self._consumptions_by_artifact[record.artifact_id].append(record)
+
+    async def flow_counts(self, filters: FilterConfig | None = None) -> FlowCounts:
+        """What flowed where in the filter range, in one pass: counting needs
+        no order."""
+        from flock.storage.flow import FlowCounts
+        from flock.storage.in_memory.artifact_filter import ArtifactFilter
+
+        async with self._lock:
+            artifacts = list(self._by_id.values())
+        artifact_filter = ArtifactFilter(filters or FilterConfig())
+        flow = FlowCounts()
+        for artifact in artifacts:
+            if artifact_filter.matches(artifact):
+                records = self._consumptions_by_artifact.get(artifact.id, ())
+                flow.add(
+                    artifact, {record.consumer for record in records} if records else ()
+                )
+        return flow
 
     async def query_artifacts(
         self,
@@ -428,6 +463,7 @@ class SQLiteBlackboardStore(BlackboardStore):
         # Initialize helper subsystems
         from flock.storage.sqlite.agent_history_queries import AgentHistoryQueries
         from flock.storage.sqlite.consumption_loader import SQLiteConsumptionLoader
+        from flock.storage.sqlite.flow_queries import SQLiteFlowQueries
         from flock.storage.sqlite.query_builder import SQLiteQueryBuilder
         from flock.storage.sqlite.query_params_builder import QueryParamsBuilder
         from flock.storage.sqlite.schema_manager import SQLiteSchemaManager
@@ -437,6 +473,7 @@ class SQLiteBlackboardStore(BlackboardStore):
         self._query_builder = SQLiteQueryBuilder()
         self._consumption_loader = SQLiteConsumptionLoader()
         self._summary_queries = SQLiteSummaryQueries()
+        self._flow_queries = SQLiteFlowQueries()
         self._query_params_builder = QueryParamsBuilder()
         self._agent_history_queries = AgentHistoryQueries()
 
@@ -851,6 +888,17 @@ class SQLiteBlackboardStore(BlackboardStore):
             "earliest_created_at": earliest,
             "latest_created_at": latest,
         }
+
+    async def flow_counts(  # type: ignore[override]
+        self, filters: FilterConfig | None = None
+    ) -> FlowCounts:
+        """What flowed where in the filter range, counted in SQL."""
+        with tracer.start_as_current_span("sqlite_store.flow_counts"):
+            conn = await self._get_connection()
+            where_clause, params = self._build_filters(
+                filters or FilterConfig(), table_alias="a"
+            )
+            return await self._flow_queries.count(conn, where_clause, tuple(params))
 
     async def agent_history_summary(
         self,

@@ -56,6 +56,7 @@ The Flow shows the agents and how artifacts move between them.
 - **Sinks** (see [Sinks](sinks.md)) carry their method and path as the tag (`↗ POST /billing`) and count their deliveries: delivered, failed (coral) and the last answer. Unfolded, the Overview shows the counts and why the last delivery failed.
 - **Edges** carry what went along them (`SupportTicket · 75`, `◆ billing · 25`); they move while an artifact is on its way.
 - **Zoomed out**, cards become chips with the name and status.
+- **The counts** (ports, edges, decision bars, deliveries, review queue, coverage) cover the whole time range and filters, however many artifacts they hold.
 
 **Unfold** an agent in place with a click, Space or Ctrl/⌘+Shift+D: its tabs Overview (what it does, a decider's answers and its review queue, runs, failures, tokens and cost), Live, History, Runs and Traces. Its neighbours make room. Esc folds it.
 
