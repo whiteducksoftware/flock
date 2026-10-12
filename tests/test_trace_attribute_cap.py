@@ -15,15 +15,16 @@ from flock.logging.trace_and_logged import (
 
 
 def test_a_value_over_the_cap_is_cut_and_says_how_large_it_was(monkeypatch):
-    monkeypatch.setattr(_trace_filter_config, "max_attribute_bytes", 100)
+    monkeypatch.setattr(_trace_filter_config, "max_attribute_bytes", 200)
     value = json.dumps({"text": "x" * 500})
 
-    cut = json.loads(capped(value))
+    attribute = capped(value)
+    cut = json.loads(attribute)
 
     assert cut["truncated"] is True
     assert cut["bytes"] == len(value.encode())
     assert value.startswith(cut["preview"])
-    assert len(cut["preview"].encode()) <= 100
+    assert len(attribute.encode()) <= 200
 
 
 def test_a_value_under_the_cap_stays_as_it_is(monkeypatch):
@@ -32,12 +33,24 @@ def test_a_value_under_the_cap_stays_as_it_is(monkeypatch):
     assert capped('{"a": 1}') == '{"a": 1}'
 
 
-def test_the_cut_never_splits_a_character(monkeypatch):
-    monkeypatch.setattr(_trace_filter_config, "max_attribute_bytes", 7)
+@pytest.mark.parametrize(
+    "text",
+    ['"' * 5000, "\\\\" * 3000, "ä" * 4000, "🦆" * 2000],
+    ids=["quotes", "backslashes", "umlauts", "emoji"],
+)
+def test_the_whole_attribute_stays_within_the_cap(monkeypatch, text):
+    """Escaping and the marker count too; the cut never splits a character."""
+    monkeypatch.setattr(_trace_filter_config, "max_attribute_bytes", 4096)
+    value = json.dumps(text) if text.startswith('"') else text
 
-    cut = json.loads(capped("ä" * 20))  # two bytes each
+    attribute = capped(value)
+    cut = json.loads(attribute)
 
-    assert cut["preview"] == "äää"
+    assert len(attribute.encode()) <= 4096
+    assert value.startswith(cut["preview"])
+    assert "\ufffd" not in cut["preview"]
+    # Most of the room holds the value
+    assert len(json.dumps(cut["preview"], ensure_ascii=False).encode()) > 4096 * 0.9
 
 
 def test_no_cap_with_zero(monkeypatch):
@@ -57,18 +70,19 @@ def test_the_cap_comes_from_the_environment(monkeypatch, value, cap):
     assert auto_trace._max_attribute_bytes_from_env() == cap
 
 
-def test_artifacts_are_traced_as_their_type_and_id():
-    artifact = Artifact(
-        type="app.Reply", payload={"text": "x" * 10_000}, produced_by="support"
-    )
-
-    assert _serialize_value(artifact) == {
+def test_artifacts_are_traced_as_their_type_id_producer_and_payload():
+    """Compact, and still readable for artifacts that never reach the blackboard
+    (invoke(..., publish_outputs=False), outputs a filter dropped)."""
+    artifact = Artifact(type="app.Reply", payload={"text": "hi"}, produced_by="support")
+    compact = {
         "artifact": "app.Reply",
         "id": str(artifact.id),
+        "produced_by": "support",
+        "payload": {"text": "hi"},
     }
-    assert _serialize_value([artifact]) == [
-        {"artifact": "app.Reply", "id": str(artifact.id)}
-    ]
+
+    assert _serialize_value(artifact) == compact
+    assert _serialize_value([artifact]) == [compact]
 
 
 def test_inputs_are_capped(monkeypatch):

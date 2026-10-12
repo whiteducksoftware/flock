@@ -71,14 +71,30 @@ def capped(value: str) -> str:
     """An input or output attribute within FLOCK_TRACE_MAX_ATTRIBUTE_BYTES.
 
     A longer value becomes JSON that says it was cut and how large it was,
-    with its start as ``preview``; the cut never splits a character.
+    with as much of its start as ``preview`` as fits in the cap, escaping and
+    marker included; the cut never splits a character.
     """
     limit = _trace_filter_config.max_attribute_bytes
     encoded = value.encode()
     if limit <= 0 or len(encoded) <= limit:
         return value
-    preview = encoded[:limit].decode(errors="ignore")
-    return json.dumps({"truncated": True, "bytes": len(encoded), "preview": preview})
+
+    def marker(preview: str) -> str:
+        return json.dumps(
+            {"truncated": True, "bytes": len(encoded), "preview": preview},
+            ensure_ascii=False,
+        )
+
+    # The value's start that fits next to the marker; escaping can make the
+    # preview longer than its bytes, so it shrinks until the whole fits
+    room = max(0, limit - len(marker("").encode()))
+    preview = encoded[:room].decode(errors="ignore")
+    while preview:
+        excess = len(marker(preview).encode()) - limit
+        if excess <= 0:
+            break
+        preview = preview[: len(preview) - max(1, excess // 6)]
+    return marker(preview)
 
 
 def _serialize_value(value, max_depth=10, current_depth=0):
@@ -110,11 +126,19 @@ def _serialize_value(value, max_depth=10, current_depth=0):
         if isinstance(value, (int, float, bool)):
             return value
 
-        # An artifact is on the blackboard: its type and ID find it there
+        # An artifact in short: what it is, who made it and what it says
+        # (its visibility, tags and times are on the blackboard, if it got there)
         from flock.core.artifacts import Artifact
 
         if isinstance(value, Artifact):
-            return {"artifact": value.type, "id": str(value.id)}
+            return {
+                "artifact": value.type,
+                "id": str(value.id),
+                "produced_by": value.produced_by,
+                "payload": _serialize_value(
+                    value.payload, max_depth, current_depth + 1
+                ),
+            }
 
         # Handle lists/tuples
         if isinstance(value, (list, tuple)):
