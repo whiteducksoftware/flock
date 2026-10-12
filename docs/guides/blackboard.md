@@ -595,8 +595,8 @@ await flock.serve(dashboard=True)
 ```
 
 **Dashboard views:**
-- **Agent View** - See agents as nodes, artifacts as edges
-- **Blackboard View** - See artifacts as nodes, transformations as edges
+- **Flow** - See agents as cards, artifacts along the edges
+- **Blackboard** - See each run's artifacts as a lane, or as a graph
 - **Live updates** - WebSocket streaming of new artifacts
 - **Filter by correlation ID** - Track specific workflows
 
