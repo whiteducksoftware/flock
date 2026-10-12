@@ -355,7 +355,10 @@
   overflow: hidden;
 }
 
+/* Unfolded: all of it, from its first line (the folded box does not apply) */
 .streamFull {
+  display: block;
+  height: auto;
   max-height: 240px;
   overflow: auto;
   white-space: pre-wrap;

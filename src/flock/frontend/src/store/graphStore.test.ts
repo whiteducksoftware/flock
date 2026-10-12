@@ -200,6 +200,16 @@ describe('graphStore - NEW Simplified Architecture', () => {
       expect(useGraphStore.getState().settling.has('r1')).toBe(true);
     });
 
+    it('settles a streamed run whose output the board already holds as its preview', async () => {
+      // The finished preview keeps the artifact's ID until the snapshot brings the artifact
+      const preview = { ...decided, data: { ...decided.data, isStreaming: false, streamingText: 'tech', runId: 'r1' } };
+      useGraphStore.setState({ nodes: [ticket as any, preview as any] });
+      end();
+      vi.mocked(fetchGraphSnapshot).mockResolvedValueOnce({ nodes: [ticket, decided], edges: [], statistics: null } as unknown as GraphSnapshot);
+      await useGraphStore.getState().generateBlackboardViewGraph();
+      expect(useGraphStore.getState().settling.has('r1')).toBe(false);
+    });
+
     it('lets a run that published nothing go after a few seconds', () => {
       vi.useFakeTimers();
       end();

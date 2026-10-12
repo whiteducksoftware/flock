@@ -58,26 +58,40 @@ const Blackboard: React.FC = () => {
   // below: they glide from where they show instead of jumping (FLIP). Measured
   // on screen without the glide's own offset, so a scroll position the browser
   // keeps (scroll anchoring) moves nothing, and a glide that is interrupted
-  // continues from where the lane is
+  // continues from where the lane is. A scroll measures again: it moves no lane
   const lanesRef = useRef<HTMLDivElement>(null);
   const tops = useRef(new Map<string, number>());
   const glides = useRef(new Map<string, Animation>());
-  useLayoutEffect(() => {
-    const before = tops.current;
+  const measure = () => {
     const now = new Map<string, number>();
     for (const slot of lanesRef.current?.querySelectorAll<HTMLElement>('[data-lane]') ?? []) {
+      now.set(slot.dataset.lane!, slot.getBoundingClientRect().top - translateY(slot));
+    }
+    return now;
+  };
+  useLayoutEffect(() => {
+    const before = tops.current;
+    const now = measure();
+    for (const slot of lanesRef.current?.querySelectorAll<HTMLElement>('[data-lane]') ?? []) {
       const id = slot.dataset.lane!;
-      const offset = translateY(slot);
-      const top = slot.getBoundingClientRect().top - offset;
-      now.set(id, top);
+      const top = now.get(id)!;
       const was = before.get(id);
       if (was === undefined || Math.abs(was - top) < 1 || prefersLessMotion() || typeof slot.animate !== 'function') continue;
       glides.current.get(id)?.cancel();
-      const glide = slot.animate([{ transform: `translateY(${was - top + offset}px)` }, { transform: 'translateY(0)' }], {
+      const glide = slot.animate([{ transform: `translateY(${was - top + translateY(slot)}px)` }, { transform: 'translateY(0)' }], {
         duration: 320,
         easing: 'cubic-bezier(0.35, 0, 0.25, 1)',
       });
+      glide.onfinish = () => {
+        if (glides.current.get(id) === glide) glides.current.delete(id);
+      };
       glides.current.set(id, glide);
+    }
+    // A lane that left takes its glide along
+    for (const [id, glide] of glides.current) {
+      if (now.has(id)) continue;
+      glide.cancel();
+      glides.current.delete(id);
     }
     tops.current = now;
   });
@@ -127,7 +141,7 @@ const Blackboard: React.FC = () => {
       {view === 'graph' ? (
         <BlackboardGraph />
       ) : (
-        <div className={`board ${styles.lanes}`} ref={lanesRef}>
+        <div className={`board ${styles.lanes}`} ref={lanesRef} onScroll={() => (tops.current = measure())}>
           {shown.map((lane) => (
             <Lane key={lane.id} lane={lane} entering={firstLanes.current !== null && !firstLanes.current.has(lane.id)} />
           ))}

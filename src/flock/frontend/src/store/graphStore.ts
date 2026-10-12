@@ -422,12 +422,17 @@ export const useGraphStore = create<GraphState>()(
           if (types !== null) inFlight.set(runId, { agent: agentId, types, artifacts, correlationId });
           else inFlight.delete(runId);
           const changes: Partial<GraphState> = { inFlight };
-          // A run that ended settles until the board shows what it published
+          // A run that ended settles until the board shows what it published: an
+          // output of the agent in the workflow it does not know yet. Its own
+          // streamed previews carry their artifacts' IDs, so they are not known
           if (ended) {
-            const sameRun = (node: Node) =>
-              node.type === 'message' && node.data.producedBy === ended.agent && (node.data.correlationId ?? null) === (ended.correlationId ?? null);
+            const earlier = (node: Node) =>
+              node.type === 'message' &&
+              node.data.producedBy === ended.agent &&
+              (node.data.correlationId ?? null) === (ended.correlationId ?? null) &&
+              node.data.runId !== runId;
             const settling = new Map(state.settling);
-            settling.set(runId, { ...ended, known: state.nodes.filter(sameRun).map((node) => node.id) });
+            settling.set(runId, { ...ended, known: state.nodes.filter(earlier).map((node) => node.id) });
             changes.settling = settling;
           }
           // A run that ends takes its output's tail along
