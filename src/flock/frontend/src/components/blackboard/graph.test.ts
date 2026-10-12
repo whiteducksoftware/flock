@@ -251,6 +251,31 @@ describe('placeFresh, a run that grows and a new run at once', () => {
   });
 });
 
+describe('placeFresh in a layout without rows', () => {
+  it('puts a new run where no card is, also beside a taller card than the lowest row has', () => {
+    // A grid: a (120 high) lowest-starting, b (300 high) to its right, reaching below a's top
+    const raw = [
+      artifact('a-t', { correlationId: 'a', timestamp: 1 }),
+      artifact('b-t', { correlationId: 'b', timestamp: 2 }),
+      artifact('c-t', { correlationId: 'c', timestamp: 3 }),
+    ];
+    const { nodes: all, edges } = graphOf(raw, [], false);
+    const placed = new Map([
+      ['a-t', { x: 0, y: 200 }],
+      ['b-t', { x: 316, y: 0 }],
+    ]);
+    const nodes = all.map((node) => ({ ...node, position: placed.get(node.id) ?? node.position }));
+    const sizes = { 'a-t': { width: 236, height: 120 }, 'b-t': { width: 236, height: 300 }, 'c-t': { width: 236, height: 120 } };
+
+    const at = placeFresh(nodes, edges, new Set(['c-t']), 'grid', sizes, 2000).get('c-t')!;
+
+    for (const [id, other] of placed) {
+      const size = sizes[id as keyof typeof sizes];
+      expect(at.x + 236 <= other.x || other.x + size.width <= at.x || at.y + 120 <= other.y || other.y + size.height <= at.y, id).toBe(true);
+    }
+  });
+});
+
 describe('placementOf', () => {
   it('lays all cards out on the first load and with auto-arrange, else only the new ones', () => {
     const fresh = new Set(['x']);

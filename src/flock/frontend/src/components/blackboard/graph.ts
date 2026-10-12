@@ -271,10 +271,27 @@ export function placeFresh(
   const moved = runsOf(moving).map((members) => boxOf([...layoutRun(members, edges, direction, sizes).entries()], sizes));
   const cell = slotOf([slot, ...moved]);
   const room = next + cell.width <= rowWidth;
-  const options: PackOptions = room
-    ? { origin: { x: left, y: rowTop }, startX: next, slot: cell, gap }
-    : { origin: { x: left, y: rowTop + rowHeight + gap }, slot: cell, gap };
-  for (const [id, at] of packRuns(moving, edges, direction, sizes, rowWidth, options).positions) positions.set(id, at);
+  let packed = packRuns(
+    moving,
+    edges,
+    direction,
+    sizes,
+    rowWidth,
+    room
+      ? { origin: { x: left, y: rowTop }, startX: next, slot: cell, gap }
+      : { origin: { x: left, y: rowTop + rowHeight + gap }, slot: cell, gap },
+  ).positions;
+  // The last row's free slots are free only in rows: in a grid or a circle a
+  // taller card may reach into them. Anything in the way: below every card
+  const clear = runsOf(moving).every((members) => {
+    const box = boxOf(members.map((node) => [node.id, packed.get(node.id)!]), sizes);
+    return placedBoxes.every((other) => !overlaps(box, other));
+  });
+  if (!clear) {
+    const bottom = Math.max(...placedBoxes.map((box) => box.top + box.height));
+    packed = packRuns(moving, edges, direction, sizes, rowWidth, { origin: { x: left, y: bottom + gap }, slot: cell, gap }).positions;
+  }
+  for (const [id, at] of packed) positions.set(id, at);
   return positions;
 }
 

@@ -215,6 +215,22 @@ describe('Blackboard', () => {
     expect(document.querySelectorAll('.react-flow__node')).toHaveLength(nodes.length);
   });
 
+  it('folds a card from the keyboard after it was unfolded with the mouse', async () => {
+    useUIStore.setState({ blackboardView: 'graph' });
+    render(<Blackboard />);
+    await waitFor(() => expect(document.querySelectorAll('.react-flow__node')).toHaveLength(nodes.length));
+    const card = document.querySelector<HTMLElement>('[role="button"][aria-label="SupportTicket by external"]')!;
+
+    fireEvent.pointerDown(card, { clientX: 100, clientY: 100 });
+    fireEvent.click(card, { clientX: 100, clientY: 100, detail: 1 });
+    expect(useUIStore.getState().unfoldedArtifactId).toBe('t1');
+
+    // Enter or Space on the Fold button: a click at (0, 0) with no pointer behind it
+    const fold = document.querySelector<HTMLElement>('[aria-label="Fold"]')!;
+    fireEvent.click(fold, { clientX: 0, clientY: 0, detail: 0 });
+    expect(useUIStore.getState().unfoldedArtifactId).toBeNull();
+  });
+
   it('narrows the graph to the runs that need a review', async () => {
     useUIStore.setState({ blackboardView: 'graph', needsReviewOnly: true });
     render(<Blackboard />);

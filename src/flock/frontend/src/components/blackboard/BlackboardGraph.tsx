@@ -29,6 +29,7 @@ import { type AutoLayoutMode, useUIStore } from '../../store/uiStore';
 import { motionMs } from '../graph/animatePositions';
 import CanvasDock from '../graph/CanvasDock';
 import { registerCanvas } from '../graph/canvasCommands';
+import { useDockViewport } from '../graph/useDockViewport';
 import MiniMap from '../graph/MiniMap';
 import ArtifactCard from './ArtifactCard';
 import { type ArtifactNode, graphOf, newEdgeTargets, packRuns, placeFresh, placementOf } from './graph';
@@ -90,7 +91,10 @@ const ArtifactGraphNode: React.FC<NodeProps<ArtifactNode>> = ({ data, sourcePosi
       }}
       onClickCapture={(event) => {
         const from = down.current;
-        if (from && Math.hypot(event.clientX - from.x, event.clientY - from.y) > 4) event.stopPropagation();
+        down.current = null;
+        // A keyboard click (Enter, Space on a button) has no pointer behind it
+        if (!from || event.detail === 0) return;
+        if (Math.hypot(event.clientX - from.x, event.clientY - from.y) > 4) event.stopPropagation();
       }}
     >
       <Handle type="target" position={targetPosition ?? Position.Left} isConnectable={false} className={styles.handle} />
@@ -112,6 +116,22 @@ const Canvas: React.FC = () => {
   const layoutMode = useUIStore((state) => state.graphLayout);
   const autoArrange = useUIStore((state) => state.graphAutoArrange);
   const dockOpen = useUIStore((state) => state.dockOpen);
+  // With the timeline dock expanded the board is a strip: the cards in view fit
+  // into it (all 500 would be specks), and the view comes back on collapse
+  const board = useRef<HTMLDivElement>(null);
+  const { getNodes, getViewport: viewportNow } = useReactFlow();
+  useDockViewport(dockOpen, (pane) => {
+    const { x, y, zoom } = viewportNow();
+    return getNodes()
+      .filter((node) => {
+        const left = node.position.x * zoom + x;
+        const top = node.position.y * zoom + y;
+        const right = left + (node.measured?.width ?? ESTIMATE.width) * zoom;
+        const bottom = top + (node.measured?.height ?? ESTIMATE.height) * zoom;
+        return right > 0 && left < pane.width && bottom > 0 && top < pane.height;
+      })
+      .map((node) => node.id);
+  });
   const { fitView, zoomIn, zoomOut, getViewport, setViewport, setCenter, getNode } = useReactFlow();
   const initialized = useNodesInitialized();
 
@@ -134,7 +154,6 @@ const Canvas: React.FC = () => {
   const pending = useRef<'all' | Set<string> | null>(null);
   const fitted = useRef(false);
 
-  const board = useRef<HTMLDivElement>(null);
   // The newest row of runs, which the first view shows
   const newestRow = useRef<string[]>([]);
 
