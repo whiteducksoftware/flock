@@ -76,6 +76,78 @@ describe('lanesOf', () => {
     });
   });
 
+  it('takes the title from what the run started with, also when a wall clock stepped back', () => {
+    // A VM's time sync set the clock back between the ticket and its decision
+    const stepped = nodes.map((node) => (node.id === 'd1' ? { ...node, data: { ...node.data, timestamp: 900 } } : node));
+    expect(lanesOf(stepped, edges, running).find((each) => each.id === 'c-1')).toMatchObject({
+      title: 'App crashes on login',
+      startedAt: 1000,
+    });
+  });
+
+  it('takes the title from what the run started with while its outputs wait for their edges', () => {
+    // The request came from another run; the writer's output has no edges until its run is done
+    const prepared = [
+      artifact('x0', 'c-9', 'app.Draft', 'external', 500),
+      artifact('a1', 'c-5', 'app.Request', 'prep', 1000, { payload: { title: 'Prepared request' } }),
+      artifact('o1', 'c-5', 'app.Reply', 'writer', 2000),
+    ];
+    const lanes = lanesOf(prepared, [made('x0', 'a1', 'prep')], [{ agent: 'writer', correlationId: 'c-5', artifacts: ['a1'] }]);
+    expect(lanes.find((each) => each.id === 'c-5')).toMatchObject({ title: 'Prepared request', startedAt: 1000 });
+  });
+
+  it('keeps the title while an output waits for its edges after a clock stepped back', () => {
+    const early = [
+      artifact('a2', 'c-7', 'app.Request', 'external', 1000, { payload: { title: 'Prepared request' } }),
+      artifact('o2', 'c-7', 'app.Reply', 'writer', 900, { payload: { reply: 'Done' } }),
+    ];
+    const lanes = lanesOf(early, [], [{ agent: 'writer', correlationId: 'c-7', artifacts: ['a2'] }]);
+    expect(lanes.find((each) => each.id === 'c-7')).toMatchObject({ title: 'Prepared request', startedAt: 1000 });
+  });
+
+  it('keeps the title while another agent already consumes an output that waits for its edges', () => {
+    const overlapping = [
+      artifact('r3', 'c-8', 'app.Request', 'external', 1000, { payload: { title: 'Prepared request' } }),
+      artifact('p3', 'c-8', 'app.Reply', 'writer', 900, { payload: { reply: 'Draft' } }),
+    ];
+    const running = [
+      { agent: 'writer', correlationId: 'c-8', artifacts: ['r3'] },
+      { agent: 'reviewer', correlationId: 'c-8', artifacts: ['p3'] },
+    ];
+    expect(lanesOf(overlapping, [], running).find((each) => each.id === 'c-8')).toMatchObject({ title: 'Prepared request', startedAt: 1000 });
+  });
+
+  it('keeps the title while two runs of the agent that wrote it overlap', () => {
+    // writer runs on the feedback and, through another subscription, on an unrelated note
+    const overlapping = [
+      artifact('w4', 'c-10', 'app.Draft', 'writer', 1000, { payload: { title: 'First draft' } }),
+      artifact('f4', 'c-10', 'app.Feedback', 'reviewer', 2000, { payload: { note: 'Shorter' } }),
+      artifact('x4', 'c-10', 'app.Note', 'external', 3000, { payload: { title: 'Unrelated note' } }),
+    ];
+    const running = [
+      { agent: 'writer', correlationId: 'c-10', artifacts: ['f4'] },
+      { agent: 'writer', correlationId: 'c-10', artifacts: ['x4'] },
+    ];
+    expect(lanesOf(overlapping, [made('w4', 'f4', 'reviewer')], running).find((each) => each.id === 'c-10')).toMatchObject({
+      title: 'First draft',
+      startedAt: 1000,
+    });
+  });
+
+  it('keeps the title while the agent that wrote the first artifact runs again', () => {
+    // A feedback loop: the writer runs again on the reviewer's feedback
+    const loop = [
+      artifact('w1', 'c-6', 'app.Draft', 'writer', 1000, { payload: { title: 'First draft' } }),
+      artifact('f1', 'c-6', 'app.Feedback', 'reviewer', 2000, { payload: { note: 'Shorter, please' } }),
+    ];
+    const lanes = lanesOf(loop, [made('w1', 'f1', 'reviewer')], [{ agent: 'writer', correlationId: 'c-6', artifacts: ['f1'] }]);
+    expect(lanes.find((each) => each.id === 'c-6')).toMatchObject({ title: 'First draft', startedAt: 1000 });
+    // Also after the clock stepped back between the draft and the feedback
+    const stepped = loop.map((node) => (node.id === 'f1' ? { ...node, data: { ...node.data, timestamp: 900 } } : node));
+    const again = lanesOf(stepped, [made('w1', 'f1', 'reviewer')], [{ agent: 'writer', correlationId: 'c-6', artifacts: ['f1'] }]);
+    expect(again.find((each) => each.id === 'c-6')).toMatchObject({ title: 'First draft', startedAt: 1000 });
+  });
+
   it('marks a run whose decision is unsure and unreviewed, and who answered it meanwhile', () => {
     const review = lane('c-2');
     expect(review).toMatchObject({ needsReview: true, status: { kind: 'review', text: 'needs review · answered by supervisor' } });
