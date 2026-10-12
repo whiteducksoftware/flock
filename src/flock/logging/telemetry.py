@@ -2,11 +2,14 @@
 
 import os
 import sys
+import threading
+import time
+import weakref
 
 from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
 
 # from temporalio import workflow
 from flock.logging.span_middleware.baggage_span_processor import (
@@ -152,28 +155,28 @@ class TelemetryConfig:
                     "Invalid OTEL_EXPORTER_OTLP_PROTOCOL specified. Use 'grpc' or 'http'."
                 )
 
-            span_processors.append(SimpleSpanProcessor(otlp_exporter))
+            span_processors.append(self._batched(otlp_exporter))
 
         # If a file path is provided, add the custom file exporter.
         if self.file_export_name and self.enable_file:
             file_exporter = FileSpanExporter(
                 self.local_logging_dir, self.file_export_name
             )
-            span_processors.append(SimpleSpanProcessor(file_exporter))
+            span_processors.append(self._batched(file_exporter))
 
         # If a SQLite database path is provided, ensure the DB exists and add the SQLite exporter.
         if self.sqlite_db_name and self.enable_sql:
             sqlite_exporter = SqliteTelemetryExporter(
                 self.local_logging_dir, self.sqlite_db_name
             )
-            span_processors.append(SimpleSpanProcessor(sqlite_exporter))
+            span_processors.append(self._batched(sqlite_exporter))
 
         # If a DuckDB database path is provided, add the DuckDB exporter.
         if self.duckdb_name and self.enable_duckdb:
             duckdb_exporter = DuckDBSpanExporter(
                 self.local_logging_dir, self.duckdb_name, ttl_days=self.duckdb_ttl_days
             )
-            span_processors.append(SimpleSpanProcessor(duckdb_exporter))
+            span_processors.append(self._batched(duckdb_exporter))
 
         # Register all span processors with the provider.
         for processor in span_processors:
@@ -186,6 +189,20 @@ class TelemetryConfig:
         self._previous_excepthook = sys.excepthook
         sys.excepthook = self.log_exception_to_otel
         self._configured = True
+
+    def _batched(self, exporter: SpanExporter) -> BatchSpanProcessor:
+        """The exporter behind a batch processor.
+
+        Spans go out in batches from the processor's thread, not one at a time
+        from the thread that ends them, mostly the event loop (#601). A batch
+        goes out at least every second, since the dashboard reads the trace
+        file, unless ``OTEL_BSP_SCHEDULE_DELAY`` or ``batch_processor_options``
+        say otherwise; the other ``OTEL_BSP_*`` variables apply as well.
+        """
+        options = dict(self.batch_processor_options)
+        if "OTEL_BSP_SCHEDULE_DELAY" not in os.environ:
+            options.setdefault("schedule_delay_millis", 1000)
+        return BatchSpanProcessor(exporter, **options)
 
     def log_exception_to_otel(self, exc_type, exc_value, exc_traceback):
         """Log unhandled exceptions to OpenTelemetry."""
@@ -204,3 +221,72 @@ class TelemetryConfig:
         previous = getattr(self, "_previous_excepthook", None)
         if previous is not None and previous is not self.log_exception_to_otel:
             previous(exc_type, exc_value, exc_traceback)
+
+
+# The flush running for each tracer provider (one at a time; a stalled exporter
+# would otherwise collect a thread per call)
+_flushes: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+_flushes_lock = threading.Lock()
+
+
+def _stopped(provider) -> bool:
+    """Whether every batch processor of the provider was shut down and its worker,
+    which still exports during a shutdown, has finished: nothing is left to write."""
+    processors = getattr(
+        getattr(provider, "_active_span_processor", None), "_span_processors", ()
+    )
+    batches = [p for p in processors if isinstance(p, BatchSpanProcessor)]
+
+    def drained(processor) -> bool:
+        state = getattr(processor, "_batch_processor", None)
+        worker = getattr(state, "_worker_thread", None)
+        return bool(getattr(state, "_shutdown", False)) and not (
+            worker is not None and worker.is_alive()
+        )
+
+    return bool(batches) and all(drained(p) for p in batches)
+
+
+def _flush_in_thread(provider, flush, timeout_millis: int):
+    """The provider's flush running now, else a new one."""
+    with _flushes_lock:
+        running = _flushes.get(provider)
+        if running is None or not running[0].is_alive():
+            outcome: list[bool] = []
+            worker = threading.Thread(
+                target=lambda: outcome.append(bool(flush(timeout_millis))),
+                name="flock-trace-flush",
+                daemon=True,
+            )
+            worker.start()
+            running = (worker, outcome)
+            _flushes[provider] = running
+        return running
+
+
+def flush_traces(timeout_millis: int = 5_000) -> bool:
+    """Write the spans still waiting in a batch, waiting at most ``timeout_millis``.
+
+    OpenTelemetry's ``force_flush`` can block longer than its timeout on a slow
+    exporter, so it runs in a thread of its own that is left behind after the
+    timeout. A later call waits for that flush and then flushes again, for the
+    spans that ended meanwhile. Returns whether the flush finished in time and
+    succeeded; a provider that was shut down has nothing left to write.
+    """
+    provider = trace.get_tracer_provider()
+    flush = getattr(provider, "force_flush", None)
+    if not callable(flush):
+        return True
+    deadline = time.monotonic() + timeout_millis / 1000
+    with _flushes_lock:
+        older = _flushes.get(provider)
+    if older is not None and older[0].is_alive():
+        older[0].join(max(0.0, deadline - time.monotonic()))
+        if older[0].is_alive():
+            return False
+    if _stopped(provider):
+        return True
+    remaining = max(0, int((deadline - time.monotonic()) * 1000))
+    worker, outcome = _flush_in_thread(provider, flush, remaining)
+    worker.join(max(0.0, deadline - time.monotonic()))
+    return not worker.is_alive() and outcome == [True]

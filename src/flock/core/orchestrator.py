@@ -34,6 +34,7 @@ from flock.decisions.routing import resolve_subjects
 from flock.integrations.openclaw import OpenClawConfig, OpenClawEngine
 from flock.logging.auto_trace import AutoTracedMeta
 from flock.logging.logging import get_logger
+from flock.logging.telemetry import flush_traces
 from flock.mcp import (
     FlockMCPClientManager,
     FlockMCPConfiguration,
@@ -998,6 +999,8 @@ class Flock(metaclass=AutoTracedMeta):
                 task.done() for task in self._scheduler.pending_tasks
             ):
                 await self.store.close()
+            # Spans wait in batches before they are exported (#601): write them now
+            await asyncio.to_thread(flush_traces)
         finally:
             still_running = any(not t.done() for t in self._scheduler.pending_tasks)
             if reopen and not still_running:
