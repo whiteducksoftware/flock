@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 from collections import defaultdict
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -54,6 +54,7 @@ from flock.decisions.graph import (
 from flock.decisions.models import choice_of
 from flock.logging.auto_trace import AutoTracedMeta
 from flock.registry import RegistryError, type_registry
+from flock.storage.flow import FlowCounts
 
 
 # What belongs to an artifact (a review, an explanation, a newer coverage
@@ -83,6 +84,18 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         filter_config = self._to_filter_config(filters)
         limit = max(1, request.options.limit if request.options else 500)
 
+        # The Agent View counts the whole range, not only the newest artifacts
+        # (#640). What the collector saw consumed counts with what the store
+        # recorded, in one read and each pair once: a run records only when it
+        # ends, a failed one or a direct `arun()` never. What is published
+        # after the read counts at the next refresh
+        flow = None
+        graph_state: GraphState | None = None
+        if request.view_mode == "agent":
+            graph_state = await self._collector.snapshot_graph_state()
+            flow = await self._store.flow_counts(
+                filter_config, graph_state.consumptions
+            )
         envelopes, total_available = await self._store.fetch_graph_artifacts(
             filter_config,
             limit=limit,
@@ -100,29 +113,31 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             )
             envelopes = envelopes[-limit:]
 
-        graph_state: GraphState = await self._collector.snapshot_graph_state()
+        if graph_state is None:
+            graph_state = await self._collector.snapshot_graph_state()
         agent_snapshots = await self._collector.snapshot_agent_registry()
         artifacts = self._convert_envelopes_to_artifacts(
             envelopes, graph_state.consumptions
         )
 
-        produced_metrics, consumed_metrics = self._calculate_agent_metrics(
-            artifacts.values()
-        )
+        if flow is not None:
+            produced_metrics, consumed_metrics = self._flow_metrics(flow)
+        else:
+            produced_metrics, consumed_metrics = self._calculate_agent_metrics(
+                artifacts.values()
+            )
 
-        if request.view_mode == "agent":
-            # Which unsure decisions a person answered, for the deciders' review queues
-            reviews = await self._reviews_of_unsure(artifacts, filter_config)
+        if flow is not None:
             nodes = self._build_agent_nodes(
                 artifacts,
                 produced_metrics,
                 consumed_metrics,
                 graph_state,
                 agent_snapshots,
-                await self._current_coverages(artifacts, filter_config),
-                reviews,
+                flow,
+                await self._follow_ups(flow, filter_config),
             )
-            edges = self._derive_agent_edges(artifacts)
+            edges = self._derive_agent_edges(flow, artifacts)
             # Phase 1.5: Add pending edges for artifacts waiting in correlation/batch
             pending_edges = self._derive_pending_edges(artifacts)
             edges.extend(pending_edges)
@@ -175,26 +190,20 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         )
         return [item for item in found if isinstance(item, Artifact)]
 
-    async def _reviews_of_unsure(
-        self, artifacts: Mapping[str, GraphArtifact], filters: FilterConfig
-    ) -> dict[str, dict[str, Any]]:
-        """Reviews of the unsure decisions in view, also those outside the view.
-        Reads nothing when no decision in view waits for a person."""
-        unsure = {
-            artifact.artifact_id: artifact
-            for artifact in artifacts.values()
-            if is_decision_type(artifact.artifact_type)
-            and needs_review(artifact.payload)
-        }
-        if not unsure:
-            return {}
-        later = await self._published_since(
-            {artifact.artifact_type for artifact in unsure.values()},
-            min(artifact.published_at for artifact in unsure.values()),
-            filters,
+    async def _follow_ups(self, flow: FlowCounts, filters: FilterConfig) -> FlowCounts:
+        """The counts of the reviews of the range's unsure decisions and of the
+        newer revisions of its coverage groups, also those outside the range:
+        whatever its type, producer, tag and correlation filters and its end;
+        its visibility filter applies. Reads nothing when nothing follows up."""
+        if not flow.follow_ups:
+            return flow
+        return await self._store.flow_counts(
+            FilterConfig(
+                type_names=set(flow.follow_ups),
+                visibility=filters.visibility,
+                start=min(flow.follow_ups.values()) - _CLOCK_MARGIN,
+            )
         )
-        reviews = reviews_by_decision((a.payload, a.produced_by) for a in later)
-        return {k: v for k, v in reviews.items() if k in unsure}
 
     async def _decision_links(
         self, artifacts: Mapping[str, GraphArtifact], filters: FilterConfig
@@ -223,31 +232,6 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             {k: v for k, v in reviews.items() if k in in_view},
             {k: v for k, v in explanations.items() if k in in_view},
         )
-
-    async def _current_coverages(
-        self, artifacts: Mapping[str, GraphArtifact], filters: FilterConfig
-    ) -> dict[str, list[tuple[str, Mapping[str, Any]]]]:
-        """Aggregating agent -> ``(type, payload)`` of its coverages in view and
-        of the newer revisions of their groups, also those outside the view."""
-        in_view: dict[str, list[GraphArtifact]] = defaultdict(list)
-        for artifact in artifacts.values():
-            if is_coverage_type(artifact.artifact_type):
-                in_view[artifact.produced_by].append(artifact)
-        current: dict[str, list[tuple[str, Mapping[str, Any]]]] = {}
-        for agent_name, coverages in in_view.items():
-            groups = {str(c.payload.get("group")) for c in coverages}
-            later = await self._published_since(
-                {c.artifact_type for c in coverages},
-                min(c.published_at for c in coverages),
-                filters,
-                produced_by={agent_name},
-            )
-            current[agent_name] = [(c.artifact_type, c.payload) for c in coverages] + [
-                (a.type, a.payload)
-                for a in later
-                if str(a.payload.get("group")) in groups
-            ]
-        return current
 
     def _convert_envelopes_to_artifacts(
         self,
@@ -320,6 +304,28 @@ class GraphAssembler(metaclass=AutoTracedMeta):
 
         return produced_metrics, consumed_metrics
 
+    @staticmethod
+    def _flow_metrics(
+        flow: FlowCounts,
+    ) -> tuple[dict[str, GraphAgentMetrics], dict[str, GraphAgentMetrics]]:
+        """What each agent published and consumed in the range, by type."""
+        produced: dict[str, dict[str, int]] = defaultdict(dict)
+        for (producer, type_name), count in flow.produced.items():
+            produced[producer][type_name] = produced[producer].get(type_name, 0) + count
+        consumed: dict[str, dict[str, int]] = defaultdict(dict)
+        for (_, consumer, type_name, _), (count, _) in flow.consumed.items():
+            consumed[consumer][type_name] = consumed[consumer].get(type_name, 0) + count
+
+        def metrics(
+            by_agent: dict[str, dict[str, int]],
+        ) -> dict[str, GraphAgentMetrics]:
+            return {
+                agent: GraphAgentMetrics(total=sum(by_type.values()), by_type=by_type)
+                for agent, by_type in by_agent.items()
+            }
+
+        return metrics(produced), metrics(consumed)
+
     def _build_agent_nodes(
         self,
         artifacts: Mapping[str, GraphArtifact],
@@ -327,8 +333,8 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         consumed_metrics: Mapping[str, GraphAgentMetrics],
         graph_state: GraphState,
         agent_snapshots: Mapping[str, AgentSnapshot],
-        coverages: Mapping[str, Sequence[tuple[str, Mapping[str, Any]]]],
-        reviews: Mapping[str, Mapping[str, Any]] | None = None,
+        flow: FlowCounts,
+        follow_ups: FlowCounts,
     ) -> list[GraphNode]:
         nodes: list[GraphNode] = []
         agent_status = graph_state.agent_status
@@ -432,19 +438,37 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 subject_thumb=lambda payload: self._subject_thumbnail(
                     artifacts, payload
                 ),
+                # Counted over the range; samples come from the view
+                tallies={
+                    type_name: tally
+                    for (producer, type_name), tally in flow.decisions.items()
+                    if producer == agent.name
+                },
             )
             if decision:
-                queue = self._review_queue(agent.name, artifacts, reviews or {})
-                decision["needsReview"], decision["needsReviewCount"] = queue
+                decision["needsReview"] = self._review_queue(
+                    agent.name, artifacts, follow_ups.reviewed
+                )
+                decision["needsReviewCount"] = len(
+                    flow.unsure.get(agent.name, set()) - follow_ups.reviewed
+                )
                 node_data["decision"] = decision
-            # Order does not matter: each group's highest revision counts
-            coverage = aggregator_info(agent, coverages.get(agent.name, ()))
+            # The range's groups, each with its newest revision, also outside it
+            groups = []
+            for key, current in flow.coverages.items():
+                if key[0] == agent.name:
+                    revision, _, choice = follow_ups.coverages.get(key, current)
+                    groups.append((
+                        key[1],
+                        {"group": key[2], "revision": revision, "choice": choice},
+                    ))
+            coverage = aggregator_info(agent, groups)
             if coverage:
                 node_data["coverage"] = coverage
             type_labels = choice_type_labels(agent)
             if type_labels:
                 node_data["typeLabels"] = type_labels
-            deliveries = self._deliveries(agent, artifacts)
+            deliveries = self._deliveries(agent, artifacts, flow)
             if deliveries:
                 node_data["sink"] = deliveries
 
@@ -595,10 +619,10 @@ class GraphAssembler(metaclass=AutoTracedMeta):
 
     @staticmethod
     def _deliveries(
-        agent: object, artifacts: dict[str, GraphArtifact]
+        agent: object, artifacts: dict[str, GraphArtifact], flow: FlowCounts
     ) -> dict[str, Any] | None:
-        """A sink's target and its receipts on the board: how many deliveries
-        went out and failed, and the latest."""
+        """A sink's target and its receipts: how many deliveries went out and
+        failed in the range, and the latest in view."""
         from flock.sinks.engine import SinkEngine
         from flock.sinks.models import Delivered, DeliveryFailed
 
@@ -612,13 +636,14 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         )
         if engine is None:
             return None
+        name = getattr(agent, "name", None)
         delivered = type_registry.name_for(Delivered)
         failed = type_registry.name_for(DeliveryFailed)
         receipts = sorted(
             (
                 artifact
                 for artifact in artifacts.values()
-                if artifact.produced_by == getattr(agent, "name", None)
+                if artifact.produced_by == name
                 and artifact.artifact_type in (delivered, failed)
             ),
             key=lambda artifact: artifact.published_at,
@@ -627,8 +652,8 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         return {
             "method": engine.method,
             "target": engine.target.declared,
-            "delivered": sum(r.artifact_type == delivered for r in receipts),
-            "failed": sum(r.artifact_type == failed for r in receipts),
+            "delivered": flow.produced.get((name, delivered), 0),
+            "failed": flow.produced.get((name, failed), 0),
             "last": None
             if last is None
             else {
@@ -752,11 +777,11 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         self,
         agent_name: str,
         artifacts: Mapping[str, GraphArtifact],
-        reviews: Mapping[str, Mapping[str, Any]],
+        reviewed: Collection[str],
         limit: int = 20,
-    ) -> tuple[list[dict[str, Any]], int]:
+    ) -> list[dict[str, Any]]:
         """A decider's unsure decisions in view that no review answered, newest
-        first (at most ``limit``), and how many there are."""
+        first (at most ``limit``); ``reviewed`` holds the reviewed decisions' ids."""
         pending = sorted(
             (
                 artifact
@@ -764,7 +789,7 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 if artifact.produced_by == agent_name
                 and is_decision_type(artifact.artifact_type)
                 and needs_review(artifact.payload)
-                and artifact.artifact_id not in reviews
+                and artifact.artifact_id not in reviewed
             ),
             key=lambda artifact: artifact.published_at,
             reverse=True,
@@ -788,7 +813,7 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 "subjectTitle": subject_title(artifact.payload),
             }
             for artifact in pending[:limit]
-        ], len(pending)
+        ]
 
     @staticmethod
     def _review_options(type_name: str) -> list[str] | None:
@@ -816,54 +841,57 @@ class GraphAssembler(metaclass=AutoTracedMeta):
 
     def _derive_agent_edges(
         self,
+        flow: FlowCounts,
         artifacts: Mapping[str, GraphArtifact],
     ) -> list[GraphEdge]:
-        edge_payloads: dict[str, dict] = {}
-        pair_group: dict[tuple[str, str], list[str]] = defaultdict(list)
-
+        """One edge per producer, consumer and type (a decision's per option),
+        counted over the range; ``artifactIds`` lists those in view."""
+        in_view: dict[tuple[str, str, str, str | None], list[str]] = defaultdict(list)
         for artifact in artifacts.values():
-            producer = artifact.produced_by or "external"
-            message_type = artifact.artifact_type
-            # Decisions get one edge per chosen option, labelled by the option
-            choice = (
+            label = (
                 decision_label(artifact.payload)
-                if is_decision_type(message_type)
+                if flow.kind(artifact.artifact_type) == "decision"
                 else None
             )
             for consumer in artifact.consumed_by:
-                edge_id = f"{producer}__{consumer}__{message_type}"
-                if choice is not None:
-                    edge_id = f"{edge_id}__{choice}"
-                payload = edge_payloads.setdefault(
-                    edge_id,
-                    {
-                        "source": producer,
-                        "target": consumer,
-                        "message_type": message_type,
-                        "choice": choice,
-                        "artifact_ids": [],
-                        "latest_timestamp": artifact.published_at,
-                    },
+                key = (
+                    artifact.produced_by or "external",
+                    consumer,
+                    artifact.artifact_type,
+                    label,
                 )
-                payload["artifact_ids"].append(artifact.artifact_id)
-                payload["latest_timestamp"] = max(
-                    payload["latest_timestamp"], artifact.published_at
-                )
-                pair_key = tuple(sorted((producer, consumer)))
-                if edge_id not in pair_group[pair_key]:
-                    pair_group[pair_key].append(edge_id)
+                in_view[key].append(artifact.artifact_id)
+
+        edge_payloads: dict[str, dict] = {}
+        pair_group: dict[tuple[str, str], list[str]] = defaultdict(list)
+        # In a fixed order, so labels keep their places between refreshes
+        for key in sorted(flow.consumed, key=lambda k: (*k[:3], k[3] or "")):
+            producer, consumer, message_type, choice = key
+            count, newest = flow.consumed[key]
+            edge_id = f"{producer}__{consumer}__{message_type}"
+            if choice is not None:
+                edge_id = f"{edge_id}__{choice}"
+            edge_payloads[edge_id] = {
+                "source": producer,
+                "target": consumer,
+                "message_type": message_type,
+                "choice": choice,
+                "count": count,
+                "artifact_ids": in_view.get(key, []),
+                "latest_timestamp": newest,
+            }
+            pair_group[tuple(sorted((producer, consumer)))].append(edge_id)
 
         offsets = self._calculate_label_offsets(pair_group)
         edges: list[GraphEdge] = []
         for edge_id, payload in edge_payloads.items():
             message_type = payload["message_type"]
-            artifact_ids = payload["artifact_ids"]
             choice = payload["choice"]
-            label = f"{choice or message_type} ({len(artifact_ids)})"
+            label = f"{choice or message_type} ({payload['count']})"
             data = {
                 "messageType": message_type,
-                "messageCount": len(artifact_ids),
-                "artifactIds": artifact_ids,
+                "messageCount": payload["count"],
+                "artifactIds": payload["artifact_ids"],
                 "latestTimestamp": payload["latest_timestamp"].isoformat(),
                 "labelOffset": offsets.get(edge_id, 0.0),
             }
