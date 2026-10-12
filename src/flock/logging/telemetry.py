@@ -6,7 +6,7 @@ import sys
 from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
 
 # from temporalio import workflow
 from flock.logging.span_middleware.baggage_span_processor import (
@@ -152,28 +152,28 @@ class TelemetryConfig:
                     "Invalid OTEL_EXPORTER_OTLP_PROTOCOL specified. Use 'grpc' or 'http'."
                 )
 
-            span_processors.append(SimpleSpanProcessor(otlp_exporter))
+            span_processors.append(self._batched(otlp_exporter))
 
         # If a file path is provided, add the custom file exporter.
         if self.file_export_name and self.enable_file:
             file_exporter = FileSpanExporter(
                 self.local_logging_dir, self.file_export_name
             )
-            span_processors.append(SimpleSpanProcessor(file_exporter))
+            span_processors.append(self._batched(file_exporter))
 
         # If a SQLite database path is provided, ensure the DB exists and add the SQLite exporter.
         if self.sqlite_db_name and self.enable_sql:
             sqlite_exporter = SqliteTelemetryExporter(
                 self.local_logging_dir, self.sqlite_db_name
             )
-            span_processors.append(SimpleSpanProcessor(sqlite_exporter))
+            span_processors.append(self._batched(sqlite_exporter))
 
         # If a DuckDB database path is provided, add the DuckDB exporter.
         if self.duckdb_name and self.enable_duckdb:
             duckdb_exporter = DuckDBSpanExporter(
                 self.local_logging_dir, self.duckdb_name, ttl_days=self.duckdb_ttl_days
             )
-            span_processors.append(SimpleSpanProcessor(duckdb_exporter))
+            span_processors.append(self._batched(duckdb_exporter))
 
         # Register all span processors with the provider.
         for processor in span_processors:
@@ -186,6 +186,20 @@ class TelemetryConfig:
         self._previous_excepthook = sys.excepthook
         sys.excepthook = self.log_exception_to_otel
         self._configured = True
+
+    def _batched(self, exporter: SpanExporter) -> BatchSpanProcessor:
+        """The exporter behind a batch processor.
+
+        Spans go out in batches from the processor's thread, not one at a time
+        from the thread that ends them, mostly the event loop (#601). A batch
+        goes out at least every second, since the dashboard reads the trace
+        file, unless ``OTEL_BSP_SCHEDULE_DELAY`` or ``batch_processor_options``
+        say otherwise; the other ``OTEL_BSP_*`` variables apply as well.
+        """
+        options = dict(self.batch_processor_options)
+        if "OTEL_BSP_SCHEDULE_DELAY" not in os.environ:
+            options.setdefault("schedule_delay_millis", 1000)
+        return BatchSpanProcessor(exporter, **options)
 
     def log_exception_to_otel(self, exc_type, exc_value, exc_traceback):
         """Log unhandled exceptions to OpenTelemetry."""
@@ -204,3 +218,10 @@ class TelemetryConfig:
         previous = getattr(self, "_previous_excepthook", None)
         if previous is not None and previous is not self.log_exception_to_otel:
             previous(exc_type, exc_value, exc_traceback)
+
+
+def flush_traces(timeout_millis: int = 5_000) -> None:
+    """Write the spans still waiting in a batch; blocks up to ``timeout_millis``."""
+    flush = getattr(trace.get_tracer_provider(), "force_flush", None)
+    if callable(flush):
+        flush(timeout_millis)

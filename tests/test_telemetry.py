@@ -1,10 +1,12 @@
 """Comprehensive tests for telemetry module."""
 
 import os
+import sys
 from unittest.mock import Mock, patch
 
 import pytest
 from opentelemetry import trace
+from opentelemetry.sdk.trace.export import BatchSpanProcessor, SimpleSpanProcessor
 
 from flock.logging.telemetry import TelemetryConfig
 
@@ -380,7 +382,7 @@ class TestTelemetryConfigSetupTracing:
         )
         mocker.patch("flock.logging.telemetry.trace.set_tracer_provider")
         mocker.patch(
-            "flock.logging.telemetry.SimpleSpanProcessor", return_value=mock_processor
+            "flock.logging.telemetry.BatchSpanProcessor", return_value=mock_processor
         )
         mocker.patch("flock.logging.telemetry.sys")
 
@@ -420,7 +422,7 @@ class TestTelemetryConfigSetupTracing:
         )
         mocker.patch("flock.logging.telemetry.trace.set_tracer_provider")
         mocker.patch(
-            "flock.logging.telemetry.SimpleSpanProcessor", return_value=mock_processor
+            "flock.logging.telemetry.BatchSpanProcessor", return_value=mock_processor
         )
         mocker.patch("flock.logging.telemetry.sys")
 
@@ -706,3 +708,83 @@ class TestTelemetryConfigEdgeCases:
         assert config._configured is True
         # Should only have baggage processor, no SQLite exporter
         assert mock_provider.add_span_processor.call_count == 1
+
+
+class TestBatchedExport:
+    """Exporters run behind a BatchSpanProcessor, off the thread that ends a span (#601)."""
+
+    @staticmethod
+    def _setup(mocker, config):
+        """Set the config up and return its provider (the global one is set once per process)."""
+        providers = []
+        mocker.patch(
+            "flock.logging.telemetry.trace.set_tracer_provider",
+            side_effect=providers.append,
+        )
+        hook = sys.excepthook
+        try:
+            config.setup_tracing()
+        finally:
+            sys.excepthook = hook
+        return providers[0]
+
+    @staticmethod
+    def _batches(provider):
+        """The provider's batch processors as (exporter class, batch settings)."""
+        return [
+            (
+                type(processor._batch_processor._exporter).__name__,
+                processor._batch_processor,
+            )
+            for processor in provider._active_span_processor._span_processors
+            if isinstance(processor, BatchSpanProcessor)
+        ]
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_exporters_run_behind_batch_processors(self, mocker, tmp_path):
+        config = TelemetryConfig(
+            service_name="test-batch",
+            local_logging_dir=str(tmp_path),
+            file_export_name="spans.json",
+            duckdb_name="traces.duckdb",
+            enable_jaeger=False,
+            enable_sql=False,
+            enable_otlp=False,
+        )
+        provider = self._setup(mocker, config)
+        try:
+            processors = provider._active_span_processor._span_processors
+            assert not any(isinstance(p, SimpleSpanProcessor) for p in processors)
+            batches = self._batches(provider)
+            assert {name for name, _ in batches} == {
+                "DuckDBSpanExporter",
+                "FileSpanExporter",
+            }
+            # The dashboard reads the trace file: a batch goes out at least every second
+            assert {settings._schedule_delay_millis for _, settings in batches} == {
+                1000
+            }
+        finally:
+            provider.shutdown()
+
+    @patch.dict(os.environ, {"OTEL_BSP_SCHEDULE_DELAY": "250"}, clear=True)
+    def test_batch_settings_come_from_options_and_opentelemetry_variables(
+        self, mocker, tmp_path
+    ):
+        config = TelemetryConfig(
+            service_name="test-batch-options",
+            local_logging_dir=str(tmp_path),
+            duckdb_name="traces.duckdb",
+            enable_jaeger=False,
+            enable_file=False,
+            enable_sql=False,
+            enable_otlp=False,
+            batch_processor_options={"max_export_batch_size": 64},
+        )
+        provider = self._setup(mocker, config)
+        try:
+            ((_, settings),) = self._batches(provider)
+            assert settings._max_export_batch_size == 64
+            assert settings._schedule_delay_millis == 250
+        finally:
+            provider.shutdown()
