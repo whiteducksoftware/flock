@@ -23,8 +23,8 @@ async function clip(name, prepare, act, { seconds = 6, ready = 'text=Live' } = {
   await sleep(1200);
   const rec = await record(page, `clip-${name}`);
   await sleep(900);
-  rec.mark('act');  // the stage cuts each clip from this moment
-  await act(page, ctx);
+  rec.mark('act');  // the stage cuts each clip from this moment (an act may mark it again, later)
+  await act(page, ctx, rec);
   await sleep(seconds * 1000);
   console.log(name, 'frames', await rec.stop());
   await page.context().close();
@@ -101,17 +101,15 @@ await clip('review', async (page) => { await lastHour(page); await fit(page); },
 await clip('lanes', async () => {}, async (page) => { await blackboard(page); }, { seconds: 16 });
 // An agent that writes (an LLM): the focus view shows its live output
 const WRITERS = ['tech_support', 'billing_team', 'shipping_team', 'supervisor'];
-await clip('focus', async (page) => {
-  await fit(page);
-  for (const until = Date.now() + 30_000; Date.now() < until; ) {
-    for (const name of WRITERS) {
-      const node = page.locator(`.react-flow__node[data-id="${name}"]`);
-      if (await node.locator('[data-status="running"]').count()) return { node };
-    }
-    await sleep(250);
+// Chosen in the take, not before: a reply streams for a second or two
+await clip('focus', async (page) => { await fit(page); }, async (page, _ctx, rec) => {
+  let node = page.locator(`.react-flow__node[data-id="${WRITERS[0]}"]`);
+  for (const until = Date.now() + 30_000; Date.now() < until; await sleep(100)) {
+    const running = WRITERS.map((name) => page.locator(`.react-flow__node[data-id="${name}"]`));
+    const found = await Promise.all(running.map((each) => each.locator('[data-status="running"]').count()));
+    if (found.some(Boolean)) { node = running[found.findIndex(Boolean)]; break; }
   }
-  return { node: page.locator(`.react-flow__node[data-id="${WRITERS[0]}"]`) };
-}, async (page, { node }) => {
+  rec.mark('act');
   await node.dblclick();
 });
 await clip('palette', async (page) => { await fit(page); }, async (page) => {
