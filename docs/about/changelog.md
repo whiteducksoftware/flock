@@ -150,6 +150,10 @@ search:
     - The bracket view is a modal that takes, keeps and returns keyboard focus; checklist cells carry their result as an accessible label.
 - **Batch timeouts no longer depend on the wall clock.** `BatchSpec(timeout=...)` measured the elapsed time with `datetime.now()`. When the wall clock stepped back (VM time sync, NTP), batches flushed late and `run_until_idle()` could return before the flush; when it stepped forward (daylight saving), they flushed early. Timeouts now run on the monotonic clock. The timer tests check the waits they ask for instead of elapsed wall time. Both fix intermittent failures of four timing tests.
 
+### 📚 Documentation
+
+- **Making a Flock video** (`docs/internal/video/`) - How the v0.5.8 feature video was made, so the next one in any format (16:9, a vertical short, a square post) takes hours: recording a running Flock with a CDP screencast at device resolution (`tools/record-*.mjs`), staging scenes in an HTML page that draws any aspect ratio (`stage/`), rendering frame by frame to H.264 (`tools/render.mjs`), and checking recordings and renders for wobble, jumps and flicker (`tools/check_motion.py`). Linked from AGENTS.md.
+
 ### 🔒 Security
 
 - Patched vulnerable dependencies: anyio, PyJWT, cryptography, urllib3, python-multipart, Starlette, MCP SDK, tornado, gitpython, fsspec, json-repair, mistune, orjson, pymdown-extensions, soupsieve, virtualenv, bleach, idna, multidict, oauthlib, requests, setuptools, pygments, Jupyter and mkdocs-material dev tooling, and the dashboard's dev tooling (Vitest 4, Vite 7.3.7). Removing PyTorch, Transformers and sentence-transformers closes their advisories as well.
