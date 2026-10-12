@@ -72,7 +72,6 @@ const GraphCanvas: React.FC = () => {
   const edgeType = useSettingsStore((state) => state.graph.edgeType);
   const edgeStrokeWidth = useSettingsStore((state) => state.graph.edgeStrokeWidth);
   const edgeAnimation = useSettingsStore((state) => state.graph.edgeAnimation);
-  const layoutDirection = useSettingsStore((state) => state.advanced.layoutDirection);
   const nodeSpacing = useSettingsStore((state) => state.advanced.nodeSpacing);
   const rankSpacing = useSettingsStore((state) => state.advanced.rankSpacing);
 
@@ -233,7 +232,7 @@ const GraphCanvas: React.FC = () => {
         default:
           result = applyHierarchicalLayout(nodes, edges, {
             ...hierarchicalBaseOptions,
-            direction: layoutDirection,
+            direction: 'LR',
           });
       }
 
@@ -252,7 +251,6 @@ const GraphCanvas: React.FC = () => {
       persistNodePosition,
       screenToFlowPosition,
       collectRenderedNodeDimensions,
-      layoutDirection,
       nodeSpacing,
       rankSpacing,
       setAutoLayoutMode,
@@ -262,6 +260,18 @@ const GraphCanvas: React.FC = () => {
   useEffect(() => {
     latestAutoLayoutModeRef.current = autoLayoutMode;
   }, [autoLayoutMode]);
+
+  // New spacing in the settings lays the board out again (not on mount)
+  const spacingSeen = useRef(false);
+  useEffect(() => {
+    if (!spacingSeen.current) {
+      spacingSeen.current = true;
+      return;
+    }
+    applyLayout(latestAutoLayoutModeRef.current, { updateStoredMode: false });
+    // Only a change of the spacing: applyLayout changes with every node update
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodeSpacing, rankSpacing]);
 
   // Auto-layout on topology-changing redraws (new nodes or new edges), debounced to avoid jumpy relayouts
   useEffect(() => {

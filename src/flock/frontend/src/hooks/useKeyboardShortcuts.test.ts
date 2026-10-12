@@ -38,6 +38,36 @@ describe('useKeyboardShortcuts: unfolding', () => {
     expect(useUIStore.getState().unfoldedNodeId).toBeNull();
   });
 
+  it('puts the focused node in focus with Enter, else the selected one', () => {
+    const node = document.createElement('div');
+    node.className = 'react-flow__node';
+    node.dataset.id = 'intake';
+    node.tabIndex = 0;
+    document.body.appendChild(node);
+    node.focus();
+
+    const event = press('Enter');
+    expect(useUIStore.getState().focusedNodeId).toBe('intake');
+    expect(event.defaultPrevented).toBe(true);
+
+    useUIStore.setState({ focusedNodeId: null });
+    node.blur();
+    press('Enter');
+    expect(useUIStore.getState().focusedNodeId).toBe('triage');
+  });
+
+  it('leaves Enter to buttons and fields, and to modified keys', () => {
+    const button = document.createElement('button');
+    document.body.appendChild(button);
+    button.focus();
+    press('Enter');
+    expect(useUIStore.getState().focusedNodeId).toBeNull();
+
+    button.blur();
+    press('Enter', { ctrlKey: true });
+    expect(useUIStore.getState().focusedNodeId).toBeNull();
+  });
+
   it('unfolds and folds the selected node with Ctrl+Shift+D', () => {
     press('D', { ctrlKey: true, shiftKey: true });
     expect(useUIStore.getState().unfoldedNodeId).toBe('triage');

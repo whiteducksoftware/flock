@@ -1,152 +1,127 @@
-import React, { useEffect } from 'react';
-import './KeyboardShortcutsDialog.css';
+/**
+ * The keyboard shortcuts (Ctrl+/ or the header's keyboard button): a modal
+ * on the tokens with the keys of the board, the panels, the publish composer
+ * and the palette (docs/internal/design-system/README.md, Accessibility).
+ */
+
+import React, { useEffect, useId, useRef } from 'react';
+import { isMac } from '../../utils/keys';
+import { Icon } from '../icons/Icon';
+import styles from './KeyboardShortcutsDialog.module.css';
 
 interface KeyboardShortcutsDialogProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-const isMac = typeof navigator !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+const MOD = isMac ? '⌘' : 'Ctrl';
 
-interface Shortcut {
-  keys: string[];
-  description: string;
-  category: 'Navigation' | 'Panels' | 'General';
-}
-
-const shortcuts: Shortcut[] = [
-  // Navigation
+const GROUPS: { title: string; shortcuts: { keys: string[]; description: string }[] }[] = [
   {
-    keys: isMac ? ['⌘', 'M'] : ['Ctrl', 'M'],
-    description: 'Switch between Flow and Blackboard',
-    category: 'Navigation',
+    title: 'Board',
+    shortcuts: [
+      { keys: [MOD, 'M'], description: 'Switch between Flow and Blackboard' },
+      { keys: [MOD, 'K'], description: 'Search agents, types and runs, or run a command' },
+      { keys: ['Space'], description: 'Unfold or fold the selected node' },
+      { keys: [MOD, 'Shift', 'D'], description: 'Unfold or fold the selected node' },
+      { keys: ['Enter'], description: 'Put the selected node in focus' },
+      { keys: ['Esc'], description: 'Leave focus, close a panel, else fold' },
+    ],
   },
   {
-    keys: isMac ? ['⌘', 'K'] : ['Ctrl', 'K'],
-    description: 'Search agents, types and runs, or run a command',
-    category: 'Navigation',
+    title: 'Panels',
+    shortcuts: [
+      { keys: [MOD, 'Shift', 'P'], description: 'Open or close the publish composer' },
+      { keys: [MOD, 'Shift', 'F'], description: 'Open or close the filters' },
+      { keys: [MOD, ','], description: 'Open or close the settings' },
+      { keys: [MOD, '/'], description: 'Show or hide these shortcuts' },
+    ],
   },
   {
-    keys: ['Space'],
-    description: 'Unfold or fold the selected node',
-    category: 'Navigation',
+    title: 'Publish composer',
+    shortcuts: [
+      { keys: [MOD, 'Enter'], description: 'Publish' },
+      { keys: ['↑', '↓'], description: 'Move through the types' },
+    ],
   },
   {
-    keys: isMac ? ['⌘', 'Shift', 'D'] : ['Ctrl', 'Shift', 'D'],
-    description: 'Unfold or fold the selected node',
-    category: 'Navigation',
-  },
-
-  // Panels
-  {
-    keys: isMac ? ['⌘', 'Shift', 'P'] : ['Ctrl', 'Shift', 'P'],
-    description: 'Open or close the publish composer',
-    category: 'Panels',
-  },
-  {
-    keys: isMac ? ['⌘', 'Shift', 'F'] : ['Ctrl', 'Shift', 'F'],
-    description: 'Open or close the filters',
-    category: 'Panels',
-  },
-  {
-    keys: isMac ? ['⌘', ','] : ['Ctrl', ','],
-    description: 'Open or close the settings',
-    category: 'Panels',
-  },
-
-  // General
-  {
-    keys: ['Esc'],
-    description: 'Close a panel, else fold the unfolded node',
-    category: 'General',
-  },
-  {
-    keys: isMac ? ['⌘', '/'] : ['Ctrl', '/'],
-    description: 'Show this help dialog',
-    category: 'General',
+    title: 'Palette',
+    shortcuts: [
+      { keys: ['↑', '↓'], description: 'Move through the results' },
+      { keys: ['Enter'], description: 'Run the first action of a result' },
+      { keys: ['Shift', 'Enter'], description: 'Run the second action of a result' },
+      { keys: [MOD, 'Enter'], description: 'Run the third action of a result' },
+    ],
   },
 ];
 
 const KeyboardShortcutsDialog: React.FC<KeyboardShortcutsDialogProps> = ({ isOpen, onClose }) => {
-  // Handle ESC key to close dialog
+  const ids = useId();
+  const close = useRef<HTMLButtonElement>(null);
+
+  // Open: the focus goes in; closed: back where it was
   useEffect(() => {
     if (!isOpen) return;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        event.stopPropagation();
-        onClose();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown, { capture: true });
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown, { capture: true });
-    };
-  }, [isOpen, onClose]);
+    const opener = document.activeElement as HTMLElement | null;
+    close.current?.focus();
+    return () => opener?.focus?.();
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const groupedShortcuts = shortcuts.reduce((acc, shortcut) => {
-    if (!acc[shortcut.category]) {
-      acc[shortcut.category] = [];
+  const onKeyDown = (event: React.KeyboardEvent) => {
+    // Esc and Ctrl+/ close it (a modal: the board's shortcuts stay behind it)
+    if (event.key === 'Escape' || (event.key === '/' && (event.ctrlKey || event.metaKey))) {
+      event.preventDefault();
+      event.stopPropagation();
+      onClose();
+      return;
     }
-    acc[shortcut.category]!.push(shortcut);
-    return acc;
-  }, {} as Record<string, Shortcut[]>);
+    // The close button is the one stop: Tab stays on it
+    if (event.key === 'Tab') {
+      event.preventDefault();
+      close.current?.focus();
+    }
+  };
 
   return (
-    <div className="keyboard-shortcuts-overlay" onClick={onClose}>
-      <div className="keyboard-shortcuts-dialog" onClick={(e) => e.stopPropagation()}>
-        <div className="keyboard-shortcuts-header">
-          <h2 className="keyboard-shortcuts-title">Keyboard Shortcuts</h2>
-          <button
-            className="keyboard-shortcuts-close"
-            onClick={onClose}
-            aria-label="Close keyboard shortcuts"
-          >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path
-                d="M15 5L5 15M5 5l10 10"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+    <div className={styles.overlay}>
+      <div className={styles.scrim} aria-hidden onClick={onClose} />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={`${ids}-title`}
+        className={styles.dialog}
+        onKeyDown={onKeyDown}
+      >
+        <header className={styles.header}>
+          <h2 id={`${ids}-title`} className={styles.title}>
+            Keyboard shortcuts
+          </h2>
+          <button ref={close} type="button" className="btn icon ghost" aria-label="Close keyboard shortcuts" onClick={onClose}>
+            <Icon name="close" />
           </button>
-        </div>
-
-        <div className="keyboard-shortcuts-content">
-          {Object.entries(groupedShortcuts).map(([category, categoryShortcuts]) => (
-            <div key={category} className="keyboard-shortcuts-category">
-              <h3 className="keyboard-shortcuts-category-title">{category}</h3>
-              <div className="keyboard-shortcuts-list">
-                {categoryShortcuts.map((shortcut, index) => (
-                  <div key={index} className="keyboard-shortcut-item">
-                    <div className="keyboard-shortcut-keys">
-                      {shortcut.keys.map((key, keyIndex) => (
-                        <React.Fragment key={keyIndex}>
-                          <kbd className="keyboard-key">{key}</kbd>
-                          {keyIndex < shortcut.keys.length - 1 && (
-                            <span className="keyboard-key-separator">+</span>
-                          )}
-                        </React.Fragment>
+        </header>
+        <div className={styles.groups}>
+          {GROUPS.map((group) => (
+            <section key={group.title} className={styles.group} aria-labelledby={`${ids}-${group.title}`}>
+              <h3 id={`${ids}-${group.title}`} className={styles.groupTitle}>
+                {group.title}
+              </h3>
+              <dl className={styles.list}>
+                {group.shortcuts.map((shortcut) => (
+                  <div key={`${shortcut.keys.join('+')}-${shortcut.description}`} className={styles.row}>
+                    <dt className={styles.keys}>
+                      {shortcut.keys.map((key) => (
+                        <kbd key={key}>{key}</kbd>
                       ))}
-                    </div>
-                    <div className="keyboard-shortcut-description">{shortcut.description}</div>
+                    </dt>
+                    <dd className={styles.description}>{shortcut.description}</dd>
                   </div>
                 ))}
-              </div>
-            </div>
+              </dl>
+            </section>
           ))}
-        </div>
-
-        <div className="keyboard-shortcuts-footer">
-          <p className="keyboard-shortcuts-hint">
-            Press <kbd className="keyboard-key">Esc</kbd> or click outside to close
-          </p>
         </div>
       </div>
     </div>

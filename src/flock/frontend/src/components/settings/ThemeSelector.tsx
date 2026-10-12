@@ -1,20 +1,14 @@
 /**
- * Theme Selector Component
- *
- * Searchable dropdown for selecting from 300+ terminal themes.
- * Shows color preview swatches and applies themes in real-time.
+ * The theme picker (Settings › Appearance): Graphite and Paper, the popular
+ * terminal themes, and every other one, with a search. Hovering a terminal
+ * theme previews it; leaving puts the chosen theme back, and a click keeps it.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { fetchTheme, fetchThemeList, POPULAR_THEMES } from '../../services/themeService';
+import { applyThemeByName, BUILT_IN_THEMES, builtInTheme } from '../../services/themeApplicator';
 import { useSettingsStore } from '../../store/settingsStore';
-import { fetchThemeList, fetchTheme, POPULAR_THEMES } from '../../services/themeService';
-import {
-  applyThemeByName,
-  BUILT_IN_THEMES,
-  builtInTheme,
-  resetToDefaultTheme,
-} from '../../services/themeApplicator';
-import { TerminalTheme } from '../../types/theme';
+import styles from './ThemeSelector.module.css';
 
 const THEME_LABELS: Record<'graphite' | 'paper', string> = { graphite: 'Graphite', paper: 'Paper' };
 
@@ -23,79 +17,84 @@ const ThemeSelector: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [previewTheme, setPreviewTheme] = useState<TerminalTheme | null>(null);
+  // The terminal theme shown while the pointer is on it
+  const [preview, setPreview] = useState<string | null>(null);
 
   const currentTheme = useSettingsStore((state) => state.appearance.theme);
   const setTheme = useSettingsStore((state) => state.setTheme);
 
-  // Load theme list on mount
   useEffect(() => {
-    loadThemes();
+    let live = true;
+    setLoading(true);
+    fetchThemeList()
+      .then((list) => live && setThemes(list))
+      .catch((err) => {
+        if (!live) return;
+        console.error('Theme loading error:', err);
+        // The popular ones still work offline from the list
+        setError('Failed to load themes. Backend may not be running.');
+        setThemes(POPULAR_THEMES);
+      })
+      .finally(() => live && setLoading(false));
+    return () => {
+      live = false;
+    };
   }, []);
 
-  const loadThemes = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const themeList = await fetchThemeList();
-      setThemes(themeList);
-    } catch (err) {
-      setError('Failed to load themes. Backend may not be running.');
-      console.error('Theme loading error:', err);
-      // Fallback to popular themes if API fails
-      setThemes(POPULAR_THEMES);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleThemeSelect = async (themeName: string) => {
+  const select = async (themeName: string) => {
     try {
       setError(null);
+      setPreview(null);
       // Only the latest choice applies and is stored (null: a newer one won)
       const applied = await applyThemeByName(themeName, document.documentElement, fetchTheme, false);
-      if (applied !== null) {
-        setTheme(applied);
-        setPreviewTheme(null);
-      }
+      if (applied !== null) setTheme(applied);
     } catch (err) {
       setError(`Failed to load theme "${themeName}"`);
       console.error('Theme application error:', err);
     }
   };
 
-  const handleThemePreview = async (themeName: string) => {
-    // Graphite and Paper apply on click; a hover would leave them applied
+  // Graphite and Paper apply on click only: a preview of them would be the theme itself
+  const startPreview = async (themeName: string) => {
     if (builtInTheme(themeName)) return;
+    setPreview(themeName);
     try {
-      let loaded: TerminalTheme | null = null;
-      const applied = await applyThemeByName(
-        themeName,
-        document.documentElement,
-        async (name) => (loaded = await fetchTheme(name)),
-        false
-      );
-      if (applied !== null) setPreviewTheme(loaded);
+      await applyThemeByName(themeName, document.documentElement, fetchTheme, false);
     } catch (err) {
       console.error('Theme preview error:', err);
     }
   };
 
-  const handleResetTheme = () => {
-    resetToDefaultTheme();
-    setTheme('graphite');
-    setPreviewTheme(null);
+  // Back to the chosen theme; a preview still loading gives way to it
+  const endPreview = () => {
+    if (!preview) return;
+    setPreview(null);
+    void applyThemeByName(currentTheme, document.documentElement, fetchTheme, true);
   };
 
-  const query = searchQuery.toLowerCase();
-  const builtInThemes = BUILT_IN_THEMES.filter((theme) => theme.includes(query));
-  const filteredThemes = themes.filter((theme) => theme.toLowerCase().includes(query));
-  const popularThemes = filteredThemes.filter((theme) => POPULAR_THEMES.includes(theme));
-  const otherThemes = filteredThemes.filter((theme) => !POPULAR_THEMES.includes(theme));
-  const currentBuiltIn = builtInTheme(currentTheme);
+  const query = searchQuery.trim().toLowerCase();
+  const builtIns = BUILT_IN_THEMES.filter((theme) => theme.includes(query) || THEME_LABELS[theme].toLowerCase().includes(query));
+  const found = themes.filter((theme) => theme.toLowerCase().includes(query));
+  const popular = found.filter((theme) => POPULAR_THEMES.includes(theme));
+  const others = found.filter((theme) => !POPULAR_THEMES.includes(theme));
+  const current = builtInTheme(currentTheme) ?? currentTheme;
+
+  const option = (theme: string, label = theme) => (
+    <button
+      key={theme}
+      type="button"
+      className={styles.theme}
+      aria-pressed={current === theme}
+      onClick={() => void select(theme)}
+      onMouseEnter={() => void startPreview(theme)}
+      onMouseLeave={endPreview}
+    >
+      {label}
+    </button>
+  );
 
   return (
-    <div>
+    <div className={styles.picker}>
       <div className="settings-field">
         <label htmlFor="theme-search" className="settings-label">
           Search Themes
@@ -104,194 +103,57 @@ const ThemeSelector: React.FC = () => {
           id="theme-search"
           type="text"
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search 300+ themes..."
+          onChange={(event) => setSearchQuery(event.target.value)}
+          placeholder="Search 300+ themes…"
           className="settings-input"
           disabled={loading}
         />
       </div>
 
       {error && (
-        <div style={{
-          padding: 'var(--space-component-sm)',
-          background: 'var(--color-error-bg)',
-          color: 'var(--color-error-light)',
-          borderRadius: 'var(--radius-md)',
-          marginBottom: 'var(--space-component-md)',
-          fontSize: 'var(--font-size-caption)',
-        }}>
+        <p role="alert" className={styles.error}>
           {error}
-        </div>
+        </p>
       )}
-
-      {loading && (
-        <div style={{
-          padding: 'var(--space-component-md)',
-          textAlign: 'center',
-          color: 'var(--color-text-secondary)',
-        }}>
-          Loading themes...
-        </div>
-      )}
+      {loading && <p className={styles.note}>Loading themes…</p>}
 
       {!loading && (
         <>
-          {/* Current Theme */}
-          <div className="settings-field">
-            <label className="settings-label">Current Theme</label>
-            <div style={{
-              padding: 'var(--space-component-sm)',
-              background: 'var(--color-bg-elevated)',
-              borderRadius: 'var(--radius-md)',
-              border: 'var(--border-default)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}>
-              <span style={{ color: 'var(--color-text-primary)' }}>
-                {currentBuiltIn ? THEME_LABELS[currentBuiltIn] : currentTheme}
-              </span>
-              {currentBuiltIn !== 'graphite' && (
-                <button
-                  onClick={handleResetTheme}
-                  style={{
-                    padding: '4px 8px',
-                    background: 'transparent',
-                    border: 'var(--border-default)',
-                    borderRadius: 'var(--radius-sm)',
-                    color: 'var(--color-text-secondary)',
-                    fontSize: 'var(--font-size-caption)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Reset
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Built-in themes - always first */}
-          {builtInThemes.length > 0 && (
-            <div className="settings-field">
-              <label className="settings-label">Built-in Themes</label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--gap-xs)' }}>
-                {builtInThemes.map((theme) => (
-                  <button
-                    key={theme}
-                    onClick={() => handleThemeSelect(theme)}
-                    onMouseEnter={() => handleThemePreview(theme)}
-                    style={{
-                      padding: 'var(--space-component-sm)',
-                      background: currentBuiltIn === theme ? 'var(--invert)' : 'var(--color-bg-elevated)',
-                      border: 'var(--border-default)',
-                      borderRadius: 'var(--radius-md)',
-                      color: currentBuiltIn === theme ? 'var(--on-invert)' : 'var(--color-text-primary)',
-                      fontSize: 'var(--font-size-body-sm)',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      transition: 'var(--transition-all)',
-                    }}
-                  >
-                    {THEME_LABELS[theme]}
-                  </button>
-                ))}
-              </div>
-            </div>
+          {builtIns.length > 0 && (
+            <section className={styles.group} aria-labelledby="themes-built-in">
+              <h4 id="themes-built-in" className={styles.groupLabel}>
+                Built-in Themes
+              </h4>
+              <div className={styles.builtIns}>{builtIns.map((theme) => option(theme, THEME_LABELS[theme]))}</div>
+            </section>
           )}
 
-          {/* Popular Themes */}
-          {popularThemes.length > 0 && (
-            <div className="settings-field">
-              <label className="settings-label">Popular Themes</label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--gap-xs)' }}>
-                {popularThemes.map((theme) => (
-                  <button
-                    key={theme}
-                    onClick={() => handleThemeSelect(theme)}
-                    onMouseEnter={() => handleThemePreview(theme)}
-                    style={{
-                      padding: 'var(--space-component-sm)',
-                      background: currentTheme === theme ? 'var(--invert)' : 'var(--color-bg-elevated)',
-                      border: 'var(--border-default)',
-                      borderRadius: 'var(--radius-md)',
-                      color: currentTheme === theme ? 'var(--on-invert)' : 'var(--color-text-primary)',
-                      fontSize: 'var(--font-size-body-sm)',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      transition: 'var(--transition-all)',
-                    }}
-                  >
-                    {theme}
-                  </button>
-                ))}
-              </div>
-            </div>
+          {popular.length > 0 && (
+            <section className={styles.group} aria-labelledby="themes-popular">
+              <h4 id="themes-popular" className={styles.groupLabel}>
+                Popular Themes
+              </h4>
+              <div className={styles.list}>{popular.map((theme) => option(theme))}</div>
+            </section>
           )}
 
-          {/* All Other Themes */}
-          {otherThemes.length > 0 && (
-            <div className="settings-field">
-              <label className="settings-label">
-                All Themes ({otherThemes.length})
-              </label>
-              <div style={{
-                maxHeight: '300px',
-                overflowY: 'auto',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 'var(--gap-xs)',
-                padding: 'var(--space-component-xs)',
-                background: 'var(--color-bg-base)',
-                borderRadius: 'var(--radius-md)',
-              }}>
-                {otherThemes.map((theme) => (
-                  <button
-                    key={theme}
-                    onClick={() => handleThemeSelect(theme)}
-                    onMouseEnter={() => handleThemePreview(theme)}
-                    style={{
-                      padding: 'var(--space-component-sm)',
-                      background: currentTheme === theme ? 'var(--invert)' : 'var(--color-bg-elevated)',
-                      border: 'var(--border-default)',
-                      borderRadius: 'var(--radius-sm)',
-                      color: currentTheme === theme ? 'var(--on-invert)' : 'var(--color-text-primary)',
-                      fontSize: 'var(--font-size-body-sm)',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      transition: 'var(--transition-all)',
-                    }}
-                  >
-                    {theme}
-                  </button>
-                ))}
-              </div>
-            </div>
+          {others.length > 0 && (
+            <section className={styles.group} aria-labelledby="themes-all">
+              <h4 id="themes-all" className={styles.groupLabel}>
+                All Themes <span className="num">{others.length}</span>
+              </h4>
+              <div className={`${styles.list} ${styles.scroll}`}>{others.map((theme) => option(theme))}</div>
+            </section>
           )}
 
-          {builtInThemes.length + filteredThemes.length === 0 && !loading && (
-            <div style={{
-              padding: 'var(--space-component-md)',
-              textAlign: 'center',
-              color: 'var(--color-text-tertiary)',
-            }}>
-              No themes found matching "{searchQuery}"
-            </div>
-          )}
+          {builtIns.length + found.length === 0 && <p className={styles.note}>No themes found matching "{searchQuery}"</p>}
         </>
       )}
 
-      {previewTheme && (
-        <div style={{
-          padding: 'var(--space-component-sm)',
-          background: 'var(--color-bg-overlay)',
-          borderRadius: 'var(--radius-md)',
-          marginTop: 'var(--space-component-md)',
-          fontSize: 'var(--font-size-caption)',
-          color: 'var(--color-text-tertiary)',
-          textAlign: 'center',
-        }}>
-          Previewing: {previewTheme.name} (click to apply)
-        </div>
+      {preview && (
+        <p role="status" className={styles.note}>
+          Previewing {preview}; click to keep it
+        </p>
       )}
     </div>
   );

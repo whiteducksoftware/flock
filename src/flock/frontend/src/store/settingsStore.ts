@@ -29,11 +29,8 @@ export interface SettingsState {
   };
 
   advanced: {
-    layoutDirection: 'TB' | 'LR';
     nodeSpacing: number;
     rankSpacing: number;
-    debugMode: boolean;
-    performanceMode: boolean;
   };
 
   // UI Actions
@@ -51,11 +48,8 @@ export interface SettingsState {
   setTheme: (theme: string) => void;
 
   // Advanced Actions
-  setLayoutDirection: (direction: SettingsState['advanced']['layoutDirection']) => void;
   setNodeSpacing: (spacing: number) => void;
   setRankSpacing: (spacing: number) => void;
-  setDebugMode: (enabled: boolean) => void;
-  setPerformanceMode: (enabled: boolean) => void;
 
   // Utility Actions
   resetToDefaults: () => void;
@@ -83,11 +77,8 @@ const DEFAULT_SETTINGS: Omit<SettingsState, keyof ReturnType<typeof createAction
   },
 
   advanced: {
-    layoutDirection: 'LR',
     nodeSpacing: 75,       // Horizontal spacing between nodes
     rankSpacing: 150,      // Vertical spacing between ranks
-    debugMode: false,
-    performanceMode: false,
   },
 };
 
@@ -120,20 +111,12 @@ const createActions = (set: any) => ({
     set((state: SettingsState) => ({ appearance: { ...state.appearance, theme } })),
 
   // Advanced Actions
-  setLayoutDirection: (direction: SettingsState['advanced']['layoutDirection']) =>
-    set((state: SettingsState) => ({ advanced: { ...state.advanced, layoutDirection: direction } })),
-
   setNodeSpacing: (spacing: number) =>
     set((state: SettingsState) => ({ advanced: { ...state.advanced, nodeSpacing: spacing } })),
 
   setRankSpacing: (spacing: number) =>
     set((state: SettingsState) => ({ advanced: { ...state.advanced, rankSpacing: spacing } })),
 
-  setDebugMode: (enabled: boolean) =>
-    set((state: SettingsState) => ({ advanced: { ...state.advanced, debugMode: enabled } })),
-
-  setPerformanceMode: (enabled: boolean) =>
-    set((state: SettingsState) => ({ advanced: { ...state.advanced, performanceMode: enabled } })),
 
   // Utility Actions
   resetToDefaults: () => set(DEFAULT_SETTINGS),
@@ -149,8 +132,20 @@ export const useSettingsStore = create<SettingsState>()(
       name: 'flock-flow-settings',
       version: 1,
       partialize: ({ ui: _ui, ...saved }) => saved,
-      // Sessions before this one saved the open panels too
-      merge: (saved, current) => ({ ...current, ...(saved as Partial<SettingsState>), ui: current.ui }),
+      // Sessions before this one saved the open panels too, and settings that are gone
+      // (layout direction, debug and performance mode); a saved section may lack newer keys
+      merge: (persisted, current) => {
+        const saved = (persisted ?? {}) as Partial<SettingsState>;
+        return {
+          ...current,
+          graph: { ...current.graph, ...saved.graph },
+          appearance: { ...current.appearance, ...saved.appearance },
+          advanced: {
+            nodeSpacing: saved.advanced?.nodeSpacing ?? current.advanced.nodeSpacing,
+            rankSpacing: saved.advanced?.rankSpacing ?? current.advanced.rankSpacing,
+          },
+        };
+      },
     }
   )
 );
