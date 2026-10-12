@@ -221,3 +221,15 @@ Each entry says what was decided, why, and where it landed.
 - **A run from before the time range widens it to all time** when the palette filters by it or shows its lane (review); a run inside the range keeps it.
 - **Leaving the Flow drops what still waits for it** (review): a Show from the Blackboard abandoned by switching back does not select the agent on a later visit.
 - **Show its lane turns "Needs review only" off** and **the palette gives the focus back before an action opens another overlay** (review).
+
+### #614 Blackboard as a graph (asked for in review of #565)
+
+- **Lanes | Graph, no Table:** the table was the timeline dock's History, the same component; History stays in the dock. A saved "table" view opens as lanes.
+- **The graph's cards are the lanes' cards** (folded and unfolded), not a second card style; arrows are `smoothstep` in `--line-2`, dashed after an unsure decision, amber and moving to a card that still streams (from what its run consumed, as the lanes place it).
+- **One layout of all artifacts was unreadable** (dagre stacks 120+ small runs in one column 50 000 px tall): each run is laid out on its own and the runs are packed in rows (`packRuns`), oldest first, so new runs come at the end. The first view shows the newest row at the top, at the zoom that fits it (at most 100 %).
+- **Top down is the graph's default layout:** runs are narrow trees, three or four to a row; left to right they are wide and fill a row alone.
+- **Every run takes a slot as large as the largest run**, both ways: a run grows down and, as its decisions fan out, sideways; a slot only as large as the run let it grow into its neighbour.
+- **Cards stay where they are:** a busy board (the demo publishes 70+ artifacts a minute) moved under the reader with every new artifact. A run that gets a card is laid out again from its slot's corner (its own cards may shift inside it), new runs take the next free slot in the last row, then a row below (`placeFresh`). Auto-arrange is off by default here and lays everything out again when on, as on the Flow.
+- **Moved cards keep their place** in the IndexedDB store the former Blackboard view used (`layout_blackboard_view`), when auto-arrange is off.
+- **The registry knows which canvas it has** (`kind: 'flow' | 'graph'`): Show agent from the graph waits for the Flow instead of running on the graph.
+- **The truncation note sits in the toolbar** on the graph ("the newest 500, older ones in History"); over the canvas it covered cards.

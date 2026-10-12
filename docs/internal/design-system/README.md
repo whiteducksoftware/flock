@@ -158,7 +158,7 @@ Nothing the current dashboard does is dropped silently; the table maps every fea
 
 - **Lanes:** one lane per run (correlation ID), newest on top. The lane header shows status (running / needs review / done with duration and artifact count), run ID, the first artifact's title and time. Artifacts follow left to right, connected by arrows; decisions of one subject stack in one column.
 - **Artifact card:** type in mono, producer, two key/value rows of the payload (no JSON tree), or the decision body for decisions. Clicking unfolds the card in place: full probabilities with threshold ticks, review buttons, model, consumers, visibility, ID, the payload as JSON, the consumption history.
-- **Table:** the historical table (time, type, producer, run, tags, visibility, consumers) with "Load older".
+- **Graph:** the same artifacts as cards on a canvas, arrows from what a run consumed to what it published (an arrow in flight to a card that still streams). Each run is laid out on its own (top down by default) in a slot as large as the largest run; the runs fill rows, oldest first, the first view shows the newest row. Placed cards stay where they are: a run that grows is laid out again in its slot, new runs take the next free slot. The canvas dock lays it out again (auto-arrange off by default). The historical table is the timeline dock's History (#614).
 - **Needs review only** narrows the view to runs with an unreviewed `UNSURE` decision.
 
 ## Decision kit
