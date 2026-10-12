@@ -8,6 +8,8 @@ publishes the next step. One decision per step, until the snake dies.
 - The game publishes `SnakeState` to `POST /api/v1/artifacts` with the game's
   ID as `correlation_id`: every game is one run, one lane on the dashboard.
 - `player` decides a `Move` (left, up or right, relative to the heading).
+- Every step names the decision it follows (`follows`, the sink envelope's
+  `id`), so the dashboard draws a game as one chain: step, move, step, …
 - The `game` sink posts every decision to the game's `/move`; it keeps the
   order per game, so moves arrive in the order they were decided.
 - The game page draws the board and the model's probabilities live
@@ -21,6 +23,7 @@ food is from there. The game draws the board itself.
 🎯 Key Concepts:
 - An app over REST into Flock and back through a sink
 - `correlation_id` on a REST publish: one run per game
+- `follows` on a REST publish: each step after the move that led to it
 - Ordered delivery per correlation: the game gets every move in order
 - Long runs on the dashboard: a game of 100+ steps is one lane
 
@@ -108,6 +111,7 @@ class Game:
         self.eaten = 0
         self.alive = True
         self.applied: set[str] = set()  # decisions already played (sink retries)
+        self.answers: str | None = None  # the decision the current step follows
         self.paused = False
         self.published = -1  # the last step Flock got: a newer one is waiting
         self.publishing = asyncio.Lock()  # one publication of a step at a time
@@ -208,6 +212,8 @@ async def publish(game: Game) -> None:
                 "type": "SnakeState",
                 "payload": game.state().model_dump(),
                 "correlation_id": game.id,
+                # The step follows the move that led to it: one chain on the board
+                **({"follows": [game.answers]} if game.answers else {}),
             },
         )
         response.raise_for_status()
@@ -317,6 +323,7 @@ async def move(envelope: dict):
         if not game.alive:
             return {"ok": False}
         game.applied.add(envelope["id"])
+        game.answers = envelope["id"]  # the delivered decision
         # An unsure decision still moves: its best guess
         chosen = (
             decision["choice"]

@@ -116,6 +116,7 @@ pitches = await flock.store.get_by_type(Pitch)  # list[Pitch]
   - Timer runs see `ctx.trigger_type == "timer"`, `ctx.timer_iteration` and `ctx.fire_time` on `flock.Context`.
   - A timer run's context comes from the context provider (`.with_context(...)`); `.consumes()` on a scheduled agent adds artifact triggers and does not filter context.
   - Times are UTC (a naive `datetime` is read as UTC), and scheduled agents must declare `.publishes()`.
+- **Following:** `flock.publish(obj, correlation_id=..., follows=[artifact_id])` (and `follows` on REST publishes) names the artifacts an outside step follows, such as the decision a sink delivered; the dashboard draws it after them. At most `Flock(max_follows=20)` IDs, each on the blackboard, else `ValueError` (400 over REST).
 - **Execution control:**
   - `run_until_idle()`, `run_until(Until.artifact_count(X).at_least(5) | Until.workflow_error(cid), timeout=)` (`flock.core.conditions`).
   - `invoke(agent, artifact, publish_outputs=...)`, `arun(agent, *inputs)`, `async with flock.traced_run("name")`.

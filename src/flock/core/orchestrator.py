@@ -111,6 +111,7 @@ class Flock(metaclass=AutoTracedMeta):
         decision_rate_limit: str | None = None,
         model_prices: Mapping[str, PriceLike] | None = None,
         endpoints: Mapping[str, Endpoint] | None = None,
+        max_follows: int = 20,
     ) -> None:
         """Initialize the Flock orchestrator for blackboard-based agent coordination.
 
@@ -139,6 +140,8 @@ class Flock(metaclass=AutoTracedMeta):
             endpoints: The systems sinks deliver to, by name, as
                 ``{"myapp": Endpoint("https://myapp.example", auth=Bearer(env=...))}``;
                 ``flock.sink(...).post("myapp:/billing")`` names one.
+            max_follows: How many artifacts a publish may name in ``follows=``
+                (default 20).
 
         Examples:
             >>> flock = Flock("openai/gpt-4.1")
@@ -161,6 +164,9 @@ class Flock(metaclass=AutoTracedMeta):
         self.decision_rate_limit = decision_rate_limit
         self._decision_budgets: dict[str, RequestBudget] = {}
         self.endpoints: dict[str, Endpoint] = dict(endpoints or {})
+        if max_follows < 1:
+            raise ValueError(f"max_follows must be at least 1, got {max_follows}")
+        self.max_follows = max_follows
 
         # Phase 3: Initialize all components using OrchestratorInitializer
         components = OrchestratorInitializer.initialize_components(
@@ -1156,8 +1162,13 @@ class Flock(metaclass=AutoTracedMeta):
         tags: set[str] | None = None,
         is_dashboard: bool = False,
         schedule_immediately: bool = True,
+        follows: Sequence[UUID | str] | None = None,
     ) -> Artifact:
         """Publish an artifact to the blackboard (event-driven).
+
+        ``follows`` names the artifacts this one follows (at most
+        ``max_follows``, each on the blackboard), so the dashboard draws it
+        after them: an app's next step after the decision it got.
 
         Delegates to ArtifactManager for normalization and persistence.
         """
@@ -1169,6 +1180,7 @@ class Flock(metaclass=AutoTracedMeta):
             tags=tags,
             is_dashboard=is_dashboard,
             schedule_immediately=schedule_immediately,
+            follows=follows,
         )
 
     async def review(

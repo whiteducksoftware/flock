@@ -73,7 +73,11 @@ async def test_snake_plays_one_decision_per_step_in_order(snake, monkeypatch):
     async def publish(game):
         # In process instead of over REST; the game stops after a few steps
         if game.step < steps:
-            await flock.publish(game.state(), correlation_id=game.id)
+            await flock.publish(
+                game.state(),
+                correlation_id=game.id,
+                follows=[game.answers] if game.answers else None,
+            )
 
     monkeypatch.setattr(snake, "publish", publish)
     with respx.mock() as router:
@@ -93,6 +97,11 @@ async def test_snake_plays_one_decision_per_step_in_order(snake, monkeypatch):
     assert "DeliveryFailed" not in kinds
     # The heuristic moves toward the food
     assert played.eaten >= 1
+    # Every step after the first follows the decision that led to it
+    decisions = {a.id for a in artifacts if "Decision" in a.type}
+    states = [a for a in artifacts if a.type.endswith("SnakeState")]
+    assert states[0].follows == []
+    assert all(len(s.follows) == 1 and s.follows[0] in decisions for s in states[1:])
 
 
 def sketch_png() -> bytes:
@@ -491,3 +500,20 @@ async def test_a_pause_while_a_step_waits_for_the_lock_holds_it(snake, monkeypat
     assert published == [0, 1]
     await snake.resume(game_id)
     assert published == [0, 1, 2]
+
+
+async def test_a_step_names_the_decision_it_follows_over_rest(snake):
+    game = snake.Game()
+    game.answers = "4d1e6a0c-2b8f-4c7e-9f3a-0e5b6c7d8e9f"
+
+    with respx.mock() as router:
+        route = router.post(
+            f"http://127.0.0.1:{snake.FLOCK_PORT}/api/v1/artifacts"
+        ).mock(return_value=httpx.Response(200, json={"status": "accepted"}))
+        await snake.publish(game)
+        game.answers = None
+        await snake.publish(game)
+
+    first, second = (json.loads(call.request.content) for call in route.calls)
+    assert first["follows"] == ["4d1e6a0c-2b8f-4c7e-9f3a-0e5b6c7d8e9f"]
+    assert "follows" not in second  # the first step follows nothing
