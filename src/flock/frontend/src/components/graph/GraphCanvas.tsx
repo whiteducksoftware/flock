@@ -140,7 +140,11 @@ const GraphCanvas: React.FC = () => {
         scheduleDebouncedAutoLayout(
           autoLayoutDebounceRef,
           () => {
-            if (useUIStore.getState().unfoldedNodeId || !cardsResized(laidOutRef.current, cardSizes)) return;
+            if (useUIStore.getState().unfoldedNodeId) return;
+            // Cards no layout placed (Auto-arrange switched on, a board from saved positions): their sizes now are the baseline
+            const laidOut = (laidOutRef.current ??= {});
+            for (const [id, size] of cardSizes) laidOut[id] ??= size;
+            if (!cardsResized(laidOut, cardSizes)) return;
             applyLayoutRef.current(latestAutoLayoutModeRef.current, { updateStoredMode: false });
           },
           RESIZE_LAYOUT_DELAY_MS,
@@ -192,6 +196,11 @@ const GraphCanvas: React.FC = () => {
   // A new layout glides there; declared before useUnfoldLayout, so an unfold
   // finishes the glide before it makes room
   const glideTo = useLayoutGlide();
+
+  // Switched on with no layout yet: the cards' sizes now are what a resize compares with (#655)
+  useEffect(() => {
+    if (autoLayoutEnabled && !laidOutRef.current) laidOutRef.current = collectRenderedNodeDimensions();
+  }, [autoLayoutEnabled, collectRenderedNodeDimensions]);
 
   // Generic layout handler (manual + auto-layout)
   const applyLayout = useCallback(

@@ -740,6 +740,33 @@ describe('AgentNode', () => {
     }
   });
 
+  it('lets go of the opening when the card shrinks again before it ended (#655)', () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ runs: [] }))));
+    const cancel = vi.fn();
+    (HTMLElement.prototype as any).animate = vi.fn(() => ({ cancel, onfinish: null }));
+    let height = 200;
+    const tall = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(() => height);
+    try {
+      const props = createNodeProps({ name: 'test-agent', status: 'idle', subscriptions: ['app.Ticket'] });
+      const view = (count: number) => (
+        <ReactFlowProvider>
+          <AgentNode {...props} data={{ ...props.data, recvCount: count }} />
+        </ReactFlowProvider>
+      );
+      const { rerender } = render(view(1));
+      height = 260;
+      rerender(view(2));
+      height = 200;
+      rerender(view(3));
+
+      expect(cancel).toHaveBeenCalled();
+    } finally {
+      tall.mockRestore();
+      delete (HTMLElement.prototype as any).animate;
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('opens nothing when Auto-arrange is off: the board does not make room (#655)', () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ runs: [] }))));
     const animate = vi.fn();
