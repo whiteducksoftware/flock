@@ -4,7 +4,8 @@ The range from ``start`` to ``end`` is split into ``buckets`` equal buckets;
 an artifact on an edge counts in the later bucket, and one created exactly at
 ``end`` in the last. Buckets are computed in whole microseconds, as the SQLite
 store does in SQL, so every store puts an artifact in the same bucket. Workflow
-errors are counted a second time, on their own, so the timeline can mark them.
+errors and failed sink deliveries are counted a second time, on their own, so
+the timeline can mark them.
 """
 
 from __future__ import annotations
@@ -30,11 +31,15 @@ def too_wide(start: datetime, end: datetime, buckets: int) -> bool:
     return (as_utc(end) - as_utc(start)) // MICROSECOND * buckets > _MAX_PRODUCT
 
 
-def workflow_error_type() -> str:
-    """The registered type name of ``WorkflowError``."""
+def error_types() -> tuple[str, ...]:
+    """The registered type names of ``WorkflowError`` and ``DeliveryFailed``."""
     from flock.models.system_artifacts import WorkflowError
+    from flock.sinks.models import DeliveryFailed
 
-    return type_registry.name_for(WorkflowError)
+    return (
+        type_registry.name_for(WorkflowError),
+        type_registry.name_for(DeliveryFailed),
+    )
 
 
 def bucket_of(
@@ -52,10 +57,10 @@ def bucket_of(
 def bucket_artifacts(
     artifacts: Iterable[Artifact], start: datetime, end: datetime, buckets: int
 ) -> tuple[list[int], list[int]]:
-    """Artifacts and workflow errors per bucket."""
+    """Artifacts and errors per bucket."""
     counts = [0] * buckets
     errors = [0] * buckets
-    error_type = workflow_error_type()
+    errors_of = error_types()
     for artifact in artifacts:
         index = bucket_of(artifact.created_at, start, end, buckets)
         if index is None:
@@ -63,7 +68,7 @@ def bucket_artifacts(
         counts[index] += 1
         # Resolved like the SQLite store's canonical_type
         resolved = TypeResolutionHelper.safe_resolve(type_registry, artifact.type)
-        if resolved == error_type:
+        if resolved in errors_of:
             errors[index] += 1
     return counts, errors
 
@@ -73,6 +78,6 @@ __all__ = [
     "MICROSECOND",
     "bucket_artifacts",
     "bucket_of",
+    "error_types",
     "too_wide",
-    "workflow_error_type",
 ]

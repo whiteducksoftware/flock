@@ -185,6 +185,12 @@ class AgentScheduler:
         self._tasks.add(task)
         self._task_meta[task] = (agent.name, task_id)
         task.add_done_callback(self._on_task_done)
+        # A sink's engine keeps its deliveries in scheduled order per
+        # correlation: the run takes its turn now, before it awaits anything
+        for engine in agent.engines:
+            reserve = getattr(engine, "_reserve_turn", None)
+            if callable(reserve):
+                reserve(artifacts, task)
         self._activity.set()
         return task
 

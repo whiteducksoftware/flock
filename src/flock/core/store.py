@@ -206,8 +206,9 @@ class BlackboardStore:
     async def artifact_histogram(
         self, filters: FilterConfig, *, buckets: int
     ) -> tuple[list[int], list[int]]:
-        """Artifacts and workflow errors per time bucket, from ``filters.start``
-        to ``filters.end`` in ``buckets`` equal steps."""
+        """Artifacts and errors (workflow errors, failed deliveries) per time
+        bucket, from ``filters.start`` to ``filters.end`` in ``buckets`` equal
+        steps."""
         from flock.storage.histogram import bucket_artifacts
 
         _check_histogram_range(filters, buckets)
@@ -754,8 +755,8 @@ class SQLiteBlackboardStore(BlackboardStore):
     async def artifact_histogram(  # type: ignore[override]
         self, filters: FilterConfig, *, buckets: int
     ) -> tuple[list[int], list[int]]:
-        """Artifacts and workflow errors per time bucket, grouped in SQL."""
-        from flock.storage.histogram import EPOCH, MICROSECOND, workflow_error_type
+        """Artifacts and errors per time bucket, grouped in SQL."""
+        from flock.storage.histogram import EPOCH, MICROSECOND, error_types
 
         _check_histogram_range(filters, buckets)
         start = as_utc(filters.start)
@@ -774,7 +775,7 @@ class SQLiteBlackboardStore(BlackboardStore):
                         ELSE 0 END
                   - ?) * ? / ?) AS bucket,
                 COUNT(*) AS artifacts,
-                SUM(CASE WHEN COALESCE(canonical_type, type) = ? THEN 1 ELSE 0 END)
+                SUM(CASE WHEN COALESCE(canonical_type, type) IN (?, ?) THEN 1 ELSE 0 END)
                     AS errors
             FROM artifacts
             {where_clause}
@@ -786,7 +787,7 @@ class SQLiteBlackboardStore(BlackboardStore):
                 (start - EPOCH) // MICROSECOND,
                 buckets,
                 span,
-                workflow_error_type(),
+                *error_types(),
                 *params,
             ),
         )
