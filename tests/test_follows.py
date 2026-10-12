@@ -172,7 +172,9 @@ def test_a_rest_publish_that_follows_nothing_known_is_a_400(server, request):
 
 def test_the_artifact_list_shows_what_each_follows(component):
     _, client = component
-    client.post("/api/v1/artifacts", json={"type": "FollowsStep", "payload": {"step": 0}})
+    client.post(
+        "/api/v1/artifacts", json={"type": "FollowsStep", "payload": {"step": 0}}
+    )
     first = client.get("/api/v1/artifacts").json()["items"][0]
     client.post(
         "/api/v1/artifacts",
@@ -208,7 +210,11 @@ def test_an_upload_with_follows_that_is_no_list_is_a_400(component):
 
     response = client.post(
         "/api/v1/artifacts/upload",
-        data={"type": "FollowsSketch", "payload": '{"stroke": 1}', "follows": "not json"},
+        data={
+            "type": "FollowsSketch",
+            "payload": '{"stroke": 1}',
+            "follows": "not json",
+        },
         files={"image": ("sketch.png", _png(), "image/png")},
     )
 
@@ -233,3 +239,39 @@ async def test_the_board_draws_an_arrow_from_what_an_artifact_follows():
 
     arrows = {(edge.source, edge.target) for edge in snapshot.edges}
     assert (str(first.id), str(second.id)) in arrows
+
+
+async def test_a_refused_publish_leaves_a_stored_artifact_as_it_was():
+    flock = Flock()
+    first = await flock.publish(FollowsStep(step=0))
+    second = await flock.publish(FollowsStep(step=1), follows=[first.id])
+
+    with pytest.raises(ValueError):
+        await flock.publish(second, follows=["bad-id"])
+
+    assert (await flock.store.get(second.id)).follows == [first.id]
+
+
+def test_a_rest_publish_over_the_limit_reads_nothing(component, monkeypatch):
+    flock, client = component
+    reads = 0
+    original = flock.store.get
+
+    async def counting(artifact_id):
+        nonlocal reads
+        reads += 1
+        return await original(artifact_id)
+
+    monkeypatch.setattr(flock.store, "get", counting)
+    response = client.post(
+        "/api/v1/artifacts",
+        json={
+            "type": "FollowsStep",
+            "payload": {"step": 1},
+            "follows": [str(uuid4()) for _ in range(21)],
+        },
+    )
+
+    assert response.status_code == 400
+    assert "at most 20" in response.json()["detail"]
+    assert reads == 0

@@ -24,6 +24,28 @@ if TYPE_CHECKING:
     from flock.orchestrator import AgentScheduler
 
 
+def normalize_follows(follows: Sequence[UUID | str], limit: int) -> list[UUID]:
+    """The IDs an artifact follows as UUIDs, each once, at most ``limit``.
+
+    Raises ValueError for a malformed ID or too many; checks nothing on the
+    blackboard, so callers can bound their own lookups with it first.
+    """
+    ids: list[UUID] = []
+    for value in follows:
+        try:
+            artifact_id = value if isinstance(value, UUID) else UUID(str(value))
+        except ValueError:
+            raise ValueError(f"follows: {value!r} is not an artifact ID") from None
+        if artifact_id not in ids:
+            ids.append(artifact_id)
+            if len(ids) > limit:
+                raise ValueError(
+                    f"follows names more than {limit} artifacts; at most {limit} "
+                    "(Flock(max_follows=...))"
+                )
+    return ids
+
+
 class ArtifactManager:
     """Manages artifact publishing and persistence.
 
@@ -199,10 +221,12 @@ class ArtifactManager:
                 "Expected BaseModel, dict, or Artifact."
             )
 
-        if follows is not None:
-            artifact.follows = list(follows)  # type: ignore[assignment]
-        if artifact.follows:
-            artifact.follows = await self._checked_follows(artifact.follows)
+        # Checked before it is set: an artifact the store already holds keeps
+        # its links when the publish is refused
+        requested = artifact.follows if follows is None else follows
+        checked = await self._checked_follows(requested) if requested else []
+        if follows is not None or checked != artifact.follows:
+            artifact.follows = checked
 
         if schedule_immediately:
             await self.persist_and_schedule(artifact)
@@ -213,23 +237,12 @@ class ArtifactManager:
 
     async def _checked_follows(self, follows: Sequence[UUID | str]) -> list[UUID]:
         """The IDs an artifact follows, each once and on the blackboard."""
-        ids: list[UUID] = []
-        for value in follows:
-            try:
-                artifact_id = value if isinstance(value, UUID) else UUID(str(value))
-            except ValueError:
-                raise ValueError(f"follows: {value!r} is not an artifact ID") from None
-            if artifact_id not in ids:
-                ids.append(artifact_id)
-        limit = getattr(self._orchestrator, "max_follows", 20)
-        if len(ids) > limit:
-            raise ValueError(
-                f"follows names {len(ids)} artifacts; at most {limit} "
-                "(Flock(max_follows=...))"
-            )
+        ids = normalize_follows(follows, getattr(self._orchestrator, "max_follows", 20))
         for artifact_id in ids:
             if await self._store.get(artifact_id) is None:
-                raise ValueError(f"follows: no artifact {artifact_id} on the blackboard")
+                raise ValueError(
+                    f"follows: no artifact {artifact_id} on the blackboard"
+                )
         return ids
 
     async def publish_many(

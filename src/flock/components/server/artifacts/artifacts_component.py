@@ -31,6 +31,7 @@ from flock.core.visibility import (
     PublicVisibility,
     Visibility,
 )
+from flock.orchestrator.artifact_manager import normalize_follows
 from flock.registry import type_registry
 from flock.storage.artifact_aggregator import ArtifactAggregator
 from flock.storage.histogram import bucket_artifacts, too_wide
@@ -313,12 +314,13 @@ class ArtifactsComponent(ServerComponent):
         not there. Flock checks the IDs and the limit."""
         if not follows or not self.config.enforce_visibility:
             return follows
+        # Parsed, each once and within the limit before any lookup
+        try:
+            ids = normalize_follows(follows, getattr(orchestrator, "max_follows", 20))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from None
         identity = self._resolve_identity(request)
-        for value in follows:
-            try:
-                artifact_id = UUID(str(value))
-            except ValueError:
-                continue  # Flock refuses it with its own message
+        for artifact_id in ids:
             artifact = await orchestrator.store.get(artifact_id)
             if artifact is None:
                 continue
@@ -332,7 +334,7 @@ class ArtifactsComponent(ServerComponent):
                     status_code=400,
                     detail=f"follows: no artifact {artifact_id} on the blackboard",
                 )
-        return follows
+        return [str(artifact_id) for artifact_id in ids]
 
     async def _publish_upload(
         self, form, orchestrator, request: Request
