@@ -216,7 +216,8 @@ PAGE = """<!doctype html>
   .side { display: flex; flex-direction: column; gap: 12px; min-width: 300px; }
   /* Room for the five bars and the status line from the start: the button below keeps its place */
   #bars { min-height: calc(5 * 1.3em); }
-  .bar { display: grid; grid-template-columns: 130px 1fr 44px; gap: 10px; align-items: center; font-family: monospace; height: 1.3em; }
+  .bar { display: grid; grid-template-columns: 16ch 1fr 44px; gap: 10px; align-items: center; font-family: monospace; height: 1.3em; }
+  .bar > span:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #status { min-height: 1.6em; white-space: nowrap; }
   .track { height: 8px; background: #23262b; border-radius: 4px; overflow: hidden; }
   .fill { display: block; height: 100%; background: #7ba8f5; }
