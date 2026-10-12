@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Node, XYPosition } from '@xyflow/react';
 import { useGraphStore } from '../../store/graphStore';
-import { afterGlide, glideNodes } from './glideNodes';
+import { afterGlide, glideNodes, movedByHand } from './glideNodes';
 
 const card = (id: string, x: number, y: number): Node => ({ id, type: 'agent', position: { x, y }, data: {} });
 const positions = () => Object.fromEntries(useGraphStore.getState().nodes.map((node) => [node.id, node.position]));
@@ -113,6 +113,16 @@ describe('glideNodes', () => {
     cancel();
     vi.advanceTimersByTime(400);
     expect(fit).not.toHaveBeenCalled();
+  });
+
+  it('leaves a node moved by hand where it is (the arrow keys, a drag between two frames)', () => {
+    glideNodes(to([['intake', { x: 100, y: 0 }], ['triage', { x: 400, y: 0 }]]));
+    vi.advanceTimersByTime(50);
+    movedByHand('intake');
+    drag('intake', { x: 10, y: 10 }, false);
+    vi.advanceTimersByTime(300);
+
+    expect(positions()).toEqual({ intake: { x: 10, y: 10 }, triage: { x: 400, y: 0 } });
   });
 });
 

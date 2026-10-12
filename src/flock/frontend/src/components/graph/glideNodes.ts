@@ -9,8 +9,8 @@ export interface Glide {
   finish: () => void;
 }
 
-// The board has one glide at a time
-let running: Glide | null = null;
+// The board has one glide at a time; `claim` leaves a node to the person moving it
+let running: (Glide & { claim: (id: string) => void }) | null = null;
 // What waits for the nodes to keep still (a fit, centring on a node)
 const waiting: (() => void)[] = [];
 
@@ -21,6 +21,14 @@ const waiting: (() => void)[] = [];
  * way (#650). A glide that takes over meanwhile is waited for too. Returns a
  * function that drops it, if it still waits.
  */
+/**
+ * A node was moved by hand (dragged, the arrow keys): the glide going on
+ * leaves it where it is, also when React Flow's `dragging` flag missed it.
+ */
+export function movedByHand(id: string): void {
+  running?.claim(id);
+}
+
 export function afterGlide(run: () => void): () => void {
   if (!running) {
     run();
@@ -71,7 +79,8 @@ export function glideNodes(targets: Map<string, XYPosition>): Glide {
       settled();
     }
   };
-  const glide: Glide = {
+  const glide = {
+    claim: (id: string) => dragged.add(id),
     stop: end,
     finish: () => {
       if (over) return;

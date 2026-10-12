@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { ReactFlowProvider, useStoreApi } from '@xyflow/react';
 import { useLayoutEffect } from 'react';
 import CanvasDock from './CanvasDock';
@@ -47,6 +47,29 @@ describe('CanvasDock', () => {
 
       act(() => void vi.advanceTimersByTime(300));
       expect(view.fitView).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+      useGraphStore.setState(useGraphStore.getInitialState(), true);
+    }
+  });
+
+  it('drops a fit that waits for a glide when a zoom comes first, or the dock goes', () => {
+    vi.useFakeTimers();
+    try {
+      useGraphStore.setState({ nodes: [{ id: 'a', type: 'agent', position: { x: 0, y: 0 }, data: {} }] });
+      renderDock();
+      glideNodes(new Map([['a', { x: 900, y: 0 }]]));
+      fireEvent.click(screen.getByRole('button', { name: 'Fit to screen' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
+      act(() => void vi.advanceTimersByTime(300));
+      expect(view.zoomIn).toHaveBeenCalledOnce();
+      expect(view.fitView).not.toHaveBeenCalled();
+
+      glideNodes(new Map([['a', { x: 0, y: 0 }]]));
+      fireEvent.click(screen.getByRole('button', { name: 'Fit to screen' }));
+      cleanup();
+      act(() => void vi.advanceTimersByTime(300));
+      expect(view.fitView).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
       useGraphStore.setState(useGraphStore.getInitialState(), true);

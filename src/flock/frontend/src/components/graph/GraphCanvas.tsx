@@ -42,7 +42,7 @@ import { cardSizes } from './cardSizes';
 import { fromControl } from './nodeClick';
 import { useUnfoldLayout } from './useUnfoldLayout';
 import { useLayoutGlide } from './useLayoutGlide';
-import { afterGlide } from './glideNodes';
+import { afterGlide, movedByHand } from './glideNodes';
 
 const GraphCanvas: React.FC = () => {
   const {
@@ -127,9 +127,10 @@ const GraphCanvas: React.FC = () => {
       const updatedNodes = applyNodeChanges(changes, nodes);
       useGraphStore.setState({ nodes: updatedNodes });
 
-      // Update position in store for persistence
+      // Update position in store for persistence; a glide going on leaves the node to the hand that moves it
       changes.forEach((change) => {
         if (change.type === 'position' && change.position) {
+          movedByHand(change.id);
           updateNodePosition(change.id, change.position);
         }
       });

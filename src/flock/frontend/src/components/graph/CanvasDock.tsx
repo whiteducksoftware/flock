@@ -32,6 +32,9 @@ const CanvasDock: React.FC<CanvasDockProps> = ({ layout, autoArrange, onLayout, 
   const zoom = useStore((state) => state.transform[2]);
   const [open, setOpen] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
+  // A fit that waits for a glide to end; a zoom or the dock going drops it
+  const fitting = useRef<() => void>(() => {});
+  useEffect(() => () => fitting.current(), []);
   const menu = useRef<HTMLDivElement>(null);
   const current = LAYOUTS.find((entry) => entry.mode === layout) ?? LAYOUTS[0]!;
 
@@ -77,13 +80,29 @@ const CanvasDock: React.FC<CanvasDockProps> = ({ layout, autoArrange, onLayout, 
 
   return (
     <div role="toolbar" aria-label="Canvas" className={`nodrag nopan ${styles.dock}`}>
-      <button type="button" className="btn icon ghost" aria-label="Zoom out" onClick={() => zoomOut({ duration: motionMs(200) })}>
+      <button
+        type="button"
+        className="btn icon ghost"
+        aria-label="Zoom out"
+        onClick={() => {
+          fitting.current();
+          zoomOut({ duration: motionMs(200) });
+        }}
+      >
         <Icon name="minus" size={15} />
       </button>
       <span className={`mono num ${styles.zoom}`} aria-label="Zoom level">
         {Math.round(zoom * 100)}%
       </span>
-      <button type="button" className="btn icon ghost" aria-label="Zoom in" onClick={() => zoomIn({ duration: motionMs(200) })}>
+      <button
+        type="button"
+        className="btn icon ghost"
+        aria-label="Zoom in"
+        onClick={() => {
+          fitting.current();
+          zoomIn({ duration: motionMs(200) });
+        }}
+      >
         <Icon name="plus" size={15} />
       </button>
       <span className={styles.divider} />
@@ -91,7 +110,10 @@ const CanvasDock: React.FC<CanvasDockProps> = ({ layout, autoArrange, onLayout, 
         type="button"
         className="btn icon ghost"
         aria-label="Fit to screen"
-        onClick={() => afterGlide(() => void fitView({ padding: 0.1, duration: motionMs(300) }))}
+        onClick={() => {
+          fitting.current();
+          fitting.current = afterGlide(() => void fitView({ padding: 0.1, duration: motionMs(300) }));
+        }}
       >
         <Icon name="fit" size={15} />
       </button>
