@@ -23,6 +23,7 @@ import { cardSizes } from './cardSizes';
 import { AggregatorInfo, CoverageSummary, DeciderInfo, DeciderOptions } from './DecisionDisplay';
 import { lastText, type SinkInfo } from '../sinks/deliveries';
 import { count } from './unfold/format';
+import { prefersLessMotion } from './animatePositions';
 import UnfoldedAgent from './unfold/UnfoldedAgent';
 import styles from './AgentNode.module.css';
 
@@ -256,6 +257,16 @@ const AgentNode = memo(({ id, data, selected }: NodeProps) => {
   // Making room for the unfolded node starts from its card's size
   useLayoutEffect(() => {
     if (card.current) cardSizes.set(id, { width: card.current.offsetWidth, height: card.current.offsetHeight });
+  });
+
+  // A card that comes back from being unfolded fades in instead of popping (#644)
+  const wasUnfolded = useRef(unfolded);
+  useLayoutEffect(() => {
+    const element = card.current;
+    if (wasUnfolded.current && !unfolded && element && !prefersLessMotion() && typeof element.animate === 'function') {
+      element.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'ease-out' });
+    }
+    wasUnfolded.current = unfolded;
   });
 
   if (chip) {
