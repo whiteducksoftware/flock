@@ -227,4 +227,4 @@ Also decided:
 - **Tokens and cost per run** (Focus › Runs, Overview) are required. The backend records LiteLLM usage per run and counts the usage that decision providers report; cost comes from LiteLLM's price table, with configurable prices for models it does not know. This lands on `main` as its own PR, before item 4.
 - **A demo flock** matching the mockups (ticket triage, `FakeDecider`, a scripted streaming engine, no API keys) produces every state shown here, for screenshots and the A/B comparison. It lands on `main` as its own PR.
 - **CI** runs on pull requests into `ui-rework`.
-- **Screenshots** of each PR, in both themes, go into `screenshots/` in this folder; they are removed before `ui-rework` merges into `main`.
+- **Screenshots** of each PR, in both themes, were kept in `screenshots/` in this folder while the rework ran on `ui-rework`; they were removed before it merged into `main`, and each PR links its screenshots by commit.
