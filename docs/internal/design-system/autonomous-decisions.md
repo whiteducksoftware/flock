@@ -291,3 +291,16 @@ Each entry says what was decided, why, and where it landed.
 - **Coral for a failed delivery, nothing new for a delivered one:** coral is the design's signal for failure; a delivery that went through is the normal case and keeps the card neutral, with a check before the answer.
 - **A run whose delivery failed says so in its lane header** (coral, *· 1 delivery failed*, an error mark instead of the check): the run is done, but not everything reached its target. Workflow errors are not marked this way yet; that is a change of its own.
 - **The timeline needed no change:** the backend counts `DeliveryFailed` as an error in the histogram (#618 backend), and the dock marks errors.
+
+### #618 Demos (Snake and Quick, Draw!)
+
+- **Models (asked):** `azure/decision-1` rejects images (`400 unrecognized_request_argument: images`), and so does `jev/jev-latest`; Snake sends text to `azure/decision-1`, Quick, Draw! sends the sketch to `openai/gpt-6-luna`.
+- **A REST publish names its run** (#633): the games publish every step and stroke over REST, and without a `correlation_id` each publish was a run of its own.
+- **Snake's state is what each move leads to, not the board:** with the board grid and the coordinates in its state, `azure/decision-1` turned left 163 times in 167 steps; with only `moves` (wall, body, food, or empty and the distance to the food) it chose the best move in 6 of 6 probes and played 22 food in 163 steps. The game page draws the board from its own state.
+- **A snake that circles starves** after 4 × 100 steps without food, so a game always ends.
+- **An unsure move still moves** (the best guess), and the threshold is 0.4 for three options.
+- **Quick, Draw! gets it once the model is sure of what was asked for:** a sure wrong guess (a circle with one ray is a clock at 0.81) is shown as "I see a clock…", and drawing goes on.
+- **The page posts to its own app, which uploads to Flock:** no cross-origin requests from the page to the dashboard's port.
+- **A guess reports the stroke it answers, read back over REST** (review): the decision's `subject_ids` name its sketch, and `GET /api/v1/artifacts/{id}` has its stroke. Counting the guesses that arrived went wrong when a guess failed or a delivery was retried; the app shows each decision once. The guesser runs one sketch at a time, so guesses also arrive in stroke order.
+- **Snake plays a retried delivery once** (review): it remembers the decisions it played and only publishes the step again.
+- **`--fake` stand-ins are providers of the example**, not `FakeDecider`: Snake's moves toward the food from `moves`, the drawing's grows surer of the prompt stroke by stroke. `tests/test_sink_demos.py` plays both loops with them, the sink delivering into the app's handlers.
