@@ -65,6 +65,9 @@ _CLOCK_MARGIN = timedelta(minutes=1)
 class GraphAssembler(metaclass=AutoTracedMeta):
     """Build graph snapshots for dashboard consumption."""
 
+    # Traced at FLOCK_TRACE_LEVEL=all only: the dashboard serving itself (#601)
+    __trace_level__ = "all"
+
     def __init__(
         self,
         store: BlackboardStore,

@@ -35,6 +35,9 @@ class CircuitBreakerComponent(OrchestratorComponent):
         ...         component.max_iterations = 500
     """
 
+    # Traced at FLOCK_TRACE_LEVEL=all only: a built-in orchestrator component (#601)
+    __trace_level__ = "all"
+
     priority: int = 10  # Run early (before dedup at 20)
     name: str = "circuit_breaker"
     max_iterations: int = 1000  # Default from orchestrator

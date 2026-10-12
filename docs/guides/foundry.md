@@ -186,7 +186,7 @@ then they are cancelled. Interrupted work is never reported as successful.
 | Protocol | Container Responses protocol `2.0.0` (1.0.0 is blocked by the platform) |
 | Runtime | Linux AMD64 image, plain HTTP on port 8088 |
 | Service status | Hosted agents are generally available; long-running resilience (`resilient_background`) is preview - check [regional availability](https://learn.microsoft.com/azure/foundry/agents/concepts/hosted-agents) |
-| flock-core | ≥ 0.5.612 with the `foundry` extra (OpenTelemetry ≥ 1.43) |
+| flock-core | ≥ 0.5.700 with the `foundry` extra (OpenTelemetry ≥ 1.43) |
 | Client SDK | `azure-ai-projects` ≥ 2.5 needs `openai>=3`, which cannot share an environment with flock-core's LiteLLM; run the client elsewhere or pin `azure-ai-projects>=2.3,<2.5` |
 
 ## Not included: crash recovery

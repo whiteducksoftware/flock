@@ -47,6 +47,9 @@ class ActivationComponent(OrchestratorComponent):
         >>> # ActivationComponent will filter artifacts until condition is met
     """
 
+    # Traced at FLOCK_TRACE_LEVEL=all only: a built-in orchestrator component (#601)
+    __trace_level__ = "all"
+
     name: str = "activation"
     priority: int = 15  # After circuit breaker (10), before dedup (20)
 

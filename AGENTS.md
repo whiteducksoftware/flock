@@ -247,7 +247,7 @@ Follow [docs/patterns/error_handling.md](docs/patterns/error_handling.md) and [d
 Tracing is the fastest way to see what happened: every operation is recorded with its inputs and outputs.
 
 ```bash
-export FLOCK_AUTO_TRACE=true FLOCK_TRACE_FILE=true
+export FLOCK_AUTO_TRACE=true FLOCK_TRACE_FILE=true   # FLOCK_TRACE_LEVEL=all also traces Flock's internals
 uv run python examples/01-getting-started/01_declarative_pizza.py   # or a pytest run
 ```
 

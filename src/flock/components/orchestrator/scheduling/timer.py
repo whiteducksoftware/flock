@@ -58,6 +58,9 @@ class TimerComponent(OrchestratorComponent):
         >>> # All tasks gracefully cancelled
     """
 
+    # Traced at FLOCK_TRACE_LEVEL=all only: a built-in orchestrator component (#601)
+    __trace_level__ = "all"
+
     name: str = "timer"
     priority: int = 5  # Run before collection component (100)
 
