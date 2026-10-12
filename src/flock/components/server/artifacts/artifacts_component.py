@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import re
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
@@ -36,6 +37,10 @@ from flock.storage.histogram import bucket_artifacts, too_wide
 from flock.utils.time_utils import as_utc, format_time_span
 from flock.utils.type_resolution import TypeResolutionHelper
 from flock.utils.visibility_utils import deserialize_visibility
+
+
+# A run ID a client names: one path segment of the status route (#618)
+_RUN_ID = re.compile(r"[A-Za-z0-9._:-]{1,256}")
 
 
 class ArtifactComponentConfig(ServerComponentConfig):
@@ -306,8 +311,22 @@ class ArtifactsComponent(ServerComponent):
             name: value
             for name, value in form.multi_items()
             if isinstance(value, str)
-            and name in ("type", "payload", "visibility", "tags", "partition_key")
+            and name
+            in (
+                "type",
+                "payload",
+                "visibility",
+                "tags",
+                "partition_key",
+                "correlation_id",
+            )
         }
+        correlation_id = controls.get("correlation_id")
+        if correlation_id is not None and not _RUN_ID.fullmatch(correlation_id):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid 'correlation_id': 1 to 256 letters, digits or ._:-",
+            )
         artifact_type = controls.get("type")
         if not artifact_type:
             raise HTTPException(status_code=400, detail="'type' is required.")
@@ -343,7 +362,7 @@ class ArtifactsComponent(ServerComponent):
             payload = image_uploads.place_images(model, payload, images)
             await orchestrator.publish(
                 {"type": artifact_type, "payload": payload},
-                correlation_id=str(uuid4()),
+                correlation_id=correlation_id or str(uuid4()),
                 visibility=visibility,
                 tags=tags,
                 partition_key=controls.get("partition_key") or None,
@@ -363,8 +382,9 @@ class ArtifactsComponent(ServerComponent):
         async def publish_artifact(
             body: ArtifactPublishRequest,
         ) -> ArtifactPublishResponse:
-            # A generated correlation id ties the cascade this publish triggers
-            # together; it is artifact metadata, not payload.
+            # The correlation id ties the cascade this publish triggers together
+            # (a new one unless the caller names its run); it is artifact
+            # metadata, not payload.
             try:
                 visibility = None
                 if body.visibility is not None:
@@ -372,7 +392,7 @@ class ArtifactsComponent(ServerComponent):
                 tags = set(body.tags) if body.tags else None
                 await orchestrator.publish(
                     {"type": body.type, "payload": body.payload},
-                    correlation_id=str(uuid4()),
+                    correlation_id=body.correlation_id or str(uuid4()),
                     visibility=visibility,
                     tags=tags,
                     partition_key=body.partition_key,

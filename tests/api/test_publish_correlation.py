@@ -1,0 +1,218 @@
+"""A REST publish can name its correlation: one game, one drawing, one run (#618)."""
+
+from __future__ import annotations
+
+import io
+
+import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+from PIL import Image as PILImage
+from pydantic import BaseModel
+
+from flock import Flock
+from flock.components.server.artifacts.artifacts_component import (
+    ArtifactComponentConfig,
+    ArtifactsComponent,
+)
+from flock.core.image import Image
+from flock.registry import flock_type
+
+
+@flock_type
+class CorrelatedMove(BaseModel):
+    step: int
+
+
+@flock_type
+class CorrelatedSketch(BaseModel):
+    stroke: int
+    image: Image
+
+
+def _png() -> bytes:
+    buffer = io.BytesIO()
+    PILImage.new("RGB", (16, 16), "red").save(buffer, "PNG")
+    return buffer.getvalue()
+
+
+@pytest.fixture
+def component():
+    """The artifacts server component, as ``flock.serve()`` mounts it."""
+    flock = Flock()
+    app = FastAPI()
+    ArtifactsComponent(
+        name="artifacts", config=ArtifactComponentConfig(prefix="/api/v1/")
+    ).register_routes(app, flock)
+    return flock, TestClient(app)
+
+
+@pytest.fixture
+def service():
+    from flock.api.service import BlackboardHTTPService
+
+    flock = Flock()
+    return flock, TestClient(BlackboardHTTPService(flock).app)
+
+
+@pytest.mark.parametrize("server", ["component", "service"])
+async def test_a_publish_joins_the_correlation_it_names(server, request):
+    flock, client = request.getfixturevalue(server)
+
+    for step in (1, 2):
+        response = client.post(
+            "/api/v1/artifacts",
+            json={
+                "type": "CorrelatedMove",
+                "payload": {"step": step},
+                "correlation_id": "game-7",
+            },
+        )
+        assert response.status_code == 200, response.text
+
+    assert [a.correlation_id for a in await flock.store.list()] == ["game-7", "game-7"]
+
+
+@pytest.mark.parametrize("server", ["component", "service"])
+async def test_without_one_every_publish_starts_its_own(server, request):
+    flock, client = request.getfixturevalue(server)
+
+    for step in (1, 2):
+        client.post(
+            "/api/v1/artifacts",
+            json={"type": "CorrelatedMove", "payload": {"step": step}},
+        )
+
+    first, second = (a.correlation_id for a in await flock.store.list())
+    assert first and second and first != second
+
+
+async def test_an_upload_joins_the_correlation_it_names(component):
+    flock, client = component
+
+    response = client.post(
+        "/api/v1/artifacts/upload",
+        data={
+            "type": "CorrelatedSketch",
+            "payload": '{"stroke": 1}',
+            "correlation_id": "drawing-3",
+        },
+        files={"image": ("sketch.png", _png(), "image/png")},
+    )
+
+    assert response.status_code == 200, response.text
+    (artifact,) = await flock.store.list()
+    assert artifact.correlation_id == "drawing-3"
+
+
+@pytest.mark.parametrize("correlation_id", ["", "x" * 257])
+def test_a_correlation_id_is_not_empty_nor_huge(component, correlation_id):
+    _, client = component
+
+    response = client.post(
+        "/api/v1/artifacts",
+        json={
+            "type": "CorrelatedMove",
+            "payload": {"step": 1},
+            "correlation_id": correlation_id,
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_an_upload_with_an_empty_correlation_id_is_rejected(component):
+    _, client = component
+
+    response = client.post(
+        "/api/v1/artifacts/upload",
+        data={
+            "type": "CorrelatedSketch",
+            "payload": '{"stroke": 1}',
+            "correlation_id": "",
+        },
+        files={"image": ("sketch.png", _png(), "image/png")},
+    )
+
+    assert response.status_code == 400
+    assert "correlation_id" in response.json()["detail"]
+
+
+@pytest.mark.parametrize("correlation_id", ["game/7", "game 7", "spiel?7"])
+def test_a_correlation_id_stays_one_path_segment(component, correlation_id):
+    """So /api/v1/correlations/{correlation_id}/status can find the run."""
+    _, client = component
+
+    response = client.post(
+        "/api/v1/artifacts",
+        json={
+            "type": "CorrelatedMove",
+            "payload": {"step": 1},
+            "correlation_id": correlation_id,
+        },
+    )
+
+    assert response.status_code == 422
+
+
+async def test_webhooks_of_one_run_count_on_across_its_requests():
+    """Every request into the run continues its sequence; another run starts at 1."""
+    from unittest.mock import AsyncMock, Mock
+
+    from flock.api.service import BlackboardHTTPService
+    from flock.api.webhooks import get_webhook_context
+
+    sequences: list[tuple[str, int]] = []
+
+    async def publish(*_, **__):
+        # What the delivery component does for the artifact it delivers
+        context = get_webhook_context()
+        sequences.append((context.correlation_id, context.next_sequence()))
+
+    orchestrator = Mock()
+    orchestrator.publish = AsyncMock(side_effect=publish)
+    client = TestClient(BlackboardHTTPService(orchestrator).app)
+    webhook = {"url": "https://hooks.test/flock"}
+
+    for run in ("game-1", "game-1", "game-2", "game-1"):
+        response = client.post(
+            "/api/v1/artifacts",
+            json={
+                "type": "CorrelatedMove",
+                "payload": {"step": 1},
+                "correlation_id": run,
+                "webhook": webhook,
+            },
+        )
+        assert response.status_code == 200, response.text
+
+    assert sequences == [("game-1", 1), ("game-1", 2), ("game-2", 1), ("game-1", 3)]
+
+
+def test_a_run_keeps_counting_after_its_counter_was_evicted():
+    from flock.api.webhooks import RunSequences, WebhookContext
+
+    sequences = RunSequences(limit=2)
+    context = WebhookContext(
+        url="https://hooks.test",
+        secret=None,
+        correlation_id="a",
+        run_sequences=sequences,
+    )
+    assert [context.next_sequence(), context.next_sequence()] == [1, 2]
+
+    sequences.next("b")
+    sequences.next("c")  # evicts "a"
+
+    assert context.next_sequence() == 3
+    assert len(sequences) == 2
+
+
+def test_the_limit_holds_however_many_runs_arrive():
+    from flock.api.webhooks import RunSequences
+
+    sequences = RunSequences(limit=3)
+    for run in range(10):
+        sequences.next(f"run-{run}")
+
+    assert len(sequences) == 3
