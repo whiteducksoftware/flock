@@ -441,7 +441,6 @@ class DashboardEventCollector(AgentComponent):
             run.error_type = error_type
             run.completed_at = datetime.now(UTC)
             run.duration_ms = duration_ms
-            event.artifacts_produced = list(run.produced_artifacts)
             self._agent_status[agent.name] = self._derived_status_locked(agent.name)
             event.agent_status = self._agent_status[agent.name]
             await self._update_agent_snapshot_locked(agent)

@@ -103,9 +103,13 @@ describe('WebSocketClient agent status', () => {
     receive(client, 'agent_completed', { agent_name: 'billing', run_id: 'r-1', correlation_id: 'c-1', agent_status: 'idle', artifacts_produced: ['a-1'] });
     expect(useGraphStore.getState().settling.get('r-1')?.published).toEqual(['a-1']);
 
+    // A failed run's outputs are not published: its lane lets go at once,
+    // also of a settling its completion event began
     start('r-2');
-    receive(client, 'agent_error', { agent_name: 'billing', run_id: 'r-2', correlation_id: 'c-1', agent_status: 'error', artifacts_produced: [] });
+    receive(client, 'agent_error', { agent_name: 'billing', run_id: 'r-2', correlation_id: 'c-1', agent_status: 'error' });
     expect(useGraphStore.getState().settling.has('r-2')).toBe(false);
+    receive(client, 'agent_error', { agent_name: 'billing', run_id: 'r-1', correlation_id: 'c-1', agent_status: 'error' });
+    expect(useGraphStore.getState().settling.has('r-1')).toBe(false);
   });
 
   it('remembers what a starting run consumed, its run and what its agent publishes', () => {

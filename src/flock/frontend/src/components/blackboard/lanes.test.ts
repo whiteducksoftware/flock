@@ -317,6 +317,23 @@ describe('lanesOf', () => {
     expect(ids(lanesOf(board, branches, runs)[0]!)).toEqual([['t10'], ['m10', 'pending:writer_a'], ['n10', 'pending:reviewer'], ['pending:writer_b']]);
   });
 
+  it('does not take a running publisher of a type for an input whose run is known (#642)', () => {
+    // reviewer waits for writer_a's draft (writer_a ended) and a note someone
+    // published from outside; writer_b writes another draft further down
+    const board = [
+      artifact('t11', 'c-11', 'app.SupportTicket', 'external', 11000),
+      artifact('m11', 'c-11', 'app.Summary', 'summarizer', 11100),
+      artifact('n11', 'c-11', 'app.Note', 'noter', 11200),
+    ];
+    const branches = [made('t11', 'm11', 'summarizer'), made('m11', 'n11', 'noter')];
+    const runs = [
+      { agent: 'writer_a', correlationId: 'c-11', artifacts: ['t11'], types: ['app.SupportTicket'], produces: ['app.Draft'], published: ['dr-a'] },
+      { agent: 'writer_b', correlationId: 'c-11', artifacts: ['n11'], types: ['app.Note'], produces: ['app.Draft'] },
+      { agent: 'reviewer', correlationId: 'c-11', artifacts: ['dr-a', 'note-x'], types: ['app.Draft', 'app.Remark'], produces: ['app.Review'] },
+    ];
+    expect(ids(lanesOf(board, branches, runs)[0]!)).toEqual([['t11'], ['m11', 'pending:writer_a'], ['n11', 'pending:reviewer'], ['pending:writer_b']]);
+  });
+
   it('names several running agents at once', () => {
     const both = [...running, { agent: 'urgency', correlationId: 'c-3', artifacts: ['t3'] }];
     expect(lanesOf(nodes, edges, both).find((each) => each.id === 'c-3')!.status.text).toBe('triage and 1 more are working');

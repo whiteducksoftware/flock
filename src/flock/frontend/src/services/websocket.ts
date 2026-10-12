@@ -334,8 +334,9 @@ export class WebSocketClient {
       if (status !== 'running') useGraphStore.getState().updateStreamingTokens(data.agent_name, []);
       // The failed run's stream is no artifact
       useGraphStore.getState().dropStreamingPreviews(data.agent_name, data.correlation_id ?? null, data.run_id ?? null);
-      // Its lane waits for what it published before it failed, if anything (#642)
-      useGraphStore.getState().endRun(data.run_id, data.artifacts_produced);
+      // A failed run's outputs are not published: its lane lets go at once,
+      // also of a settling its completion event began (#642)
+      useGraphStore.getState().endRun(data.run_id, []);
       this.endedRuns.add(data.run_id);
       // The snapshot says what failed (lastError)
       this.scheduleGraphRefresh();

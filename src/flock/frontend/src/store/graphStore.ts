@@ -120,7 +120,8 @@ interface GraphState {
   setInFlight: (runId: string, agentId: string, types: string[] | null, artifacts?: string[], correlationId?: string | null, produces?: string[]) => void;
   /**
    * A run ended: it settles until a snapshot brings what it published, and one
-   * that published nothing goes at once. Without `published` (null types to
+   * that published nothing goes at once (also from settling, a run that failed
+   * after its completion event). Without `published` (null types to
    * setInFlight) it settles until the board shows an artifact of its agent in
    * its workflow that was not there when it started.
    */
@@ -492,6 +493,10 @@ export const useGraphStore = create<GraphState>()(
           if (ended && settles) {
             const settling = new Map(state.settling);
             settling.set(runId, { ...ended, known: ended.known ?? [], published });
+            changes.settling = settling;
+          } else if (!settles && state.settling.has(runId)) {
+            const settling = new Map(state.settling);
+            settling.delete(runId);
             changes.settling = settling;
           }
           // A run that ends takes its output's tail along

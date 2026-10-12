@@ -214,8 +214,10 @@ export function lanesOf(nodes: Node[], edges: Edge[], running: RunningRun[]): La
       const absent = run.artifacts.filter((artifact) => !byId.has(artifact));
       const published = runs.filter((each) => each.published?.some((artifact) => absent.includes(artifact)));
       const claimed = new Set(published.flatMap((each) => each.published!.filter((artifact) => absent.includes(artifact))));
+      // The types it waits for that neither the board shows nor a known run publishes
       const shown = new Set(run.artifacts.filter((artifact) => byId.has(artifact)).map((artifact) => dataOf(byId.get(artifact)!).artifactType));
-      const missing = (run.types ?? []).filter((type) => !shown.has(type));
+      const known = new Set(published.flatMap((each) => each.produces ?? []));
+      const missing = (run.types ?? []).filter((type) => !shown.has(type) && !known.has(type));
       const publishing =
         claimed.size < absent.length
           ? runs.filter(
