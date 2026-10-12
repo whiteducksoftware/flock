@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useNodesInitialized, useReactFlow, useStore, type Viewport } from '@xyflow/react';
 import { motionMs } from './animatePositions';
+import { afterGlide } from './glideNodes';
 
 /**
  * The expanded timeline dock leaves the board a strip, which may show none
@@ -25,6 +26,8 @@ export function useDockViewport(
   const due = useRef<number | null>(null);
   // What the fit shows: the nodes in view when the dock opened, if asked (a large board), else all
   const shown = useRef<string[]>([]);
+  // A fit that waits for a glide to end; a collapse or unmount drops it
+  const pendingFit = useRef<() => void>(() => {});
 
   // Mounted with the dock expanded: there is no view of the full board to save yet
   // (collapsing would bring back React Flow's default); the fit is the caller's choice
@@ -47,6 +50,7 @@ export function useDockViewport(
       return;
     }
     due.current = null;
+    pendingFit.current();
     if (saved.current) {
       setViewport(saved.current, { duration: motionMs(200) });
       saved.current = null;
@@ -61,8 +65,9 @@ export function useDockViewport(
     if (height === due.current && saved.current !== null) return;
     due.current = null;
     const nodes = shown.current.map((id) => ({ id }));
-    fitView({ duration: motionMs(200), ...(nodes.length > 0 && { nodes, maxZoom: 1 }) });
+    pendingFit.current = afterGlide(() => void fitView({ duration: motionMs(200), ...(nodes.length > 0 && { nodes, maxZoom: 1 }) }));
   }, [dockOpen, height, measured, fitView]);
+  useEffect(() => () => pendingFit.current(), []);
 
   // The view to bring back is gone (the caller laid the board out afresh): collapsing keeps the view
   return useCallback(() => {

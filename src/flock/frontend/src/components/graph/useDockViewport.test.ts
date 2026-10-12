@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderHook } from '@testing-library/react';
+import { glideNodes } from './glideNodes';
 import { useDockViewport } from './useDockViewport';
 
 const flow = { fitView: vi.fn(), getViewport: vi.fn(() => ({ x: 10, y: -400, zoom: 0.8 })), setViewport: vi.fn() };
@@ -48,4 +49,23 @@ describe('useDockViewport', () => {
     rerender({ open: false });
     expect(flow.fitView).not.toHaveBeenCalled();
   });
+
+  it('drops a fit that waits for a glide when the dock closes first (#650)', () => {
+    vi.useFakeTimers();
+    try {
+      const glide = glideNodes(new Map([['triage', { x: 900, y: 0 }]]));
+      const { rerender } = renderHook(({ open }) => useDockViewport(open), { initialProps: { open: false } });
+      rerender({ open: true });
+      board.height = 220;
+      rerender({ open: true });
+      rerender({ open: false });
+      vi.advanceTimersByTime(400);
+      glide.stop();
+
+      expect(flow.fitView).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
+

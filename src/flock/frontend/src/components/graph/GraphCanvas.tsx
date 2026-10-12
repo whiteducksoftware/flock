@@ -38,10 +38,12 @@ import {
 } from './autoLayoutTrigger';
 import { motionMs } from './animatePositions';
 import { revealGlide, revealViewport } from './reveal';
-import { SETTLE_MS, registerCanvas, whenOnBoard } from './canvasCommands';
+import { SETTLE_MS, asNewest, registerCanvas, whenOnBoard } from './canvasCommands';
 import { cardSizes } from './cardSizes';
 import { fromControl } from './nodeClick';
 import { useUnfoldLayout } from './useUnfoldLayout';
+import { useLayoutGlide } from './useLayoutGlide';
+import { afterGlide, movedByHand } from './glideNodes';
 
 const GraphCanvas: React.FC = () => {
   const {
@@ -126,9 +128,10 @@ const GraphCanvas: React.FC = () => {
       const updatedNodes = applyNodeChanges(changes, nodes);
       useGraphStore.setState({ nodes: updatedNodes });
 
-      // Update position in store for persistence
+      // Update position in store for persistence; a glide going on leaves the node to the hand that moves it
       changes.forEach((change) => {
         if (change.type === 'position' && change.position) {
+          movedByHand(change.id);
           updateNodePosition(change.id, change.position);
         }
       });
@@ -166,6 +169,10 @@ const GraphCanvas: React.FC = () => {
 
     return dimensionsByNodeId;
   }, []);
+
+  // A new layout glides there; declared before useUnfoldLayout, so an unfold
+  // finishes the glide before it makes room
+  const glideTo = useLayoutGlide();
 
   // Generic layout handler (manual + auto-layout)
   const applyLayout = useCallback(
@@ -242,9 +249,9 @@ const GraphCanvas: React.FC = () => {
       }
 
       // Only the positions change: the board's nodes may have changed since this layout's
-      // render (a selection, a refresh), and those changes stay. Persisted to IndexedDB
-      // to avoid snap-back on refresh.
-      useGraphStore.getState().setNodePositions(new Map(result.nodes.map((node) => [node.id, node.position])));
+      // render (a selection, a refresh), and those changes stay. They glide there (#650).
+      // Persisted to IndexedDB to avoid snap-back on refresh.
+      glideTo(new Map(result.nodes.map((node) => [node.id, node.position])));
       result.nodes.forEach((node) => {
         persistNodePosition(node.id, node.position);
       });
@@ -259,6 +266,7 @@ const GraphCanvas: React.FC = () => {
       nodeSpacing,
       rankSpacing,
       setAutoLayoutMode,
+      glideTo,
     ]
   );
 
@@ -370,7 +378,7 @@ const GraphCanvas: React.FC = () => {
           kind: 'flow',
           zoomIn: () => void zoomIn({ duration: motionMs(200) }),
           zoomOut: () => void zoomOut({ duration: motionMs(200) }),
-          fit: () => void fitView({ padding: 0.1, duration: motionMs(300) }),
+          fit: () => afterGlide(asNewest(() => void fitView({ padding: 0.1, duration: motionMs(300) }))),
           layout: (layoutMode) => applyLayoutRef.current(layoutMode),
           // A board that just mounted loads its agents and lays them out first
           show: (nodeId) => whenOnBoard(nodeId, () => showNode(nodeId), SETTLE_MS),

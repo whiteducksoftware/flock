@@ -7,7 +7,7 @@ import { useEffect, useRef } from 'react';
 import type { XYPosition } from '@xyflow/react';
 import { useGraphStore } from '../../store/graphStore';
 import { useUIStore, type AutoLayoutMode } from '../../store/uiStore';
-import { animatePositions } from './animatePositions';
+import { glideNodes } from './glideNodes';
 import { cardSizes } from './cardSizes';
 import { UNFOLDED_SIZE, unfoldedPositions } from './unfoldLayout';
 
@@ -35,11 +35,12 @@ export function useUnfoldLayout(options: UnfoldLayoutOptions): void {
   latest.current = options;
 
   useEffect(() => {
-    const { nodes, edges, setNodePositions, setTransientPositions } = useGraphStore.getState();
+    const { nodes, edges, setTransientPositions } = useGraphStore.getState();
     stop.current();
     const current = new Map(nodes.map((node) => [node.id, node.position]));
+    // One glide at a time on the board; a snapshot keeps its nodes on their way (#650)
     const moveTo = (targets: Map<string, XYPosition>) => {
-      stop.current = animatePositions(current, targets, setNodePositions);
+      stop.current = glideNodes(targets).stop;
     };
 
     if (unfoldedNodeId === null) {

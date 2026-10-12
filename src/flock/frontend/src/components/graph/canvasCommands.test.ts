@@ -2,7 +2,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Node } from '@xyflow/react';
 import { useGraphStore } from '../../store/graphStore';
 import { useUIStore } from '../../store/uiStore';
-import { type CanvasCommands, registerCanvas, whenOnBoard, withAgent, withCanvas } from './canvasCommands';
+import { AUTO_LAYOUT_DEBOUNCE_MS } from './autoLayoutTrigger';
+import { MOVE_MS } from './animatePositions';
+import { type CanvasCommands, SETTLE_MS, asNewest, registerCanvas, whenOnBoard, withAgent, withCanvas } from './canvasCommands';
+import { glideNodes } from './glideNodes';
 
 const commands = (kind: CanvasCommands['kind'] = 'flow'): CanvasCommands => ({
   kind,
@@ -145,6 +148,21 @@ describe('whenOnBoard', () => {
     useGraphStore.setState({ nodes: [] });
   });
 
+  it('waits for a glide, and drops the run when a newer request comes meanwhile (#650)', () => {
+    vi.useFakeTimers();
+    useGraphStore.setState({ nodes: [agent('triage')] });
+    const glide = glideNodes(new Map([['triage', { x: 900, y: 0 }]]));
+    const run = vi.fn();
+
+    withAgent('triage', run);
+    expect(run).not.toHaveBeenCalled();
+    withCanvas(() => {});
+    vi.advanceTimersByTime(400);
+    glide.stop();
+
+    expect(run).not.toHaveBeenCalled();
+  });
+
   it('runs at once for an agent on the board', () => {
     useGraphStore.setState({ nodes: [agent('triage')] });
     const run = vi.fn();
@@ -227,3 +245,23 @@ describe('withAgent', () => {
     unregister();
   });
 });
+
+describe('SETTLE_MS', () => {
+  it('waits for a new board to be laid out and to glide there (#650)', () => {
+    expect(SETTLE_MS).toBeGreaterThanOrEqual(AUTO_LAYOUT_DEBOUNCE_MS + MOVE_MS);
+  });
+});
+
+describe('asNewest', () => {
+  it('runs a later part of a command only while its request is the newest', () => {
+    const late = vi.fn();
+    withCanvas(() => {});
+    const part = asNewest(late);
+    part();
+    withCanvas(() => {});
+    part();
+
+    expect(late).toHaveBeenCalledOnce();
+  });
+});
+

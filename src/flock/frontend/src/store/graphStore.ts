@@ -104,6 +104,8 @@ interface GraphState {
   savedPositions: Map<string, { x: number; y: number }>;
   /** Positions that win over the saved ones while a node is unfolded; never saved */
   transientPositions: Map<string, { x: number; y: number }> | null;
+  /** Nodes on their way to new positions (a layout, an unfold): a snapshot keeps them where the glide has them (#650) */
+  moving: Set<string>;
 
   // Loading state
   isLoading: boolean;
@@ -145,6 +147,7 @@ interface GraphState {
   updateNodePosition: (nodeId: string, position: { x: number; y: number }) => void;
   setNodePositions: (positions: Map<string, { x: number; y: number }>) => void;
   setTransientPositions: (positions: Map<string, { x: number; y: number }> | null) => void;
+  setMoving: (ids: Set<string>) => void;
   saveNodePosition: (nodeId: string, position: { x: number; y: number }) => void;
   loadSavedPositions: () => Promise<void>;
 
@@ -286,6 +289,7 @@ export const useGraphStore = create<GraphState>()(
       viewMode: 'agent',
       savedPositions: new Map(),
       transientPositions: null,
+      moving: new Set(),
       // The dashboard loads its board as it starts
       isLoading: true,
       error: null,
@@ -322,9 +326,16 @@ export const useGraphStore = create<GraphState>()(
             }),
             get().transientPositions,
           );
+          // Nodes on their way somewhere stay where the glide has them; it goes on from there
+          const { moving, nodes: now } = get();
+          const at = new Map(now.map((node) => [node.id, node.position]));
+          const placedNodes =
+            moving.size === 0
+              ? finalNodes
+              : finalNodes.map((node) => (moving.has(node.id) && at.has(node.id) ? { ...node, position: at.get(node.id)! } : node));
 
           set({
-            nodes: finalNodes,
+            nodes: placedNodes,
             edges: snapshot.edges as Edge[],
             statistics: snapshot.statistics,
             isLoading: false,
@@ -733,6 +744,8 @@ export const useGraphStore = create<GraphState>()(
       },
 
       setTransientPositions: (positions) => set({ transientPositions: positions }),
+
+      setMoving: (ids) => set({ moving: ids }),
 
       // Position persistence actions
       updateNodePosition: (nodeId, position) => {
