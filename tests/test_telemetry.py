@@ -816,6 +816,54 @@ class TestFlushTraces:
             released.set()
             provider.shutdown()
 
+    def test_waits_for_the_flush_still_running_instead_of_starting_another(
+        self, monkeypatch
+    ):
+        import threading
+
+        from opentelemetry.sdk.trace import SpanProcessor, TracerProvider
+
+        from flock.logging.telemetry import flush_traces
+
+        released = threading.Event()
+
+        class Stuck(SpanProcessor):
+            def force_flush(self, timeout_millis: int = 30000) -> bool:
+                return released.wait(5)
+
+        provider = TracerProvider()
+        provider.add_span_processor(Stuck())
+        monkeypatch.setattr(trace, "get_tracer_provider", lambda: provider)
+
+        def flushing() -> set:
+            return {t for t in threading.enumerate() if t.name == "flock-trace-flush"}
+
+        before = flushing()  # a flush an earlier test left may still be ending
+        try:
+            assert flush_traces(timeout_millis=50) is False
+            assert flush_traces(timeout_millis=50) is False
+            assert len(flushing() - before) == 1
+        finally:
+            released.set()
+            provider.shutdown()
+
+    def test_reports_a_flush_that_failed(self, monkeypatch):
+        from opentelemetry.sdk.trace import SpanProcessor, TracerProvider
+
+        from flock.logging.telemetry import flush_traces
+
+        class Failing(SpanProcessor):
+            def force_flush(self, timeout_millis: int = 30000) -> bool:
+                return False
+
+        provider = TracerProvider()
+        provider.add_span_processor(Failing())
+        monkeypatch.setattr(trace, "get_tracer_provider", lambda: provider)
+        try:
+            assert flush_traces() is False
+        finally:
+            provider.shutdown()
+
     def test_reports_a_finished_flush(self, monkeypatch):
         from opentelemetry.sdk.trace import TracerProvider
 

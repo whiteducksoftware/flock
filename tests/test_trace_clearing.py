@@ -341,3 +341,27 @@ def test_clear_traces_writes_the_spans_waiting_in_a_batch_first(tmp_path, monkey
             assert conn.execute("SELECT COUNT(*) FROM spans").fetchone()[0] == 0
     finally:
         provider.shutdown()
+
+
+def test_clear_traces_keeps_the_spans_while_the_flush_has_not_finished(
+    tmp_path, monkeypatch
+):
+    """A clear that cannot write the waiting spans first deletes nothing (#601)."""
+    from flock.logging.telemetry_exporter.duckdb_exporter import DuckDBSpanExporter
+    from flock.orchestrator import tracing
+
+    exporter = DuckDBSpanExporter(str(tmp_path), "traces.duckdb")
+    with duckdb.connect(str(exporter.db_path)) as conn:
+        conn.execute(
+            "INSERT INTO spans (trace_id, span_id, name, start_time, end_time, "
+            "duration_ms, status_code) VALUES ('t', 's', 'kept', 1, 2, 0.0, 'OK')"
+        )
+    monkeypatch.setattr(tracing, "flush_traces", lambda: False)
+
+    result = Flock.clear_traces(str(exporter.db_path))
+
+    assert result["success"] is False
+    assert result["deleted_count"] == 0
+    assert "still" in result["error"]
+    with duckdb.connect(str(exporter.db_path), read_only=True) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM spans").fetchone()[0] == 1

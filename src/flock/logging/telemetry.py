@@ -3,6 +3,7 @@
 import os
 import sys
 import threading
+import weakref
 
 from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
@@ -221,19 +222,36 @@ class TelemetryConfig:
             previous(exc_type, exc_value, exc_traceback)
 
 
+# The flush running for each tracer provider (one at a time; a stalled exporter
+# would otherwise collect a thread per call)
+_flushes: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+_flushes_lock = threading.Lock()
+
+
 def flush_traces(timeout_millis: int = 5_000) -> bool:
     """Write the spans still waiting in a batch, waiting at most ``timeout_millis``.
 
     OpenTelemetry's ``force_flush`` can block longer than its timeout on a slow
     exporter, so it runs in a thread of its own that is left behind after the
-    timeout. Returns whether the flush finished in time.
+    timeout; a later call waits for that flush instead of starting another.
+    Returns whether the flush finished in time and succeeded.
     """
-    flush = getattr(trace.get_tracer_provider(), "force_flush", None)
+    provider = trace.get_tracer_provider()
+    flush = getattr(provider, "force_flush", None)
     if not callable(flush):
         return True
-    worker = threading.Thread(
-        target=flush, args=(timeout_millis,), name="flock-trace-flush", daemon=True
-    )
-    worker.start()
+    with _flushes_lock:
+        running = _flushes.get(provider)
+        if running is None or not running[0].is_alive():
+            outcome: list[bool] = []
+            worker = threading.Thread(
+                target=lambda: outcome.append(bool(flush(timeout_millis))),
+                name="flock-trace-flush",
+                daemon=True,
+            )
+            worker.start()
+            running = (worker, outcome)
+            _flushes[provider] = running
+    worker, outcome = running
     worker.join(timeout_millis / 1000)
-    return not worker.is_alive()
+    return not worker.is_alive() and outcome == [True]

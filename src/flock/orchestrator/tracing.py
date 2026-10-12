@@ -128,7 +128,12 @@ class TracingManager:
                 }
 
             # Spans waiting in a batch would come back after the clear (#601)
-            flush_traces()
+            if not flush_traces():
+                return {
+                    "success": False,
+                    "deleted_count": 0,
+                    "error": "Spans are still being written; try again in a moment.",
+                }
 
             # Connect and clear
             conn = duckdb.connect(str(db_file))
