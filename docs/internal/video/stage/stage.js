@@ -44,17 +44,30 @@ function set(e, { o = 1, x = 0, y = 0, s = 1, blur = 0 } = {}) {
 }
 
 // A title whose words rise into view one after another
-function title(parent, html, size) {
+// A title stays on one line: wider than the frame (a tall or square format), it gets smaller
+function title(parent, html, size, maxWidth = W - 2 * M) {
   const e = el('div', 'abs title', parent);
   e.style.fontSize = `${size}px`;
+  let font = size, fitted = false;
+  // Scenes are built before the fonts load: fit on the first frame after
+  const fit = () => {
+    if (fitted || document.fonts.status !== 'loaded') return;
+    fitted = true;
+    if (e.offsetWidth > maxWidth) {
+      font = (size * maxWidth) / e.offsetWidth;
+      e.style.fontSize = `${font}px`;
+    }
+  };
   // Words split on spaces; *word is amber, ~word blue
   const tint = (w) => (w[0] === '*' ? `<span class="amber">${w.slice(1)}</span>` : w[0] === '~' ? `<span class="blue">${w.slice(1)}</span>` : w);
   e.innerHTML = html.split(' ').map((w) => `<span class="w"><span>${tint(w)}</span></span>`).join(' ');
   const words = [...e.querySelectorAll('.w > span')];
   return {
     e,
-    size: () => ({ w: e.offsetWidth, h: e.offsetHeight }),
+    size: () => (fit(), { w: e.offsetWidth, h: e.offsetHeight }),
+    font: () => (fit(), font),
     words(t, at, out = null, stagger = 0.07, d = 0.6) {
+      fit();
       words.forEach((s, i) => {
         const a = outExpo(seg(t, at + i * stagger, at + i * stagger + d));
         const b = out == null ? 0 : inOutCubic(seg(t, out + i * 0.035, out + i * 0.035 + 0.35));
@@ -229,7 +242,7 @@ function twoWindowScene(name, dur, { html, aspects, clips, chips, chipSide = 'b'
     return (t) => {
       const { w, h } = head.size();
       const m = inOutCubic(seg(t, 2.1, 2.9));
-      const k = lerp(1, small / big, m);
+      const k = lerp(1, small / head.font(), m);
       head.e.style.left = '0px'; head.e.style.top = '0px';
       const x = lerp((W - w) / 2, M, m), y = lerp((H - h) / 2, 48 * U, m);
       head.e.style.transform = `translate(${x}px, ${y}px) scale(${k})`;
