@@ -97,7 +97,7 @@ PROMPTS = list(Guess.__options__)
 # ============================================================================
 # The app
 # ============================================================================
-drawings: dict[str, dict] = {}  # drawing -> {"prompt", "strokes", "done"}
+drawings: dict[str, dict] = {}  # drawing -> {"prompt", "strokes", "answered", "done"}
 listeners: list[asyncio.Queue] = []
 app = FastAPI()
 
@@ -115,7 +115,12 @@ class Stroke(BaseModel):
 @app.post("/drawings")
 async def new_drawing():
     drawing = f"draw-{uuid.uuid4().hex[:8]}"
-    drawings[drawing] = {"prompt": random.choice(PROMPTS), "strokes": 0, "done": False}
+    drawings[drawing] = {
+        "prompt": random.choice(PROMPTS),
+        "strokes": 0,
+        "answered": 0,
+        "done": False,
+    }
     return {"drawing": drawing, "prompt": drawings[drawing]["prompt"].replace("_", " ")}
 
 
@@ -154,12 +159,15 @@ async def guess(envelope: dict):
     right = decision["choice"] == state["prompt"]
     first = right and not state["done"]
     state["done"] = state["done"] or right
+    # Guesses come in stroke order (one guess at a time, delivered in order):
+    # this one answers the next stroke, however far the drawing is ahead
+    state["answered"] += 1
     push({
         "drawing": envelope["correlation_id"],
         "probabilities": decision["probabilities"],
         "choice": decision["choice"],
         "best_guess": decision.get("best_guess"),
-        "strokes": state["strokes"],
+        "strokes": state["answered"],
         "got_it": first,
     })
     return {"ok": True}
@@ -211,14 +219,19 @@ PAGE = """<!doctype html>
   let drawing = null, down = false;
   pen.lineWidth = 5; pen.lineCap = 'round'; pen.lineJoin = 'round';
   function point(event) { const r = canvas.getBoundingClientRect(); return [event.clientX - r.left, event.clientY - r.top]; }
-  canvas.onpointerdown = (event) => { down = true; pen.beginPath(); pen.moveTo(...point(event)); };
+  // The canvas keeps the pointer until the stroke ends, also outside it
+  canvas.onpointerdown = (event) => {
+    down = true; canvas.setPointerCapture(event.pointerId); pen.beginPath(); pen.moveTo(...point(event));
+  };
   canvas.onpointermove = (event) => { if (down) { pen.lineTo(...point(event)); pen.stroke(); } };
-  canvas.onpointerup = async () => {
+  async function end() {
     if (!down) return;
     down = false;
     await fetch('/strokes', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ drawing, png: canvas.toDataURL('image/png') }) });
-  };
+  }
+  canvas.onpointerup = end;
+  canvas.onpointercancel = end;
   async function start() {
     pen.fillStyle = '#fff'; pen.fillRect(0, 0, 480, 480);
     const response = await fetch('/drawings', { method: 'POST' });
@@ -297,9 +310,10 @@ def build_flock(fake: bool) -> Flock:
         decision_model=StrokeByStroke() if fake else DECISION_MODEL,
         endpoints={"app": Endpoint(f"http://127.0.0.1:{APP_PORT}", retries=3)},
     )
+    # One guess at a time, so the guesses come back in stroke order
     flock.agent("guesser").description("Guesses what the sketch shows").consumes(
         Sketch
-    ).decides(Guess, threshold=THRESHOLD)
+    ).max_concurrency(1).decides(Guess, threshold=THRESHOLD)
     flock.sink("app").consumes(Decision.of(Guess)).post("app:/guess")
     return flock
 

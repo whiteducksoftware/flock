@@ -104,6 +104,7 @@ class Game:
         self.step = 0
         self.eaten = 0
         self.alive = True
+        self.applied: set[str] = set()  # decisions already played (sink retries)
         self.hungry = 0  # steps since the last food
         self.food = self._place_food()
 
@@ -226,14 +227,22 @@ async def move(envelope: dict):
     """The sink's delivery: one decision of `player`, in the game's run."""
     decision = envelope["payload"]
     game = games.get(envelope.get("correlation_id") or "")
-    if game is None or not game.alive:
+    if game is None:
         return {"ok": False}
-    # An unsure decision still moves: its best guess
-    chosen = (
-        decision["choice"] if decision["choice"] in TURN else decision.get("best_guess")
-    )
-    game.apply(chosen or "up")
-    push(view(game, {"probabilities": decision["probabilities"], "move": chosen}))
+    # A retried delivery (the next step's publish failed) plays no second
+    # move: it only publishes the step again
+    if envelope["id"] not in game.applied:
+        if not game.alive:
+            return {"ok": False}
+        game.applied.add(envelope["id"])
+        # An unsure decision still moves: its best guess
+        chosen = (
+            decision["choice"]
+            if decision["choice"] in TURN
+            else decision.get("best_guess")
+        )
+        game.apply(chosen or "up")
+        push(view(game, {"probabilities": decision["probabilities"], "move": chosen}))
     if game.alive:
         await publish(game)
     return {"ok": True}
