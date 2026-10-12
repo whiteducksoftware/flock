@@ -216,7 +216,7 @@ const Unfolded: React.FC<{ card: LaneCard }> = ({ card }) => {
   );
 };
 
-const ArtifactCard: React.FC<{ card: LaneCard }> = ({ card }) => {
+const CardFace: React.FC<{ card: LaneCard }> = ({ card }) => {
   const unfolded = useUIStore((state) => state.unfoldedArtifactId === card.id);
   const decision = (card.data as { decision?: DecisionInfo }).decision;
   const pending = card.state === 'pending';
@@ -246,7 +246,7 @@ const ArtifactCard: React.FC<{ card: LaneCard }> = ({ card }) => {
   // Pending cards have nothing to unfold yet
   if (pending) {
     return (
-      <div className={classes} data-glide={card.id}>
+      <div className={classes}>
         {head}
         <Summary card={card} />
       </div>
@@ -254,12 +254,7 @@ const ArtifactCard: React.FC<{ card: LaneCard }> = ({ card }) => {
   }
   if (unfolded) {
     return (
-      <article
-        className={classes}
-        aria-label={`${labelOf(card.type)} by ${card.producedBy}`}
-        data-failed={undelivered || undefined}
-        data-glide={card.id}
-      >
+      <article className={classes} aria-label={`${labelOf(card.type)} by ${card.producedBy}`} data-failed={undelivered || undefined}>
         <div className={styles.unfoldedHead}>
           {head}
           <button
@@ -283,7 +278,6 @@ const ArtifactCard: React.FC<{ card: LaneCard }> = ({ card }) => {
       aria-expanded={false}
       aria-label={`${labelOf(card.type)} by ${card.producedBy}`}
       data-failed={undelivered || undefined}
-      data-glide={card.id}
       onClick={() => useUIStore.getState().unfoldArtifact(card.id)}
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return;
@@ -296,5 +290,15 @@ const ArtifactCard: React.FC<{ card: LaneCard }> = ({ card }) => {
     </div>
   );
 };
+
+/**
+ * A card in a lane: one element for it, folded or unfolded, that the lane's
+ * motion glides and opens (`data-glide`, #652); folding swaps what is inside
+ */
+const ArtifactCard: React.FC<{ card: LaneCard }> = ({ card }) => (
+  <div className={styles.cardSlot} data-glide={card.id}>
+    <CardFace card={card} />
+  </div>
+);
 
 export default ArtifactCard;

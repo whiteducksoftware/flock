@@ -193,6 +193,11 @@
 
 /* An artifact card */
 
+/* The element a card glides and opens in (#652): as wide as its card */
+.cardSlot {
+  align-self: flex-start;
+}
+
 .card {
   flex: none;
   width: 236px;

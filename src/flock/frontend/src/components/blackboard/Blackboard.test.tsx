@@ -426,6 +426,32 @@ describe('Blackboard', () => {
     rect.mockRestore();
   });
 
+  it('watches the cards too: one that resizes inside a lane of the same height moves those below it (#652)', () => {
+    const observed: Element[] = [];
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe(element: Element) {
+          observed.push(element);
+        }
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    render(<Blackboard />);
+
+    expect(observed.some((element) => (element as HTMLElement).dataset.glide === 'd1')).toBe(true);
+  });
+
+  it('keeps one element for a card while it unfolds and folds, so its glide goes on (#652)', () => {
+    render(<Blackboard />);
+    const slot = within(lane('aaaa')).getByRole('button', { name: '◆ Route by triage' }).closest('[data-glide]');
+
+    fireEvent.click(within(lane('aaaa')).getByRole('button', { name: '◆ Route by triage', expanded: false }));
+
+    expect(screen.getByRole('article', { name: '◆ Route by triage' }).closest('[data-glide]')).toBe(slot);
+  });
+
   it('measures when a card unfolds though no lane changes its size (#652)', () => {
     const tops = new Map<string, number>([['Run cccc', 0], ['Run bbbb', 100], ['Run aaaa', 200]]);
     const cards = new Map<string, { x: number; y: number }>([['head', { x: 0, y: 40 }]]);

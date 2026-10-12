@@ -156,10 +156,11 @@ export function useLaneMotion(lanesRef: RefObject<HTMLDivElement | null>): () =>
 
   const resizes = useRef<ResizeObserver | null>(null);
   const watched = useRef(new Set<Element>());
+  // The lanes and what is in them: a card that resizes inside a lane of the same height moves those below it
   const watch = () => {
     const observer = resizes.current;
     if (!observer) return;
-    const current = new Set<Element>(slots());
+    const current = new Set<Element>(slots().flatMap((slot) => [slot, ...slot.querySelectorAll('[data-glide]')]));
     for (const slot of watched.current) if (!current.has(slot)) observer.unobserve(slot);
     for (const slot of current) if (!watched.current.has(slot)) observer.observe(slot);
     watched.current = current;
