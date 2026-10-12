@@ -23,7 +23,8 @@ import { cardSizes } from './cardSizes';
 import { AggregatorInfo, CoverageSummary, DeciderInfo, DeciderOptions } from './DecisionDisplay';
 import { lastText, type SinkInfo } from '../sinks/deliveries';
 import { count } from './unfold/format';
-import { prefersLessMotion } from './animatePositions';
+import { MOVE_MS, prefersLessMotion } from './animatePositions';
+import { RESIZE_THRESHOLD_PX } from './autoLayoutTrigger';
 import UnfoldedAgent from './unfold/UnfoldedAgent';
 import styles from './AgentNode.module.css';
 
@@ -254,9 +255,53 @@ const AgentNode = memo(({ id, data, selected }: NodeProps) => {
     </>
   );
 
-  // Making room for the unfolded node starts from its card's size
+  // Making room for the unfolded node starts from its card's size; Auto-arrange
+  // compares it with the last layout's (#655). Kept up to date also when the
+  // card resizes without rendering (fonts loading)
   useLayoutEffect(() => {
     if (card.current) cardSizes.set(id, { width: card.current.offsetWidth, height: card.current.offsetHeight });
+  });
+  const shownAsCard = !chip && !unfolded;
+  useEffect(() => {
+    const element = card.current;
+    if (!shownAsCard || !element || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => cardSizes.set(id, { width: element.offsetWidth, height: element.offsetHeight }));
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [id, shownAsCard]);
+
+  // A card that grows (a new row of thumbnails) opens the part it grew by while
+  // the board lays itself out around it, instead of popping (#655)
+  const lastHeight = useRef<number | null>(null);
+  const opening = useRef<Animation | null>(null);
+  const autoArrange = useUIStore((state) => state.autoLayoutEnabled);
+  useLayoutEffect(() => {
+    const element = card.current;
+    if (!element) {
+      lastHeight.current = null;
+      return;
+    }
+    const was = lastHeight.current;
+    const height = element.offsetHeight;
+    lastHeight.current = height;
+    if (was === null) return;
+    // Smaller again before the opening ended: it would clip what is left
+    if (height < was) {
+      opening.current?.cancel();
+      opening.current = null;
+      return;
+    }
+    // Only when the board makes room (Auto-arrange); a board arranged by hand keeps still
+    if (height - was < RESIZE_THRESHOLD_PX || !autoArrange || prefersLessMotion() || typeof element.animate !== 'function') return;
+    // Growing again while it opens: from what it hides now, read before the opening is cancelled
+    const clip = getComputedStyle(element).clipPath;
+    const hidden = opening.current && clip?.startsWith('inset(') ? parseFloat(clip.slice(6).split(/\s+/)[2] ?? '0') || 0 : 0;
+    opening.current?.cancel();
+    opening.current = element.animate([{ clipPath: `inset(0px 0px ${hidden + height - was}px 0px)` }, { clipPath: 'inset(0px 0px 0px 0px)' }], {
+      duration: MOVE_MS,
+      // animatePositions' easeOut, for CSS
+      easing: 'cubic-bezier(0.33, 1, 0.68, 1)',
+    });
   });
 
   // A card that comes back from being unfolded fades in instead of popping (#644)

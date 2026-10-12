@@ -35,6 +35,8 @@ import {
   hasNewEdgeAdditions,
   hasNewNodeAdditions,
   scheduleDebouncedAutoLayout,
+  cardsResized,
+  RESIZE_LAYOUT_DELAY_MS,
 } from './autoLayoutTrigger';
 import { motionMs } from './animatePositions';
 import { revealGlide, revealViewport } from './reveal';
@@ -123,10 +125,46 @@ const GraphCanvas: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [edgeType, edgeStrokeWidth, edgeAnimation]);
 
+  // The cards' sizes the last layout used: one that grows off them lays the board out again (#655)
+  const laidOutRef = useRef<Record<string, { width: number; height: number }> | null>(null);
+  // A layout for new nodes or edges is due (debounced); a card that resizes brings it forward
+  const topologyDueRef = useRef(false);
+  const topologyLayout = () => {
+    topologyDueRef.current = false;
+    // A node unfolded meanwhile: the fold lays the board out
+    if (useUIStore.getState().unfoldedNodeId) {
+      layoutDueRef.current = true;
+      return;
+    }
+    // Auto-layout should not overwrite the user's last explicit mode selection.
+    applyLayoutRef.current(latestAutoLayoutModeRef.current, { updateStoredMode: false });
+  };
+
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
       const updatedNodes = applyNodeChanges(changes, nodes);
       useGraphStore.setState({ nodes: updatedNodes });
+
+      // With Auto-arrange on, a card that changed its size lays the board out again, centred, and
+      // the nodes glide there (#655); an unfolded agent keeps its card's size and does not count.
+      // Compared a moment later: the cards' sizes (AgentNode) are measured by then. A layout for
+      // new nodes or edges that is due comes forward instead, so the board makes room as the card opens
+      if (autoLayoutEnabled && changes.some((change) => change.type === 'dimensions') && topologyDueRef.current) {
+        scheduleDebouncedAutoLayout(autoLayoutDebounceRef, topologyLayout, RESIZE_LAYOUT_DELAY_MS);
+      } else if (autoLayoutEnabled && changes.some((change) => change.type === 'dimensions') && !autoLayoutDebounceRef.current) {
+        scheduleDebouncedAutoLayout(
+          autoLayoutDebounceRef,
+          () => {
+            if (useUIStore.getState().unfoldedNodeId) return;
+            // Cards no layout placed (Auto-arrange switched on, a board from saved positions): their sizes now are the baseline
+            const laidOut = (laidOutRef.current ??= {});
+            for (const [id, size] of cardSizes) laidOut[id] ??= size;
+            if (!cardsResized(laidOut, cardSizes)) return;
+            applyLayoutRef.current(latestAutoLayoutModeRef.current, { updateStoredMode: false });
+          },
+          RESIZE_LAYOUT_DELAY_MS,
+        );
+      }
 
       // Update position in store for persistence; a glide going on leaves the node to the hand that moves it
       changes.forEach((change) => {
@@ -136,7 +174,7 @@ const GraphCanvas: React.FC = () => {
         }
       });
     },
-    [nodes, updateNodePosition]
+    [nodes, updateNodePosition, autoLayoutEnabled]
   );
 
   const onEdgesChange = useCallback(
@@ -173,6 +211,11 @@ const GraphCanvas: React.FC = () => {
   // A new layout glides there; declared before useUnfoldLayout, so an unfold
   // finishes the glide before it makes room
   const glideTo = useLayoutGlide();
+
+  // Switched on with no layout yet: the cards' sizes now are what a resize compares with (#655)
+  useEffect(() => {
+    if (autoLayoutEnabled && !laidOutRef.current) laidOutRef.current = collectRenderedNodeDimensions();
+  }, [autoLayoutEnabled, collectRenderedNodeDimensions]);
 
   // Generic layout handler (manual + auto-layout)
   const applyLayout = useCallback(
@@ -211,6 +254,7 @@ const GraphCanvas: React.FC = () => {
       }
 
       const dimensionsByNodeId = collectRenderedNodeDimensions();
+      laidOutRef.current = dimensionsByNodeId;
       const hierarchicalBaseOptions = {
         center: viewportCenter,
         nodeSpacing,
@@ -313,17 +357,8 @@ const GraphCanvas: React.FC = () => {
       return;
     }
 
-    scheduleDebouncedAutoLayout(autoLayoutDebounceRef, () => {
-      // A node unfolded meanwhile: the fold lays the board out
-      if (useUIStore.getState().unfoldedNodeId) {
-        layoutDueRef.current = true;
-        return;
-      }
-      applyLayout(latestAutoLayoutModeRef.current, {
-        // Auto-layout should not overwrite the user's last explicit mode selection.
-        updateStoredMode: false,
-      });
-    });
+    topologyDueRef.current = true;
+    scheduleDebouncedAutoLayout(autoLayoutDebounceRef, topologyLayout);
   }, [nodes, edges, mode, autoLayoutEnabled, applyLayout]);
 
   useEffect(() => {

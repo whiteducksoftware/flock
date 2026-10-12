@@ -3,6 +3,8 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { ReactFlowProvider, useStoreApi } from '@xyflow/react';
 import { useLayoutEffect } from 'react';
 import AgentNode from './AgentNode';
+import { cardSizes } from './cardSizes';
+import { MOVE_MS } from './animatePositions';
 import { NodeProps } from '@xyflow/react';
 import { useUIStore } from '../../store/uiStore';
 
@@ -701,6 +703,129 @@ describe('AgentNode', () => {
     } finally {
       delete (HTMLElement.prototype as any).animate;
       useUIStore.setState({ unfoldedNodeId: null });
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('opens the part a card grew by as the board makes room, instead of popping (#655)', () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ runs: [] }))));
+    const animate = vi.fn();
+    (HTMLElement.prototype as any).animate = animate;
+    let height = 200;
+    const tall = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(() => height);
+    try {
+      const props = createNodeProps({ name: 'test-agent', status: 'idle', subscriptions: ['app.Ticket'] });
+      const { rerender } = render(
+        <ReactFlowProvider>
+          <AgentNode {...props} />
+        </ReactFlowProvider>,
+      );
+      animate.mockClear();
+      // A new row of thumbnails: 60 px taller
+      height = 260;
+      rerender(
+        <ReactFlowProvider>
+          <AgentNode {...props} data={{ ...props.data, recvCount: 5 }} />
+        </ReactFlowProvider>,
+      );
+
+      expect(animate).toHaveBeenCalledWith(
+        [{ clipPath: 'inset(0px 0px 60px 0px)' }, { clipPath: 'inset(0px 0px 0px 0px)' }],
+        expect.objectContaining({ duration: MOVE_MS }),
+      );
+    } finally {
+      tall.mockRestore();
+      delete (HTMLElement.prototype as any).animate;
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('lets go of the opening when the card shrinks again before it ended (#655)', () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ runs: [] }))));
+    const cancel = vi.fn();
+    (HTMLElement.prototype as any).animate = vi.fn(() => ({ cancel, onfinish: null }));
+    let height = 200;
+    const tall = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(() => height);
+    try {
+      const props = createNodeProps({ name: 'test-agent', status: 'idle', subscriptions: ['app.Ticket'] });
+      const view = (count: number) => (
+        <ReactFlowProvider>
+          <AgentNode {...props} data={{ ...props.data, recvCount: count }} />
+        </ReactFlowProvider>
+      );
+      const { rerender } = render(view(1));
+      height = 260;
+      rerender(view(2));
+      height = 200;
+      rerender(view(3));
+
+      expect(cancel).toHaveBeenCalled();
+    } finally {
+      tall.mockRestore();
+      delete (HTMLElement.prototype as any).animate;
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('opens nothing when Auto-arrange is off: the board does not make room (#655)', () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ runs: [] }))));
+    const animate = vi.fn();
+    (HTMLElement.prototype as any).animate = animate;
+    let height = 200;
+    const tall = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(() => height);
+    useUIStore.setState({ autoLayoutEnabled: false });
+    try {
+      const props = createNodeProps({ name: 'test-agent', status: 'idle', subscriptions: ['app.Ticket'] });
+      const { rerender } = render(
+        <ReactFlowProvider>
+          <AgentNode {...props} />
+        </ReactFlowProvider>,
+      );
+      animate.mockClear();
+      height = 260;
+      rerender(
+        <ReactFlowProvider>
+          <AgentNode {...props} data={{ ...props.data, recvCount: 5 }} />
+        </ReactFlowProvider>,
+      );
+
+      expect(animate).not.toHaveBeenCalled();
+    } finally {
+      useUIStore.setState({ autoLayoutEnabled: true });
+      tall.mockRestore();
+      delete (HTMLElement.prototype as any).animate;
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('keeps its card size up to date when the card resizes without rendering (fonts loading) (#655)', () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ runs: [] }))));
+    const observers: ResizeObserverCallback[] = [];
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          observers.push(callback);
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    let height = 200;
+    const tall = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(() => height);
+    try {
+      render(
+        <ReactFlowProvider>
+          <AgentNode {...createNodeProps({ name: 'test-agent', status: 'idle', subscriptions: ['app.Ticket'] })} />
+        </ReactFlowProvider>,
+      );
+      height = 230;
+      act(() => observers.forEach((callback) => callback([], {} as ResizeObserver)));
+
+      expect(cardSizes.get('test-agent')?.height).toBe(230);
+    } finally {
+      tall.mockRestore();
       vi.unstubAllGlobals();
     }
   });
