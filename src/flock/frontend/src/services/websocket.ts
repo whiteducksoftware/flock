@@ -48,14 +48,14 @@ export class WebSocketClient {
   }
 
   /**
-   * UI Optimization Migration (Phase 2 - Spec 002): Debounced graph refresh
-   *
-   * Batch multiple graph-changing events within 500ms window, then fetch fresh
-   * snapshot from backend. This replaces immediate regenerateGraph() calls.
+   * Graph refresh at most every 500ms: the first event schedules a snapshot
+   * fetch, and events until it runs ride along. The timer is not restarted
+   * per event, so a steady stream (one every 150ms) still refreshes the board
+   * (#638), and the last event is always followed by a refresh.
    */
   private scheduleGraphRefresh(): void {
     if (this.refreshTimer !== null) {
-      clearTimeout(this.refreshTimer);
+      return; // a refresh is coming, after this event
     }
 
     this.refreshTimer = window.setTimeout(() => {

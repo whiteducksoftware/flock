@@ -358,3 +358,66 @@ describe('WebSocketClient run events', () => {
     expect(refresh).toHaveBeenCalledOnce();
   });
 });
+
+describe('WebSocketClient refreshes the board', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal('WebSocket', FakeSocket);
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    FakeSocket.made = [];
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  const published = (id: string) => ({
+    data: JSON.stringify({
+      event_type: 'message_published',
+      data: { artifact_id: id, artifact_type: 'SnakeState', produced_by: 'external', payload: {} },
+    }),
+  });
+
+  it('while events keep coming (#638)', async () => {
+    const refresh = vi.spyOn(useGraphStore.getState(), 'refreshCurrentView').mockResolvedValue(undefined);
+    const client = new WebSocketClient('ws://test/ws');
+    client.connect();
+    socket(0).open();
+
+    vi.clearAllTimers();
+    refresh.mockClear();
+
+    // A steady stream, one event every 150 ms for 2 s: the board still refreshes
+    for (let n = 0; n < 14; n++) {
+      socket(0).onmessage?.(published(`a-${n}`));
+      await vi.advanceTimersByTimeAsync(150);
+    }
+    // At 500, 1100 and 1700 ms: the first event of each wait schedules one
+    expect(refresh.mock.calls.length).toBe(3);
+
+    // And once more after the last event of the stream
+    const during = refresh.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(500);
+    expect(refresh.mock.calls.length).toBe(during + 1);
+    client.disconnect();
+  });
+
+  it('once for a burst', async () => {
+    const refresh = vi.spyOn(useGraphStore.getState(), 'refreshCurrentView').mockResolvedValue(undefined);
+    const client = new WebSocketClient('ws://test/ws');
+    client.connect();
+    socket(0).open();
+
+    // Timers other tests' clients left behind would call the same store
+    vi.clearAllTimers();
+    refresh.mockClear();
+
+    for (let n = 0; n < 5; n++) socket(0).onmessage?.(published(`b-${n}`));
+    await vi.advanceTimersByTimeAsync(600);
+
+    expect(refresh).toHaveBeenCalledTimes(1);
+    client.disconnect();
+  });
+});
