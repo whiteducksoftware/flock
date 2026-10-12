@@ -248,3 +248,32 @@ async def test_quick_draw_shows_each_guess_once_with_the_stroke_it_answers(
 
     assert [event["strokes"] for event in pushed] == [1, 3, 4, 5]
     assert [event["strokes"] for event in pushed if event["got_it"]] == [4]
+
+
+async def test_an_overlapping_retry_shows_a_guess_once(quick_draw, monkeypatch):
+    import asyncio
+
+    pushed: list[dict] = []
+    quick_draw.listeners.append(_Recorder(pushed))
+    delays = [0.05, 0]  # the first lookup is slow, the retry overtakes it
+
+    async def stroke_of(sketch_id):
+        await asyncio.sleep(delays.pop(0))
+        return 1
+
+    monkeypatch.setattr(quick_draw, "stroke_of", stroke_of)
+    drawing = (await quick_draw.new_drawing())["drawing"]
+    envelope = {
+        "id": "decision-1",
+        "correlation_id": drawing,
+        "payload": {
+            "choice": "UNSURE",
+            "best_guess": "sun",
+            "probabilities": {"sun": 0.4},
+            "subject_ids": ["s-1"],
+        },
+    }
+
+    await asyncio.gather(quick_draw.guess(envelope), quick_draw.guess(envelope))
+
+    assert len(pushed) == 1

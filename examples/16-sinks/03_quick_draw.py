@@ -168,6 +168,8 @@ async def guess(envelope: dict):
     if envelope["id"] in state["guesses"]:
         return {"ok": True}  # a retried delivery: shown already
     stroke = await stroke_of(decision["subject_ids"][0])
+    if envelope["id"] in state["guesses"]:
+        return {"ok": True}  # a retry of it was shown while this one looked up
     state["guesses"].add(envelope["id"])
     # Got it once the model is sure of what was asked for; a sure wrong guess
     # is shown, and drawing goes on
@@ -228,7 +230,7 @@ PAGE = """<!doctype html>
 </div>
 <script>
   const canvas = document.getElementById('canvas'), pen = canvas.getContext('2d');
-  let drawing = null, down = false;
+  let drawing = null, down = false, shown = 0;
   pen.lineWidth = 5; pen.lineCap = 'round'; pen.lineJoin = 'round';
   function point(event) { const r = canvas.getBoundingClientRect(); return [event.clientX - r.left, event.clientY - r.top]; }
   // The canvas keeps the pointer until the stroke ends, also outside it
@@ -249,6 +251,7 @@ PAGE = """<!doctype html>
     const response = await fetch('/drawings', { method: 'POST' });
     const created = await response.json();
     drawing = created.drawing;
+    shown = 0;
     document.getElementById('prompt').innerHTML = `Draw: <b>${created.prompt}</b>`;
     document.getElementById('bars').innerHTML = '';
     document.getElementById('status').textContent = '';
@@ -256,7 +259,9 @@ PAGE = """<!doctype html>
   const events = new EventSource('/events');
   events.onmessage = (message) => {
     const guess = JSON.parse(message.data);
-    if (guess.drawing !== drawing) return;
+    // Only newer strokes: a late answer for an older one changes nothing
+    if (guess.drawing !== drawing || guess.strokes < shown) return;
+    shown = guess.strokes;
     const top = Object.entries(guess.probabilities).sort((a, b) => b[1] - a[1]).slice(0, 5);
     document.getElementById('bars').innerHTML = top.map(([option, p]) =>
       `<div class="bar"><span>${option.replace(/_/g, ' ')}</span>` +
