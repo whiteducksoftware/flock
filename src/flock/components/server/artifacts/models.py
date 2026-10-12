@@ -95,6 +95,12 @@ class ArtifactPublishRequest(BaseModel):
     partition_key: str | None = Field(
         default=None, description="Optional partition key"
     )
+    correlation_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=256,
+        description="The run to join (a game, a drawing); a new one without it",
+    )
 
 
 class ArtifactPublishResponse(BaseModel):

@@ -122,6 +122,12 @@ class ArtifactPublishRequest(BaseModel):
     payload: dict[str, Any] = Field(
         default_factory=dict, description="Artifact payload data"
     )
+    correlation_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=256,
+        description="The run to join (a game, a drawing); a new one without it",
+    )
     webhook: "WebhookConfig | None" = Field(
         default=None, description="Optional webhook for delivery notifications"
     )

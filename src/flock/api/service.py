@@ -163,8 +163,8 @@ class BlackboardHTTPService:
             body: ArtifactPublishRequest,
             idempotency_key: str | None = Depends(check_idempotency),
         ) -> ArtifactPublishResponse:
-            # Generate correlation_id for tracking (always, for consistency)
-            correlation_id = str(uuid4())
+            # The caller's run, else a new correlation_id for tracking
+            correlation_id = body.correlation_id or str(uuid4())
 
             # Set webhook context if webhook is configured
             if body.webhook:
