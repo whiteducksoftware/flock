@@ -96,6 +96,15 @@ describe('lanesOf', () => {
     expect(lanes.find((each) => each.id === 'c-5')).toMatchObject({ title: 'Prepared request', startedAt: 1000 });
   });
 
+  it('keeps the title while an output waits for its edges after a clock stepped back', () => {
+    const early = [
+      artifact('a2', 'c-7', 'app.Request', 'external', 1000, { payload: { title: 'Prepared request' } }),
+      artifact('o2', 'c-7', 'app.Reply', 'writer', 900, { payload: { reply: 'Done' } }),
+    ];
+    const lanes = lanesOf(early, [], [{ agent: 'writer', correlationId: 'c-7', artifacts: ['a2'] }]);
+    expect(lanes.find((each) => each.id === 'c-7')).toMatchObject({ title: 'Prepared request', startedAt: 1000 });
+  });
+
   it('keeps the title while the agent that wrote the first artifact runs again', () => {
     // A feedback loop: the writer runs again on the reviewer's feedback
     const loop = [

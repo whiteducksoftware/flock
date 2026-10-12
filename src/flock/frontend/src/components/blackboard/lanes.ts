@@ -241,9 +241,14 @@ export function lanesOf(nodes: Node[], edges: Edge[], running: RunningRun[]): La
     ];
     // What the run started with: an artifact none of whose inputs are in this run,
     // the earliest of them. A wall clock can step back (a VM's time sync), so a
-    // decision may carry an earlier time than what it decided about
+    // decision may carry an earlier time than what it decided about. An agent still
+    // running on this run's artifacts has no edges yet: what it published is not a start
     const inRun = new Set(members.map((node) => node.id));
-    const startedWith = recorded.filter((node) => !(inputs.get(node.id) ?? []).some((source) => inRun.has(source)));
+    const awaitingEdges = (node: Node) =>
+      runs.some((run) => run.agent === dataOf(node).producedBy && run.artifacts.some((id) => inRun.has(id)));
+    const startedWith = recorded.filter(
+      (node) => !(inputs.get(node.id) ?? []).some((source) => inRun.has(source)) && !awaitingEdges(node),
+    );
     const first =
       [...(startedWith.length > 0 ? startedWith : recorded)].sort(
         (a, b) => (dataOf(a).timestamp ?? 0) - (dataOf(b).timestamp ?? 0),
