@@ -8,6 +8,10 @@ describe('KeyboardShortcutsDialog', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Keyboard shortcuts' });
     expect(dialog).toHaveAttribute('aria-modal', 'true');
+    // Every group is named by its heading
+    for (const name of ['Board', 'Panels', 'Publish composer', 'Palette']) {
+      expect(within(dialog).getByRole('region', { name })).toBeInTheDocument();
+    }
     expect(within(dialog).getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual([
       'Board',
       'Panels',

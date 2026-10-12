@@ -103,9 +103,10 @@ const KeyboardShortcutsDialog: React.FC<KeyboardShortcutsDialogProps> = ({ isOpe
           </button>
         </header>
         <div className={styles.groups}>
-          {GROUPS.map((group) => (
-            <section key={group.title} className={styles.group} aria-labelledby={`${ids}-${group.title}`}>
-              <h3 id={`${ids}-${group.title}`} className={styles.groupTitle}>
+          {GROUPS.map((group, index) => (
+            // aria-labelledby is a list of IDs: the group's ID has no spaces
+            <section key={group.title} className={styles.group} aria-labelledby={`${ids}-group-${index}`}>
+              <h3 id={`${ids}-group-${index}`} className={styles.groupTitle}>
                 {group.title}
               </h3>
               <dl className={styles.list}>

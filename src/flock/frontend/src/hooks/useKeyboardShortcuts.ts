@@ -9,14 +9,21 @@ interface KeyboardShortcutConfig {
   onToggleHelp?: () => void;
 }
 
-/** The node Space and Ctrl+Shift+D act on: the focused agent, else the selected one, else the unfolded one. */
+/**
+ * The node Space, Enter and Ctrl+Shift+D act on: the focused agent, else the
+ * selected one, else the unfolded one; always an agent on the Flow's board
+ * (the Blackboard has none, and an agent unfolded there before may be gone).
+ */
 const unfoldTarget = (): string | null => {
+  if (useUIStore.getState().mode !== 'agent') return null;
   const { nodes } = useGraphStore.getState();
   const isAgent = (id: string | null | undefined) => nodes.some((node) => node.id === id && node.type === 'agent');
   const focused = document.activeElement?.closest('.react-flow__node[data-id]')?.getAttribute('data-id');
   if (isAgent(focused)) return focused!;
   const selected = nodes.find((node) => node.selected && node.type === 'agent');
-  return selected?.id ?? useUIStore.getState().unfoldedNodeId;
+  if (selected) return selected.id;
+  const unfolded = useUIStore.getState().unfoldedNodeId;
+  return isAgent(unfolded) ? unfolded : null;
 };
 
 /** Focus where Space means something else: typing, pressing a button, a tab, a dialog. */
