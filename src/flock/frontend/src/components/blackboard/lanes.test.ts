@@ -96,6 +96,16 @@ describe('lanesOf', () => {
     expect(lanes.find((each) => each.id === 'c-5')).toMatchObject({ title: 'Prepared request', startedAt: 1000 });
   });
 
+  it('keeps the title while the agent that wrote the first artifact runs again', () => {
+    // A feedback loop: the writer runs again on the reviewer's feedback
+    const loop = [
+      artifact('w1', 'c-6', 'app.Draft', 'writer', 1000, { payload: { title: 'First draft' } }),
+      artifact('f1', 'c-6', 'app.Feedback', 'reviewer', 2000, { payload: { note: 'Shorter, please' } }),
+    ];
+    const lanes = lanesOf(loop, [made('w1', 'f1', 'reviewer')], [{ agent: 'writer', correlationId: 'c-6', artifacts: ['f1'] }]);
+    expect(lanes.find((each) => each.id === 'c-6')).toMatchObject({ title: 'First draft', startedAt: 1000 });
+  });
+
   it('marks a run whose decision is unsure and unreviewed, and who answered it meanwhile', () => {
     const review = lane('c-2');
     expect(review).toMatchObject({ needsReview: true, status: { kind: 'review', text: 'needs review · answered by supervisor' } });
