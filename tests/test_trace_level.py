@@ -161,3 +161,35 @@ def test_the_server_traces_its_requests_at_the_all_level_only(
     monkeypatch.setattr(_trace_filter_config, "level", level)
 
     assert BlackboardHTTPService(Flock()).app._telemetry.get("tracing") is tracing
+
+
+@pytest.mark.parametrize("level", ["agents", "all"])
+@pytest.mark.parametrize("service", ["rest", "components"])
+def test_the_server_continues_the_callers_trace_at_every_level(
+    monkeypatch, level, service
+):
+    from fastapi.testclient import TestClient
+    from opentelemetry import trace
+
+    from flock import Flock
+    from flock.api.base_service import BaseHTTPService
+    from flock.api.service import BlackboardHTTPService
+
+    monkeypatch.setattr(_trace_filter_config, "level", level)
+    if service == "rest":
+        app = BlackboardHTTPService(Flock()).app
+    else:
+        http = BaseHTTPService(Flock())
+        http.configure()
+        app = http.app
+
+    @app.get("/probe-trace")
+    async def probe():
+        return format(trace.get_current_span().get_span_context().trace_id, "032x")
+
+    caller = "4bf92f3577b34da6a3ce929d0e0e4736"
+    response = TestClient(app).get(
+        "/probe-trace", headers={"traceparent": f"00-{caller}-00f067aa0ba902b7-01"}
+    )
+
+    assert response.json() == caller

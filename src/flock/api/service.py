@@ -31,7 +31,7 @@ from flock.components.server.models.models import (
     CorrelationStatusResponse,
     ProducedArtifact,
 )
-from flock.logging.auto_trace import http_telemetry
+from flock.logging.auto_trace import continue_caller_traces, http_telemetry
 
 
 """HTTP control plane for the blackboard orchestrator."""
@@ -72,6 +72,7 @@ class BlackboardHTTPService:
                 },
             ],
         )
+        continue_caller_traces(self.app)
         self._register_exception_handlers()
         self._register_routes()
 

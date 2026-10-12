@@ -40,6 +40,36 @@ def http_telemetry() -> dict:
     return {"tracing": _trace_filter_config.level == "all"}
 
 
+class CallerTraceMiddleware:
+    """Continues the caller's trace (``traceparent``, ``baggage``) when FastAPI's
+    request spans are off, which also turns off FastAPI reading those headers."""
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] not in ("http", "websocket"):
+            await self.app(scope, receive, send)
+            return
+        from opentelemetry import context, propagate
+
+        headers: dict[str, str] = {}
+        for name, value in scope.get("headers", []):
+            headers.setdefault(name.decode("latin-1"), value.decode("latin-1"))
+        token = context.attach(propagate.extract(headers))
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            context.detach(token)
+
+
+def continue_caller_traces(app) -> None:
+    """Below FLOCK_TRACE_LEVEL=all, agent work an HTTP request starts still
+    joins the caller's trace."""
+    if _trace_filter_config.level != "all":
+        app.add_middleware(CallerTraceMiddleware)
+
+
 # Parse trace filter configuration from environment variables
 def _parse_trace_filters():
     """Parse FLOCK_TRACE_SERVICES and FLOCK_TRACE_IGNORE from environment."""

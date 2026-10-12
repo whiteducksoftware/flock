@@ -6,7 +6,7 @@ from fastapi import FastAPI
 
 from flock.components.server.base import ServerComponent
 from flock.core.orchestrator import Flock
-from flock.logging.auto_trace import http_telemetry
+from flock.logging.auto_trace import continue_caller_traces, http_telemetry
 from flock.logging.logging import get_logger
 
 
@@ -105,6 +105,7 @@ class BaseHTTPService:
                 description=self._description,
                 lifespan=lifespan_context_manager,
             )
+            continue_caller_traces(self.app)
         # Sort by priority (lower first)
         sorted_components: list[ServerComponent] = self.components[:]
         sorted_components.sort(key=lambda c: c.priority)
