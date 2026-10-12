@@ -324,6 +324,76 @@ describe('Blackboard', () => {
     rect.mockRestore();
   });
 
+  it('continues a reveal that a second growth interrupts from what shows, and lets go of it when the lane shrinks (#652)', () => {
+    const tops = new Map<string, number>([['Run cccc', 0], ['Run bbbb', 100], ['Run aaaa', 200]]);
+    const heights = new Map<string, number>([['Run cccc', 100]]);
+    const rect = layOut(tops, { heights });
+    // How much of the top lane a running reveal hides right now
+    let hidden: number | null = null;
+    const real = window.getComputedStyle.bind(window);
+    const style = vi.spyOn(window, 'getComputedStyle').mockImplementation((element: Element) => {
+      const computed = real(element);
+      if (hidden === null || (element as HTMLElement).dataset?.lane === undefined) return computed;
+      const label = element.querySelector('section')?.getAttribute('aria-label');
+      if (label !== 'Run cccc') return computed;
+      return new Proxy(computed, { get: (target, prop) => (prop === 'clipPath' ? `inset(0px 0px ${hidden}px 0px)` : Reflect.get(target, prop, target)) });
+    });
+    const clips: { frames: Keyframe[]; cancel: ReturnType<typeof vi.fn> }[] = [];
+    (HTMLElement.prototype as any).animate = vi.fn((frames: Keyframe[]) => {
+      const animation = { cancel: vi.fn(), onfinish: null };
+      if ('clipPath' in frames[0]!) clips.push({ frames, ...animation });
+      return animation;
+    });
+    const observers: ResizeObserverCallback[] = [];
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          observers.push(callback);
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    render(<Blackboard />);
+    const resize = () => act(() => observers.forEach((callback) => callback([], {} as ResizeObserver)));
+
+    // It grows by 300 px; halfway through, 120 px still hidden, its details add 50 px
+    heights.set('Run cccc', 400);
+    resize();
+    hidden = 120;
+    heights.set('Run cccc', 450);
+    resize();
+    expect(clips[1]!.frames[0]).toEqual({ clipPath: 'inset(0px 0px 170px 0px)' });
+
+    // Folded again before the reveal ended: nothing stays hidden
+    heights.set('Run cccc', 100);
+    resize();
+    expect(clips[1]!.cancel).toHaveBeenCalled();
+    rect.mockRestore();
+    style.mockRestore();
+  });
+
+  it('measures when a card unfolds though no lane changes its size (#652)', () => {
+    const tops = new Map<string, number>([['Run cccc', 0], ['Run bbbb', 100], ['Run aaaa', 200]]);
+    const cards = new Map<string, { x: number; y: number }>([['head', { x: 0, y: 40 }]]);
+    const rect = layOut(tops, { cards });
+    const moved: (string | undefined)[] = [];
+    (HTMLElement.prototype as any).animate = vi.fn(function (this: HTMLElement) {
+      moved.push(this.dataset.glide);
+      return { cancel: vi.fn(), onfinish: null };
+    });
+    render(<Blackboard />);
+
+    // Unfolding aligns the lanes' content to the top: the headers move up
+    cards.set('head', { x: 0, y: 10 });
+    fireEvent.click(within(lane('aaaa')).getByRole('button', { name: '◆ Route by triage', expanded: false }));
+
+    expect(moved).toContain('head');
+    rect.mockRestore();
+  });
+
   it('lets a card that changes its place in a lane glide there (#652)', () => {
     const tops = new Map<string, number>([['Run cccc', 0], ['Run bbbb', 100], ['Run aaaa', 200]]);
     const cards = new Map<string, { x: number; y: number }>([['d1', { x: 300, y: 10 }]]);

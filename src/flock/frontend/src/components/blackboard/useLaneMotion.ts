@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react';
+import { useUIStore } from '../../store/uiStore';
 import { prefersLessMotion } from '../graph/animatePositions';
 
 const GLIDE: KeyframeAnimationOptions = { duration: 320, easing: 'cubic-bezier(0.35, 0, 0.25, 1)' };
@@ -9,6 +10,13 @@ function offsetOf(element: HTMLElement): { x: number; y: number } {
   if (!transform || transform === 'none') return { x: 0, y: 0 };
   const values = transform.slice(transform.indexOf('(') + 1, -1).split(',').map(Number);
   return transform.startsWith('matrix3d') ? { x: values[12] ?? 0, y: values[13] ?? 0 } : { x: values[4] ?? 0, y: values[5] ?? 0 };
+}
+
+/** How much of a lane a running reveal hides at its bottom right now */
+function hiddenOf(element: HTMLElement): number {
+  const clip = getComputedStyle(element).clipPath;
+  if (!clip?.startsWith('inset(')) return 0;
+  return parseFloat(clip.slice(6).split(/\s+/)[2] ?? '0') || 0;
 }
 
 interface Layout {
@@ -36,6 +44,8 @@ interface Layout {
  * Returns what a scroll calls: it measures again, a scroll moves nothing.
  */
 export function useLaneMotion(lanesRef: RefObject<HTMLDivElement | null>): () => void {
+  // An unfold or fold renders here too: it moves things inside a lane even when no lane changes its size
+  useUIStore((state) => state.unfoldedArtifactId);
   const last = useRef<Layout>({ lanes: new Map(), inside: new Map() });
   // What glides now, by `lane:`, `clip:` or `inside:` and the id
   const running = useRef(new Map<string, Animation>());
@@ -81,8 +91,16 @@ export function useLaneMotion(lanesRef: RefObject<HTMLDivElement | null>): () =>
         const offset = offsetOf(slot).y;
         play(`lane:${id}`, slot, [{ transform: `translateY(${was.top - is.top + offset}px)` }, { transform: 'translateY(0)' }]);
       }
+      // Growing again while it opens: from what shows now, read before the reveal is cancelled
       const grown = is.height - was.height;
-      if (grown >= 1) play(`clip:${id}`, slot, [{ clipPath: `inset(0px 0px ${grown}px 0px)` }, { clipPath: 'inset(0px 0px 0px 0px)' }]);
+      if (grown >= 1) {
+        const hidden = hiddenOf(slot) + grown;
+        play(`clip:${id}`, slot, [{ clipPath: `inset(0px 0px ${hidden}px 0px)` }, { clipPath: 'inset(0px 0px 0px 0px)' }]);
+      } else if (grown <= -1) {
+        // Shrinking: a reveal that still runs would hide what is left
+        running.current.get(`clip:${id}`)?.cancel();
+        running.current.delete(`clip:${id}`);
+      }
       for (const item of slot.querySelectorAll<HTMLElement>('[data-glide]')) {
         const key = `${id}/${item.dataset.glide}`;
         const from = before.inside.get(key);
