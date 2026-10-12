@@ -3,6 +3,8 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { ReactFlowProvider, useStoreApi } from '@xyflow/react';
 import { useLayoutEffect } from 'react';
 import CanvasDock from './CanvasDock';
+import { glideNodes } from './glideNodes';
+import { useGraphStore } from '../../store/graphStore';
 
 const view = { zoomIn: vi.fn(), zoomOut: vi.fn(), fitView: vi.fn() };
 vi.mock('@xyflow/react', async (importOriginal) => {
@@ -33,6 +35,23 @@ const renderDock = (props: Partial<React.ComponentProps<typeof CanvasDock>> = {}
 
 describe('CanvasDock', () => {
   afterEach(() => vi.clearAllMocks());
+
+  it('fits the board where a glide takes the nodes, not on their way (#650)', () => {
+    vi.useFakeTimers();
+    try {
+      useGraphStore.setState({ nodes: [{ id: 'a', type: 'agent', position: { x: 0, y: 0 }, data: {} }] });
+      renderDock();
+      glideNodes(new Map([['a', { x: 900, y: 0 }]]));
+      fireEvent.click(screen.getByRole('button', { name: 'Fit to screen' }));
+      expect(view.fitView).not.toHaveBeenCalled();
+
+      act(() => void vi.advanceTimersByTime(300));
+      expect(view.fitView).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+      useGraphStore.setState(useGraphStore.getInitialState(), true);
+    }
+  });
 
   it('zooms, says the zoom level and fits the board', () => {
     renderDock();

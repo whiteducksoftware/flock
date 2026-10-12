@@ -42,6 +42,7 @@ import { cardSizes } from './cardSizes';
 import { fromControl } from './nodeClick';
 import { useUnfoldLayout } from './useUnfoldLayout';
 import { useLayoutGlide } from './useLayoutGlide';
+import { afterGlide } from './glideNodes';
 
 const GraphCanvas: React.FC = () => {
   const {
@@ -386,10 +387,10 @@ const GraphCanvas: React.FC = () => {
           kind: 'flow',
           zoomIn: () => void zoomIn({ duration: motionMs(200) }),
           zoomOut: () => void zoomOut({ duration: motionMs(200) }),
-          fit: () => void fitView({ padding: 0.1, duration: motionMs(300) }),
+          fit: () => afterGlide(() => void fitView({ padding: 0.1, duration: motionMs(300) })),
           layout: (layoutMode) => applyLayoutRef.current(layoutMode),
           // A board that just mounted loads its agents and lays them out first
-          show: (nodeId) => whenOnBoard(nodeId, () => showNode(nodeId), SETTLE_MS),
+          show: (nodeId) => whenOnBoard(nodeId, () => afterGlide(() => showNode(nodeId)), SETTLE_MS),
         },
         SETTLE_MS,
       ),

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useNodesInitialized, useReactFlow, useStore, type Viewport } from '@xyflow/react';
 import { motionMs } from './animatePositions';
+import { afterGlide } from './glideNodes';
 
 /**
  * The expanded timeline dock leaves the board a strip, which may show none
@@ -61,7 +62,7 @@ export function useDockViewport(
     if (height === due.current && saved.current !== null) return;
     due.current = null;
     const nodes = shown.current.map((id) => ({ id }));
-    fitView({ duration: motionMs(200), ...(nodes.length > 0 && { nodes, maxZoom: 1 }) });
+    afterGlide(() => void fitView({ duration: motionMs(200), ...(nodes.length > 0 && { nodes, maxZoom: 1 }) }));
   }, [dockOpen, height, measured, fitView]);
 
   // The view to bring back is gone (the caller laid the board out afresh): collapsing keeps the view

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Node, XYPosition } from '@xyflow/react';
 import { useGraphStore } from '../../store/graphStore';
-import { glideNodes } from './glideNodes';
+import { afterGlide, glideNodes } from './glideNodes';
 
 const card = (id: string, x: number, y: number): Node => ({ id, type: 'agent', position: { x, y }, data: {} });
 const positions = () => Object.fromEntries(useGraphStore.getState().nodes.map((node) => [node.id, node.position]));
@@ -79,4 +79,31 @@ describe('glideNodes', () => {
     expect(positions().intake).toEqual({ x: 100, y: 0 });
     expect(moving()).toEqual([]);
   });
+
+  it('runs what needs the nodes still (a fit) a frame after the glide ended, or at once (#650)', () => {
+    const now = vi.fn();
+    afterGlide(now);
+    expect(now).toHaveBeenCalledOnce();
+
+    glideNodes(to([['intake', { x: 100, y: 0 }]]));
+    const fit = vi.fn();
+    afterGlide(fit);
+    vi.advanceTimersByTime(150);
+    expect(fit).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(150);
+    expect(fit).toHaveBeenCalledOnce();
+  });
+
+  it('lets what waits wait for a glide that took over', () => {
+    glideNodes(to([['intake', { x: 100, y: 0 }]]));
+    const fit = vi.fn();
+    afterGlide(fit);
+    vi.advanceTimersByTime(100);
+    glideNodes(to([['intake', { x: 300, y: 0 }]]));
+    vi.advanceTimersByTime(150);
+    expect(fit).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(150);
+    expect(fit).toHaveBeenCalledOnce();
+  });
 });
+

@@ -11,6 +11,30 @@ export interface Glide {
 
 // The board has one glide at a time
 let running: Glide | null = null;
+// What waits for the nodes to keep still (a fit, centring on a node)
+const waiting: (() => void)[] = [];
+
+/**
+ * Runs `run` once the board's nodes keep still: at once, or the frame after
+ * the glide going on ended (React Flow has their final positions by then), so
+ * a fit or a centring uses where the nodes end, not where they are on their
+ * way (#650). A glide that takes over meanwhile is waited for too.
+ */
+export function afterGlide(run: () => void): void {
+  if (!running) {
+    run();
+    return;
+  }
+  waiting.push(run);
+}
+
+function settled(): void {
+  if (waiting.length === 0) return;
+  requestAnimationFrame(() => {
+    if (running) return; // another glide took over: its end runs them
+    for (const run of waiting.splice(0)) run();
+  });
+}
 
 /**
  * Glides the board's nodes to `targets` (a new layout, an unfold making room,
@@ -39,6 +63,7 @@ export function glideNodes(targets: Map<string, XYPosition>): Glide {
     if (running === glide) {
       running = null;
       useGraphStore.getState().setMoving(new Set());
+      settled();
     }
   };
   const glide: Glide = {

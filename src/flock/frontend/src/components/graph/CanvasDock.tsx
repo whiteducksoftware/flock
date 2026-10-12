@@ -8,6 +8,7 @@ import { useReactFlow, useStore } from '@xyflow/react';
 import type { AutoLayoutMode } from '../../store/uiStore';
 import { Icon } from '../icons/Icon';
 import { motionMs } from './animatePositions';
+import { afterGlide } from './glideNodes';
 import styles from './CanvasDock.module.css';
 
 export const LAYOUTS: { mode: AutoLayoutMode; label: string; short: string }[] = [
@@ -90,7 +91,7 @@ const CanvasDock: React.FC<CanvasDockProps> = ({ layout, autoArrange, onLayout, 
         type="button"
         className="btn icon ghost"
         aria-label="Fit to screen"
-        onClick={() => fitView({ padding: 0.1, duration: motionMs(300) })}
+        onClick={() => afterGlide(() => void fitView({ padding: 0.1, duration: motionMs(300) }))}
       >
         <Icon name="fit" size={15} />
       </button>
