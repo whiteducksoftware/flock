@@ -221,3 +221,17 @@ Each entry says what was decided, why, and where it landed.
 - **A run from before the time range widens it to all time** when the palette filters by it or shows its lane (review); a run inside the range keeps it.
 - **Leaving the Flow drops what still waits for it** (review): a Show from the Blackboard abandoned by switching back does not select the agent on a later visit.
 - **Show its lane turns "Needs review only" off** and **the palette gives the focus back before an action opens another overlay** (review).
+
+### #569 Settings, theme picker and shortcuts
+
+- **The settings are a sheet below the header,** not over it: the header's search, Publish and the settings button stay in reach (on screens narrower than 900 px, where the header wraps, the sheet covers it). It is not modal: the board stays usable.
+- **Layout direction is gone from Settings › Advanced** although the spec kept it: every layout mode of the canvas dock names its direction (hierarchical left to right / top down), so the setting had no effect. Node and rank spacing stay and now lay the Flow out again when they change.
+- **Debug mode and performance mode are removed** (open question 2); stored settings that have them still load, without them.
+- **The theme picker's "current theme" box and its Reset are gone:** the built-in tiles and the chosen theme's pressed state show it, and the sheet's Reset to defaults resets everything.
+- **A hover preview ends on mouse-leave** by showing again what the page showed before it (`appliedTheme` / `restoreTheme`), without loading the chosen theme again (review: a failing theme API turned it into Graphite); a preview still loading gives way.
+- **The shortcuts dialog is a real modal** (`aria-modal`): the board's shortcuts stay behind it, Esc and Ctrl/⌘+/ close it, and the palette's special case for it is gone. It lists the keys of the board, the panels, the composer and the palette.
+- **Enter puts the focused node in focus,** else the selected one (as Space unfolds), unless the focus is on a button, field or tab.
+- **The settings fields keep global classes** (`settingsFields.css`): the timeline dock's tracing settings use them too.
+- **Space, Enter and Ctrl+Shift+D act only on an agent on the Flow's board** (review): on the Blackboard an agent unfolded before could still be their target; Enter then closed the timeline dock for a focus stage the Blackboard does not show, and Space was taken from the lanes.
+- **The shortcuts' list is a tab stop** (review): on a short screen it scrolls, so Tab goes round the close button and the list.
+- **The Flow's layouts measure an agent's card, also while it shows as a chip** (review): node and rank spacing changed with the timeline dock expanded laid the board out from chip sizes, and the cards overlapped once the dock closed; the same held for any layout run while zoomed out. The layout takes the card size each agent records (`cardSizes`).

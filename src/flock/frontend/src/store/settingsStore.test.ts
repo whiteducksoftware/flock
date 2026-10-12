@@ -42,4 +42,26 @@ describe('settingsStore', () => {
     const saved = JSON.parse(localStorage.getItem('flock-flow-settings') ?? '{}');
     expect(saved.state.ui).toBeUndefined();
   });
+
+  it('loads settings an earlier dashboard saved, without the ones that are gone', async () => {
+    localStorage.setItem(
+      'flock-flow-settings',
+      JSON.stringify({
+        state: {
+          // An older graph section without the labels switch, and the removed advanced settings
+          graph: { edgeType: 'straight', edgeStrokeWidth: 2, edgeAnimation: false },
+          advanced: { layoutDirection: 'TB', nodeSpacing: 90, rankSpacing: 200, debugMode: true, performanceMode: true },
+          appearance: { theme: 'paper' },
+        },
+        version: 1,
+      }),
+    );
+
+    await useSettingsStore.persist.rehydrate();
+
+    const state = useSettingsStore.getState();
+    expect(state.graph).toEqual({ edgeType: 'straight', edgeStrokeWidth: 2, edgeAnimation: false, showEdgeLabels: true });
+    expect(state.advanced).toEqual({ nodeSpacing: 90, rankSpacing: 200 });
+    expect(state.appearance.theme).toBe('paper');
+  });
 });

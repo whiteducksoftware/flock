@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { applyBuiltInTheme } from '../../services/themeApplicator';
+import { applyBuiltInTheme, applyTheme } from '../../services/themeApplicator';
+import { fetchTheme } from '../../services/themeService';
 import { useSettingsStore } from '../../store/settingsStore';
 import ThemeSelector from './ThemeSelector';
 
@@ -12,6 +13,17 @@ vi.mock('../../services/themeService', async (importOriginal) => ({
   // Loads until the test finishes it
   fetchTheme: vi.fn(() => new Promise((resolve) => (loading.finish = resolve))),
 }));
+
+const DRACULA = {
+  name: 'dracula',
+  colors: {
+    primary: { background: '#282a36', foreground: '#f8f8f2' },
+    normal: { black: '#000000', red: '#ff5555', green: '#50fa7b', yellow: '#f1fa8c', blue: '#bd93f9', magenta: '#ff79c6', cyan: '#8be9fd', white: '#bbbbbb' },
+    bright: { black: '#555555', red: '#ff5555', green: '#50fa7b', yellow: '#f1fa8c', blue: '#bd93f9', magenta: '#ff79c6', cyan: '#8be9fd', white: '#ffffff' },
+    selection: { background: '#44475a', text: '#ffffff' },
+    cursor: { cursor: '#ffffff', text: '#000000' },
+  },
+};
 
 describe('ThemeSelector', () => {
   beforeEach(() => {
@@ -59,6 +71,49 @@ describe('ThemeSelector', () => {
 
     expect(document.documentElement.dataset.theme).toBe('paper');
     expect(useSettingsStore.getState().appearance.theme).toBe('paper');
+  });
+
+  it('puts the theme back when the pointer leaves a preview, also one still loading', async () => {
+    render(<ThemeSelector />);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'dracula' })).toBeTruthy());
+    const dracula = screen.getByRole('button', { name: 'dracula' });
+
+    fireEvent.mouseEnter(dracula);
+    loading.finish(DRACULA);
+    await waitFor(() => expect(document.documentElement.style.getPropertyValue('--bg')).not.toBe(''));
+    expect(screen.getByText(/Previewing dracula/)).toBeTruthy();
+
+    fireEvent.mouseLeave(dracula);
+    await waitFor(() => expect(document.documentElement.style.getPropertyValue('--bg')).toBe(''));
+    expect(document.documentElement.dataset.theme).toBe('graphite');
+    expect(screen.queryByText(/Previewing/)).toBeNull();
+
+    // A preview that loads after the pointer left does not apply
+    fireEvent.mouseEnter(dracula);
+    fireEvent.mouseLeave(dracula);
+    loading.finish(DRACULA);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(document.documentElement.style.getPropertyValue('--bg')).toBe('');
+    expect(useSettingsStore.getState().appearance.theme).toBe('graphite');
+  });
+
+  it('puts back the theme it showed before a preview, without loading it again', async () => {
+    // dracula is the chosen theme, applied; the theme API then fails
+    applyTheme(DRACULA);
+    useSettingsStore.getState().setTheme('dracula');
+    const draculaBg = document.documentElement.style.getPropertyValue('--bg');
+    render(<ThemeSelector />);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'nord' })).toBeTruthy());
+    vi.mocked(fetchTheme).mockRejectedValue(new Error('offline'));
+
+    fireEvent.mouseEnter(screen.getByRole('button', { name: 'nord' }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    fireEvent.mouseLeave(screen.getByRole('button', { name: 'nord' }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(document.documentElement.style.getPropertyValue('--bg')).toBe(draculaBg);
+    expect(useSettingsStore.getState().appearance.theme).toBe('dracula');
+    vi.mocked(fetchTheme).mockImplementation(() => new Promise((resolve) => (loading.finish = resolve as (theme: unknown) => void)));
   });
 
   it('does not apply a built-in theme on hover', async () => {

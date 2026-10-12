@@ -1,0 +1,149 @@
+/*
+ * The fields of the settings sheet and of the timeline dock's tracing
+ * settings, on the tokens: sections, labels, descriptions, inputs, checkboxes.
+ */
+
+.settings-section {
+  margin-bottom: 28px;
+}
+
+.settings-section:last-child {
+  margin-bottom: 0;
+}
+
+.settings-section-title {
+  margin: 0 0 12px;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.settings-field > .btn {
+  align-self: flex-start;
+}
+
+.settings-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.settings-description {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.settings-select,
+.settings-input {
+  width: 100%;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.settings-input[type='range'] {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  accent-color: var(--sure);
+}
+
+.settings-select:hover,
+.settings-input:hover {
+  border-color: var(--text-3);
+}
+
+.settings-select:focus-visible,
+.settings-input:focus-visible {
+  outline: 2px solid var(--sure);
+  outline-offset: 1px;
+}
+
+.settings-checkbox-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-checkbox {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--sure);
+  cursor: pointer;
+}
+
+.settings-checkbox-label {
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}
+
+/* The tracing settings' buttons */
+.settings-reset-button,
+.settings-save-button {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.settings-save-button {
+  border-color: var(--invert);
+  background: var(--invert);
+  color: var(--on-invert);
+}
+
+.settings-reset-button:hover {
+  border-color: var(--text-3);
+}
+
+.settings-reset-button:disabled,
+.settings-save-button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.settings-error {
+  color: var(--error-ink);
+}
+
+/* Settings › Advanced: the versions */
+.settings-versions {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 16px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.settings-versions dt {
+  color: var(--text-3);
+}
+
+.settings-versions dd {
+  margin: 0;
+  color: var(--text);
+}

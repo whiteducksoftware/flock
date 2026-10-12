@@ -12,8 +12,8 @@ const AppearanceSettings: React.FC = () => (
     <div className="settings-section">
       <h3 className="settings-section-title">Theme</h3>
 
-      <p className="settings-description" style={{ marginBottom: 'var(--space-component-md)' }}>
-        Choose from 300+ terminal color themes. Themes are loaded from the backend and applied in real-time.
+      <p className="settings-description">
+        Graphite and Paper, or one of 300+ terminal themes on top of them. Hover a theme to preview it.
       </p>
 
       <ThemeSelector />
