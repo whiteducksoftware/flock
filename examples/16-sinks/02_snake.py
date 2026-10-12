@@ -110,6 +110,7 @@ class Game:
         self.applied: set[str] = set()  # decisions already played (sink retries)
         self.paused = False
         self.waiting = False  # the next step is ready, held while paused
+        self.publishing = asyncio.Lock()  # one publication of a step at a time
         self.hungry = 0  # steps since the last food
         self.food = self._place_food()
 
@@ -207,8 +208,9 @@ async def publish(game: Game) -> None:
         response.raise_for_status()
 
 
-def view(game: Game, decision: dict | None = None) -> dict:
+def view(game: Game, decision: dict | None = None, error: str | None = None) -> dict:
     return {
+        "error": error,
         "game": game.id,
         "snake": game.snake,
         "food": game.food,
@@ -221,13 +223,20 @@ def view(game: Game, decision: dict | None = None) -> dict:
     }
 
 
+def unreachable(exc: Exception) -> str:
+    return f"Flock is not reachable at {settings['flock_url']} ({type(exc).__name__})"
+
+
 async def advance(game: Game) -> None:
     """Publish the next step, or hold it while the game is paused."""
     game.waiting = True
     if game.paused:
         return
-    await publish(game)  # a failed publish keeps the step waiting, to retry
-    game.waiting = False
+    async with game.publishing:
+        if not game.waiting:
+            return  # an overlapping Resume published it meanwhile
+        await publish(game)  # a failed publish keeps the step waiting, to retry
+        game.waiting = False
 
 
 @app.post("/games")
@@ -239,11 +248,9 @@ async def new_game():
         await publish(game)
     except httpx.HTTPError as exc:
         game.alive = False
-        push(view(game))  # the page drops the game it never got
-        raise HTTPException(
-            502,
-            f"Flock is not reachable at {settings['flock_url']} ({type(exc).__name__})",
-        ) from None
+        error = unreachable(exc)
+        push(view(game, error=error))  # the page drops the game it never got
+        raise HTTPException(502, error) from None
     return {"game": game.id}
 
 
@@ -266,11 +273,9 @@ async def resume(game_id: str):
         except httpx.HTTPError as exc:
             # Paused again, its step still waiting: Resume retries it
             game.paused = True
-            push(view(game))
-            raise HTTPException(
-                502,
-                f"Flock is not reachable at {settings['flock_url']} ({type(exc).__name__})",
-            ) from None
+            error = unreachable(exc)
+            push(view(game, error=error))
+            raise HTTPException(502, error) from None
     return {"paused": False}
 
 
@@ -407,9 +412,12 @@ PAGE = """<!doctype html>
     draw(state);
     bars(state.probabilities, state.move);
     document.getElementById('stats').textContent = `${state.game} · step ${state.step} · food ${state.eaten}`;
-    document.getElementById('status').innerHTML = !state.alive
-      ? `<span class="over">Game over: ${state.eaten} food in ${state.step} steps</span>`
-      : state.paused ? 'Paused' : '';
+    // The event carries a failure, so it shows whichever of the two answers comes first
+    document.getElementById('status').innerHTML = state.error
+      ? `<span class="over">${state.error}</span>`
+      : !state.alive
+        ? `<span class="over">Game over: ${state.eaten} food in ${state.step} steps</span>`
+        : state.paused ? 'Paused' : '';
   };
   async function start() {
     current = null;

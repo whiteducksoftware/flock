@@ -363,3 +363,30 @@ async def test_a_start_that_cannot_reach_flock_tells_the_page(snake, monkeypatch
         await snake.new_game()
 
     assert pushed[-1]["alive"] is False
+    assert "not reachable" in pushed[-1]["error"]
+
+
+async def test_overlapping_resumes_publish_a_step_once(snake, monkeypatch):
+    import asyncio
+
+    published: list[int] = []
+
+    async def publish(game):
+        await asyncio.sleep(0.02)
+        published.append(game.step)
+
+    monkeypatch.setattr(snake, "publish", publish)
+    game = (await snake.new_game())["game"]
+    await snake.pause(game)
+    await snake.move({
+        "id": "decision-1",
+        "correlation_id": game,
+        "payload": {"choice": "up", "best_guess": None, "probabilities": {"up": 0.9}},
+    })
+
+    first = asyncio.create_task(snake.resume(game))
+    await asyncio.sleep(0)
+    await snake.pause(game)
+    await asyncio.gather(first, snake.resume(game))
+
+    assert published == [0, 1]
