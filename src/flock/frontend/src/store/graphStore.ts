@@ -236,13 +236,14 @@ export const useGraphStore = create<GraphState>()(
       generateAgentViewGraph: async () => {
         set({ isLoading: true, error: null, viewMode: 'agent' });
         const mine = ++snapshotRequest;
-        const key = requestKey('agent');
 
         try {
           // Load saved positions from IndexedDB first
           await get().loadSavedPositions();
 
+          // The filters as the request goes out (they may change while positions load)
           const request = buildGraphRequest('agent');
+          const key = JSON.stringify(request);
           const snapshot: GraphSnapshot = await fetchGraphSnapshot(request);
           if (!stillAsked(mine, key, 'agent', get().viewMode)) return;
           appliedRequest = mine;
@@ -306,10 +307,10 @@ export const useGraphStore = create<GraphState>()(
       generateBlackboardViewGraph: async () => {
         set({ isLoading: true, error: null, viewMode: 'blackboard' });
         const mine = ++snapshotRequest;
-        const key = requestKey('blackboard');
 
         try {
           const request = buildGraphRequest('blackboard');
+          const key = JSON.stringify(request);
           const snapshot: GraphSnapshot = await fetchGraphSnapshot(request);
           if (!stillAsked(mine, key, 'blackboard', get().viewMode)) return;
           appliedRequest = mine;

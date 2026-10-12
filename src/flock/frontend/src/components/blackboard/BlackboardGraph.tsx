@@ -117,6 +117,7 @@ const Canvas: React.FC = () => {
   const storeEdges = useGraphStore((state) => state.edges);
   const inFlight = useGraphStore((state) => state.inFlight);
   const viewMode = useGraphStore((state) => state.viewMode);
+  const loading = useGraphStore((state) => state.isLoading);
   const reviewOnly = useUIStore((state) => state.needsReviewOnly);
   const unfoldedId = useUIStore((state) => state.unfoldedArtifactId);
   const layoutMode = useUIStore((state) => state.graphLayout);
@@ -157,8 +158,6 @@ const Canvas: React.FC = () => {
   );
 
   const [nodes, setNodes] = useState<ArtifactNode[]>([]);
-  const nodesRef = useRef(nodes);
-  nodesRef.current = nodes;
   const [viewTick, setViewTick] = useState(0);
   // A layout to run again once the new cards are measured: all cards, or the new ones
   const pending = useRef<'all' | Set<string> | null>(null);
@@ -205,7 +204,9 @@ const Canvas: React.FC = () => {
         fresh.add(node.id);
         return node;
       });
-      const firstLoad = previous.length === 0;
+      // Until the first view is shown the board lays out whole: a card that streams
+      // can come before the snapshot, which would else only be added below it
+      const firstLoad = previous.length === 0 || !fitted.current;
       if (knownEdges.current && !firstLoad) {
         const placed = new Set(previous.map((node) => node.id));
         for (const id of newEdgeTargets(knownEdges.current, graph.edges, placed)) fresh.add(id);
@@ -220,26 +221,32 @@ const Canvas: React.FC = () => {
   }, [graph.nodes, graph.edges, autoArrange, layoutMode, arrange]);
 
   // Once the new cards have their size, the layout runs again with it
-  const firstView = useRef<ArtifactNode[] | null>(null);
+  // (firstView: the first view is due)
+  const firstView = useRef(false);
   useEffect(() => {
     if (!initialized || !pending.current) return;
     const which = pending.current;
     pending.current = null;
     setNodes((current) => {
       const next = arrange(which, layoutMode, current);
-      if (!fitted.current) firstView.current = next;
+      if (!fitted.current) firstView.current = true;
       return next;
     });
   }, [initialized, arrange, layoutMode]);
 
   // The first view: the whole board if it reads at READABLE_ZOOM, else the newest row
   // of runs at the top, readable; Fit shows them all.
-  // From the positions just set, which React Flow may not have yet
+  // From the positions just set, which React Flow may not have yet. It waits until the
+  // board holds the snapshot's cards (a render after it arrives), laid out with their
+  // size: a layout chosen while the board loads, or a card that streams before the
+  // snapshot, would else be shown instead of the board
   useEffect(() => {
-    const laid = firstView.current;
-    if (!laid || fitted.current) return;
-    firstView.current = null;
+    if (!firstView.current || fitted.current || loading || pending.current) return;
+    const synced = nodes.length === graph.nodes.length && graph.nodes.every((node, index) => nodes[index]?.id === node.id);
+    if (nodes.length === 0 || !synced) return;
+    firstView.current = false;
     fitted.current = true;
+    const laid = nodes;
     const width = board.current?.clientWidth ?? 0;
     const height = board.current?.clientHeight ?? 0;
     // A board that fits at a readable zoom shows whole (a filtered one, a small one)
@@ -285,7 +292,7 @@ const Canvas: React.FC = () => {
     const right = Math.max(...row.map((node) => node.position.x + (node.measured?.width ?? ESTIMATE.width)));
     const zoom = Math.min(1, (width - 2 * EDGE) / Math.max(1, right - left));
     void setViewport({ x: EDGE - left * zoom, y: EDGE - top * zoom, zoom });
-  }, [nodes, viewTick, fitView, setViewport, setCenter]);
+  }, [nodes, graph.nodes, viewTick, loading, fitView, setViewport, setCenter]);
 
   // A change of what the board shows (its filters, Needs review only) lays it out
   // afresh and shows its newest row, as a first visit does, once the result is in:
@@ -302,7 +309,7 @@ const Canvas: React.FC = () => {
     if (dockOpen || !viewAfterDock.current) return;
     viewAfterDock.current = false;
     fitted.current = false;
-    firstView.current = nodesRef.current;
+    firstView.current = true;
     setViewTick((tick) => tick + 1);
   }, [dockOpen]);
   const reviewShown = useRef(reviewOnly);
@@ -325,11 +332,8 @@ const Canvas: React.FC = () => {
     // Laid out in the dock's strip: the first view comes again for the full board
     viewAfterDock.current = useUIStore.getState().dockOpen;
     fitted.current = false;
-    setNodes((current) => {
-      const next = arrange('all', layoutMode, current);
-      firstView.current = next;
-      return next;
-    });
+    firstView.current = true;
+    setNodes((current) => arrange('all', layoutMode, current));
   }, [nodes, graph.nodes, initialized, answered, asked, reviewOnly, arrange, layoutMode]);
 
   // The graph shows artifacts; it removes none (only the snapshot does)
@@ -338,17 +342,16 @@ const Canvas: React.FC = () => {
   }, []);
 
   // A layout chosen in the canvas dock or the palette: the cards move, so the first
-  // view comes again (a grid or a circle centers on the origin, far from the newest row)
+  // view comes again (a grid or a circle centers on the origin, far from the newest row),
+  // and once more for the full board after the dock's strip
   const layout = useCallback(
     (mode: AutoLayoutMode) => {
       useUIStore.getState().setGraphLayout(mode);
       forgetDockView();
+      viewAfterDock.current = useUIStore.getState().dockOpen;
       fitted.current = false;
-      setNodes((current) => {
-        const next = arrange('all', mode, current);
-        firstView.current = next;
-        return next;
-      });
+      firstView.current = true;
+      setNodes((current) => arrange('all', mode, current));
     },
     [arrange, forgetDockView],
   );
