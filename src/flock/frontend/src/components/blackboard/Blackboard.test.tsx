@@ -48,7 +48,11 @@ const lane = (run: string) => screen.getByRole('region', { name: `Run ${run}` })
  */
 const layOut = (
   tops: Map<string, number>,
-  { heights = new Map<string, number>(), shift = new Map<string, number>(), cards = new Map<string, { x: number; y: number }>() } = {},
+  {
+    heights = new Map<string, number>(),
+    shift = new Map<string, number>(),
+    cards = new Map<string, { x: number; y: number; width?: number; height?: number }>(),
+  } = {},
 ) =>
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
     const slot = this.closest<HTMLElement>('[data-lane]');
@@ -57,7 +61,7 @@ const layOut = (
     const item = this.dataset.glide;
     if (item) {
       const at = cards.get(item) ?? { x: 0, y: 10 };
-      return { top: top + at.y, left: at.x, height: 60 } as DOMRect;
+      return { top: top + at.y, left: at.x, width: at.width ?? 200, height: at.height ?? 60 } as DOMRect;
     }
     return { top, left: 0, height: heights.get(label) ?? 100 } as DOMRect;
   });
@@ -320,7 +324,8 @@ describe('Blackboard', () => {
     act(() => observers.forEach((callback) => callback([], {} as ResizeObserver)));
 
     const clips = animate.mock.calls.map((call) => (call as unknown[])[0] as Keyframe[]).filter((frames) => 'clipPath' in frames[0]!);
-    expect(clips).toEqual([[{ clipPath: 'inset(0px 0px 300px 0px)' }, { clipPath: 'inset(0px 0px 0px 0px)' }]]);
+    // Its sides reach far past the lane: columns wider than the board scroll sideways and stay visible
+    expect(clips).toEqual([[{ clipPath: 'inset(0px -100000px 300px -100000px)' }, { clipPath: 'inset(0px -100000px 0px -100000px)' }]]);
     rect.mockRestore();
   });
 
@@ -336,7 +341,7 @@ describe('Blackboard', () => {
       if (hidden === null || (element as HTMLElement).dataset?.lane === undefined) return computed;
       const label = element.querySelector('section')?.getAttribute('aria-label');
       if (label !== 'Run cccc') return computed;
-      return new Proxy(computed, { get: (target, prop) => (prop === 'clipPath' ? `inset(0px 0px ${hidden}px 0px)` : Reflect.get(target, prop, target)) });
+      return new Proxy(computed, { get: (target, prop) => (prop === 'clipPath' ? `inset(0px -100000px ${hidden}px -100000px)` : Reflect.get(target, prop, target)) });
     });
     const clips: { frames: Keyframe[]; cancel: ReturnType<typeof vi.fn> }[] = [];
     (HTMLElement.prototype as any).animate = vi.fn((frames: Keyframe[]) => {
@@ -365,7 +370,7 @@ describe('Blackboard', () => {
     hidden = 120;
     heights.set('Run cccc', 450);
     resize();
-    expect(clips[1]!.frames[0]).toEqual({ clipPath: 'inset(0px 0px 170px 0px)' });
+    expect(clips[1]!.frames[0]).toEqual({ clipPath: 'inset(0px -100000px 170px -100000px)' });
 
     // Folded again before the reveal ended: nothing stays hidden
     heights.set('Run cccc', 100);
@@ -373,6 +378,52 @@ describe('Blackboard', () => {
     expect(clips[1]!.cancel).toHaveBeenCalled();
     rect.mockRestore();
     style.mockRestore();
+  });
+
+  it('opens a lane that arrives downwards as the lanes below make room for it (#652)', () => {
+    const tops = new Map<string, number>([['Run cccc', 0], ['Run bbbb', 100], ['Run aaaa', 200]]);
+    const rect = layOut(tops);
+    const clips: { lane: string | undefined; frames: Keyframe[] }[] = [];
+    (HTMLElement.prototype as any).animate = vi.fn(function (this: HTMLElement, frames: Keyframe[]) {
+      if ('clipPath' in frames[0]!) clips.push({ lane: this.dataset.lane, frames });
+      return { cancel: vi.fn(), onfinish: null };
+    });
+    const { rerender } = render(<Blackboard />);
+
+    tops.set('Run dddd', 0);
+    tops.set('Run cccc', 100);
+    tops.set('Run bbbb', 200);
+    tops.set('Run aaaa', 300);
+    act(() => {
+      useGraphStore.setState({ nodes: [...nodes, artifact('t4', 'dddd4444-0000', 'app.SupportTicket', 'external', 5000, { payload: { subject: 'New one' } })] });
+    });
+    rerender(<Blackboard />);
+
+    expect(clips).toEqual([
+      { lane: 'dddd4444-0000', frames: [{ clipPath: 'inset(0px -100000px 100px -100000px)' }, { clipPath: 'inset(0px -100000px 0px -100000px)' }] },
+    ]);
+    rect.mockRestore();
+  });
+
+  it('opens a card that grows from its folded box, as its neighbours make room (#652)', () => {
+    const tops = new Map<string, number>([['Run cccc', 0], ['Run bbbb', 100], ['Run aaaa', 200]]);
+    const cards = new Map<string, { x: number; y: number; width?: number; height?: number }>([['d1', { x: 300, y: 10, width: 236, height: 65 }]]);
+    const rect = layOut(tops, { cards });
+    const played: { card: string | undefined; frames: Keyframe[] }[] = [];
+    (HTMLElement.prototype as any).animate = vi.fn(function (this: HTMLElement, frames: Keyframe[]) {
+      played.push({ card: this.dataset.glide, frames });
+      return { cancel: vi.fn(), onfinish: null };
+    });
+    const { rerender } = render(<Blackboard />);
+
+    cards.set('d1', { x: 300, y: 10, width: 420, height: 470 });
+    act(() => {
+      useGraphStore.setState({ nodes: [...nodes] });
+    });
+    rerender(<Blackboard />);
+
+    expect(played).toContainEqual({ card: 'd1', frames: [{ clipPath: 'inset(0px 184px 405px 0px)' }, { clipPath: 'inset(0px 0px 0px 0px)' }] });
+    rect.mockRestore();
   });
 
   it('measures when a card unfolds though no lane changes its size (#652)', () => {
