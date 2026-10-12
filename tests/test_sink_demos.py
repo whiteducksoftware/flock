@@ -277,3 +277,40 @@ async def test_an_overlapping_retry_shows_a_guess_once(quick_draw, monkeypatch):
     await asyncio.gather(quick_draw.guess(envelope), quick_draw.guess(envelope))
 
     assert len(pushed) == 1
+
+
+async def test_a_paused_game_holds_its_next_step_until_it_resumes(snake, monkeypatch):
+    published: list[int] = []
+
+    async def publish(game):
+        published.append(game.step)
+
+    monkeypatch.setattr(snake, "publish", publish)
+    game = (await snake.new_game())["game"]
+    await snake.pause(game)
+
+    # The decision in flight still moves the snake, the next step waits
+    await snake.move({
+        "id": "decision-1",
+        "correlation_id": game,
+        "payload": {"choice": "up", "best_guess": None, "probabilities": {"up": 0.9}},
+    })
+    assert published == [0]
+
+    await snake.resume(game)
+    assert published == [0, 1]
+
+
+async def test_the_game_publishes_where_the_page_points_it(snake):
+    from fastapi import HTTPException
+
+    with respx.mock() as router:
+        route = router.post("http://127.0.0.1:9100/api/v1/artifacts").mock(
+            return_value=httpx.Response(200, json={"status": "accepted"})
+        )
+        await snake.set_settings(snake.Settings(flock_url=" http://127.0.0.1:9100/ "))
+        await snake.new_game()
+
+    assert route.call_count == 1
+    with pytest.raises(HTTPException):
+        await snake.set_settings(snake.Settings(flock_url="localhost:9100"))

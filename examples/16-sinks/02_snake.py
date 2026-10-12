@@ -11,7 +11,8 @@ publishes the next step. One decision per step, until the snake dies.
 - The `game` sink posts every decision to the game's `/move`; it keeps the
   order per game, so moves arrive in the order they were decided.
 - The game page draws the board and the model's probabilities live
-  (server-sent events) and counts the food and the steps.
+  (server-sent events) and counts the food and the steps. Start, Pause and
+  Resume hold the game between two steps.
 
 The model gets what each move leads to, as text (`azure/decision-1` takes no
 images): a wall, the snake's body, the food, or an empty cell and how far the
@@ -25,6 +26,8 @@ food is from there. The game draws the board itself.
 
 🎛️  CONFIGURATION:
 - `--fake`: a heuristic plays instead of a model (no API key; for CI and screenshots)
+- `--port` (8792) and `--flock-port` (8344): where the game and Flock run; the
+  page's Flock field points the game at another Flock while it runs
 - DEFAULT_DECISION_MODEL, else `azure/decision-1` (AZURE_API_BASE, AZURE_API_KEY)
 - Open http://127.0.0.1:8792 for the game and http://127.0.0.1:8344 for the dashboard
 """
@@ -42,7 +45,7 @@ from collections.abc import Sequence
 
 import httpx
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
@@ -105,6 +108,8 @@ class Game:
         self.eaten = 0
         self.alive = True
         self.applied: set[str] = set()  # decisions already played (sink retries)
+        self.paused = False
+        self.waiting = False  # the next step is ready, held while paused
         self.hungry = 0  # steps since the last food
         self.food = self._place_food()
 
@@ -178,6 +183,8 @@ class Game:
 
 games: dict[str, Game] = {}
 listeners: list[asyncio.Queue] = []
+# Where the game publishes its steps; the page can point it elsewhere
+settings = {"flock_url": f"http://127.0.0.1:{FLOCK_PORT}"}
 app = FastAPI()
 
 
@@ -190,7 +197,7 @@ async def publish(game: Game) -> None:
     """The next step, over Flock's REST API, in the game's run."""
     async with httpx.AsyncClient() as client:
         response = await client.post(
-            f"http://127.0.0.1:{FLOCK_PORT}/api/v1/artifacts",
+            f"{settings['flock_url']}/api/v1/artifacts",
             json={
                 "type": "SnakeState",
                 "payload": game.state().model_dump(),
@@ -208,9 +215,19 @@ def view(game: Game, decision: dict | None = None) -> dict:
         "step": game.step,
         "eaten": game.eaten,
         "alive": game.alive,
+        "paused": game.paused,
         "probabilities": (decision or {}).get("probabilities"),
         "move": (decision or {}).get("move"),
     }
+
+
+async def advance(game: Game) -> None:
+    """Publish the next step, or hold it while the game is paused."""
+    if game.paused:
+        game.waiting = True
+        return
+    game.waiting = False
+    await publish(game)
 
 
 @app.post("/games")
@@ -218,8 +235,51 @@ async def new_game():
     game = Game()
     games[game.id] = game
     push(view(game))
-    await publish(game)
+    try:
+        await publish(game)
+    except httpx.HTTPError as exc:
+        game.alive = False
+        raise HTTPException(
+            502,
+            f"Flock is not reachable at {settings['flock_url']} ({type(exc).__name__})",
+        ) from None
     return {"game": game.id}
+
+
+@app.post("/games/{game_id}/pause")
+async def pause(game_id: str):
+    game = games[game_id]
+    game.paused = True
+    push(view(game))
+    return {"paused": True}
+
+
+@app.post("/games/{game_id}/resume")
+async def resume(game_id: str):
+    game = games[game_id]
+    game.paused = False
+    push(view(game))
+    if game.alive and game.waiting:
+        await advance(game)
+    return {"paused": False}
+
+
+class Settings(BaseModel):
+    flock_url: str
+
+
+@app.get("/settings")
+async def get_settings():
+    return settings
+
+
+@app.post("/settings")
+async def set_settings(body: Settings):
+    url = body.flock_url.strip().rstrip("/")
+    if not url.startswith(("http://", "https://")):
+        raise HTTPException(400, "Flock's address starts with http:// or https://")
+    settings["flock_url"] = url
+    return settings
 
 
 @app.post("/move")
@@ -244,7 +304,7 @@ async def move(envelope: dict):
         game.apply(chosen or "up")
         push(view(game, {"probabilities": decision["probabilities"], "move": chosen}))
     if game.alive:
-        await publish(game)
+        await advance(game)
     return {"ok": True}
 
 
@@ -281,20 +341,35 @@ PAGE = """<!doctype html>
   .fill { height: 100%; background: #7ba8f5; }
   .chosen { color: #9dbef8; }
   .over { color: #f59384; }
-  button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid #3a3e45; background: #1c1f23; color: inherit; cursor: pointer; }
+  .buttons { display: flex; gap: 10px; }
+  .buttons button { flex: 1; }
+  button, input { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid #3a3e45; background: #1c1f23; color: inherit; }
+  button { cursor: pointer; }
+  label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #b0b6bf; }
+  input { font-family: monospace; font-size: 13px; }
+  .hint { font-size: 12px; color: #858c96; }
 </style>
 <canvas id="board" width="420" height="420"></canvas>
 <div class="side">
   <h2 style="margin:0">Flock plays Snake</h2>
-  <div id="stats">Starting…</div>
+  <div id="stats">Press Start to play.</div>
   <div id="bars"></div>
   <div id="status"></div>
-  <button id="new">New game</button>
+  <div class="buttons">
+    <button id="toggle">Start</button>
+    <button id="new">New game</button>
+  </div>
+  <label>Flock
+    <input id="flock" spellcheck="false">
+  </label>
+  <div class="hint" id="hint">Where the game publishes its steps (Flock's REST API).</div>
 </div>
 <script>
   const size = {SIZE}, cell = 42;
   const board = document.getElementById('board').getContext('2d');
-  let current = null;
+  let current = null, alive = false, paused = false;
+  const toggle = document.getElementById('toggle');
+  function buttons() { toggle.textContent = alive && !paused ? 'Pause' : alive ? 'Resume' : 'Start'; }
   function draw(state) {
     board.clearRect(0, 0, 420, 420);
     board.fillStyle = '#f07563';
@@ -318,19 +393,41 @@ PAGE = """<!doctype html>
     const state = JSON.parse(message.data);
     if (current && state.game !== current) return;
     current = state.game;
+    alive = state.alive; paused = state.paused; buttons();
     draw(state);
     bars(state.probabilities, state.move);
     document.getElementById('stats').textContent = `${state.game} · step ${state.step} · food ${state.eaten}`;
-    document.getElementById('status').innerHTML = state.alive ? '' :
-      `<span class="over">Game over: ${state.eaten} food in ${state.step} steps</span>`;
+    document.getElementById('status').innerHTML = !state.alive
+      ? `<span class="over">Game over: ${state.eaten} food in ${state.step} steps</span>`
+      : state.paused ? 'Paused' : '';
   };
   async function start() {
     current = null;
     const response = await fetch('/games', { method: 'POST' });
-    current = (await response.json()).game;
+    const answer = await response.json();
+    if (!response.ok) {
+      document.getElementById('status').innerHTML = `<span class="over">${answer.detail}</span>`;
+      return;
+    }
+    current = answer.game;
   }
+  toggle.onclick = async () => {
+    if (!current || !alive) return start();
+    await fetch(`/games/${current}/${paused ? 'resume' : 'pause'}`, { method: 'POST' });
+  };
   document.getElementById('new').onclick = start;
-  start();
+  // Flock's address: shown from the game's settings, saved on Enter or when the field is left
+  const flock = document.getElementById('flock'), hint = document.getElementById('hint');
+  fetch('/settings').then((r) => r.json()).then((s) => { flock.value = s.flock_url; });
+  async function save() {
+    const response = await fetch('/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ flock_url: flock.value }) });
+    const answer = await response.json();
+    hint.innerHTML = response.ok
+      ? `Publishing to ${answer.flock_url} · <a href="${answer.flock_url}" target="_blank" style="color:#9dbef8">dashboard</a>`
+      : `<span class="over">${answer.detail}</span>`;
+  }
+  flock.onchange = save;
 </script>
 """
 
@@ -377,11 +474,11 @@ class SnakeHeuristic(DecisionProvider):
 # ============================================================================
 # The flock
 # ============================================================================
-def build_flock(fake: bool) -> Flock:
+def build_flock(fake: bool, game_port: int = GAME_PORT) -> Flock:
     flock = Flock(
         decision_model=SnakeHeuristic() if fake else DECISION_MODEL,
         decision_rate_limit=None if fake else "100/min",
-        endpoints={"game": Endpoint(f"http://127.0.0.1:{GAME_PORT}", retries=3)},
+        endpoints={"game": Endpoint(f"http://127.0.0.1:{game_port}", retries=3)},
     )
     flock.agent("player").description("Picks the snake's next move").consumes(
         SnakeState
@@ -395,17 +492,26 @@ async def main() -> None:
     parser.add_argument(
         "--fake", action="store_true", help="a heuristic plays, no API key"
     )
+    parser.add_argument("--port", type=int, default=GAME_PORT, help="the game's port")
+    parser.add_argument(
+        "--flock-port",
+        type=int,
+        default=FLOCK_PORT,
+        help="Flock's port (API and dashboard)",
+    )
     args = parser.parse_args()
 
-    flock = build_flock(args.fake)
+    settings["flock_url"] = f"http://127.0.0.1:{args.flock_port}"
+    flock = build_flock(args.fake, game_port=args.port)
     server = uvicorn.Server(
-        uvicorn.Config(app, host="127.0.0.1", port=GAME_PORT, log_level="warning")
+        uvicorn.Config(app, host="127.0.0.1", port=args.port, log_level="warning")
     )
     asyncio.get_running_loop().create_task(server.serve())
     print(
-        f"\n🐍 The game: http://127.0.0.1:{GAME_PORT}   🦆 The dashboard: http://127.0.0.1:{FLOCK_PORT}\n"
+        f"\n🐍 The game: http://127.0.0.1:{args.port}   "
+        f"🦆 The dashboard: http://127.0.0.1:{args.flock_port}\n"
     )
-    await flock.serve(dashboard=True, port=FLOCK_PORT)
+    await flock.serve(dashboard=True, port=args.flock_port)
 
 
 if __name__ == "__main__":
