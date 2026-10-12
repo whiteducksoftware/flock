@@ -308,8 +308,9 @@ export class WebSocketClient {
       // This run is done; another one keeps its own types in flight
       useGraphStore.getState().setInFlight(data.run_id, data.agent_name, null);
       this.endedRuns.add(data.run_id);
-      // A newer run failed: the snapshot says what (lastError)
-      if (status === 'error') this.scheduleGraphRefresh();
+      // The snapshot draws a run's deliveries once it ended, and says what a
+      // newer run that failed did wrong (lastError)
+      this.scheduleGraphRefresh();
 
       // OLD CODE REMOVED: Run status tracking (runs Map, batchUpdate)
       // Backend handles run data now

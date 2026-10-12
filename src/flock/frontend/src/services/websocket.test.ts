@@ -420,4 +420,26 @@ describe('WebSocketClient refreshes the board', () => {
     expect(refresh).toHaveBeenCalledTimes(1);
     client.disconnect();
   });
+
+  it('after a run ends, whose deliveries the board shows only then', async () => {
+    const refresh = vi.spyOn(useGraphStore.getState(), 'refreshCurrentView').mockResolvedValue(undefined);
+    const client = new WebSocketClient('ws://test/ws');
+    client.connect();
+    socket(0).open();
+
+    vi.clearAllTimers();
+    refresh.mockClear();
+
+    const event = (event_type: string, data: object) => ({ data: JSON.stringify({ event_type, data }) });
+    socket(0).onmessage?.(event('agent_activated', { agent_name: 'player', run_id: 'r1', consumed_types: ['SnakeState'] }));
+    await vi.advanceTimersByTimeAsync(450);
+    socket(0).onmessage?.(published('c-0'));
+    await vi.advanceTimersByTimeAsync(100); // refreshed at 500 ms, the run still active
+    socket(0).onmessage?.(event('agent_completed', { agent_name: 'player', run_id: 'r1', agent_status: 'idle' }));
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(500);
+    expect(refresh).toHaveBeenCalledTimes(2);
+    client.disconnect();
+  });
 });
