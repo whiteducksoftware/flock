@@ -256,16 +256,36 @@ describe('graphStore - NEW Simplified Architecture', () => {
       expect(useGraphStore.getState().settling.has('r1')).toBe(false);
     });
 
-    it('settles a run on a snapshot asked before it ended only once that places all it published', async () => {
+    it('keeps a run until a snapshot holds all it published, each placed by its edge', async () => {
+      const second = { ...decided, id: 'd2' };
       useGraphStore.getState().setInFlight('r1', 'triage', ['app.Ticket'], ['t1'], 'c-1');
-      // Read before the run ended: one of its two outputs
-      const answer = askNow();
       useGraphStore.getState().endRun('r1', ['d1', 'd2']);
-      await answer([ticket, decided], placing('d1'));
+      vi.mocked(fetchGraphSnapshot).mockResolvedValueOnce({ nodes: [ticket, decided], edges: placing('d1'), statistics: null } as unknown as GraphSnapshot);
+      await useGraphStore.getState().generateBlackboardViewGraph();
       expect(useGraphStore.getState().settling.has('r1')).toBe(true);
 
-      // Asked after it ended: all it published that the board's filters let
-      // through, here only d1 and not the ticket, so no edge places it
+      vi.mocked(fetchGraphSnapshot).mockResolvedValueOnce({ nodes: [ticket, decided, second], edges: placing('d1'), statistics: null } as unknown as GraphSnapshot);
+      await useGraphStore.getState().generateBlackboardViewGraph();
+      expect(useGraphStore.getState().settling.has('r1')).toBe(true);
+
+      vi.mocked(fetchGraphSnapshot).mockResolvedValueOnce({ nodes: [ticket, decided, second], edges: placing('d1', 'd2'), statistics: null } as unknown as GraphSnapshot);
+      await useGraphStore.getState().generateBlackboardViewGraph();
+      expect(useGraphStore.getState().settling.has('r1')).toBe(false);
+    });
+
+    it('keeps a run whose output is not stored yet when a snapshot comes after its end', async () => {
+      useGraphStore.getState().setInFlight('r1', 'triage', ['app.Ticket'], ['t1'], 'c-1');
+      useGraphStore.getState().endRun('r1', ['d1']);
+      // The completion event comes before the output is stored
+      vi.mocked(fetchGraphSnapshot).mockResolvedValueOnce({ nodes: [ticket], edges: [], statistics: null } as unknown as GraphSnapshot);
+      await useGraphStore.getState().generateBlackboardViewGraph();
+      expect(useGraphStore.getState().settling.has('r1')).toBe(true);
+    });
+
+    it('settles a run whose inputs the board hides once its output is there (no edge places it)', async () => {
+      useGraphStore.getState().setInFlight('r1', 'triage', ['app.Ticket'], ['t1'], 'c-1');
+      useGraphStore.getState().endRun('r1', ['d1']);
+      // The board's filters let the decision through, not the ticket
       vi.mocked(fetchGraphSnapshot).mockResolvedValueOnce({ nodes: [decided], edges: [], statistics: null } as unknown as GraphSnapshot);
       await useGraphStore.getState().generateBlackboardViewGraph();
       expect(useGraphStore.getState().settling.has('r1')).toBe(false);
