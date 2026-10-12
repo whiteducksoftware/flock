@@ -80,7 +80,7 @@ const Harness = () => {
 
 // An option reads "SupportTicket, 3 fields", a decision "Decision[Route]"
 const option = (name: string) =>
-  screen.getByRole('option', { name: new RegExp(`^${name.replace(/[[\]]/g, '\\$&')}(,|$)`) });
+  screen.getByRole('option', { name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(,|$)`) });
 
 async function open() {
   render(<Harness />);
