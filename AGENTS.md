@@ -242,7 +242,7 @@ Follow [docs/patterns/error_handling.md](docs/patterns/error_handling.md) and [d
 
 ## Debugging with traces
 
-Tracing is the fastest way to see what happened: every operation is recorded with its inputs and outputs.
+Tracing is the fastest way to see what happened: every operation is recorded with its inputs and outputs (each up to 4 KB, `FLOCK_TRACE_MAX_ATTRIBUTE_BYTES`; artifacts as their type and ID).
 
 ```bash
 export FLOCK_AUTO_TRACE=true FLOCK_TRACE_FILE=true   # FLOCK_TRACE_LEVEL=all also traces Flock's internals

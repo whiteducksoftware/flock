@@ -248,6 +248,17 @@ export OTEL_BSP_MAX_QUEUE_SIZE=2048        # spans waiting at most; more are dro
 
 `Flock.shutdown()` writes the spans still waiting (it waits at most five seconds for a slow exporter), and so does the end of the process. `Flock.clear_traces()` and the dashboard's clear write them before they delete, so cleared spans do not come back.
 
+### Size of inputs and outputs: FLOCK_TRACE_MAX_ATTRIBUTE_BYTES
+
+A span keeps each input and its output as JSON, up to 4 KB each by default. A longer value is cut, and the attribute says so: `{"truncated": true, "bytes": 18234, "preview": "..."}` with the value's first 4 KB as `preview` (never splitting a character). Artifacts in inputs and outputs are kept as their type and ID, `{"artifact": "app.Reply", "id": "..."}`; their payloads are on the blackboard, where the ID finds them.
+
+```bash
+export FLOCK_TRACE_MAX_ATTRIBUTE_BYTES=16384  # keep more of each value
+export FLOCK_TRACE_MAX_ATTRIBUTE_BYTES=0      # no cap
+```
+
+With the triage demo and the dashboard open for 30 seconds at `FLOCK_TRACE_LEVEL=all`, the spans held 7.1 MB of attributes without a cap (the largest span 48 KB) and 5.8 MB with the default cap (the largest 9.9 KB). At `agents` no value of the demo reaches 4 KB; keeping artifacts as their type and ID took its spans from 5.8 to 4.3 KB of attributes on average.
+
 ## What Gets Captured
 
 ### Span Attributes
@@ -263,8 +274,10 @@ Every traced method automatically captures:
 | `agent.description` | Agent description | `Generate movie ideas` |
 | `correlation_id` | Request correlation ID | `12d0fcda-e7f7-4c96-ae8e-14ae4eca1518` |
 | `task_id` | Task identifier | `task_abc123` |
-| `result.type` | Return type | `list`, `EvalResult`, `Artifact` |
-| `result.length` | Collection size (if applicable) | `3` |
+| `input.<parameter>` | Each argument as JSON, within `FLOCK_TRACE_MAX_ATTRIBUTE_BYTES` | `{"artifact": "app.Reply", "id": "..."}` |
+| `output.value` | The return value as JSON, within `FLOCK_TRACE_MAX_ATTRIBUTE_BYTES` | `[{"artifact": "app.Reply", "id": "..."}]` |
+| `output.type` | Return type | `list`, `EvalResult`, `Artifact` |
+| `output.length` | Collection size (if applicable) | `3` |
 
 ### Span Hierarchy Example
 
