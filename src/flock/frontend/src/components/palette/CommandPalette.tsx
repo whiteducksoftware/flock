@@ -42,7 +42,7 @@ const commandsFor = (onShowShortcuts: () => void): PaletteCommands => ({
   showAgent: (name) => {
     toFlow();
     useUIStore.getState().unfocus();
-    withCanvas((canvas) => canvas.show(name));
+    withCanvas((canvas) => canvas.show(name), 'flow');
   },
   // From the Blackboard: once the Flow has the agent on its board (it clears an unfold or focus of an agent it lacks)
   unfoldAgent: (name) => {
@@ -72,6 +72,7 @@ const commandsFor = (onShowShortcuts: () => void): PaletteCommands => ({
     setMode('blackboard');
   },
   setMode,
+  setBlackboardView: (view) => useUIStore.getState().setBlackboardView(view),
   publish: () => {
     useUIStore.getState().setPublishType(null);
     useSettingsStore.getState().setShowControls(true);
@@ -85,7 +86,11 @@ const commandsFor = (onShowShortcuts: () => void): PaletteCommands => ({
   zoomOut: () => withCanvas((canvas) => canvas.zoomOut()),
   fit: () => withCanvas((canvas) => canvas.fit()),
   layout: (mode) => withCanvas((canvas) => canvas.layout(mode)),
-  autoArrange: (on) => useUIStore.getState().setAutoLayoutEnabled(on),
+  // The canvas in view: the Flow's, or the Blackboard graph's
+  autoArrange: (on) =>
+    useUIStore.getState().mode === 'agent'
+      ? useUIStore.getState().setAutoLayoutEnabled(on)
+      : useUIStore.getState().setGraphAutoArrange(on),
   openDock: (tab) => useUIStore.getState().openDock(tab),
   closeDock: () => useUIStore.getState().closeDock(),
   theme: (name) => {
@@ -111,7 +116,8 @@ const CommandPalette: React.FC<{ onShowShortcuts: () => void }> = ({ onShowShort
 
   const close = useUIStore((state) => state.closePalette);
   const mode = useUIStore((state) => state.mode);
-  const autoArrange = useUIStore((state) => state.autoLayoutEnabled);
+  const blackboardView = useUIStore((state) => state.blackboardView);
+  const autoArrange = useUIStore((state) => (state.mode === 'agent' ? state.autoLayoutEnabled : state.graphAutoArrange));
   const dockOpen = useUIStore((state) => state.dockOpen);
   const theme = useSettingsStore((state) => state.appearance.theme);
   const runs = useFilterStore((state) => state.availableCorrelationIds);
@@ -155,6 +161,7 @@ const CommandPalette: React.FC<{ onShowShortcuts: () => void }> = ({ onShowShort
       runs,
       now: Date.now(),
       mode,
+      blackboardView,
       autoArrange,
       dockOpen,
       theme,
@@ -163,7 +170,7 @@ const CommandPalette: React.FC<{ onShowShortcuts: () => void }> = ({ onShowShort
       do: commands,
     });
     return search(items, query);
-  }, [agents, inFlight, types, runs, mode, autoArrange, dockOpen, theme, timeRange, hasFilters, commands, query]);
+  }, [agents, inFlight, types, runs, mode, blackboardView, autoArrange, dockOpen, theme, timeRange, hasFilters, commands, query]);
 
   // A new query starts at the top; a shorter list keeps the active one inside it
   useEffect(() => setActiveIndex(0), [query]);

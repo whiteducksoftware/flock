@@ -1,13 +1,14 @@
 /**
- * The Blackboard view: the board's runs as lanes, or the table of every
- * artifact (docs/internal/design-system/README.md, Blackboard view).
+ * The Blackboard view: the board's runs as lanes, or its artifacts as a graph
+ * (docs/internal/design-system/README.md, Blackboard view). The table of every
+ * artifact is the timeline dock's History.
  */
 
 import React, { useMemo } from 'react';
 import { useGraphStore } from '../../store/graphStore';
 import { useUIStore } from '../../store/uiStore';
 import { Icon } from '../icons/Icon';
-import HistoricalArtifactsModule from '../modules/HistoricalArtifactsModule';
+import BlackboardGraph from './BlackboardGraph';
 import Lane from './Lane';
 import { lanesOf } from './lanes';
 import styles from './Blackboard.module.css';
@@ -58,43 +59,40 @@ const Blackboard: React.FC = () => {
           <button
             type="button"
             className="seg"
-            aria-pressed={view === 'table'}
-            onClick={() => useUIStore.getState().setBlackboardView('table')}
+            aria-pressed={view === 'graph'}
+            onClick={() => useUIStore.getState().setBlackboardView('graph')}
           >
-            <Icon name="table" size={15} />
-            Table
+            <Icon name="graph" size={15} />
+            Graph
           </button>
         </div>
-        {view === 'lanes' && (
-          <span className={`mono num ${styles.counts}`}>
-            {lanes.length} run{lanes.length === 1 ? '' : 's'} · {artifacts} artifact{artifacts === 1 ? '' : 's'} · {review} need
-            {review === 1 ? 's' : ''} review
-          </span>
-        )}
+        <span className={`mono num ${styles.counts}`}>
+          {lanes.length} run{lanes.length === 1 ? '' : 's'} · {artifacts} artifact{artifacts === 1 ? '' : 's'} · {review} need
+          {review === 1 ? 's' : ''} review
+          {view === 'graph' && truncated && ' · the newest 500, older ones in History'}
+        </span>
         <span className={styles.spacer} />
-        {view === 'lanes' && (
-          <button
-            type="button"
-            className={`chip ${reviewOnly ? styles.on : ''}`}
-            aria-pressed={reviewOnly}
-            onClick={() => useUIStore.getState().setNeedsReviewOnly(!reviewOnly)}
-          >
-            <span className={`hatch ${styles.reviewMark}`} aria-hidden="true" />
-            Needs review only
-          </button>
-        )}
+        <button
+          type="button"
+          className={`chip ${reviewOnly ? styles.on : ''}`}
+          aria-pressed={reviewOnly}
+          onClick={() => useUIStore.getState().setNeedsReviewOnly(!reviewOnly)}
+        >
+          <span className={`hatch ${styles.reviewMark}`} aria-hidden="true" />
+          Needs review only
+        </button>
       </div>
-      {view === 'table' ? (
-        <div className={styles.table}>
-          <HistoricalArtifactsModule />
-        </div>
+      {view === 'graph' ? (
+        <BlackboardGraph />
       ) : (
         <div className={`board ${styles.lanes}`}>
           {shown.map((lane) => (
             <Lane key={lane.id} lane={lane} />
           ))}
           {reviewOnly && shown.length === 0 && lanes.length > 0 && <p className={styles.note}>No run needs a review.</p>}
-          {truncated && <p className={styles.note}>The lanes hold the newest 500 artifacts; the table has the older ones.</p>}
+          {truncated && (
+            <p className={styles.note}>The lanes hold the newest 500 artifacts; History in the timeline dock has the older ones.</p>
+          )}
         </div>
       )}
     </div>

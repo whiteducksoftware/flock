@@ -23,6 +23,7 @@ const context = (overrides: Partial<PaletteContext> = {}): PaletteContext => ({
   ],
   now: 121_000,
   mode: 'agent',
+  blackboardView: 'lanes',
   autoArrange: true,
   dockOpen: false,
   theme: 'graphite',
@@ -37,6 +38,7 @@ const context = (overrides: Partial<PaletteContext> = {}): PaletteContext => ({
     filterRun: vi.fn(),
     showLane: vi.fn(),
     setMode: vi.fn(),
+    setBlackboardView: vi.fn(),
     publish: vi.fn(),
     settings: vi.fn(),
     shortcuts: vi.fn(),
@@ -174,6 +176,23 @@ describe('buildItems', () => {
     expect(commands).not.toContain('Fit to screen');
     expect(commands).not.toContain('Layout: Grid');
     expect(commands).not.toContain('Turn auto-arrange on');
+  });
+
+  it('offers the Blackboard\'s other view, and the canvas commands on its graph', () => {
+    const lanes = labels(buildItems(context({ mode: 'blackboard', blackboardView: 'lanes' })));
+    expect(lanes).toContain('Show as graph');
+    expect(lanes).not.toContain('Show as lanes');
+    expect(lanes).not.toContain('Fit to screen');
+
+    const ctx = context({ mode: 'blackboard', blackboardView: 'graph' });
+    const graph = buildItems(ctx);
+    expect(labels(graph)).toEqual(expect.arrayContaining(['Show as lanes', 'Fit to screen', 'Layout: Grid', 'Turn auto-arrange off']));
+    expect(labels(graph)).not.toContain('Show as graph');
+    find(graph, 'Show as lanes').actions[0]!.run();
+    expect(ctx.do.setBlackboardView).toHaveBeenCalledWith('lanes');
+
+    // On the Flow there is no Blackboard view to choose
+    expect(labels(buildItems(context()))).not.toContain('Show as graph');
   });
 
   it('runs a command', () => {

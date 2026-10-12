@@ -8,7 +8,7 @@ import type { ArtifactType } from '../../services/api';
 import { POPULAR_THEMES } from '../../services/themeService';
 import { BUILT_IN_THEMES } from '../../services/themeApplicator';
 import type { CorrelationIdMetadata, TimeRangePreset } from '../../types/filters';
-import type { AutoLayoutMode, DockTab, VisualizationMode } from '../../store/uiStore';
+import type { AutoLayoutMode, BlackboardView, DockTab, VisualizationMode } from '../../store/uiStore';
 import { modKey } from '../../utils/keys';
 import { shortTypeName } from '../../utils/typeName';
 import { formatAgo } from '../graph/card/cardModel';
@@ -47,6 +47,7 @@ export interface PaletteCommands {
   filterRun: (correlationId: string, firstSeen: number) => void;
   showLane: (correlationId: string, firstSeen: number) => void;
   setMode: (mode: VisualizationMode) => void;
+  setBlackboardView: (view: BlackboardView) => void;
   publish: () => void;
   settings: () => void;
   shortcuts: () => void;
@@ -70,6 +71,8 @@ export interface PaletteContext {
   runs: CorrelationIdMetadata[];
   now: number;
   mode: VisualizationMode;
+  blackboardView: BlackboardView;
+  /** Auto-arrange of the canvas in view (the Flow's, or the Blackboard graph's) */
   autoArrange: boolean;
   dockOpen: boolean;
   theme: string;
@@ -109,6 +112,12 @@ function commands(ctx: PaletteContext): PaletteItem[] {
     items.push(command('blackboard', 'Switch to Blackboard', () => act.setMode('blackboard'), { shortcut: modKey('M') }));
   } else {
     items.push(command('flow', 'Switch to Flow', () => act.setMode('agent'), { shortcut: modKey('M') }));
+    // The Blackboard's other view
+    items.push(
+      ctx.blackboardView === 'lanes'
+        ? command('bb:graph', 'Show as graph', () => act.setBlackboardView('graph'), { keywords: ['blackboard'] })
+        : command('bb:lanes', 'Show as lanes', () => act.setBlackboardView('lanes'), { keywords: ['blackboard'] }),
+    );
   }
   items.push(
     command('publish', 'Publish an artifact', act.publish, { shortcut: modKey('Shift+P') }),
@@ -119,8 +128,8 @@ function commands(ctx: PaletteContext): PaletteItem[] {
     items.push(command(`time:${range.preset}`, `Time range: ${range.label}`, () => act.timeRange(range.preset))),
   );
 
-  // The canvas dock: only the Flow has a canvas
-  if (ctx.mode === 'agent') {
+  // The canvas dock: the Flow and the Blackboard's graph have a canvas
+  if (ctx.mode === 'agent' || ctx.blackboardView === 'graph') {
     items.push(
       command('zoom-in', 'Zoom in', act.zoomIn),
       command('zoom-out', 'Zoom out', act.zoomOut),

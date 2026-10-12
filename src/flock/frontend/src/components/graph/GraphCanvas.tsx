@@ -363,6 +363,7 @@ const GraphCanvas: React.FC = () => {
     () =>
       registerCanvas(
         {
+          kind: 'flow',
           zoomIn: () => void zoomIn({ duration: motionMs(200) }),
           zoomOut: () => void zoomOut({ duration: motionMs(200) }),
           fit: () => void fitView({ padding: 0.1, duration: motionMs(300) }),

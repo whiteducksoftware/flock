@@ -5,7 +5,6 @@ import { useGraphStore } from '../../store/graphStore';
 import { useUIStore } from '../../store/uiStore';
 import Blackboard from './Blackboard';
 
-vi.mock('../modules/HistoricalArtifactsModule', () => ({ default: () => <div data-testid="table" /> }));
 
 const artifact = (id: string, correlationId: string, type: string, producedBy: string, timestamp: number, data: Record<string, unknown> = {}): Node => ({
   id,
@@ -44,6 +43,15 @@ const lane = (run: string) => screen.getByRole('region', { name: `Run ${run}` })
 
 describe('Blackboard', () => {
   beforeEach(() => {
+    // React Flow (the graph) watches its sizes
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
     useGraphStore.setState({
       viewMode: 'blackboard',
       nodes,
@@ -174,12 +182,31 @@ describe('Blackboard', () => {
     expect(screen.getByText(/newest 500 artifacts/)).toBeTruthy();
   });
 
-  it('switches to the table', () => {
+  it('switches to the graph: every artifact a card, no table', async () => {
     render(<Blackboard />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Table' }));
-    expect(screen.getByTestId('table')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Table' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Graph' }));
+    expect(useUIStore.getState().blackboardView).toBe('graph');
     expect(screen.queryAllByRole('region')).toHaveLength(0);
-    expect(useUIStore.getState().blackboardView).toBe('table');
+
+    // jsdom measures nothing, so React Flow draws no arrows here (graph.test.ts has them)
+    await waitFor(() => expect(document.querySelectorAll('.react-flow__node')).toHaveLength(nodes.length));
+    // The streaming reply is a streaming card; a click unfolds a card in place.
+    // React Flow hides a node until it is measured, which jsdom does not do, so
+    // the cards have no accessible name here: they are found by their label
+    const card = (label: string) => document.querySelector<HTMLElement>(`[role="button"][aria-label="${label}"]`)!;
+    expect(card('TeamReply by billing_team').textContent).toContain('Hi, thanks');
+    fireEvent.click(card('◆ Route by triage'));
+    expect(useUIStore.getState().unfoldedArtifactId).toBe('d1');
+  });
+
+  it('narrows the graph to the runs that need a review', async () => {
+    useUIStore.setState({ blackboardView: 'graph', needsReviewOnly: true });
+    render(<Blackboard />);
+
+    // Only the run whose decision is unsure: its ticket and the decision
+    await waitFor(() => expect(document.querySelectorAll('.react-flow__node')).toHaveLength(2));
+    expect([...document.querySelectorAll('.react-flow__node')].map((node) => node.getAttribute('data-id')).sort()).toEqual(['d2', 't2']);
   });
 });

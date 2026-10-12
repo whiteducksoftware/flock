@@ -11,7 +11,7 @@ export type AutoLayoutMode =
   | 'grid'
   | 'random';
 
-export type BlackboardView = 'lanes' | 'table';
+export type BlackboardView = 'lanes' | 'graph';
 
 /** A short message at the bottom of the board, with an optional action. */
 export interface ToastMessage {
@@ -57,6 +57,11 @@ interface UIState {
   // and whether only runs that need a review show (not saved)
   blackboardView: BlackboardView;
   setBlackboardView: (view: BlackboardView) => void;
+  // The Blackboard graph's layout and whether new artifacts lay it out (saved)
+  graphLayout: AutoLayoutMode;
+  setGraphLayout: (mode: AutoLayoutMode) => void;
+  graphAutoArrange: boolean;
+  setGraphAutoArrange: (on: boolean) => void;
   unfoldedArtifactId: string | null;
   unfoldArtifact: (artifactId: string) => void;
   foldArtifact: () => void;
@@ -127,6 +132,12 @@ export const useUIStore = create<UIState>()(
 
         blackboardView: 'lanes',
         setBlackboardView: (view: BlackboardView) => set({ blackboardView: view }),
+        // Runs as narrow trees side by side; left to right they are wide, one or two a row
+        graphLayout: 'hierarchical-vertical',
+        setGraphLayout: (mode: AutoLayoutMode) => set({ graphLayout: mode }),
+        // A busy board would move all the time: cards stay where they are unless asked
+        graphAutoArrange: false,
+        setGraphAutoArrange: (on: boolean) => set({ graphAutoArrange: on }),
         // One card at a time, as one agent unfolds at a time
         unfoldedArtifactId: null,
         unfoldArtifact: (artifactId: string) => set({ unfoldedArtifactId: artifactId }),
@@ -158,6 +169,8 @@ export const useUIStore = create<UIState>()(
         partialize: (state) => ({
           mode: state.mode,
           blackboardView: state.blackboardView,
+          graphLayout: state.graphLayout,
+          graphAutoArrange: state.graphAutoArrange,
           layoutDirection: state.layoutDirection,
           autoLayoutEnabled: state.autoLayoutEnabled,
           autoLayoutMode: state.autoLayoutMode,
@@ -165,6 +178,8 @@ export const useUIStore = create<UIState>()(
         merge: (persistedState: any, currentState: any) => {
           // Older dashboards saved their detail windows and their default tab; agents and artifacts unfold now
           const { detailWindows: _windows, defaultTab: _tab, ...saved } = persistedState ?? {};
+          // The Blackboard's table is gone (it was the timeline dock's History)
+          if (saved.blackboardView === 'table') saved.blackboardView = 'lanes';
           return {
             ...currentState,
             ...saved,

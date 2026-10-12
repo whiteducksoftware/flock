@@ -11,19 +11,23 @@ import { type AutoLayoutMode, useUIStore } from '../../store/uiStore';
 import { AUTO_LAYOUT_DEBOUNCE_MS } from './autoLayoutTrigger';
 
 export interface CanvasCommands {
+  /** The Flow's agents, or the Blackboard's artifact graph */
+  kind: 'flow' | 'graph';
   zoomIn: () => void;
   zoomOut: () => void;
   fit: () => void;
   layout: (mode: AutoLayoutMode) => void;
-  /** Selects an agent and centers the board on it */
+  /** Selects a node and centers the board on it */
   show: (nodeId: string) => void;
 }
+
+type Waiting = { run: (canvas: CanvasCommands) => void; kind?: CanvasCommands['kind'] };
 
 /** How long a board that just got its agents takes to lay them out */
 export const SETTLE_MS = AUTO_LAYOUT_DEBOUNCE_MS + 100;
 
 let current: CanvasCommands | null = null;
-let waiting: ((canvas: CanvasCommands) => void) | null = null;
+let waiting: Waiting | null = null;
 let waitingTimer: ReturnType<typeof setTimeout> | null = null;
 // Counts the requests: a delayed one runs only while it is the newest
 let generation = 0;
@@ -51,13 +55,13 @@ useUIStore.subscribe((state, previous) => {
 export function registerCanvas(canvas: CanvasCommands, settleMs = 0): () => void {
   current = canvas;
   let timer: ReturnType<typeof setTimeout> | null = null;
-  const pendingRun = waiting;
+  const pendingRun = waiting && (!waiting.kind || waiting.kind === canvas.kind) ? waiting : null;
   if (pendingRun) {
     waiting = null;
     timer = setTimeout(() => {
       timer = null;
       waitingTimer = null;
-      if (current) pendingRun(current);
+      if (current) pendingRun.run(current);
     }, settleMs);
     waitingTimer = timer;
   }
@@ -72,11 +76,14 @@ export function registerCanvas(canvas: CanvasCommands, settleMs = 0): () => void
   };
 }
 
-/** Runs a command on the canvas now, or on the next one that mounts. */
-export function withCanvas(run: (canvas: CanvasCommands) => void): void {
+/**
+ * Runs a command on the canvas now, or on the next one that mounts; with a
+ * `kind`, only on that kind (the Flow, for an agent shown from the Blackboard).
+ */
+export function withCanvas(run: (canvas: CanvasCommands) => void, kind?: CanvasCommands['kind']): void {
   newRequest();
-  if (current) run(current);
-  else waiting = run;
+  if (current && (!kind || current.kind === kind)) run(current);
+  else waiting = { run, kind };
 }
 
 /**
