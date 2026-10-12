@@ -259,18 +259,20 @@ PAGE = """<!doctype html>
   const events = new EventSource('/events');
   events.onmessage = (message) => {
     const guess = JSON.parse(message.data);
-    // Only newer strokes: a late answer for an older one changes nothing
-    if (guess.drawing !== drawing || guess.strokes < shown) return;
+    if (guess.drawing !== drawing) return;
+    if (guess.got_it) {
+      document.getElementById('status').innerHTML =
+        `<span class="got">Got it: ${guess.choice.replace(/_/g, ' ')}, after ${guess.strokes} stroke${guess.strokes === 1 ? '' : 's'}</span>`;
+    }
+    // The bars show the newest stroke: a late answer for an older one changes them not
+    if (guess.strokes < shown) return;
     shown = guess.strokes;
     const top = Object.entries(guess.probabilities).sort((a, b) => b[1] - a[1]).slice(0, 5);
     document.getElementById('bars').innerHTML = top.map(([option, p]) =>
       `<div class="bar"><span>${option.replace(/_/g, ' ')}</span>` +
       `<span class="track"><span class="fill" style="width:${Math.round(p * 100)}%"></span></span>` +
       `<span>${p.toFixed(2)}</span></div>`).join('');
-    if (guess.got_it) {
-      document.getElementById('status').innerHTML =
-        `<span class="got">Got it: ${guess.choice.replace(/_/g, ' ')}, after ${guess.strokes} stroke${guess.strokes === 1 ? '' : 's'}</span>`;
-    } else if (!document.getElementById('status').innerHTML.includes('Got it')) {
+    if (!guess.got_it && !document.getElementById('status').innerHTML.includes('Got it')) {
       document.getElementById('status').textContent = guess.choice === 'UNSURE'
         ? `Not sure yet: ${(guess.best_guess || '').replace(/_/g, ' ')}?`
         : `I see a ${guess.choice.replace(/_/g, ' ')}…`;
