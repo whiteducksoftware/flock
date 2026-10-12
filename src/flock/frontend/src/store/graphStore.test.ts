@@ -45,6 +45,7 @@ describe('graphStore - NEW Simplified Architecture', () => {
       streamingTokens: new Map(),
       nodes: [],
       edges: [],
+      moving: new Set(),
       statistics: null,
       events: [],
       viewMode: 'agent',
@@ -317,6 +318,20 @@ describe('graphStore - NEW Simplified Architecture', () => {
   });
 
   describe('generateAgentViewGraph()', () => {
+    it('keeps nodes on their way to a new layout where the glide has them (#650)', async () => {
+      const snapshot = { nodes: [{ id: 'agent1', type: 'agent', data: {}, position: { x: 0, y: 0 } }], edges: [], statistics: null } as unknown as GraphSnapshot;
+      // The saved layout puts it at 100, 100; it is halfway there
+      const merged = [{ id: 'agent1', type: 'agent', data: {}, position: { x: 100, y: 100 } } as Node];
+      vi.mocked(fetchGraphSnapshot).mockResolvedValue(snapshot);
+      vi.mocked(mergeNodePositions).mockReturnValue(merged);
+      vi.mocked(overlayWebSocketState).mockReturnValue(merged);
+      useGraphStore.setState({ nodes: [{ id: 'agent1', type: 'agent', data: {}, position: { x: 50, y: 50 } } as Node], moving: new Set(['agent1']) });
+
+      await useGraphStore.getState().generateAgentViewGraph();
+
+      expect(useGraphStore.getState().nodes[0]!.position).toEqual({ x: 50, y: 50 });
+    });
+
     it('should fetch agent view graph from backend', async () => {
       const mockSnapshot: GraphSnapshot = {
         nodes: [

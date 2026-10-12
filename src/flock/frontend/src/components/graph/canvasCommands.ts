@@ -8,6 +8,7 @@
 
 import { useGraphStore } from '../../store/graphStore';
 import { type AutoLayoutMode, useUIStore } from '../../store/uiStore';
+import { MOVE_MS } from './animatePositions';
 import { AUTO_LAYOUT_DEBOUNCE_MS } from './autoLayoutTrigger';
 
 export interface CanvasCommands {
@@ -23,8 +24,8 @@ export interface CanvasCommands {
 
 type Waiting = { run: (canvas: CanvasCommands) => void; kind?: CanvasCommands['kind'] };
 
-/** How long a board that just got its agents takes to lay them out */
-export const SETTLE_MS = AUTO_LAYOUT_DEBOUNCE_MS + 100;
+/** How long a board that just got its agents takes to lay them out and glide there (#650) */
+export const SETTLE_MS = AUTO_LAYOUT_DEBOUNCE_MS + MOVE_MS + 100;
 
 let current: CanvasCommands | null = null;
 let waiting: Waiting | null = null;

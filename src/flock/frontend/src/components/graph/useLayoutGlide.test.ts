@@ -36,6 +36,40 @@ describe('useLayoutGlide', () => {
     expect(positions()).toEqual({ intake: { x: 100, y: 0 }, triage: { x: 400, y: 0 } });
   });
 
+  it('tells the board which nodes glide, so a snapshot keeps them on their way', () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useLayoutGlide());
+
+    act(() => result.current(layout([['intake', { x: 100, y: 0 }], ['triage', { x: 400, y: 0 }]])));
+    const during = [...useGraphStore.getState().moving].sort();
+    act(() => void vi.advanceTimersByTime(300));
+
+    expect(during).toEqual(['intake', 'triage']);
+    expect(useGraphStore.getState().moving.size).toBe(0);
+  });
+
+  it('leaves a node that is dragged during the glide where it is dropped', () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useLayoutGlide());
+
+    act(() => result.current(layout([['intake', { x: 100, y: 0 }], ['triage', { x: 400, y: 0 }]])));
+    act(() => void vi.advanceTimersByTime(50));
+    act(() =>
+      useGraphStore.setState((state) => ({
+        nodes: state.nodes.map((node) => (node.id === 'intake' ? { ...node, position: { x: 20, y: 300 }, dragging: true } : node)),
+      })),
+    );
+    act(() => void vi.advanceTimersByTime(30));
+    act(() =>
+      useGraphStore.setState((state) => ({
+        nodes: state.nodes.map((node) => (node.id === 'intake' ? { ...node, position: { x: 30, y: 320 }, dragging: false } : node)),
+      })),
+    );
+    act(() => void vi.advanceTimersByTime(300));
+
+    expect(positions()).toEqual({ intake: { x: 30, y: 320 }, triage: { x: 400, y: 0 } });
+  });
+
   it('moves nothing when the layout is where the nodes are', () => {
     vi.useFakeTimers();
     const updates = vi.fn();

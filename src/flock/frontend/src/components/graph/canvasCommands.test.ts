@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Node } from '@xyflow/react';
 import { useGraphStore } from '../../store/graphStore';
 import { useUIStore } from '../../store/uiStore';
-import { type CanvasCommands, registerCanvas, whenOnBoard, withAgent, withCanvas } from './canvasCommands';
+import { AUTO_LAYOUT_DEBOUNCE_MS } from './autoLayoutTrigger';
+import { MOVE_MS } from './animatePositions';
+import { type CanvasCommands, SETTLE_MS, registerCanvas, whenOnBoard, withAgent, withCanvas } from './canvasCommands';
 
 const commands = (kind: CanvasCommands['kind'] = 'flow'): CanvasCommands => ({
   kind,
@@ -225,5 +227,11 @@ describe('withAgent', () => {
 
     expect(shown).toEqual(['unfold urgency']);
     unregister();
+  });
+});
+
+describe('SETTLE_MS', () => {
+  it('waits for a new board to be laid out and to glide there (#650)', () => {
+    expect(SETTLE_MS).toBeGreaterThanOrEqual(AUTO_LAYOUT_DEBOUNCE_MS + MOVE_MS);
   });
 });

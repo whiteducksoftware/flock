@@ -39,7 +39,11 @@ export function useUnfoldLayout(options: UnfoldLayoutOptions): void {
     stop.current();
     const current = new Map(nodes.map((node) => [node.id, node.position]));
     const moveTo = (targets: Map<string, XYPosition>) => {
-      stop.current = animatePositions(current, targets, setNodePositions);
+      // A snapshot keeps the gliding nodes on their way (#650)
+      useGraphStore.getState().setMoving(new Set(targets.keys()));
+      stop.current = animatePositions(current, targets, setNodePositions, undefined, () =>
+        useGraphStore.getState().setMoving(new Set()),
+      );
     };
 
     if (unfoldedNodeId === null) {
