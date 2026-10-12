@@ -12,6 +12,7 @@ from flock.api.models import (
     SyncPublishResponse,
 )
 from flock.api.webhooks import (
+    RunSequences,
     WebhookContext,
     clear_webhook_context,
     set_webhook_context,
@@ -38,7 +39,6 @@ from flock.logging.auto_trace import continue_caller_traces, http_telemetry
 
 import asyncio
 import time
-from collections import OrderedDict
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
@@ -61,7 +61,7 @@ MAX_WEBHOOK_RUNS = 10_000
 class BlackboardHTTPService:
     def __init__(self, orchestrator: Flock) -> None:
         self.orchestrator = orchestrator
-        self._webhook_sequences: OrderedDict[str, int] = OrderedDict()
+        self._webhook_sequences = RunSequences(MAX_WEBHOOK_RUNS)
         self.app = FastAPI(
             telemetry=http_telemetry(),
             title="Flock REST API Documentation",
@@ -81,15 +81,6 @@ class BlackboardHTTPService:
         continue_caller_traces(self.app)
         self._register_exception_handlers()
         self._register_routes()
-
-    def _run_sequences(self, correlation_id: str) -> dict[str, int]:
-        """The webhook sequence numbers of named runs, this run the most recent."""
-        sequences = self._webhook_sequences
-        if correlation_id in sequences:
-            sequences.move_to_end(correlation_id)
-        while len(sequences) >= MAX_WEBHOOK_RUNS:
-            sequences.popitem(last=False)
-        return sequences
 
     def _register_exception_handlers(self) -> None:
         """Register custom exception handlers."""
@@ -188,7 +179,7 @@ class BlackboardHTTPService:
                     secret=body.webhook.secret,
                     correlation_id=correlation_id,
                     # A named run's deliveries count on across its requests
-                    run_sequences=self._run_sequences(correlation_id)
+                    run_sequences=self._webhook_sequences
                     if body.correlation_id
                     else None,
                 )

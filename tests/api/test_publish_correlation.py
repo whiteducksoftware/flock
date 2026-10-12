@@ -187,3 +187,32 @@ async def test_webhooks_of_one_run_count_on_across_its_requests():
         assert response.status_code == 200, response.text
 
     assert sequences == [("game-1", 1), ("game-1", 2), ("game-2", 1), ("game-1", 3)]
+
+
+def test_a_run_keeps_counting_after_its_counter_was_evicted():
+    from flock.api.webhooks import RunSequences, WebhookContext
+
+    sequences = RunSequences(limit=2)
+    context = WebhookContext(
+        url="https://hooks.test",
+        secret=None,
+        correlation_id="a",
+        run_sequences=sequences,
+    )
+    assert [context.next_sequence(), context.next_sequence()] == [1, 2]
+
+    sequences.next("b")
+    sequences.next("c")  # evicts "a"
+
+    assert context.next_sequence() == 3
+    assert len(sequences) == 2
+
+
+def test_the_limit_holds_however_many_runs_arrive():
+    from flock.api.webhooks import RunSequences
+
+    sequences = RunSequences(limit=3)
+    for run in range(10):
+        sequences.next(f"run-{run}")
+
+    assert len(sequences) == 3
