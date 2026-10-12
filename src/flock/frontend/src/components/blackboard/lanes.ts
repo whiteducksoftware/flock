@@ -169,13 +169,6 @@ export function lanesOf(nodes: Node[], edges: Edge[], running: RunningRun[]): La
 
   const lanes = [...groups.entries()].map(([id, members]): Lane => {
     const runs = running.filter((run) => (run.correlationId ?? '') === id);
-    // Streaming artifacts are not on the record yet: after what their run consumed
-    // (their own run's, when the agent runs twice in the workflow)
-    const runDepth = (agent: string, last: number, runId?: string | null) => {
-      const run = (runId && runs.find((each) => each.runId === runId)) || runs.find((each) => each.agent === agent);
-      const consumed = run?.artifacts.filter((artifact) => byId.has(artifact)) ?? [];
-      return consumed.length > 0 ? 1 + Math.max(...consumed.map((artifact) => depths.get(artifact) ?? 0)) : last + 1;
-    };
     // Not on the record yet: still streaming, or published by a run the server
     // draws edges for only once it is done (or streamed, before its snapshot)
     const unrecorded = (node: Node) => {
@@ -186,6 +179,48 @@ export function lanesOf(nodes: Node[], edges: Edge[], running: RunningRun[]): La
     };
     const recorded = members.filter((node) => !dataOf(node).isStreaming);
     const last = Math.max(0, ...members.filter((node) => !unrecorded(node)).map((node) => depths.get(node.id) ?? 0));
+    const runOf = (agent: string, runId?: string | null) =>
+      (runId && runs.find((each) => each.runId === runId)) || runs.find((each) => each.agent === agent);
+    // Runs that show nothing yet get a placeholder; one that ended stays until its
+    // output is on the board (the snapshot after it)
+    const showsOutput = (agent: string) => members.some((node) => dataOf(node).producedBy === agent && unrecorded(node));
+
+    // Where an artifact shows: its edges' depth once on the record, else where
+    // its stream is drawn; a run's output goes after the deepest of its inputs
+    // (its own run's, when the agent runs twice in the workflow)
+    const shownDepth = (id: string): number | null => {
+      const node = byId.get(id);
+      if (!node) return null;
+      return unrecorded(node) ? streamDepth(dataOf(node).producedBy ?? '', dataOf(node).runId) : (depths.get(id) ?? 0);
+    };
+    const runDepth = (agent: string, runId?: string | null) => {
+      const inputsShown = (runOf(agent, runId)?.artifacts ?? []).map(shownDepth).filter((depth): depth is number => depth !== null);
+      return inputsShown.length > 0 ? 1 + Math.max(...inputsShown) : last + 1;
+    };
+    // A run that consumed something not on the board yet (a stream, or a
+    // placeholder) goes after the placeholders of the runs that will publish it:
+    // those that wait for nothing themselves. It keeps its column when the
+    // snapshot brings the input (#642)
+    const waits = (agent: string, runId?: string | null) => runOf(agent, runId)?.artifacts.some((artifact) => !byId.has(artifact)) ?? false;
+    const afterMakers = (agent: string, runId: string | null | undefined, depth: number) => {
+      if (!waits(agent, runId)) return depth;
+      const makers = runs.filter((run) => run.agent !== agent && !showsOutput(run.agent) && !waits(run.agent, run.runId));
+      const before = makers.map((run) => runDepth(run.agent, run.runId));
+      return before.length > 0 ? Math.max(depth, 1 + Math.max(...before)) : depth;
+    };
+    const streams = new Map<string, number>();
+    const busy = new Set<string>();
+    const streamDepth = (agent: string, runId?: string | null): number => {
+      const key = `${agent}|${runId ?? ''}`;
+      const known = streams.get(key);
+      if (known !== undefined) return known;
+      if (busy.has(key)) return last + 1; // runs cannot feed each other, but must not hang
+      busy.add(key);
+      const depth = afterMakers(agent, runId, runDepth(agent, runId));
+      busy.delete(key);
+      streams.set(key, depth);
+      return depth;
+    };
 
     const placed: { card: LaneCard; depth: number }[] = members.map((node) => {
       const data = dataOf(node);
@@ -199,7 +234,7 @@ export function lanesOf(nodes: Node[], edges: Edge[], running: RunningRun[]): La
           data: node.data as Record<string, unknown>,
           state: streaming ? 'streaming' : 'done',
         },
-        depth: unrecorded(node) ? runDepth(data.producedBy ?? '', last, data.runId) : (depths.get(node.id) ?? 0),
+        depth: unrecorded(node) ? streamDepth(data.producedBy ?? '', data.runId) : (depths.get(node.id) ?? 0),
       };
     });
     for (const run of runs) {
@@ -215,7 +250,7 @@ export function lanesOf(nodes: Node[], edges: Edge[], running: RunningRun[]): La
           data: {},
           state: 'pending',
         },
-        depth: runDepth(run.agent, last),
+        depth: afterMakers(run.agent, run.runId, runDepth(run.agent, run.runId)),
       });
     }
 

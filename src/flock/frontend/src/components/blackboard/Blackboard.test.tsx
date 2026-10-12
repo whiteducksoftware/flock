@@ -119,6 +119,57 @@ describe('Blackboard', () => {
     expect(within(running).getByRole('button', { name: 'TeamReply by billing_team' }).textContent).toContain('Hi, thanks for your patience');
   });
 
+  it('keeps the placeholder of a run that ended until its output is on the board (#642)', () => {
+    useGraphStore.setState({
+      settling: new Map([['r-8', { agent: 'urgency', types: ['app.SupportTicket'], artifacts: ['t2'], correlationId: 'bbbb2222-0000', known: [] }]]),
+    });
+    render(<Blackboard />);
+
+    const waiting = lane('bbbb');
+    // A placeholder card by urgency next to triage's decision, and the run still going
+    expect(within(waiting).getByLabelText('Not published yet')).toBeTruthy();
+    expect(waiting.textContent).toContain('by urgency');
+    expect(waiting.textContent).toContain('urgency is running');
+  });
+
+  it('opens a lane that arrives while it shows, and only that one (#642)', () => {
+    const { rerender } = render(<Blackboard />);
+    expect(screen.getAllByRole('region').filter((region) => region.hasAttribute('data-entering'))).toEqual([]);
+
+    act(() => {
+      useGraphStore.setState({ nodes: [...nodes, artifact('t4', 'dddd4444-0000', 'app.SupportTicket', 'external', 5000, { payload: { subject: 'New one' } })] });
+    });
+    rerender(<Blackboard />);
+
+    expect(screen.getAllByRole('region').filter((region) => region.hasAttribute('data-entering')).map((region) => region.getAttribute('aria-label'))).toEqual(['Run dddd']);
+  });
+
+  it('lets the lanes below a lane that grows glide to their place (#642)', () => {
+    // jsdom lays nothing out: lane tops come from this table, animations are recorded
+    const tops = new Map<string, number>([['Run cccc', 0], ['Run bbbb', 100], ['Run aaaa', 200]]);
+    const animate = vi.fn();
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const label = this.querySelector('section')?.getAttribute('aria-label') ?? '';
+      return { top: tops.get(label) ?? 0 } as DOMRect;
+    });
+    (HTMLElement.prototype as any).animate = animate;
+    const { rerender } = render(<Blackboard />);
+    expect(animate).not.toHaveBeenCalled();
+
+    // The top lane grows by 40 px: the two below move down
+    tops.set('Run bbbb', 140);
+    tops.set('Run aaaa', 240);
+    act(() => {
+      useGraphStore.setState({ nodes: [...nodes] });
+    });
+    rerender(<Blackboard />);
+
+    expect(animate).toHaveBeenCalledTimes(2);
+    expect(animate.mock.calls[0]![0]).toEqual([{ transform: 'translateY(-40px)' }, { transform: 'translateY(0)' }]);
+    rect.mockRestore();
+    delete (HTMLElement.prototype as any).animate;
+  });
+
   it('counts runs, artifacts and reviews, and narrows to the runs that need a review', () => {
     render(<Blackboard />);
     expect(screen.getByText('3 runs · 7 artifacts · 1 needs review')).toBeTruthy();

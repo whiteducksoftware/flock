@@ -493,6 +493,7 @@ export class WebSocketClient {
             streamingTokens: new Map(),
             agentLogicOperations: new Map(),
             inFlight: new Map(),
+            settling: new Map(),
             runTails: new Map(),
           });
           useGraphStore.getState().dropStreamingPreviews();

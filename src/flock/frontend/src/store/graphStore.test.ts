@@ -158,6 +158,58 @@ describe('graphStore - NEW Simplified Architecture', () => {
     });
   });
 
+  describe('runs that ended, until the board shows their output (#642)', () => {
+    const message = (id: string, producedBy: string) => ({
+      id,
+      type: 'message',
+      position: { x: 0, y: 0 },
+      data: { producedBy, correlationId: 'c-1', artifactType: producedBy === 'triage' ? 'Decision[app.Route]' : 'app.Ticket', timestamp: 1 },
+    });
+    const ticket = message('t1', 'external');
+    const decided = message('d1', 'triage');
+    const end = () => {
+      useGraphStore.getState().setInFlight('r1', 'triage', ['app.Ticket'], ['t1'], 'c-1');
+      useGraphStore.getState().setInFlight('r1', 'triage', null);
+    };
+
+    beforeEach(() => {
+      useGraphStore.setState({ viewMode: 'blackboard', nodes: [ticket as any], inFlight: new Map(), settling: new Map() });
+    });
+    afterEach(() => vi.useRealTimers());
+
+    it('keeps a decider that ended until a snapshot brings its decision', async () => {
+      end();
+      expect(useGraphStore.getState().inFlight.has('r1')).toBe(false);
+      expect(useGraphStore.getState().settling.get('r1')).toMatchObject({ agent: 'triage', artifacts: ['t1'], correlationId: 'c-1' });
+
+      // A snapshot asked for before its decision was stored
+      vi.mocked(fetchGraphSnapshot).mockResolvedValueOnce({ nodes: [ticket], edges: [], statistics: null } as unknown as GraphSnapshot);
+      await useGraphStore.getState().generateBlackboardViewGraph();
+      expect(useGraphStore.getState().settling.has('r1')).toBe(true);
+
+      vi.mocked(fetchGraphSnapshot).mockResolvedValueOnce({ nodes: [ticket, decided], edges: [], statistics: null } as unknown as GraphSnapshot);
+      await useGraphStore.getState().generateBlackboardViewGraph();
+      expect(useGraphStore.getState().settling.size).toBe(0);
+    });
+
+    it('does not take an earlier output of the agent for the one it waits for', async () => {
+      useGraphStore.setState({ nodes: [ticket as any, decided as any] });
+      end();
+      vi.mocked(fetchGraphSnapshot).mockResolvedValueOnce({ nodes: [ticket, decided], edges: [], statistics: null } as unknown as GraphSnapshot);
+      await useGraphStore.getState().generateBlackboardViewGraph();
+      expect(useGraphStore.getState().settling.has('r1')).toBe(true);
+    });
+
+    it('lets a run that published nothing go after a few seconds', () => {
+      vi.useFakeTimers();
+      end();
+      vi.advanceTimersByTime(3900);
+      expect(useGraphStore.getState().settling.has('r1')).toBe(true);
+      vi.advanceTimersByTime(200);
+      expect(useGraphStore.getState().settling.has('r1')).toBe(false);
+    });
+  });
+
   describe('generateAgentViewGraph()', () => {
     it('should fetch agent view graph from backend', async () => {
       const mockSnapshot: GraphSnapshot = {

@@ -3,7 +3,7 @@ import type { XYPosition } from '@xyflow/react';
 /** How long nodes take to make room or go back (docs/internal/design-system/README.md). */
 export const MOVE_MS = 200;
 
-const prefersLessMotion = (): boolean =>
+export const prefersLessMotion = (): boolean =>
   typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /** A movement's duration, none for people who ask for less motion (the board panning, fitting). */

@@ -19,6 +19,9 @@ import type { LaneCard } from './lanes';
 import { useArtifact } from './useArtifact';
 import styles from './Blackboard.module.css';
 
+/** The end of a stream a card shows: more than its box holds, so the box is always full (#642) */
+const STREAM_CHARS = 260;
+
 const DECISION = /^(?:.*\.)?Decision\[(.+)\]$/;
 
 /** `◆ Route` for a decision, else the type without its module path. */
@@ -78,11 +81,13 @@ const Summary: React.FC<{ card: LaneCard }> = ({ card }) => {
     const streamed = data.streamingText ?? '';
     return streamed ? (
       <span className={`mono ${styles.stream}`}>
-        {streamed.slice(-140)}
-        <span className={styles.caret}>▍</span>
+        <span>
+          {streamed.slice(-STREAM_CHARS)}
+          <span className={styles.caret}>▍</span>
+        </span>
       </span>
     ) : (
-      <div className={`${styles.waiting} ${styles.wait}`}>
+      <div className={`${styles.waiting} ${styles.wait} ${styles.streamWait}`}>
         <span className="hatch" />
       </div>
     );
@@ -107,7 +112,12 @@ const Summary: React.FC<{ card: LaneCard }> = ({ card }) => {
   }
   const rows = data.payload && typeof data.payload === 'object' ? Object.entries(data.payload as Record<string, unknown>).slice(0, 2) : [];
   // A stream that just ended, before the board's snapshot has its payload
-  if (rows.length === 0 && data.streamingText) return <span className={`mono ${styles.stream}`}>{data.streamingText.slice(-140)}</span>;
+  if (rows.length === 0 && data.streamingText)
+    return (
+      <span className={`mono ${styles.stream}`}>
+        <span>{data.streamingText.slice(-STREAM_CHARS)}</span>
+      </span>
+    );
   return (
     <>
       {rows.length > 0 && (

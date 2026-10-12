@@ -213,6 +213,64 @@ describe('lanesOf', () => {
     expect(ids(lanesOf(twice, edges, runs).find((each) => each.id === 'c-4')!)).toEqual([['t4'], ['d5', 's2'], ['s1']]);
   });
 
+  it("places a stream whose input is not on the board yet after the lane's placeholders, and keeps it there (#642)", () => {
+    // The deciders ended, their decisions come with the next snapshot; a team
+    // already writes after one of them
+    const board = [
+      artifact('t5', 'c-5', 'app.SupportTicket', 'external', 7000),
+      artifact('s5', 'c-5', 'app.TeamReply', 'shipping_team', 7300, { isStreaming: true, streamingText: 'Thanks for' }),
+    ];
+    const runs = [
+      { agent: 'triage', correlationId: 'c-5', artifacts: ['t5'] },
+      { agent: 'urgency', correlationId: 'c-5', artifacts: ['t5'] },
+      { agent: 'shipping_team', correlationId: 'c-5', artifacts: ['d8', 't5'] },
+    ];
+    expect(ids(lanesOf(board, [], runs)[0]!)).toEqual([['t5'], ['pending:triage', 'pending:urgency'], ['s5']]);
+
+    // The snapshot brings the decisions: the stream stays in its column
+    const later = [
+      ...board,
+      artifact('d8', 'c-5', 'Decision[app.Route]', 'triage', 7100, decision('shipping', 0.9)),
+      artifact('d9', 'c-5', 'Decision[app.Urgent]', 'urgency', 7150, decision('no', 0.8)),
+    ];
+    const laterEdges = [made('t5', 'd8', 'triage'), made('t5', 'd9', 'urgency')];
+    expect(ids(lanesOf(later, laterEdges, [runs[2]!])[0]!)).toEqual([['t5'], ['d8', 'd9'], ['s5']]);
+  });
+
+  it("places a run that consumes a stream after the stream's column, not after its edges (#642)", () => {
+    // billing_team still streams its reply; crm_sync already took it up
+    const board = [
+      artifact('t6', 'c-6', 'app.SupportTicket', 'external', 8000),
+      artifact('d6', 'c-6', 'Decision[app.Route]', 'triage', 8100, decision('billing', 0.95)),
+      artifact('s6', 'c-6', 'app.TeamReply', 'billing_team', 8200, { isStreaming: true, streamingText: 'The amount' }),
+    ];
+    const runs = [
+      { agent: 'billing_team', correlationId: 'c-6', artifacts: ['d6'] },
+      { agent: 'crm_sync', correlationId: 'c-6', artifacts: ['s6'] },
+    ];
+    expect(ids(lanesOf(board, [made('t6', 'd6', 'triage')], runs)[0]!)).toEqual([['t6'], ['d6'], ['s6'], ['pending:crm_sync']]);
+  });
+
+  it("places a run that waits for an input not on the board yet after the runs that make it (#642)", () => {
+    // pager reads both decisions; the deciders ended, their decisions come with the next snapshot
+    const board = [artifact('t7', 'c-7', 'app.SupportTicket', 'external', 9000)];
+    const runs = [
+      { agent: 'triage', correlationId: 'c-7', artifacts: ['t7'] },
+      { agent: 'urgency', correlationId: 'c-7', artifacts: ['t7'] },
+      { agent: 'pager', correlationId: 'c-7', artifacts: ['d10', 'd11'] },
+    ];
+    expect(ids(lanesOf(board, [], runs)[0]!)).toEqual([['t7'], ['pending:triage', 'pending:urgency'], ['pending:pager']]);
+
+    // The decisions arrive: pager's placeholder stays in its column
+    const later = [
+      ...board,
+      artifact('d10', 'c-7', 'Decision[app.Route]', 'triage', 9100, decision('tech', 0.9)),
+      artifact('d11', 'c-7', 'Decision[app.Urgent]', 'urgency', 9150, decision('yes', 0.9)),
+    ];
+    const laterEdges = [made('t7', 'd10', 'triage'), made('t7', 'd11', 'urgency')];
+    expect(ids(lanesOf(later, laterEdges, [runs[2]!])[0]!)).toEqual([['t7'], ['d10', 'd11'], ['pending:pager']]);
+  });
+
   it('names several running agents at once', () => {
     const both = [...running, { agent: 'urgency', correlationId: 'c-3', artifacts: ['t3'] }];
     expect(lanesOf(nodes, edges, both).find((each) => each.id === 'c-3')!.status.text).toBe('triage and 1 more are working');
