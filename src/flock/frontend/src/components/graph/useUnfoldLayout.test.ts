@@ -47,6 +47,20 @@ describe('useUnfoldLayout', () => {
     useGraphStore.setState(useGraphStore.getInitialState(), true);
   });
 
+  it('lets go of the gliding nodes when the unfolded node leaves the board (#650)', () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: false }));
+    vi.useFakeTimers();
+    render();
+
+    act(() => useUIStore.getState().unfold('triage'));
+    const during = useGraphStore.getState().moving.size;
+    act(() => useGraphStore.setState((state) => ({ nodes: state.nodes.filter((node) => node.id !== 'triage') })));
+
+    expect(during).toBeGreaterThan(0);
+    expect(useGraphStore.getState().moving.size).toBe(0);
+    vi.useRealTimers();
+  });
+
   it('makes room around the unfolded node and keeps it where it was', () => {
     render();
 

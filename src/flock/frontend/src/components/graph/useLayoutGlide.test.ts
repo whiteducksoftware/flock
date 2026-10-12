@@ -94,6 +94,23 @@ describe('useLayoutGlide', () => {
     expect(positions()).toEqual({ intake: { x: 100, y: 0 }, triage: { x: 400, y: 0 } });
   });
 
+  it('keeps a node dragged during the glide where it is dropped when an agent unfolds', () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useLayoutGlide());
+
+    act(() => result.current(layout([['intake', { x: 100, y: 0 }], ['triage', { x: 400, y: 0 }]])));
+    act(() => void vi.advanceTimersByTime(50));
+    act(() =>
+      useGraphStore.setState((state) => ({
+        nodes: state.nodes.map((node) => (node.id === 'intake' ? { ...node, position: { x: 30, y: 320 }, dragging: true } : node)),
+      })),
+    );
+    act(() => void vi.advanceTimersByTime(20));
+    act(() => useUIStore.getState().unfold('triage'));
+
+    expect(positions()).toEqual({ intake: { x: 30, y: 320 }, triage: { x: 400, y: 0 } });
+  });
+
   it('leaves a node moved after its glide ended where it is when one unfolds', () => {
     vi.useFakeTimers();
     const { result } = renderHook(() => useLayoutGlide());
