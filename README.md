@@ -113,7 +113,7 @@ Many agent steps are decisions, not writing tasks: which team handles a ticket, 
 
 <p align="center">
   <img alt="Option lanes in the dashboard filling up with shapes sorted by color" src="docs/assets/images/decisions/decision-lanes.gif" width="380">
-  <img alt="Close-up of the color sorter with all 24 shapes sorted" src="docs/assets/images/decisions/decision-sorter.png" width="380">
+  <img alt="Close-up of the color sorter with all 16 shapes sorted" src="docs/assets/images/decisions/decision-sorter.png" width="380">
 </p>
 <p align="center"><i>A decision model looks at each shape's image and sorts it into a color lane, live in the dashboard. In-between colors stay below the threshold and land in the <code>UNSURE</code> lane for an inspector (<a href="examples/15-decisions/03_color_sorter.py">03_color_sorter.py</a>).</i></p>
 
