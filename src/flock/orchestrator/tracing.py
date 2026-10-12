@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, Any
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
 
+from flock.logging.telemetry import flush_traces
+
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -124,6 +126,9 @@ class TracingManager:
                     "deleted_count": 0,
                     "error": f"Database file not found: {db_path}",
                 }
+
+            # Spans waiting in a batch would come back after the clear (#601)
+            flush_traces()
 
             # Connect and clear
             conn = duckdb.connect(str(db_file))

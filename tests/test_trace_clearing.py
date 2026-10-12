@@ -313,3 +313,31 @@ def test_clear_traces_concurrent_access():
 
         assert result["success"] is True
         assert result["deleted_count"] == 1
+
+
+def test_clear_traces_writes_the_spans_waiting_in_a_batch_first(tmp_path, monkeypatch):
+    """Spans waiting in a batch do not come back after a clear (#601)."""
+    from opentelemetry import trace
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+    from flock.logging.telemetry_exporter.duckdb_exporter import DuckDBSpanExporter
+
+    exporter = DuckDBSpanExporter(str(tmp_path), "traces.duckdb")
+    provider = TracerProvider()
+    provider.add_span_processor(
+        BatchSpanProcessor(exporter, schedule_delay_millis=60_000)
+    )
+    monkeypatch.setattr(trace, "get_tracer_provider", lambda: provider)
+    try:
+        with provider.get_tracer("test").start_as_current_span("waiting in a batch"):
+            pass
+
+        result = Flock.clear_traces(str(exporter.db_path))
+        provider.force_flush()
+
+        assert result["success"] is True
+        with duckdb.connect(str(exporter.db_path), read_only=True) as conn:
+            assert conn.execute("SELECT COUNT(*) FROM spans").fetchone()[0] == 0
+    finally:
+        provider.shutdown()

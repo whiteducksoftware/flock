@@ -227,7 +227,7 @@ export OTEL_BSP_MAX_EXPORT_BATCH_SIZE=512  # spans per batch
 export OTEL_BSP_MAX_QUEUE_SIZE=2048        # spans waiting at most; more are dropped
 ```
 
-`Flock.shutdown()` writes the spans still waiting, and so does the end of the process.
+`Flock.shutdown()` writes the spans still waiting (it waits at most five seconds for a slow exporter), and so does the end of the process. `Flock.clear_traces()` and the dashboard's clear write them before they delete, so cleared spans do not come back.
 
 ## What Gets Captured
 

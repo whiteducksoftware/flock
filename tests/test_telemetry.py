@@ -788,3 +788,42 @@ class TestBatchedExport:
             assert settings._schedule_delay_millis == 250
         finally:
             provider.shutdown()
+
+
+class TestFlushTraces:
+    """flush_traces() waits at most its timeout, whatever the exporters do (#601)."""
+
+    def test_returns_when_a_flush_hangs(self, monkeypatch):
+        import threading
+
+        from opentelemetry.sdk.trace import SpanProcessor, TracerProvider
+
+        from flock.logging.telemetry import flush_traces
+
+        released = threading.Event()
+
+        class Stuck(SpanProcessor):
+            def force_flush(self, timeout_millis: int = 30000) -> bool:
+                # OpenTelemetry's batch processor can block like this on a slow exporter
+                return released.wait(5)
+
+        provider = TracerProvider()
+        provider.add_span_processor(Stuck())
+        monkeypatch.setattr(trace, "get_tracer_provider", lambda: provider)
+        try:
+            assert flush_traces(timeout_millis=100) is False
+        finally:
+            released.set()
+            provider.shutdown()
+
+    def test_reports_a_finished_flush(self, monkeypatch):
+        from opentelemetry.sdk.trace import TracerProvider
+
+        from flock.logging.telemetry import flush_traces
+
+        provider = TracerProvider()
+        monkeypatch.setattr(trace, "get_tracer_provider", lambda: provider)
+        try:
+            assert flush_traces() is True
+        finally:
+            provider.shutdown()
