@@ -437,12 +437,15 @@ async def test_a_run_that_ends_while_the_board_is_read_still_counts(
 
 
 @pytest.mark.parametrize("kind", ["memory", "sqlite"])
-async def test_a_run_that_ended_before_it_is_recorded_still_counts(kind, tmp_path):
+async def test_a_run_that_ended_unrecorded_still_counts(kind, tmp_path, monkeypatch):
+    from flock.api import graph_builder
+
     flock, reader, collector = await _reading(kind, tmp_path)
     ticket = await _ticket_on_board(flock, "ended")
     await _starts(collector, flock, reader, "r1", ticket)
     # The collector hears the run end; the orchestrator records what it
-    # consumed only after publishing its outputs
+    # consumed only after publishing its outputs, and a direct run (`arun`)
+    # never
     await collector.on_terminate(
         reader,
         Context(
@@ -453,6 +456,8 @@ async def test_a_run_that_ended_before_it_is_recorded_still_counts(kind, tmp_pat
             correlation_id=str(ticket.correlation_id),
         ),
     )
+    # However long ago
+    monkeypatch.setattr(graph_builder, "_CLOCK_MARGIN", timedelta(0))
 
     counts = _counts(await _agent_view(flock, limit=5, collector=collector))
 
@@ -526,31 +531,3 @@ async def test_sqlite_counts_one_state_of_the_board(tmp_path, monkeypatch):
     sent = counts["cards"]["external"]["sent"][0]
     assert counts["cards"]["reader"]["received"][0] == sent
     await flock.store.close()
-
-
-def test_a_store_that_records_no_consumptions_counts_every_run():
-    from datetime import UTC, datetime
-
-    from flock.components.server.models.graph import GraphRun, GraphState
-    from flock.core.store import BlackboardStore
-
-    class Unrecording(BlackboardStore):
-        """Keeps artifacts only: what was consumed lives in the collector."""
-
-    ended = GraphRun(
-        run_id="r1",
-        agent_name="reader",
-        status="completed",
-        consumed_artifacts=["a1"],
-        completed_at=datetime(2020, 1, 1, tzinfo=UTC),
-    )
-    state = GraphState(runs=[ended])
-    flock = Flock()
-    collector = DashboardEventCollector(store=flock.store)
-
-    recording = GraphAssembler(flock.store, collector, flock)
-    unrecording = GraphAssembler(Unrecording(), collector, flock)
-
-    # The in-memory store recorded what the long-ended run consumed
-    assert recording._unrecorded_consumptions(state) == {}
-    assert unrecording._unrecorded_consumptions(state) == {"a1": {"reader"}}

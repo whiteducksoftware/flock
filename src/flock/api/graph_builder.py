@@ -85,15 +85,16 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         limit = max(1, request.options.limit if request.options else 500)
 
         # The Agent View counts the whole range, not only the newest artifacts
-        # (#640), and what running agents consume with what is recorded, in
-        # one read: a run that ends meanwhile counts once. What is published
-        # after it counts at the next refresh
+        # (#640). What the collector saw consumed counts with what the store
+        # recorded, in one read and each pair once: a run records only when it
+        # ends, a failed one or a direct `arun()` never. What is published
+        # after the read counts at the next refresh
         flow = None
         graph_state: GraphState | None = None
         if request.view_mode == "agent":
             graph_state = await self._collector.snapshot_graph_state()
             flow = await self._store.flow_counts(
-                filter_config, self._unrecorded_consumptions(graph_state)
+                filter_config, graph_state.consumptions
             )
         envelopes, total_available = await self._store.fetch_graph_artifacts(
             filter_config,
@@ -231,28 +232,6 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             {k: v for k, v in reviews.items() if k in in_view},
             {k: v for k, v in explanations.items() if k in in_view},
         )
-
-    def _unrecorded_consumptions(self, graph_state: GraphState) -> dict[str, set[str]]:
-        """Artifact ID -> agents whose runs consumed it and may not be recorded:
-        a run records what it consumed after it published, so a running one
-        and one that ended within the margin may not yet, and a failed one
-        never does. With a store that records no consumptions, every run."""
-        records = (
-            type(self._store).record_consumptions
-            is not BlackboardStore.record_consumptions
-        )
-        since = datetime.now(UTC) - _CLOCK_MARGIN
-        unrecorded: dict[str, set[str]] = defaultdict(set)
-        for run in graph_state.runs:
-            if (
-                not records
-                or run.status in ("active", "error")
-                or not run.completed_at
-                or run.completed_at >= since
-            ):
-                for artifact_id in run.consumed_artifacts:
-                    unrecorded[artifact_id].add(run.agent_name)
-        return unrecorded
 
     def _convert_envelopes_to_artifacts(
         self,
