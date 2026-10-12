@@ -9,6 +9,7 @@
 import { useGraphStore } from '../../store/graphStore';
 import { type AutoLayoutMode, useUIStore } from '../../store/uiStore';
 import { MOVE_MS } from './animatePositions';
+import { afterGlide } from './glideNodes';
 import { AUTO_LAYOUT_DEBOUNCE_MS } from './autoLayoutTrigger';
 
 export interface CanvasCommands {
@@ -87,16 +88,25 @@ export function withCanvas(run: (canvas: CanvasCommands) => void, kind?: CanvasC
   else waiting = { run, kind };
 }
 
+/** Wraps a later part of a command: it runs only while the command's request is the newest. */
+export function asNewest(run: () => void): () => void {
+  const mine = generation;
+  return () => {
+    if (mine === generation) run();
+  };
+}
+
 /**
  * Runs `run` once the board has the agent: at once, or `settleMs` after it
  * arrives (a board that just mounted loads its agents and lays them out
- * first), unless a newer request came meanwhile. Gives up after `giveUpMs`.
+ * first), and once the nodes keep still (a glide going on ends first, #650);
+ * unless a newer request came meanwhile. Gives up after `giveUpMs`.
  */
 export function whenOnBoard(nodeId: string, run: () => void, settleMs: number, giveUpMs = 5000): void {
   const mine = generation;
   const onBoard = () => useGraphStore.getState().nodes.some((node) => node.id === nodeId && node.type === 'agent');
   if (onBoard()) {
-    run();
+    afterGlide(asNewest(run));
     return;
   }
   const unsubscribe = useGraphStore.subscribe(() => {
@@ -108,7 +118,7 @@ export function whenOnBoard(nodeId: string, run: () => void, settleMs: number, g
     if (!onBoard()) return;
     unsubscribe();
     clearTimeout(giveUp);
-    setTimeout(() => mine === generation && run(), settleMs);
+    setTimeout(() => mine === generation && afterGlide(asNewest(run)), settleMs);
   });
   const giveUp = setTimeout(unsubscribe, giveUpMs);
 }

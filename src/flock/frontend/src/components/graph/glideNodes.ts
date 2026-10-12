@@ -18,14 +18,19 @@ const waiting: (() => void)[] = [];
  * Runs `run` once the board's nodes keep still: at once, or the frame after
  * the glide going on ended (React Flow has their final positions by then), so
  * a fit or a centring uses where the nodes end, not where they are on their
- * way (#650). A glide that takes over meanwhile is waited for too.
+ * way (#650). A glide that takes over meanwhile is waited for too. Returns a
+ * function that drops it, if it still waits.
  */
-export function afterGlide(run: () => void): void {
+export function afterGlide(run: () => void): () => void {
   if (!running) {
     run();
-    return;
+    return () => {};
   }
   waiting.push(run);
+  return () => {
+    const at = waiting.indexOf(run);
+    if (at >= 0) waiting.splice(at, 1);
+  };
 }
 
 function settled(): void {

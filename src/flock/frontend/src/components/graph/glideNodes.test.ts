@@ -105,5 +105,14 @@ describe('glideNodes', () => {
     vi.advanceTimersByTime(150);
     expect(fit).toHaveBeenCalledOnce();
   });
+
+  it('drops what waits when it is cancelled', () => {
+    glideNodes(to([['intake', { x: 100, y: 0 }]]));
+    const fit = vi.fn();
+    const cancel = afterGlide(fit);
+    cancel();
+    vi.advanceTimersByTime(400);
+    expect(fit).not.toHaveBeenCalled();
+  });
 });
 
