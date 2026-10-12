@@ -57,6 +57,11 @@
   gap: 20px 32px;
 }
 
+.groups:focus-visible {
+  outline: 2px solid var(--sure);
+  outline-offset: -2px;
+}
+
 .groupTitle {
   margin: 0 0 8px;
   font-size: 10.5px;

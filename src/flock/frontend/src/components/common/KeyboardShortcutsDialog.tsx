@@ -58,6 +58,7 @@ const GROUPS: { title: string; shortcuts: { keys: string[]; description: string 
 const KeyboardShortcutsDialog: React.FC<KeyboardShortcutsDialogProps> = ({ isOpen, onClose }) => {
   const ids = useId();
   const close = useRef<HTMLButtonElement>(null);
+  const list = useRef<HTMLDivElement>(null);
 
   // Open: the focus goes in; closed: back where it was
   useEffect(() => {
@@ -77,10 +78,10 @@ const KeyboardShortcutsDialog: React.FC<KeyboardShortcutsDialogProps> = ({ isOpe
       onClose();
       return;
     }
-    // The close button is the one stop: Tab stays on it
+    // Tab goes round the close button and the list (it scrolls when it is long)
     if (event.key === 'Tab') {
       event.preventDefault();
-      close.current?.focus();
+      (document.activeElement === close.current ? list.current : close.current)?.focus();
     }
   };
 
@@ -102,7 +103,7 @@ const KeyboardShortcutsDialog: React.FC<KeyboardShortcutsDialogProps> = ({ isOpe
             <Icon name="close" />
           </button>
         </header>
-        <div className={styles.groups}>
+        <div ref={list} role="group" aria-label="Shortcuts" tabIndex={0} className={styles.groups}>
           {GROUPS.map((group, index) => (
             // aria-labelledby is a list of IDs: the group's ID has no spaces
             <section key={group.title} className={styles.group} aria-labelledby={`${ids}-group-${index}`}>

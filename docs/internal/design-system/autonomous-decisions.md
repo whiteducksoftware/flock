@@ -228,8 +228,9 @@ Each entry says what was decided, why, and where it landed.
 - **Layout direction is gone from Settings › Advanced** although the spec kept it: every layout mode of the canvas dock names its direction (hierarchical left to right / top down), so the setting had no effect. Node and rank spacing stay and now lay the Flow out again when they change.
 - **Debug mode and performance mode are removed** (open question 2); stored settings that have them still load, without them.
 - **The theme picker's "current theme" box and its Reset are gone:** the built-in tiles and the chosen theme's pressed state show it, and the sheet's Reset to defaults resets everything.
-- **A hover preview ends on mouse-leave** by applying the chosen theme again, which also outruns a preview still loading.
+- **A hover preview ends on mouse-leave** by showing again what the page showed before it (`appliedTheme` / `restoreTheme`), without loading the chosen theme again (review: a failing theme API turned it into Graphite); a preview still loading gives way.
 - **The shortcuts dialog is a real modal** (`aria-modal`): the board's shortcuts stay behind it, Esc and Ctrl/⌘+/ close it, and the palette's special case for it is gone. It lists the keys of the board, the panels, the composer and the palette.
 - **Enter puts the focused node in focus,** else the selected one (as Space unfolds), unless the focus is on a button, field or tab.
 - **The settings fields keep global classes** (`settingsFields.css`): the timeline dock's tracing settings use them too.
 - **Space, Enter and Ctrl+Shift+D act only on an agent on the Flow's board** (review): on the Blackboard an agent unfolded before could still be their target; Enter then closed the timeline dock for a focus stage the Blackboard does not show, and Space was taken from the lanes.
+- **The shortcuts' list is a tab stop** (review): on a short screen it scrolls, so Tab goes round the close button and the list.

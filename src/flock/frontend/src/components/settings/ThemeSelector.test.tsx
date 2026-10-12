@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { applyBuiltInTheme } from '../../services/themeApplicator';
+import { applyBuiltInTheme, applyTheme } from '../../services/themeApplicator';
+import { fetchTheme } from '../../services/themeService';
 import { useSettingsStore } from '../../store/settingsStore';
 import ThemeSelector from './ThemeSelector';
 
@@ -94,6 +95,25 @@ describe('ThemeSelector', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(document.documentElement.style.getPropertyValue('--bg')).toBe('');
     expect(useSettingsStore.getState().appearance.theme).toBe('graphite');
+  });
+
+  it('puts back the theme it showed before a preview, without loading it again', async () => {
+    // dracula is the chosen theme, applied; the theme API then fails
+    applyTheme(DRACULA);
+    useSettingsStore.getState().setTheme('dracula');
+    const draculaBg = document.documentElement.style.getPropertyValue('--bg');
+    render(<ThemeSelector />);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'nord' })).toBeTruthy());
+    vi.mocked(fetchTheme).mockRejectedValue(new Error('offline'));
+
+    fireEvent.mouseEnter(screen.getByRole('button', { name: 'nord' }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    fireEvent.mouseLeave(screen.getByRole('button', { name: 'nord' }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(document.documentElement.style.getPropertyValue('--bg')).toBe(draculaBg);
+    expect(useSettingsStore.getState().appearance.theme).toBe('dracula');
+    vi.mocked(fetchTheme).mockImplementation(() => new Promise((resolve) => (loading.finish = resolve as (theme: unknown) => void)));
   });
 
   it('does not apply a built-in theme on hover', async () => {

@@ -4,9 +4,16 @@
  * theme previews it; leaving puts the chosen theme back, and a click keeps it.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { fetchTheme, fetchThemeList, POPULAR_THEMES } from '../../services/themeService';
-import { applyThemeByName, BUILT_IN_THEMES, builtInTheme } from '../../services/themeApplicator';
+import {
+  type AppliedTheme,
+  applyThemeByName,
+  appliedTheme,
+  BUILT_IN_THEMES,
+  builtInTheme,
+  restoreTheme,
+} from '../../services/themeApplicator';
 import { useSettingsStore } from '../../store/settingsStore';
 import styles from './ThemeSelector.module.css';
 
@@ -17,8 +24,9 @@ const ThemeSelector: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  // The terminal theme shown while the pointer is on it
+  // The terminal theme shown while the pointer is on it, and what the page showed before
   const [preview, setPreview] = useState<string | null>(null);
+  const before = useRef<AppliedTheme | null>(null);
 
   const currentTheme = useSettingsStore((state) => state.appearance.theme);
   const setTheme = useSettingsStore((state) => state.setTheme);
@@ -45,6 +53,7 @@ const ThemeSelector: React.FC = () => {
     try {
       setError(null);
       setPreview(null);
+      before.current = null;
       // Only the latest choice applies and is stored (null: a newer one won)
       const applied = await applyThemeByName(themeName, document.documentElement, fetchTheme, false);
       if (applied !== null) setTheme(applied);
@@ -57,6 +66,7 @@ const ThemeSelector: React.FC = () => {
   // Graphite and Paper apply on click only: a preview of them would be the theme itself
   const startPreview = async (themeName: string) => {
     if (builtInTheme(themeName)) return;
+    before.current ??= appliedTheme();
     setPreview(themeName);
     try {
       await applyThemeByName(themeName, document.documentElement, fetchTheme, false);
@@ -65,11 +75,13 @@ const ThemeSelector: React.FC = () => {
     }
   };
 
-  // Back to the chosen theme; a preview still loading gives way to it
+  // Back to what the page showed, as it was: no request that could fail; a preview
+  // still loading gives way to it
   const endPreview = () => {
-    if (!preview) return;
+    const shown = before.current;
+    before.current = null;
     setPreview(null);
-    void applyThemeByName(currentTheme, document.documentElement, fetchTheme, true);
+    if (shown) restoreTheme(shown);
   };
 
   const query = searchQuery.trim().toLowerCase();

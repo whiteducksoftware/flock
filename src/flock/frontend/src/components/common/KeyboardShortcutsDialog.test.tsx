@@ -43,9 +43,15 @@ describe('KeyboardShortcutsDialog', () => {
 
     const close = screen.getByRole('button', { name: 'Close keyboard shortcuts' });
     expect(close).toHaveFocus();
-    // The close button is the only stop: Tab stays on it
+    // Tab goes round the close button and the list, which scrolls when it is long
+    const list = screen.getByRole('group', { name: 'Shortcuts' });
     fireEvent.keyDown(close, { key: 'Tab' });
+    expect(list).toHaveFocus();
+    fireEvent.keyDown(list, { key: 'Tab' });
     expect(close).toHaveFocus();
+    fireEvent.keyDown(close, { key: 'Tab', shiftKey: true });
+    expect(list).toHaveFocus();
+    close.focus();
 
     fireEvent.keyDown(close, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(1);
