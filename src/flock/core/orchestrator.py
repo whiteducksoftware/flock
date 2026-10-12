@@ -32,7 +32,7 @@ from flock.core.visibility import PublicVisibility, Visibility
 from flock.decisions.budget import RequestBudget
 from flock.decisions.routing import resolve_subjects
 from flock.integrations.openclaw import OpenClawConfig, OpenClawEngine
-from flock.logging.auto_trace import AutoTracedMeta
+from flock.logging.auto_trace import AutoTracedMeta, trace_level
 from flock.logging.logging import get_logger
 from flock.logging.telemetry import flush_traces
 from flock.mcp import (
@@ -222,6 +222,7 @@ class Flock(metaclass=AutoTracedMeta):
         self._logger.debug("Orchestrator initialized: components=[]")
 
     # Server Component management ------------------------------------------
+    @trace_level("all")  # building, registering and housekeeping (#601)
     def add_server_component(self, component: ServerComponent) -> Flock:
         """Add a ServerComponent that modifies the behavior of the Flock Server.
 
@@ -257,6 +258,7 @@ class Flock(metaclass=AutoTracedMeta):
             )
         return self._decision_budgets[model]
 
+    @trace_level("all")  # building, registering and housekeeping (#601)
     def agent(self, name: str) -> AgentBuilder:
         """Create a new agent using the fluent builder API.
 
@@ -290,6 +292,7 @@ class Flock(metaclass=AutoTracedMeta):
             raise ValueError(f"Agent '{name}' already registered.")
         return AgentBuilder(self, name)
 
+    @trace_level("all")  # building, registering and housekeeping (#601)
     def openclaw_agent(
         self,
         alias: str,
@@ -341,11 +344,13 @@ class Flock(metaclass=AutoTracedMeta):
         builder.labels("openclaw")
         return builder
 
+    @trace_level("all")  # building, registering and housekeeping (#601)
     def register_agent(self, agent: Agent) -> None:
         if agent.name in self._agents:
             raise ValueError(f"Agent '{agent.name}' already registered.")
         self._agents[agent.name] = agent
 
+    @trace_level("all")  # building, registering and housekeeping (#601)
     def get_agent(self, name: str) -> Agent:
         return self._agents[name]
 
@@ -353,6 +358,7 @@ class Flock(metaclass=AutoTracedMeta):
     def agents(self) -> list[Agent]:
         return list(self._agents.values())
 
+    @trace_level("all")  # building, registering and housekeeping (#601)
     async def get_correlation_status(self, correlation_id: str) -> dict[str, Any]:
         """Get the status of a workflow by correlation ID.
 
@@ -457,6 +463,7 @@ class Flock(metaclass=AutoTracedMeta):
 
     # Component management -------------------------------------------------
 
+    @trace_level("all")  # building, registering and housekeeping (#601)
     def add_component(self, component: OrchestratorComponent) -> Flock:
         """Add an OrchestratorComponent to this orchestrator.
 
@@ -500,6 +507,7 @@ class Flock(metaclass=AutoTracedMeta):
 
     # MCP management - Phase 3 extracted to MCPManager -------------------------------------------------------
 
+    @trace_level("all")  # building, registering and housekeeping (#601)
     def add_mcp(
         self,
         name: str,
@@ -553,6 +561,7 @@ class Flock(metaclass=AutoTracedMeta):
         )
         return self
 
+    @trace_level("all")  # building, registering and housekeeping (#601)
     def get_mcp_manager(self) -> FlockMCPClientManager:
         """Get or create the MCP client manager.
 
@@ -601,6 +610,7 @@ class Flock(metaclass=AutoTracedMeta):
             yield span
 
     @staticmethod
+    @trace_level("all")  # building, registering and housekeeping (#601)
     def clear_traces(db_path: str = ".flock/traces.duckdb") -> dict[str, Any]:
         """Clear all traces from the DuckDB database.
 
@@ -954,6 +964,7 @@ class Flock(metaclass=AutoTracedMeta):
         """
         return asyncio.run(self.arun(agent_builder, *inputs))
 
+    @trace_level("all")  # building, registering and housekeeping (#601)
     async def shutdown(
         self, *, include_components: bool = True, cancel_grace: float = 5.0
     ) -> None:
@@ -1044,10 +1055,12 @@ class Flock(metaclass=AutoTracedMeta):
             # Give done-callbacks a chance to run before re-checking.
             await asyncio.sleep(0)
 
+    @trace_level("all")  # building, registering and housekeeping (#601)
     def cli(self) -> Flock:
         # Placeholder for CLI wiring (rich UI in Step 3)
         return self
 
+    @trace_level("all")  # building, registering and housekeeping (#601)
     async def serve(
         self,
         *,

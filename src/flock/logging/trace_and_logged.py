@@ -23,6 +23,20 @@ class TraceFilterConfig:
         self.ignore_operations: set[str] = (
             set()
         )  # Blacklist: never trace these operations
+        # FLOCK_TRACE_LEVEL: `agents` traces agent work, `all` also Flock's internals
+        self.level: str = "agents"
+
+    def hides(self, owner: object) -> bool:
+        """Whether a call on ``owner`` is one of Flock's internals left out at this level.
+
+        Classes marked ``__trace_level__ = "all"`` (and their subclasses) are
+        checked at call time too, since the hooks they inherit were wrapped in
+        their base class.
+        """
+        return (
+            self.level != "all"
+            and getattr(type(owner), "__trace_level__", "agents") == "all"
+        )
 
     def should_trace(self, service: str, operation: str) -> bool:
         """Check if an operation should be traced based on filters.
@@ -226,7 +240,9 @@ def traced_and_logged(func):
 
             # Check if we should trace this operation
             service_name = span_name.split(".")[0] if "." in span_name else span_name
-            if not _trace_filter_config.should_trace(service_name, span_name):
+            if not _trace_filter_config.should_trace(service_name, span_name) or (
+                args and _trace_filter_config.hides(args[0])
+            ):
                 # Skip tracing, just call the function
                 return await func(*args, **kwargs)
 
@@ -275,7 +291,9 @@ def traced_and_logged(func):
 
         # Check if we should trace this operation
         service_name = span_name.split(".")[0] if "." in span_name else span_name
-        if not _trace_filter_config.should_trace(service_name, span_name):
+        if not _trace_filter_config.should_trace(service_name, span_name) or (
+            args and _trace_filter_config.hides(args[0])
+        ):
             # Skip tracing, just call the function
             return func(*args, **kwargs)
 

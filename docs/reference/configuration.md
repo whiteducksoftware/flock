@@ -38,6 +38,7 @@ AZURE_API_VERSION=2024-12-01-preview
 # Tracing
 FLOCK_AUTO_TRACE=true
 FLOCK_TRACE_FILE=true
+FLOCK_TRACE_LEVEL=agents  # or all, to trace Flock's internals too
 FLOCK_TRACE_SERVICES=["flock", "agent", "dspyengine"]
 ```
 

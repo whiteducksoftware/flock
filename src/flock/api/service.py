@@ -31,6 +31,7 @@ from flock.components.server.models.models import (
     CorrelationStatusResponse,
     ProducedArtifact,
 )
+from flock.logging.auto_trace import continue_caller_traces, http_telemetry
 
 
 """HTTP control plane for the blackboard orchestrator."""
@@ -56,6 +57,7 @@ class BlackboardHTTPService:
     def __init__(self, orchestrator: Flock) -> None:
         self.orchestrator = orchestrator
         self.app = FastAPI(
+            telemetry=http_telemetry(),
             title="Flock REST API Documentation",
             version="1.0.0",
             description="RESTful API for interacting with Flock agents and artifacts",
@@ -70,6 +72,7 @@ class BlackboardHTTPService:
                 },
             ],
         )
+        continue_caller_traces(self.app)
         self._register_exception_handlers()
         self._register_routes()
 
