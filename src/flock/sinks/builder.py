@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from flock.core.artifacts import Artifact
 from flock.sinks.endpoint import resolve_target
-from flock.sinks.engine import SinkEngine, SinkOrdering
+from flock.sinks.engine import SinkEngine
 from flock.sinks.models import Delivered, DeliveryFailed
 
 
@@ -149,8 +149,6 @@ class SinkBuilder:
         agent._agent.engines.append(
             SinkEngine(method=method, target=resolved, body=body, response=response)
         )
-        if not any(isinstance(c, SinkOrdering) for c in self._orchestrator._components):
-            self._orchestrator.add_component(SinkOrdering())
         self._agent = agent
         return self
 

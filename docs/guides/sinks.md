@@ -57,7 +57,7 @@ Endpoint(
 | `retries` | 5 | Retries after a timeout, a connection error, HTTP 408, 429 or 5xx; 0 fails on the first |
 | `rate_limit` | none | `"N/s"`, `"N/min"` or `"N/h"`; requests over the budget wait |
 
-**Secrets are named, never stored.** `Bearer`, `Header` and `Hmac` take the name of an environment variable and read it for each request. The value appears nowhere else: not in the sink's configuration, its `repr`, its receipts or its trace. A variable that is not set fails the delivery with a `DeliveryFailed` that names it, before any request is sent.
+**Secrets are named, never stored.** `Bearer`, `Header` and `Hmac` take the name of an environment variable and read it for each request. The value appears nowhere else: not in the sink's configuration, its `repr`, its receipts or its trace. A variable that is not set, or whose value holds a line break, fails the delivery with a `DeliveryFailed` that names it, before any request is sent. An error that quotes a secret (a transport error, a target that echoes what it got) shows `***` in its place.
 
 A target can also be a full URL, which needs no endpoint and uses the default settings: `.post("https://hooks.example/notify")`.
 
@@ -96,7 +96,7 @@ This creates a sink named `support-reply-post` that consumes `Reply` from `suppo
 
 ## What goes out
 
-Every execution of a sink sends **one request**: one artifact as an object, a batch (`batch=BatchSpec(...)`) as a list. The request carries:
+Every execution of a sink sends **one request**: one artifact as an object, a batch (`batch=BatchSpec(...)`) as a list, also when a timeout flushes a batch of one. Payloads are JSON-encoded as pydantic does it (sets as lists, enums as their values). The request carries:
 
 | Header | Value |
 |---|---|
@@ -111,7 +111,7 @@ A timeout, a connection error, HTTP 408, 429 and 5xx are retried, up to `retries
 
 ### Order
 
-Deliveries of **one correlation** go out one after another, in the order they were scheduled: a game's moves reach the target in the order they were made, also when one waits for a retry. Deliveries of **different correlations** go out concurrently. The endpoint's `rate_limit` spaces their requests out, and each endpoint keeps up to 100 connections open.
+Deliveries of **one correlation** go out one after another, in the order they were scheduled: a game's moves reach the target in the order they were made, also when one waits for a retry. Deliveries of **different correlations** go out concurrently. The endpoint's `rate_limit` spaces their requests out, and each endpoint keeps up to 100 connections open; `flock.shutdown()` closes them.
 
 ---
 

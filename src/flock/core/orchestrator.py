@@ -1018,10 +1018,14 @@ class Flock(metaclass=AutoTracedMeta):
             # Reconnects on the next use; Dapr's close() is final, so only SQLite.
             # A task that outlived the grace period may still publish and would
             # reopen the store, so it stays open then.
-            if isinstance(self.store, SQLiteBlackboardStore) and all(
-                task.done() for task in self._scheduler.pending_tasks
-            ):
+            stopped = all(task.done() for task in self._scheduler.pending_tasks)
+            if isinstance(self.store, SQLiteBlackboardStore) and stopped:
                 await self.store.close()
+            # Sinks' connections, once no delivery can still use them
+            if stopped:
+                from flock.sinks.engine import close_endpoints
+
+                await close_endpoints(self)
             # Spans wait in batches before they are exported (#601): write them now
             await asyncio.to_thread(flush_traces)
         finally:

@@ -20,18 +20,22 @@ import httpx
 from flock.decisions.budget import RequestBudget
 
 
-class MissingSecretError(Exception):
-    """The environment variable that holds a secret is not set."""
+class SecretError(Exception):
+    """The environment variable that holds a secret is not set, or its value
+    cannot go into a header (a line break). The message names the variable,
+    never the value."""
 
-    def __init__(self, env: str) -> None:
-        super().__init__(f"Environment variable {env} is not set")
+    def __init__(self, env: str, problem: str = "is not set") -> None:
+        super().__init__(f"Environment variable {env} {problem}")
         self.env = env
 
 
 def _secret(env: str) -> str:
     value = os.environ.get(env)
     if not value:
-        raise MissingSecretError(env)
+        raise SecretError(env)
+    if "\r" in value or "\n" in value:
+        raise SecretError(env, "holds a line break")
     return value
 
 
@@ -40,6 +44,9 @@ class Bearer:
     """``Authorization: Bearer <secret>``."""
 
     env: str
+
+    def secret(self) -> str:
+        return _secret(self.env)
 
     def headers(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {_secret(self.env)}"}
@@ -52,6 +59,9 @@ class Header:
     name: str
     env: str
 
+    def secret(self) -> str:
+        return _secret(self.env)
+
     def headers(self) -> dict[str, str]:
         return {self.name: _secret(self.env)}
 
@@ -63,6 +73,9 @@ class Hmac:
 
     env: str
     header: str = "X-Flock-Signature"
+
+    def secret(self) -> str:
+        return _secret(self.env)
 
     def headers(self, body: bytes) -> dict[str, str]:
         # As flock.api.webhooks.sign_payload, without importing the API layer
@@ -137,6 +150,14 @@ class Endpoint:
             self._client_loop = loop
         return self._client
 
+    async def aclose(self) -> None:
+        """Close the connections of the running loop's client; the next
+        delivery opens a new one."""
+        client = self._client
+        if client is not None and self._client_loop is asyncio.get_running_loop():
+            self._client = None
+            await client.aclose()
+
 
 @dataclass(frozen=True)
 class Target:
@@ -183,7 +204,7 @@ __all__ = [
     "Endpoint",
     "Header",
     "Hmac",
-    "MissingSecretError",
+    "SecretError",
     "Target",
     "resolve_target",
 ]

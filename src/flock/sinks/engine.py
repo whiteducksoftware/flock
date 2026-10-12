@@ -19,15 +19,15 @@ from typing import Any
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, ValidationError
+from pydantic_core import to_jsonable_python
 
 from flock.components.agent import EngineComponent
-from flock.components.orchestrator import OrchestratorComponent
 from flock.core.artifacts import Artifact
 from flock.core.visibility import PrivateVisibility, Visibility
 from flock.decisions.providers import MAX_RETRY_WAIT, retry_wait
 from flock.logging.logging import get_logger
 from flock.registry import type_registry
-from flock.sinks.endpoint import MissingSecretError, Target
+from flock.sinks.endpoint import Endpoint, SecretError, Target
 from flock.sinks.models import Delivered, DeliveryFailed
 from flock.utils.runtime import Context, EvalInputs, EvalResult
 
@@ -104,9 +104,13 @@ class SinkEngine(EngineComponent):
         """The label on the sink's card, e.g. ``↗ POST /billing``."""
         return f"↗ {self.method} {self.target.label}"
 
-    def _reserve(self, artifacts: list[Artifact], task: asyncio.Task) -> None:
-        """Queue a scheduled delivery behind the earlier ones of its correlation
-        (private: auto-tracing leaves it out)."""
+    def _reserve_turn(self, artifacts: list[Artifact], task: asyncio.Task) -> None:
+        """Queue a scheduled delivery behind the earlier ones of its correlation.
+
+        The scheduler calls it as it creates the run's task, on every path
+        (subscriptions, batch timeouts, flushes), before the run awaits
+        anything that could reorder it. Private, so auto-tracing leaves it out.
+        """
         key = _correlation(artifacts[0].correlation_id) if artifacts else None
         if key is not None:
             self._turns.reserve(key, task)
@@ -119,7 +123,7 @@ class SinkEngine(EngineComponent):
         task = asyncio.current_task()
         await self._turns.wait(key, task)
         try:
-            outputs = await self._deliver(agent.name, artifacts)
+            outputs = await self._deliver(agent.name, artifacts, batch=ctx.is_batch)
         finally:
             self._turns.release(key, task)
         visibility = _common_visibility(artifacts, agent.name)
@@ -136,7 +140,9 @@ class SinkEngine(EngineComponent):
             state=dict(inputs.state),
         )
 
-    async def _deliver(self, sink: str, artifacts: list[Artifact]) -> list[BaseModel]:
+    async def _deliver(
+        self, sink: str, artifacts: list[Artifact], *, batch: bool
+    ) -> list[BaseModel]:
         target: Target = self.target
         endpoint = target.endpoint
         ids = [str(artifact.id) for artifact in artifacts]
@@ -147,12 +153,14 @@ class SinkEngine(EngineComponent):
             "artifact_ids": ids,
         }
         bodies = [self._body(artifact) for artifact in artifacts]
+        # Sets, enums, dates and models as JSON, not as their str()
         content = json.dumps(
-            bodies if len(artifacts) != 1 else bodies[0], default=str
+            to_jsonable_python(bodies if batch else bodies[0], fallback=str)
         ).encode()
         try:
             headers = self._headers(artifacts, content)
-        except MissingSecretError as exc:
+            secrets = _secrets(endpoint)
+        except SecretError as exc:
             return [DeliveryFailed(**receipt, status=None, attempts=0, error=str(exc))]
 
         started = time.monotonic()
@@ -166,7 +174,7 @@ class SinkEngine(EngineComponent):
                     self.method, target.url, content=content, headers=headers
                 )
             except httpx.TransportError as exc:
-                status, error = None, f"{type(exc).__name__}: {exc}"
+                status, error = None, _redact(f"{type(exc).__name__}: {exc}", secrets)
                 if attempt < endpoint.retries:
                     await _sleep(_backoff(attempt))
                     continue
@@ -175,7 +183,10 @@ class SinkEngine(EngineComponent):
             if answer.is_success:
                 latency_ms = (time.monotonic() - started) * 1000
                 return self._delivered(receipt, answer, attempt + 1, latency_ms)
-            error = f"HTTP {status}: {answer.text[:ERROR_BODY_CHARS]}".rstrip(": ")
+            # A target may echo what it was sent, credentials included
+            error = _redact(
+                f"HTTP {status}: {answer.text[:ERROR_BODY_CHARS]}".rstrip(": "), secrets
+            )
             if _retryable(status) and attempt < endpoint.retries:
                 await _sleep(retry_wait(answer, attempt))
                 continue
@@ -246,28 +257,18 @@ class SinkEngine(EngineComponent):
         return headers
 
 
-class SinkOrdering(OrchestratorComponent):
-    """Hands every scheduled sink run its turn within its correlation.
-
-    Turns are taken when a run is scheduled, in the order the scheduler
-    schedules them, before anything a run awaits could reorder them.
-    """
-
-    name: str | None = "sink_ordering"
-    priority: int = -1000  # before every other component's hook
-    # Housekeeping, traced at FLOCK_TRACE_LEVEL=all only (#601)
-    __trace_level__ = "all"
-
-    async def on_agent_scheduled(
-        self,
-        orchestrator: Any,
-        agent: Any,
-        artifacts: list[Artifact],
-        task: asyncio.Task,
-    ) -> None:
+async def close_endpoints(flock: Any) -> None:
+    """Close the connections of every endpoint the flock's sinks deliver to,
+    named or a full URL's."""
+    endpoints: dict[int, Endpoint] = {
+        id(e): e for e in getattr(flock, "endpoints", {}).values()
+    }
+    for agent in flock.agents:
         for engine in agent.engines:
             if isinstance(engine, SinkEngine):
-                engine._reserve(artifacts, task)
+                endpoints.setdefault(id(engine.target.endpoint), engine.target.endpoint)
+    for endpoint in endpoints.values():
+        await endpoint.aclose()
 
 
 def _correlation(value: Any) -> str | None:
@@ -276,6 +277,21 @@ def _correlation(value: Any) -> str | None:
 
 def _retryable(status: int) -> bool:
     return status in RETRY_STATUSES or status >= 500
+
+
+def _secrets(endpoint: Endpoint) -> list[str]:
+    """The secret values a delivery to the endpoint sends."""
+    return [
+        credential.secret()
+        for credential in (endpoint.auth, endpoint.sign)
+        if credential
+    ]
+
+
+def _redact(text: str, secrets: list[str]) -> str:
+    for secret in secrets:
+        text = text.replace(secret, "***")
+    return text
 
 
 def _backoff(attempt: int) -> float:
@@ -292,4 +308,4 @@ def _common_visibility(artifacts: list[Artifact], sink: str) -> Visibility:
     return PrivateVisibility(agents={sink})
 
 
-__all__ = ["SinkEngine", "SinkOrdering"]
+__all__ = ["SinkEngine", "close_endpoints"]

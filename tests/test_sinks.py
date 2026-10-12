@@ -11,6 +11,7 @@ import respx
 from pydantic import BaseModel
 
 from flock import Bearer, Endpoint, Flock, Header, Hmac, flock_type
+from flock.core.conditions import Until
 from flock.sinks import Delivered, DeliveryFailed
 from flock.sinks import engine as sink_engine
 
@@ -448,3 +449,143 @@ async def test_an_answer_of_another_shape_is_noted_on_the_receipt():
     assert await payloads(flock, SinkCrmRecord) == []
     (delivered,) = await payloads(flock, Delivered)
     assert "SinkCrmRecord" in delivered["response_error"]
+
+
+async def test_a_batch_that_times_out_waits_for_the_earlier_delivery_of_its_correlation():
+    from datetime import timedelta
+
+    from flock.core.subscription import BatchSpec
+
+    flock = flock_with(lake=Endpoint("https://lake.test"))
+    flock.sink("lake").consumes(
+        SinkReply, batch=BatchSpec(size=2, timeout=timedelta(milliseconds=50))
+    ).post("lake:/replies")
+    order: list[list[str]] = []
+
+    async def respond(request):
+        tickets = [item["payload"]["ticket"] for item in json.loads(request.content)]
+        if tickets == ["B-1", "B-2"]:
+            await asyncio.sleep(0.4)  # the full batch is slow; B-3 times out meanwhile
+        order.append(tickets)
+        return httpx.Response(200)
+
+    with respx.mock() as router:
+        router.post("https://lake.test/replies").mock(side_effect=respond)
+        for n in (1, 2, 3):
+            await flock.publish(
+                SinkReply(ticket=f"B-{n}", text="x"), correlation_id="batch-b"
+            )
+        await flock.run_until_idle()
+
+    assert order == [["B-1", "B-2"], ["B-3"]]
+
+
+async def test_a_batch_of_one_is_still_a_list():
+    from datetime import timedelta
+
+    from flock.core.subscription import BatchSpec
+
+    flock = flock_with(lake=Endpoint("https://lake.test"))
+    flock.sink("lake").consumes(
+        SinkReply, batch=BatchSpec(size=5, timeout=timedelta(milliseconds=50))
+    ).post("lake:/replies")
+
+    with respx.mock() as router:
+        route = router.post("https://lake.test/replies").mock(
+            return_value=httpx.Response(200)
+        )
+        await flock.publish(SinkReply(ticket="L-1", text="alone"))
+        # The batch goes out when its timeout flushes it
+        await flock.run_until(Until.artifact_count(Delivered).at_least(1), timeout=10)
+
+    body = json.loads(route.calls.last.request.content)
+    assert isinstance(body, list)
+    assert body[0]["payload"]["ticket"] == "L-1"
+
+
+async def test_payloads_go_out_as_json():
+    from enum import Enum
+
+    class Tier(Enum):
+        GOLD = "gold"
+
+    @flock_type
+    class SinkTagged(BaseModel):
+        tags: set[str]
+        tier: Tier
+
+    flock = flock_with(myapp=Endpoint("https://myapp.test"))
+    flock.sink("tags").consumes(SinkTagged).post("myapp:/tags")
+
+    with respx.mock() as router:
+        route = router.post("https://myapp.test/tags").mock(
+            return_value=httpx.Response(200)
+        )
+        await flock.publish(SinkTagged(tags={"alpha"}, tier=Tier.GOLD))
+        await flock.run_until_idle()
+
+    payload = json.loads(route.calls.last.request.content)["payload"]
+    assert payload == {"tags": ["alpha"], "tier": "gold"}
+
+
+async def test_a_secret_never_shows_in_a_failed_delivery(monkeypatch, waits):
+    monkeypatch.setenv("SINK_BROKEN_KEY", "line\nbreak-secret")
+    flock = flock_with(
+        myapp=Endpoint("https://myapp.test", auth=Bearer(env="SINK_BROKEN_KEY"))
+    )
+    flock.sink("billing-api").consumes(SinkReply).post("myapp:/billing")
+
+    with respx.mock(assert_all_called=False) as router:
+        route = router.post("https://myapp.test/billing").mock(
+            return_value=httpx.Response(200)
+        )
+        await flock.publish(SinkReply(ticket="T-30", text="x"))
+        await flock.run_until_idle()
+
+    assert route.call_count == 0
+    (failed,) = await payloads(flock, DeliveryFailed)
+    assert "SINK_BROKEN_KEY" in failed["error"]
+    assert "secret" not in json.dumps([a.payload for a in await flock.store.list()])
+
+
+async def test_a_transport_error_that_quotes_a_secret_is_redacted(monkeypatch, waits):
+    monkeypatch.setenv("SINK_QUOTED_KEY", "quoted-secret")
+    flock = flock_with(
+        myapp=Endpoint(
+            "https://myapp.test", auth=Header("X-Key", env="SINK_QUOTED_KEY"), retries=0
+        )
+    )
+    flock.sink("billing-api").consumes(SinkReply).post("myapp:/billing")
+
+    with respx.mock() as router:
+        router.post("https://myapp.test/billing").mock(
+            side_effect=httpx.LocalProtocolError("bad header value quoted-secret")
+        )
+        await flock.publish(SinkReply(ticket="T-31", text="x"))
+        await flock.run_until_idle()
+
+    (failed,) = await payloads(flock, DeliveryFailed)
+    assert "quoted-secret" not in failed["error"]
+    assert "***" in failed["error"]
+
+
+async def test_shutdown_closes_the_endpoints_connections():
+    flock = flock_with(myapp=Endpoint("https://myapp.test"))
+    flock.sink("billing-api").consumes(SinkReply).post("myapp:/billing")
+    flock.sink("hook").consumes(SinkReply).post("https://other.test/hook")
+
+    with respx.mock() as router:
+        router.post("https://myapp.test/billing").mock(return_value=httpx.Response(200))
+        router.post("https://other.test/hook").mock(return_value=httpx.Response(200))
+        await flock.publish(SinkReply(ticket="T-32", text="x"))
+        await flock.run_until_idle()
+        clients = [
+            engine.target.endpoint._client
+            for agent in flock.agents
+            for engine in agent.engines
+            if hasattr(engine, "target")
+        ]
+        await flock.shutdown()
+
+    assert len(clients) == 2
+    assert all(client is not None and client.is_closed for client in clients)
