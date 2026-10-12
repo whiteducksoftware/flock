@@ -105,6 +105,18 @@
   }
 }
 
+/* A lane with an unfolded card keeps its top: its header and first row of
+   cards stay where they were, the arrows at the first row's middle (a folded
+   artifact card is 85 px high), as in the mockup (#652) */
+.lane[data-unfolded],
+.lane[data-unfolded] .columns {
+  align-items: flex-start;
+}
+
+.lane[data-unfolded] .arrow {
+  height: 85px;
+}
+
 .laneHead {
   flex: none;
   width: 208px;

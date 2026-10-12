@@ -41,6 +41,27 @@ const edges = [made('t1', 'd1', 'triage'), made('d1', 'r1', 'tech_support'), mad
 
 const lane = (run: string) => screen.getByRole('region', { name: `Run ${run}` });
 
+/**
+ * jsdom lays nothing out: a lane's top and height come from these tables (a
+ * running glide's offset in `shift`); what glides inside a lane (a card, the
+ * header, an arrow) sits where `cards` says, 10 px down by default
+ */
+const layOut = (
+  tops: Map<string, number>,
+  { heights = new Map<string, number>(), shift = new Map<string, number>(), cards = new Map<string, { x: number; y: number }>() } = {},
+) =>
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    const slot = this.closest<HTMLElement>('[data-lane]');
+    const label = slot?.querySelector('section')?.getAttribute('aria-label') ?? '';
+    const top = (tops.get(label) ?? 0) + (shift.get(label) ?? 0);
+    const item = this.dataset.glide;
+    if (item) {
+      const at = cards.get(item) ?? { x: 0, y: 10 };
+      return { top: top + at.y, left: at.x, height: 60 } as DOMRect;
+    }
+    return { top, left: 0, height: heights.get(label) ?? 100 } as DOMRect;
+  });
+
 describe('Blackboard', () => {
   beforeEach(() => {
     // React Flow (the graph) watches its sizes
@@ -148,13 +169,9 @@ describe('Blackboard', () => {
   });
 
   it('lets the lanes below a lane that grows glide to their place (#642)', () => {
-    // jsdom lays nothing out: lane tops come from this table, animations are recorded
-    const tops = new Map<string, number>([['Run cccc', 0], ['Run bbbb', 100], ['Run aaaa', 200]]);
+      const tops = new Map<string, number>([['Run cccc', 0], ['Run bbbb', 100], ['Run aaaa', 200]]);
     const animate = vi.fn(() => ({ cancel: vi.fn(), onfinish: null }));
-    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-      const label = this.querySelector('section')?.getAttribute('aria-label') ?? '';
-      return { top: tops.get(label) ?? 0 } as DOMRect;
-    });
+    const rect = layOut(tops);
     (HTMLElement.prototype as any).animate = animate;
     const { rerender } = render(<Blackboard />);
     expect(animate).not.toHaveBeenCalled();
@@ -176,10 +193,7 @@ describe('Blackboard', () => {
   it('does not glide the lanes after a scroll (#642)', () => {
     const tops = new Map<string, number>([['Run cccc', 0], ['Run bbbb', 100], ['Run aaaa', 200]]);
     const animate = vi.fn();
-    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-      const label = this.querySelector('section')?.getAttribute('aria-label') ?? '';
-      return { top: tops.get(label) ?? 0 } as DOMRect;
-    });
+    const rect = layOut(tops);
     (HTMLElement.prototype as any).animate = animate;
     const { container, rerender } = render(<Blackboard />);
 
@@ -201,10 +215,7 @@ describe('Blackboard', () => {
     // How far a running glide moves each lane right now
     const shift = new Map<string, number>();
     const labelOf = (element: Element) => element.querySelector('section')?.getAttribute('aria-label') ?? '';
-    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-      const label = labelOf(this);
-      return { top: (tops.get(label) ?? 0) + (shift.get(label) ?? 0) } as DOMRect;
-    });
+    const rect = layOut(tops, { shift });
     const real = window.getComputedStyle.bind(window);
     const style = vi.spyOn(window, 'getComputedStyle').mockImplementation((element: Element) => {
       const computed = real(element);
@@ -244,10 +255,7 @@ describe('Blackboard', () => {
 
   it('lets the lanes below a lane that resizes without a new snapshot glide (a card unfolds) (#642)', () => {
     const tops = new Map<string, number>([['Run cccc', 0], ['Run bbbb', 100], ['Run aaaa', 200]]);
-    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-      const label = this.querySelector('section')?.getAttribute('aria-label') ?? '';
-      return { top: tops.get(label) ?? 0 } as DOMRect;
-    });
+    const rect = layOut(tops);
     const animate = vi.fn(() => ({ cancel: vi.fn(), onfinish: null }));
     (HTMLElement.prototype as any).animate = animate;
     const observers: ResizeObserverCallback[] = [];
@@ -276,13 +284,72 @@ describe('Blackboard', () => {
     delete (HTMLElement.prototype as any).animate;
   });
 
+  it('aligns a lane with an unfolded card to its top, as the mockup does (#652)', () => {
+    render(<Blackboard />);
+
+    fireEvent.click(within(lane('aaaa')).getByRole('button', { name: '◆ Route by triage', expanded: false }));
+
+    expect(lane('aaaa').hasAttribute('data-unfolded')).toBe(true);
+    expect(lane('bbbb').hasAttribute('data-unfolded')).toBe(false);
+  });
+
+  it('opens a lane that grows downwards as the lanes below glide away (#652)', () => {
+    const tops = new Map<string, number>([['Run cccc', 0], ['Run bbbb', 100], ['Run aaaa', 200]]);
+    const heights = new Map<string, number>([['Run cccc', 100]]);
+    const rect = layOut(tops, { heights });
+    const animate = vi.fn(() => ({ cancel: vi.fn(), onfinish: null }));
+    (HTMLElement.prototype as any).animate = animate;
+    const observers: ResizeObserverCallback[] = [];
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          observers.push(callback);
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    render(<Blackboard />);
+
+    // A card in the top lane unfolds: it grows by 300 px, the lanes below move down
+    heights.set('Run cccc', 400);
+    tops.set('Run bbbb', 400);
+    tops.set('Run aaaa', 500);
+    act(() => observers.forEach((callback) => callback([], {} as ResizeObserver)));
+
+    const clips = animate.mock.calls.map((call) => (call as unknown[])[0] as Keyframe[]).filter((frames) => 'clipPath' in frames[0]!);
+    expect(clips).toEqual([[{ clipPath: 'inset(0px 0px 300px 0px)' }, { clipPath: 'inset(0px 0px 0px 0px)' }]]);
+    rect.mockRestore();
+  });
+
+  it('lets a card that changes its place in a lane glide there (#652)', () => {
+    const tops = new Map<string, number>([['Run cccc', 0], ['Run bbbb', 100], ['Run aaaa', 200]]);
+    const cards = new Map<string, { x: number; y: number }>([['d1', { x: 300, y: 10 }]]);
+    const rect = layOut(tops, { cards });
+    const moved: { card: string | undefined; frames: Keyframe[] }[] = [];
+    (HTMLElement.prototype as any).animate = vi.fn(function (this: HTMLElement, frames: Keyframe[]) {
+      moved.push({ card: this.dataset.glide, frames });
+      return { cancel: vi.fn(), onfinish: null };
+    });
+    const { rerender } = render(<Blackboard />);
+
+    // The decision's card moves 40 px down in its lane (the lane's alignment changed)
+    cards.set('d1', { x: 300, y: 50 });
+    act(() => {
+      useGraphStore.setState({ nodes: [...nodes] });
+    });
+    rerender(<Blackboard />);
+
+    expect(moved).toEqual([{ card: 'd1', frames: [{ transform: 'translate(0px, -40px)' }, { transform: 'translate(0px, 0px)' }] }]);
+    rect.mockRestore();
+  });
+
   it('lets go of glides that ended and of lanes that left (#642)', () => {
     const tops = new Map<string, number>([['Run cccc', 0], ['Run bbbb', 100], ['Run aaaa', 200]]);
     const glides: { cancel: ReturnType<typeof vi.fn>; onfinish: null | (() => void) }[] = [];
-    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-      const label = this.querySelector('section')?.getAttribute('aria-label') ?? '';
-      return { top: tops.get(label) ?? 0 } as DOMRect;
-    });
+    const rect = layOut(tops);
     (HTMLElement.prototype as any).animate = vi.fn(() => {
       const glide = { cancel: vi.fn(), onfinish: null };
       glides.push(glide);

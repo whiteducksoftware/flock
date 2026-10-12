@@ -246,7 +246,7 @@ const ArtifactCard: React.FC<{ card: LaneCard }> = ({ card }) => {
   // Pending cards have nothing to unfold yet
   if (pending) {
     return (
-      <div className={classes}>
+      <div className={classes} data-glide={card.id}>
         {head}
         <Summary card={card} />
       </div>
@@ -254,7 +254,12 @@ const ArtifactCard: React.FC<{ card: LaneCard }> = ({ card }) => {
   }
   if (unfolded) {
     return (
-      <article className={classes} aria-label={`${labelOf(card.type)} by ${card.producedBy}`} data-failed={undelivered || undefined}>
+      <article
+        className={classes}
+        aria-label={`${labelOf(card.type)} by ${card.producedBy}`}
+        data-failed={undelivered || undefined}
+        data-glide={card.id}
+      >
         <div className={styles.unfoldedHead}>
           {head}
           <button
@@ -278,6 +283,7 @@ const ArtifactCard: React.FC<{ card: LaneCard }> = ({ card }) => {
       aria-expanded={false}
       aria-label={`${labelOf(card.type)} by ${card.producedBy}`}
       data-failed={undelivered || undefined}
+      data-glide={card.id}
       onClick={() => useUIStore.getState().unfoldArtifact(card.id)}
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return;
