@@ -23,7 +23,8 @@ import { cardSizes } from './cardSizes';
 import { AggregatorInfo, CoverageSummary, DeciderInfo, DeciderOptions } from './DecisionDisplay';
 import { lastText, type SinkInfo } from '../sinks/deliveries';
 import { count } from './unfold/format';
-import { prefersLessMotion } from './animatePositions';
+import { MOVE_MS, prefersLessMotion } from './animatePositions';
+import { RESIZE_THRESHOLD_PX } from './autoLayoutTrigger';
 import UnfoldedAgent from './unfold/UnfoldedAgent';
 import styles from './AgentNode.module.css';
 
@@ -257,6 +258,26 @@ const AgentNode = memo(({ id, data, selected }: NodeProps) => {
   // Making room for the unfolded node starts from its card's size
   useLayoutEffect(() => {
     if (card.current) cardSizes.set(id, { width: card.current.offsetWidth, height: card.current.offsetHeight });
+  });
+
+  // A card that grows (a new row of thumbnails) opens the part it grew by while
+  // the board lays itself out around it, instead of popping (#655)
+  const lastHeight = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const element = card.current;
+    if (!element) {
+      lastHeight.current = null;
+      return;
+    }
+    const was = lastHeight.current;
+    const height = element.offsetHeight;
+    lastHeight.current = height;
+    if (was === null || height - was < RESIZE_THRESHOLD_PX || prefersLessMotion() || typeof element.animate !== 'function') return;
+    element.animate([{ clipPath: `inset(0px 0px ${height - was}px 0px)` }, { clipPath: 'inset(0px 0px 0px 0px)' }], {
+      duration: MOVE_MS,
+      // animatePositions' easeOut, for CSS
+      easing: 'cubic-bezier(0.33, 1, 0.68, 1)',
+    });
   });
 
   // A card that comes back from being unfolded fades in instead of popping (#644)

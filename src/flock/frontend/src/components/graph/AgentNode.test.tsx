@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { ReactFlowProvider, useStoreApi } from '@xyflow/react';
 import { useLayoutEffect } from 'react';
 import AgentNode from './AgentNode';
+import { MOVE_MS } from './animatePositions';
 import { NodeProps } from '@xyflow/react';
 import { useUIStore } from '../../store/uiStore';
 
@@ -701,6 +702,39 @@ describe('AgentNode', () => {
     } finally {
       delete (HTMLElement.prototype as any).animate;
       useUIStore.setState({ unfoldedNodeId: null });
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('opens the part a card grew by as the board makes room, instead of popping (#655)', () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ runs: [] }))));
+    const animate = vi.fn();
+    (HTMLElement.prototype as any).animate = animate;
+    let height = 200;
+    const tall = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(() => height);
+    try {
+      const props = createNodeProps({ name: 'test-agent', status: 'idle', subscriptions: ['app.Ticket'] });
+      const { rerender } = render(
+        <ReactFlowProvider>
+          <AgentNode {...props} />
+        </ReactFlowProvider>,
+      );
+      animate.mockClear();
+      // A new row of thumbnails: 60 px taller
+      height = 260;
+      rerender(
+        <ReactFlowProvider>
+          <AgentNode {...props} data={{ ...props.data, recvCount: 5 }} />
+        </ReactFlowProvider>,
+      );
+
+      expect(animate).toHaveBeenCalledWith(
+        [{ clipPath: 'inset(0px 0px 60px 0px)' }, { clipPath: 'inset(0px 0px 0px 0px)' }],
+        expect.objectContaining({ duration: MOVE_MS }),
+      );
+    } finally {
+      tall.mockRestore();
+      delete (HTMLElement.prototype as any).animate;
       vi.unstubAllGlobals();
     }
   });

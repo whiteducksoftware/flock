@@ -35,6 +35,8 @@ import {
   hasNewEdgeAdditions,
   hasNewNodeAdditions,
   scheduleDebouncedAutoLayout,
+  cardsResized,
+  RESIZE_LAYOUT_DELAY_MS,
 } from './autoLayoutTrigger';
 import { motionMs } from './animatePositions';
 import { revealGlide, revealViewport } from './reveal';
@@ -123,10 +125,31 @@ const GraphCanvas: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [edgeType, edgeStrokeWidth, edgeAnimation]);
 
+  // The cards' sizes the last layout used: one that grows off them lays the board out again (#655)
+  const laidOutRef = useRef<Record<string, { width: number; height: number }> | null>(null);
+
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
       const updatedNodes = applyNodeChanges(changes, nodes);
       useGraphStore.setState({ nodes: updatedNodes });
+
+      // With Auto-arrange on, a card that changed its size lays the board out again, centred, and
+      // the nodes glide there (#655); an unfolded agent keeps its card's size and does not count
+      if (
+        autoLayoutEnabled &&
+        changes.some((change) => change.type === 'dimensions') &&
+        !useUIStore.getState().unfoldedNodeId &&
+        cardsResized(laidOutRef.current, cardSizes)
+      ) {
+        scheduleDebouncedAutoLayout(
+          autoLayoutDebounceRef,
+          () => {
+            if (useUIStore.getState().unfoldedNodeId) return;
+            applyLayoutRef.current(latestAutoLayoutModeRef.current, { updateStoredMode: false });
+          },
+          RESIZE_LAYOUT_DELAY_MS,
+        );
+      }
 
       // Update position in store for persistence; a glide going on leaves the node to the hand that moves it
       changes.forEach((change) => {
@@ -136,7 +159,7 @@ const GraphCanvas: React.FC = () => {
         }
       });
     },
-    [nodes, updateNodePosition]
+    [nodes, updateNodePosition, autoLayoutEnabled]
   );
 
   const onEdgesChange = useCallback(
@@ -211,6 +234,7 @@ const GraphCanvas: React.FC = () => {
       }
 
       const dimensionsByNodeId = collectRenderedNodeDimensions();
+      laidOutRef.current = dimensionsByNodeId;
       const hierarchicalBaseOptions = {
         center: viewportCenter,
         nodeSpacing,
