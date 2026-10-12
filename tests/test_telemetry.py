@@ -1,10 +1,12 @@
 """Comprehensive tests for telemetry module."""
 
 import os
+import sys
 from unittest.mock import Mock, patch
 
 import pytest
 from opentelemetry import trace
+from opentelemetry.sdk.trace.export import BatchSpanProcessor, SimpleSpanProcessor
 
 from flock.logging.telemetry import TelemetryConfig
 
@@ -380,7 +382,7 @@ class TestTelemetryConfigSetupTracing:
         )
         mocker.patch("flock.logging.telemetry.trace.set_tracer_provider")
         mocker.patch(
-            "flock.logging.telemetry.SimpleSpanProcessor", return_value=mock_processor
+            "flock.logging.telemetry.BatchSpanProcessor", return_value=mock_processor
         )
         mocker.patch("flock.logging.telemetry.sys")
 
@@ -420,7 +422,7 @@ class TestTelemetryConfigSetupTracing:
         )
         mocker.patch("flock.logging.telemetry.trace.set_tracer_provider")
         mocker.patch(
-            "flock.logging.telemetry.SimpleSpanProcessor", return_value=mock_processor
+            "flock.logging.telemetry.BatchSpanProcessor", return_value=mock_processor
         )
         mocker.patch("flock.logging.telemetry.sys")
 
@@ -706,3 +708,246 @@ class TestTelemetryConfigEdgeCases:
         assert config._configured is True
         # Should only have baggage processor, no SQLite exporter
         assert mock_provider.add_span_processor.call_count == 1
+
+
+class TestBatchedExport:
+    """Exporters run behind a BatchSpanProcessor, off the thread that ends a span (#601)."""
+
+    @staticmethod
+    def _setup(mocker, config):
+        """Set the config up and return its provider (the global one is set once per process)."""
+        providers = []
+        mocker.patch(
+            "flock.logging.telemetry.trace.set_tracer_provider",
+            side_effect=providers.append,
+        )
+        hook = sys.excepthook
+        try:
+            config.setup_tracing()
+        finally:
+            sys.excepthook = hook
+        return providers[0]
+
+    @staticmethod
+    def _batches(provider):
+        """The provider's batch processors as (exporter class, batch settings)."""
+        return [
+            (
+                type(processor._batch_processor._exporter).__name__,
+                processor._batch_processor,
+            )
+            for processor in provider._active_span_processor._span_processors
+            if isinstance(processor, BatchSpanProcessor)
+        ]
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_exporters_run_behind_batch_processors(self, mocker, tmp_path):
+        config = TelemetryConfig(
+            service_name="test-batch",
+            local_logging_dir=str(tmp_path),
+            file_export_name="spans.json",
+            duckdb_name="traces.duckdb",
+            enable_jaeger=False,
+            enable_sql=False,
+            enable_otlp=False,
+        )
+        provider = self._setup(mocker, config)
+        try:
+            processors = provider._active_span_processor._span_processors
+            assert not any(isinstance(p, SimpleSpanProcessor) for p in processors)
+            batches = self._batches(provider)
+            assert {name for name, _ in batches} == {
+                "DuckDBSpanExporter",
+                "FileSpanExporter",
+            }
+            # The dashboard reads the trace file: a batch goes out at least every second
+            assert {settings._schedule_delay_millis for _, settings in batches} == {
+                1000
+            }
+        finally:
+            provider.shutdown()
+
+    @patch.dict(os.environ, {"OTEL_BSP_SCHEDULE_DELAY": "250"}, clear=True)
+    def test_batch_settings_come_from_options_and_opentelemetry_variables(
+        self, mocker, tmp_path
+    ):
+        config = TelemetryConfig(
+            service_name="test-batch-options",
+            local_logging_dir=str(tmp_path),
+            duckdb_name="traces.duckdb",
+            enable_jaeger=False,
+            enable_file=False,
+            enable_sql=False,
+            enable_otlp=False,
+            batch_processor_options={"max_export_batch_size": 64},
+        )
+        provider = self._setup(mocker, config)
+        try:
+            ((_, settings),) = self._batches(provider)
+            assert settings._max_export_batch_size == 64
+            assert settings._schedule_delay_millis == 250
+        finally:
+            provider.shutdown()
+
+
+class TestFlushTraces:
+    """flush_traces() waits at most its timeout, whatever the exporters do (#601)."""
+
+    def test_returns_when_a_flush_hangs(self, monkeypatch):
+        import threading
+
+        from opentelemetry.sdk.trace import SpanProcessor, TracerProvider
+
+        from flock.logging.telemetry import flush_traces
+
+        released = threading.Event()
+
+        class Stuck(SpanProcessor):
+            def force_flush(self, timeout_millis: int = 30000) -> bool:
+                # OpenTelemetry's batch processor can block like this on a slow exporter
+                return released.wait(5)
+
+        provider = TracerProvider()
+        provider.add_span_processor(Stuck())
+        monkeypatch.setattr(trace, "get_tracer_provider", lambda: provider)
+        try:
+            assert flush_traces(timeout_millis=100) is False
+        finally:
+            released.set()
+            provider.shutdown()
+
+    def test_waits_for_the_flush_still_running_instead_of_starting_another(
+        self, monkeypatch
+    ):
+        import threading
+
+        from opentelemetry.sdk.trace import SpanProcessor, TracerProvider
+
+        from flock.logging.telemetry import flush_traces
+
+        released = threading.Event()
+
+        class Stuck(SpanProcessor):
+            def force_flush(self, timeout_millis: int = 30000) -> bool:
+                return released.wait(5)
+
+        provider = TracerProvider()
+        provider.add_span_processor(Stuck())
+        monkeypatch.setattr(trace, "get_tracer_provider", lambda: provider)
+
+        def flushing() -> set:
+            return {t for t in threading.enumerate() if t.name == "flock-trace-flush"}
+
+        before = flushing()  # a flush an earlier test left may still be ending
+        try:
+            assert flush_traces(timeout_millis=50) is False
+            assert flush_traces(timeout_millis=50) is False
+            assert len(flushing() - before) == 1
+        finally:
+            released.set()
+            provider.shutdown()
+
+    def test_flushes_again_after_waiting_for_an_older_flush(self, monkeypatch):
+        import threading
+
+        from opentelemetry.sdk.trace import SpanProcessor, TracerProvider
+
+        from flock.logging.telemetry import flush_traces
+
+        released = threading.Event()
+        calls = []
+
+        class SlowOnce(SpanProcessor):
+            def force_flush(self, timeout_millis: int = 30000) -> bool:
+                calls.append(timeout_millis)
+                return released.wait(5) if len(calls) == 1 else True
+
+        provider = TracerProvider()
+        provider.add_span_processor(SlowOnce())
+        monkeypatch.setattr(trace, "get_tracer_provider", lambda: provider)
+        try:
+            assert flush_traces(timeout_millis=50) is False
+            # Spans that ended meanwhile need a flush of their own
+            threading.Timer(0.2, released.set).start()
+            assert flush_traces(timeout_millis=3000) is True
+            assert len(calls) == 2
+        finally:
+            released.set()
+            provider.shutdown()
+
+    def test_a_stopped_provider_has_nothing_left_to_write(self, monkeypatch):
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+            InMemorySpanExporter,
+        )
+
+        from flock.logging.telemetry import flush_traces
+
+        provider = TracerProvider()
+        provider.add_span_processor(BatchSpanProcessor(InMemorySpanExporter()))
+        provider.shutdown()  # drains the queue; force_flush returns False after it
+        monkeypatch.setattr(trace, "get_tracer_provider", lambda: provider)
+
+        assert flush_traces() is True
+
+    def test_a_provider_still_exporting_while_it_shuts_down_is_not_drained(
+        self, monkeypatch
+    ):
+        import threading
+
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
+
+        from flock.logging.telemetry import flush_traces
+
+        released = threading.Event()
+
+        class Slow(SpanExporter):
+            def export(self, spans):
+                released.wait(5)
+                return SpanExportResult.SUCCESS
+
+        provider = TracerProvider()
+        provider.add_span_processor(
+            BatchSpanProcessor(Slow(), schedule_delay_millis=60_000)
+        )
+        monkeypatch.setattr(trace, "get_tracer_provider", lambda: provider)
+        with provider.get_tracer("test").start_as_current_span("pending"):
+            pass
+        stopping = threading.Thread(target=provider.shutdown)
+        stopping.start()
+        try:
+            assert flush_traces(timeout_millis=200) is False
+        finally:
+            released.set()
+            stopping.join(5)
+        assert flush_traces() is True
+
+    def test_reports_a_flush_that_failed(self, monkeypatch):
+        from opentelemetry.sdk.trace import SpanProcessor, TracerProvider
+
+        from flock.logging.telemetry import flush_traces
+
+        class Failing(SpanProcessor):
+            def force_flush(self, timeout_millis: int = 30000) -> bool:
+                return False
+
+        provider = TracerProvider()
+        provider.add_span_processor(Failing())
+        monkeypatch.setattr(trace, "get_tracer_provider", lambda: provider)
+        try:
+            assert flush_traces() is False
+        finally:
+            provider.shutdown()
+
+    def test_reports_a_finished_flush(self, monkeypatch):
+        from opentelemetry.sdk.trace import TracerProvider
+
+        from flock.logging.telemetry import flush_traces
+
+        provider = TracerProvider()
+        monkeypatch.setattr(trace, "get_tracer_provider", lambda: provider)
+        try:
+            assert flush_traces() is True
+        finally:
+            provider.shutdown()
