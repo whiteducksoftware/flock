@@ -39,6 +39,7 @@ AZURE_API_VERSION=2024-12-01-preview
 FLOCK_AUTO_TRACE=true
 FLOCK_TRACE_FILE=true
 FLOCK_TRACE_LEVEL=agents  # or all, to trace Flock's internals too
+FLOCK_TRACE_MAX_ATTRIBUTE_BYTES=4096  # longest input or output a span keeps; 0 for no cap
 FLOCK_TRACE_SERVICES=["flock", "agent", "dspyengine"]
 ```
 
