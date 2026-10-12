@@ -25,7 +25,7 @@ flock = Flock(
 flock.sink("billing-api").consumes(Reply, where=lambda r: r.team == "billing").post("myapp:/billing")
 ```
 
-A runnable example without API keys: [`examples/16-sinks/01_billing_sink.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/16-sinks/01_billing_sink.py).
+A runnable example without API keys: [`examples/16-sinks/01_billing_sink.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/16-sinks/01_billing_sink.py). Two games close the loop from an app over REST into Flock and back through a sink: [`02_snake.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/16-sinks/02_snake.py), a Snake that `azure/decision-1` steers move by move, and [`03_quick_draw.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/16-sinks/03_quick_draw.py), a drawing that `openai/gpt-6-luna` guesses after every stroke (both with a `--fake` mode without keys).
 
 ---
 
