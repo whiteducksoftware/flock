@@ -314,3 +314,52 @@ async def test_the_game_publishes_where_the_page_points_it(snake):
     assert route.call_count == 1
     with pytest.raises(HTTPException):
         await snake.set_settings(snake.Settings(flock_url="localhost:9100"))
+
+
+async def test_a_resume_that_cannot_reach_flock_keeps_its_step(snake, monkeypatch):
+    from fastapi import HTTPException
+
+    published: list[int] = []
+    down = True
+
+    async def publish(game):
+        if down:
+            raise httpx.ConnectError("Flock is down")
+        published.append(game.step)
+
+    async def start_up(game):
+        published.append(game.step)
+
+    monkeypatch.setattr(snake, "publish", start_up)
+    game = (await snake.new_game())["game"]
+    await snake.pause(game)
+    await snake.move({
+        "id": "decision-1",
+        "correlation_id": game,
+        "payload": {"choice": "up", "best_guess": None, "probabilities": {"up": 0.9}},
+    })
+    monkeypatch.setattr(snake, "publish", publish)
+
+    with pytest.raises(HTTPException):
+        await snake.resume(game)
+    assert snake.games[game].paused  # paused again, its step still waiting
+
+    down = False
+    await snake.resume(game)
+    assert published == [0, 1]
+
+
+async def test_a_start_that_cannot_reach_flock_tells_the_page(snake, monkeypatch):
+    from fastapi import HTTPException
+
+    pushed: list[dict] = []
+    snake.listeners.append(_Recorder(pushed))
+
+    async def publish(game):
+        raise httpx.ConnectError("Flock is down")
+
+    monkeypatch.setattr(snake, "publish", publish)
+    with pytest.raises(HTTPException):
+        await snake.new_game()
+
+    assert pushed[-1]["alive"] is False

@@ -223,11 +223,11 @@ def view(game: Game, decision: dict | None = None) -> dict:
 
 async def advance(game: Game) -> None:
     """Publish the next step, or hold it while the game is paused."""
+    game.waiting = True
     if game.paused:
-        game.waiting = True
         return
+    await publish(game)  # a failed publish keeps the step waiting, to retry
     game.waiting = False
-    await publish(game)
 
 
 @app.post("/games")
@@ -239,6 +239,7 @@ async def new_game():
         await publish(game)
     except httpx.HTTPError as exc:
         game.alive = False
+        push(view(game))  # the page drops the game it never got
         raise HTTPException(
             502,
             f"Flock is not reachable at {settings['flock_url']} ({type(exc).__name__})",
@@ -260,7 +261,16 @@ async def resume(game_id: str):
     game.paused = False
     push(view(game))
     if game.alive and game.waiting:
-        await advance(game)
+        try:
+            await advance(game)
+        except httpx.HTTPError as exc:
+            # Paused again, its step still waiting: Resume retries it
+            game.paused = True
+            push(view(game))
+            raise HTTPException(
+                502,
+                f"Flock is not reachable at {settings['flock_url']} ({type(exc).__name__})",
+            ) from None
     return {"paused": False}
 
 
@@ -406,6 +416,7 @@ PAGE = """<!doctype html>
     const response = await fetch('/games', { method: 'POST' });
     const answer = await response.json();
     if (!response.ok) {
+      current = null; alive = false; buttons();
       document.getElementById('status').innerHTML = `<span class="over">${answer.detail}</span>`;
       return;
     }
@@ -413,7 +424,10 @@ PAGE = """<!doctype html>
   }
   toggle.onclick = async () => {
     if (!current || !alive) return start();
-    await fetch(`/games/${current}/${paused ? 'resume' : 'pause'}`, { method: 'POST' });
+    const response = await fetch(`/games/${current}/${paused ? 'resume' : 'pause'}`, { method: 'POST' });
+    if (!response.ok) {
+      document.getElementById('status').innerHTML = `<span class="over">${(await response.json()).detail}</span>`;
+    }
   };
   document.getElementById('new').onclick = start;
   // Flock's address: shown from the game's settings, saved on Enter or when the field is left
