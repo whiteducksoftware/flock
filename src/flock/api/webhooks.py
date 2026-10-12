@@ -10,6 +10,7 @@ import asyncio
 import hashlib
 import hmac
 import logging
+from collections import OrderedDict
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 
@@ -142,6 +143,27 @@ class WebhookDeliveryService:
 # ============================================================================
 
 
+class RunSequences:
+    """The last webhook sequence number of named runs, for the requests that
+    publish into a run they name; keeps the ``limit`` most recent runs."""
+
+    def __init__(self, limit: int) -> None:
+        self._last: OrderedDict[str, int] = OrderedDict()
+        self._limit = limit
+
+    def __len__(self) -> int:
+        return len(self._last)
+
+    def next(self, correlation_id: str, floor: int = 0) -> int:
+        """The run's next number; ``floor`` is the caller's last one, which
+        counts if the run's entry was evicted meanwhile."""
+        number = max(self._last.pop(correlation_id, 0), floor) + 1
+        self._last[correlation_id] = number
+        while len(self._last) > self._limit:
+            self._last.popitem(last=False)
+        return number
+
+
 @dataclass
 class WebhookContext:
     """Request-scoped webhook configuration.
@@ -154,14 +176,20 @@ class WebhookContext:
     secret: str | None
     correlation_id: str
     sequence: int = field(default=0)
+    # Shared by the requests that publish into a run they name, so their
+    # deliveries keep counting on
+    run_sequences: RunSequences | None = None
 
     def next_sequence(self) -> int:
         """Increment and return the next sequence number.
 
         Returns:
-            The new sequence number (starts at 1)
+            The new sequence number (starts at 1, or after the run's last one)
         """
-        self.sequence += 1
+        if self.run_sequences is None:
+            self.sequence += 1
+            return self.sequence
+        self.sequence = self.run_sequences.next(self.correlation_id, self.sequence)
         return self.sequence
 
 

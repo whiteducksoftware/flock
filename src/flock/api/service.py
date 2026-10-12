@@ -12,6 +12,7 @@ from flock.api.models import (
     SyncPublishResponse,
 )
 from flock.api.webhooks import (
+    RunSequences,
     WebhookContext,
     clear_webhook_context,
     set_webhook_context,
@@ -53,9 +54,14 @@ if TYPE_CHECKING:
     from flock.core import Flock
 
 
+# Named runs whose webhook sequence numbers are kept (the least recent go first)
+MAX_WEBHOOK_RUNS = 10_000
+
+
 class BlackboardHTTPService:
     def __init__(self, orchestrator: Flock) -> None:
         self.orchestrator = orchestrator
+        self._webhook_sequences = RunSequences(MAX_WEBHOOK_RUNS)
         self.app = FastAPI(
             telemetry=http_telemetry(),
             title="Flock REST API Documentation",
@@ -163,8 +169,8 @@ class BlackboardHTTPService:
             body: ArtifactPublishRequest,
             idempotency_key: str | None = Depends(check_idempotency),
         ) -> ArtifactPublishResponse:
-            # Generate correlation_id for tracking (always, for consistency)
-            correlation_id = str(uuid4())
+            # The caller's run, else a new correlation_id for tracking
+            correlation_id = body.correlation_id or str(uuid4())
 
             # Set webhook context if webhook is configured
             if body.webhook:
@@ -172,6 +178,10 @@ class BlackboardHTTPService:
                     url=str(body.webhook.url),
                     secret=body.webhook.secret,
                     correlation_id=correlation_id,
+                    # A named run's deliveries count on across its requests
+                    run_sequences=self._webhook_sequences
+                    if body.correlation_id
+                    else None,
                 )
                 set_webhook_context(ctx)
 
