@@ -97,7 +97,7 @@ PROMPTS = list(Guess.__options__)
 # ============================================================================
 # The app
 # ============================================================================
-drawings: dict[str, dict] = {}  # drawing -> {"prompt", "strokes", "answered", "done"}
+drawings: dict[str, dict] = {}  # drawing -> {"prompt", "strokes", "guesses", "done"}
 listeners: list[asyncio.Queue] = []
 app = FastAPI()
 
@@ -118,7 +118,7 @@ async def new_drawing():
     drawings[drawing] = {
         "prompt": random.choice(PROMPTS),
         "strokes": 0,
-        "answered": 0,
+        "guesses": set(),  # decisions shown, for retried deliveries
         "done": False,
     }
     return {"drawing": drawing, "prompt": drawings[drawing]["prompt"].replace("_", " ")}
@@ -147,6 +147,17 @@ async def stroke(body: Stroke):
     return {"stroke": state["strokes"]}
 
 
+async def stroke_of(sketch_id: str) -> int:
+    """The stroke a guess answers: its sketch, read back over Flock's REST API."""
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"http://127.0.0.1:{FLOCK_PORT}/api/v1/artifacts/{sketch_id}",
+            params={"images": "thumbnails"},
+        )
+        response.raise_for_status()
+    return response.json()["payload"]["stroke"]
+
+
 @app.post("/guess")
 async def guess(envelope: dict):
     """The sink's delivery: one decision of `guesser`, in the drawing's run."""
@@ -154,20 +165,21 @@ async def guess(envelope: dict):
     state = drawings.get(envelope.get("correlation_id") or "")
     if state is None:
         return {"ok": False}
+    if envelope["id"] in state["guesses"]:
+        return {"ok": True}  # a retried delivery: shown already
+    stroke = await stroke_of(decision["subject_ids"][0])
+    state["guesses"].add(envelope["id"])
     # Got it once the model is sure of what was asked for; a sure wrong guess
     # is shown, and drawing goes on
     right = decision["choice"] == state["prompt"]
     first = right and not state["done"]
     state["done"] = state["done"] or right
-    # Guesses come in stroke order (one guess at a time, delivered in order):
-    # this one answers the next stroke, however far the drawing is ahead
-    state["answered"] += 1
     push({
         "drawing": envelope["correlation_id"],
         "probabilities": decision["probabilities"],
         "choice": decision["choice"],
         "best_guess": decision.get("best_guess"),
-        "strokes": state["answered"],
+        "strokes": stroke,
         "got_it": first,
     })
     return {"ok": True}

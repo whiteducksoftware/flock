@@ -46,6 +46,17 @@ def quick_draw(monkeypatch):
     sys.modules.pop("sink_demo_quick_draw", None)
 
 
+def read_back(flock):
+    """A respx side effect for GET /api/v1/artifacts/{id}: the artifact from the store."""
+    from uuid import UUID
+
+    async def respond(request: httpx.Request) -> httpx.Response:
+        artifact = await flock.store.get(UUID(request.url.path.rsplit("/", 1)[-1]))
+        return httpx.Response(200, json={"payload": artifact.payload})
+
+    return respond
+
+
 def answer_with(handler):
     """A respx side effect that hands the sink's request to the app's handler."""
 
@@ -99,6 +110,9 @@ async def test_quick_draw_gets_it_once_the_guesser_is_sure(quick_draw):
         router.post(f"http://127.0.0.1:{quick_draw.APP_PORT}/guess").mock(
             side_effect=answer_with(quick_draw.guess)
         )
+        router.get(
+            url__regex=rf"http://127\.0\.0\.1:{quick_draw.FLOCK_PORT}/api/v1/artifacts/.+"
+        ).mock(side_effect=read_back(flock))
         drawing = (await quick_draw.new_drawing())["drawing"]
         for stroke in range(1, 7):
             quick_draw.drawings[drawing]["strokes"] = stroke
@@ -170,6 +184,9 @@ async def test_quick_draw_answers_strokes_drawn_ahead_in_order(quick_draw, monke
         router.post(f"http://127.0.0.1:{quick_draw.APP_PORT}/guess").mock(
             side_effect=answer_with(quick_draw.guess)
         )
+        router.get(
+            url__regex=rf"http://127\.0\.0\.1:{quick_draw.FLOCK_PORT}/api/v1/artifacts/.+"
+        ).mock(side_effect=read_back(flock))
         drawing = (await quick_draw.new_drawing())["drawing"]
         # Six strokes before the first guess is back
         for stroke in range(1, 7):
@@ -187,4 +204,47 @@ async def test_quick_draw_answers_strokes_drawn_ahead_in_order(quick_draw, monke
     prompt = quick_draw.drawings[drawing]["prompt"]
     sureness = [event["probabilities"][prompt] for event in pushed]
     assert sureness == sorted(sureness)
+    assert [event["strokes"] for event in pushed if event["got_it"]] == [4]
+
+
+async def test_quick_draw_shows_each_guess_once_with_the_stroke_it_answers(
+    quick_draw, monkeypatch
+):
+    """A failed guess leaves its stroke out; a retried delivery is shown once."""
+    answer = quick_draw.StrokeByStroke.decide_many
+
+    async def fail_stroke_two(self, state, questions, images=()):
+        if '"stroke": 2' in state:
+            raise RuntimeError("the model is down for a moment")
+        return await answer(self, state, questions, images)
+
+    monkeypatch.setattr(quick_draw.StrokeByStroke, "decide_many", fail_stroke_two)
+    flock = quick_draw.build_flock(fake=True)
+    pushed: list[dict] = []
+    quick_draw.listeners.append(_Recorder(pushed))
+    delivered: list[dict] = []
+
+    async def deliver_twice(envelope):
+        delivered.append(envelope)
+        await quick_draw.guess(envelope)
+        return await quick_draw.guess(envelope)  # as after a lost answer
+
+    with respx.mock() as router:
+        router.post(f"http://127.0.0.1:{quick_draw.APP_PORT}/guess").mock(
+            side_effect=answer_with(deliver_twice)
+        )
+        router.get(
+            url__regex=rf"http://127\.0\.0\.1:{quick_draw.FLOCK_PORT}/api/v1/artifacts/.+"
+        ).mock(side_effect=read_back(flock))
+        drawing = (await quick_draw.new_drawing())["drawing"]
+        for stroke in range(1, 6):
+            await flock.publish(
+                quick_draw.Sketch(
+                    drawing=drawing, stroke=stroke, image=Image.from_bytes(sketch_png())
+                ),
+                correlation_id=drawing,
+            )
+        await flock.run_until_idle()
+
+    assert [event["strokes"] for event in pushed] == [1, 3, 4, 5]
     assert [event["strokes"] for event in pushed if event["got_it"]] == [4]

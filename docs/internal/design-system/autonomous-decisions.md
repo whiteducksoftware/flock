@@ -301,4 +301,6 @@ Each entry says what was decided, why, and where it landed.
 - **An unsure move still moves** (the best guess), and the threshold is 0.4 for three options.
 - **Quick, Draw! gets it once the model is sure of what was asked for:** a sure wrong guess (a circle with one ray is a clock at 0.81) is shown as "I see a clock…", and drawing goes on.
 - **The page posts to its own app, which uploads to Flock:** no cross-origin requests from the page to the dashboard's port.
+- **A guess reports the stroke it answers, read back over REST** (review): the decision's `subject_ids` name its sketch, and `GET /api/v1/artifacts/{id}` has its stroke. Counting the guesses that arrived went wrong when a guess failed or a delivery was retried; the app shows each decision once. The guesser runs one sketch at a time, so guesses also arrive in stroke order.
+- **Snake plays a retried delivery once** (review): it remembers the decisions it played and only publishes the step again.
 - **`--fake` stand-ins are providers of the example**, not `FakeDecider`: Snake's moves toward the food from `moves`, the drawing's grows surer of the prompt stroke by stroke. `tests/test_sink_demos.py` plays both loops with them, the sink delivering into the app's handlers.
