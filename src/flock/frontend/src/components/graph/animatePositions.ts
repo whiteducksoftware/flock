@@ -12,16 +12,19 @@ export const motionMs = (ms: number): number => (prefersLessMotion() ? 0 : ms);
 /**
  * Moves nodes from `from` to `to` in `duration` ms, easing out, handing
  * every frame's positions to `apply`; at once for people who ask for less
- * motion. Returns a function that stops it where it is.
+ * motion. `done` runs once they are there. Returns a function that stops it
+ * where it is.
  */
 export function animatePositions(
   from: Map<string, XYPosition>,
   to: Map<string, XYPosition>,
   apply: (positions: Map<string, XYPosition>) => void,
   duration = MOVE_MS,
+  done?: () => void,
 ): () => void {
   if (duration <= 0 || prefersLessMotion()) {
     apply(to);
+    done?.();
     return () => {};
   }
 
@@ -39,6 +42,7 @@ export function animatePositions(
       ),
     );
     if (t < 1) frame = requestAnimationFrame(step);
+    else done?.();
   };
   frame = requestAnimationFrame(step);
   return () => cancelAnimationFrame(frame);

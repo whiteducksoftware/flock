@@ -41,6 +41,7 @@ import { SETTLE_MS, registerCanvas, whenOnBoard } from './canvasCommands';
 import { cardSizes } from './cardSizes';
 import { fromControl } from './nodeClick';
 import { useUnfoldLayout } from './useUnfoldLayout';
+import { useLayoutGlide } from './useLayoutGlide';
 
 const GraphCanvas: React.FC = () => {
   const {
@@ -166,6 +167,10 @@ const GraphCanvas: React.FC = () => {
     return dimensionsByNodeId;
   }, []);
 
+  // A new layout glides there; declared before useUnfoldLayout, so an unfold
+  // finishes the glide before it makes room
+  const glideTo = useLayoutGlide();
+
   // Generic layout handler (manual + auto-layout)
   const applyLayout = useCallback(
     (
@@ -241,9 +246,9 @@ const GraphCanvas: React.FC = () => {
       }
 
       // Only the positions change: the board's nodes may have changed since this layout's
-      // render (a selection, a refresh), and those changes stay. Persisted to IndexedDB
-      // to avoid snap-back on refresh.
-      useGraphStore.getState().setNodePositions(new Map(result.nodes.map((node) => [node.id, node.position])));
+      // render (a selection, a refresh), and those changes stay. They glide there (#650).
+      // Persisted to IndexedDB to avoid snap-back on refresh.
+      glideTo(new Map(result.nodes.map((node) => [node.id, node.position])));
       result.nodes.forEach((node) => {
         persistNodePosition(node.id, node.position);
       });
@@ -258,6 +263,7 @@ const GraphCanvas: React.FC = () => {
       nodeSpacing,
       rankSpacing,
       setAutoLayoutMode,
+      glideTo,
     ]
   );
 
