@@ -112,10 +112,10 @@ Nothing the current dashboard does is dropped silently; the table maps every fea
 | Artifact detail window (metadata, payload, consumption history) | The artifact card **unfolds in place** in the Blackboard view; it loads the artifact by ID |
 | Trace viewer tabs Timeline / Statistics / RED Metrics / Dependencies / Configuration / Guide | Dock tabs **Traces** (list, waterfall, span detail) / **Metrics** (RED and dependencies) / **Tracing settings**; the guide becomes a link to the tracing docs |
 | Tournament bracket modal, image viewer modal | Stay full-screen modals, on the tokens |
-| Theme selector (336 themes, live preview on hover) | Settings › Appearance: Graphite, Paper and the terminal themes |
+| Theme selector (336 themes, live preview on hover) | Settings › Appearance: Graphite, Paper and the terminal themes; a hover previews, leaving puts the theme back |
 | Agent colors, node shadow, status pulse, compact view (Appearance) | Status colors are the signals; compact view becomes the chip level; pulse respects reduced motion |
 | Edge type, width, animation, labels (Graph settings) | Kept in Settings › Graph |
-| Layout direction, node and rank spacing (Advanced) | Kept in Settings › Advanced |
+| Layout direction, node and rank spacing (Advanced) | Node and rank spacing kept in Settings › Advanced (they lay the Flow out again); the direction is the canvas dock's layout menu (#569) |
 
 ## Nodes: four levels
 

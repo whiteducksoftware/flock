@@ -12,6 +12,7 @@
 
 import React, { useState, useEffect } from 'react';
 import MultiSelect from './MultiSelect';
+import './settingsFields.css';
 
 interface TraceStats {
   total_spans: number;

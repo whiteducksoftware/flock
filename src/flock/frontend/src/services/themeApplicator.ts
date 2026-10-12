@@ -220,6 +220,32 @@ export function applyTheme(theme: TerminalTheme, root: HTMLElement = document.do
   }
 }
 
+/** A theme as the page shows it: its built-in base and the tokens a terminal theme set. */
+export interface AppliedTheme {
+  base: string | undefined;
+  tokens: Record<string, string>;
+}
+
+/** What the page shows now, to show it again later (when a preview ends). */
+export function appliedTheme(root: HTMLElement = document.documentElement): AppliedTheme {
+  return {
+    base: root.dataset.theme,
+    tokens: Object.fromEntries(
+      THEME_TOKENS.map((token) => [token, root.style.getPropertyValue(token)] as const).filter(([, value]) => value !== ''),
+    ),
+  };
+}
+
+/** Shows a theme captured with `appliedTheme` again, without loading it; a theme still loading gives way. */
+export function restoreTheme(applied: AppliedTheme, root: HTMLElement = document.documentElement): void {
+  claim();
+  clearOverrides(root);
+  // No base yet (a stored theme still loading at startup) is the default appearance
+  if (applied.base) root.dataset.theme = applied.base;
+  else delete root.dataset.theme;
+  for (const [token, value] of Object.entries(applied.tokens)) root.style.setProperty(token, value);
+}
+
 /** Back to Graphite, with every token restored. */
 export function resetToDefaultTheme(root: HTMLElement = document.documentElement): void {
   applyBuiltInTheme('graphite', root);

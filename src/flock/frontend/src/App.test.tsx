@@ -88,7 +88,7 @@ describe('App keyboard shortcuts', () => {
     // The bootstrap connects last; nothing of it may outlive the test
     await waitFor(() => expect(client.connect).toHaveBeenCalled());
     press('/');
-    await screen.findByText('Keyboard Shortcuts');
+    await screen.findByRole('dialog', { name: 'Keyboard shortcuts' });
 
     press('k');
 

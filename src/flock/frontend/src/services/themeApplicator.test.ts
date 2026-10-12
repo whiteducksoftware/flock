@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TerminalTheme } from '../types/theme';
 import {
+  appliedTheme,
+  restoreTheme,
   applyBuiltInTheme,
   applyTheme,
   applyThemeByName,
@@ -110,6 +112,19 @@ describe('terminal themes on the tokens', () => {
 describe('applying themes', () => {
   beforeEach(() => {
     applyBuiltInTheme('graphite');
+  });
+
+  it('shows a captured appearance again, also one without a data-theme yet', () => {
+    const root = document.createElement('div');
+    // Before the stored theme loaded at startup: no data-theme, no tokens
+    const before = appliedTheme(root);
+    applyTheme(loadTheme('3024-day.toml'), root);
+    expect(root.dataset.theme).toBe('paper');
+
+    restoreTheme(before, root);
+
+    expect(root.hasAttribute('data-theme')).toBe(false);
+    expect(root.style.getPropertyValue('--bg')).toBe('');
   });
 
   it('puts a dark terminal theme on Graphite and a light one on Paper', () => {

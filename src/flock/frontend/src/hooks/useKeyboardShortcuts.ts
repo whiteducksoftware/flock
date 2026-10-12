@@ -9,14 +9,21 @@ interface KeyboardShortcutConfig {
   onToggleHelp?: () => void;
 }
 
-/** The node Space and Ctrl+Shift+D act on: the focused agent, else the selected one, else the unfolded one. */
+/**
+ * The node Space, Enter and Ctrl+Shift+D act on: the focused agent, else the
+ * selected one, else the unfolded one; always an agent on the Flow's board
+ * (the Blackboard has none, and an agent unfolded there before may be gone).
+ */
 const unfoldTarget = (): string | null => {
+  if (useUIStore.getState().mode !== 'agent') return null;
   const { nodes } = useGraphStore.getState();
   const isAgent = (id: string | null | undefined) => nodes.some((node) => node.id === id && node.type === 'agent');
   const focused = document.activeElement?.closest('.react-flow__node[data-id]')?.getAttribute('data-id');
   if (isAgent(focused)) return focused!;
   const selected = nodes.find((node) => node.selected && node.type === 'agent');
-  return selected?.id ?? useUIStore.getState().unfoldedNodeId;
+  if (selected) return selected.id;
+  const unfolded = useUIStore.getState().unfoldedNodeId;
+  return isAgent(unfolded) ? unfolded : null;
 };
 
 /** Focus where Space means something else: typing, pressing a button, a tab, a dialog. */
@@ -33,6 +40,7 @@ const SPACE_TAKEN =
  * - Ctrl+Shift+F: Toggle Filters Panel
  * - Ctrl+Shift+P: Open or close the publish composer
  * - Space, Ctrl+Shift+D: Unfold or fold the selected node
+ * - Enter: Put the focused node (else the selected one) in focus
  * - Ctrl+/ (or Cmd+/): Toggle Keyboard Shortcuts Help
  * - Esc: Close a panel, else leave focus mode, else collapse the timeline dock, else fold the unfolded node, else close the artifact windows
  */
@@ -42,11 +50,10 @@ export const useKeyboardShortcuts = (config: KeyboardShortcutConfig = {}) => {
       // Check for modifier key (Ctrl on Windows/Linux, Cmd on Mac)
       const modifier = event.ctrlKey || event.metaKey;
 
-      // Ctrl+K or Cmd+K: Open or close the palette (not over another modal dialog
-      // or the keyboard shortcuts, which is not one yet)
+      // Ctrl+K or Cmd+K: Open or close the palette (not over another modal dialog)
       if (modifier && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'k') {
         const { paletteOpen, openPalette, closePalette } = useUIStore.getState();
-        if (!paletteOpen && document.querySelector('[aria-modal="true"], .keyboard-shortcuts-overlay')) return;
+        if (!paletteOpen && document.querySelector('[aria-modal="true"]')) return;
         event.preventDefault();
         if (paletteOpen) closePalette();
         else openPalette();
@@ -97,6 +104,16 @@ export const useKeyboardShortcuts = (config: KeyboardShortcutConfig = {}) => {
         if (!target) return;
         event.preventDefault();
         useUIStore.getState().toggleUnfold(target);
+        return;
+      }
+
+      // Enter: put the focused node (else the selected one) in focus, unless the focus has a use for it
+      if (event.key === 'Enter' && !modifier && !event.altKey && !event.shiftKey) {
+        if (document.activeElement?.closest(SPACE_TAKEN) || useUIStore.getState().focusedNodeId) return;
+        const target = unfoldTarget();
+        if (!target) return;
+        event.preventDefault();
+        useUIStore.getState().focus(target);
         return;
       }
 
