@@ -11,7 +11,8 @@ publishes the next step. One decision per step, until the snake dies.
 - The `game` sink posts every decision to the game's `/move`; it keeps the
   order per game, so moves arrive in the order they were decided.
 - The game page draws the board and the model's probabilities live
-  (server-sent events) and counts the food and the steps.
+  (server-sent events) and counts the food and the steps. Start, Pause and
+  Resume hold the game between two steps.
 
 The model gets what each move leads to, as text (`azure/decision-1` takes no
 images): a wall, the snake's body, the food, or an empty cell and how far the
@@ -25,6 +26,8 @@ food is from there. The game draws the board itself.
 
 🎛️  CONFIGURATION:
 - `--fake`: a heuristic plays instead of a model (no API key; for CI and screenshots)
+- `--port` (8792) and `--flock-port` (8344): where the game and Flock run; the
+  page's Flock field points the game at another Flock while it runs
 - DEFAULT_DECISION_MODEL, else `azure/decision-1` (AZURE_API_BASE, AZURE_API_KEY)
 - Open http://127.0.0.1:8792 for the game and http://127.0.0.1:8344 for the dashboard
 """
@@ -42,7 +45,7 @@ from collections.abc import Sequence
 
 import httpx
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
@@ -105,6 +108,10 @@ class Game:
         self.eaten = 0
         self.alive = True
         self.applied: set[str] = set()  # decisions already played (sink retries)
+        self.paused = False
+        self.published = -1  # the last step Flock got: a newer one is waiting
+        self.publishing = asyncio.Lock()  # one publication of a step at a time
+        self.ended: str | None = None  # why it ended: wall, body, starved or won
         self.hungry = 0  # steps since the last food
         self.food = self._place_food()
 
@@ -146,8 +153,10 @@ class Game:
     def apply(self, move: str) -> None:
         heading, cell = self._target(move)
         eats = cell == self.food
-        if self._blocked(cell, eats):
+        blocked = self._blocked(cell, eats)
+        if blocked:
             self.alive = False
+            self.ended = blocked
             return
         self.heading = heading
         self.snake.insert(0, cell)
@@ -157,6 +166,7 @@ class Game:
             self.hungry = 0
             if len(self.snake) == SIZE * SIZE:
                 self.alive = False  # the board is full: won
+                self.ended = "won"
                 return
             self.food = self._place_food()
         else:
@@ -165,6 +175,7 @@ class Game:
             # A snake that only circles would play forever
             if self.hungry > MAX_HUNGRY:
                 self.alive = False
+                self.ended = "starved"
 
     def state(self) -> SnakeState:
         return SnakeState(
@@ -178,6 +189,8 @@ class Game:
 
 games: dict[str, Game] = {}
 listeners: list[asyncio.Queue] = []
+# Where the game publishes its steps; the page can point it elsewhere
+settings = {"flock_url": f"http://127.0.0.1:{FLOCK_PORT}"}
 app = FastAPI()
 
 
@@ -190,7 +203,7 @@ async def publish(game: Game) -> None:
     """The next step, over Flock's REST API, in the game's run."""
     async with httpx.AsyncClient() as client:
         response = await client.post(
-            f"http://127.0.0.1:{FLOCK_PORT}/api/v1/artifacts",
+            f"{settings['flock_url']}/api/v1/artifacts",
             json={
                 "type": "SnakeState",
                 "payload": game.state().model_dump(),
@@ -200,17 +213,37 @@ async def publish(game: Game) -> None:
         response.raise_for_status()
 
 
-def view(game: Game, decision: dict | None = None) -> dict:
+def view(game: Game, decision: dict | None = None, error: str | None = None) -> dict:
     return {
+        "error": error,
         "game": game.id,
         "snake": game.snake,
         "food": game.food,
         "step": game.step,
         "eaten": game.eaten,
         "alive": game.alive,
+        "ended": game.ended,
+        "paused": game.paused,
         "probabilities": (decision or {}).get("probabilities"),
         "move": (decision or {}).get("move"),
     }
+
+
+def unreachable(exc: Exception) -> str:
+    return f"Flock is not reachable at {settings['flock_url']} ({type(exc).__name__})"
+
+
+async def advance(game: Game) -> None:
+    """Publish the next step, or hold it while the game is paused."""
+    if game.paused:
+        return  # held: the step stays newer than the last one published
+    async with game.publishing:
+        step = game.step
+        if game.paused or game.published >= step:
+            return  # paused while it waited, or an overlapping Resume published it
+        await publish(game)  # a failed publish leaves it waiting, to retry
+        # The next move may have landed meanwhile; that newer step still waits
+        game.published = max(game.published, step)
 
 
 @app.post("/games")
@@ -218,8 +251,57 @@ async def new_game():
     game = Game()
     games[game.id] = game
     push(view(game))
-    await publish(game)
+    try:
+        await advance(game)
+    except httpx.HTTPError as exc:
+        game.alive = False
+        error = unreachable(exc)
+        push(view(game, error=error))  # the page drops the game it never got
+        raise HTTPException(502, error) from None
     return {"game": game.id}
+
+
+@app.post("/games/{game_id}/pause")
+async def pause(game_id: str):
+    game = games[game_id]
+    game.paused = True
+    push(view(game))
+    return {"paused": True}
+
+
+@app.post("/games/{game_id}/resume")
+async def resume(game_id: str):
+    game = games[game_id]
+    game.paused = False
+    push(view(game))
+    if game.alive and game.published < game.step:
+        try:
+            await advance(game)
+        except httpx.HTTPError as exc:
+            # Paused again, its step still waiting: Resume retries it
+            game.paused = True
+            error = unreachable(exc)
+            push(view(game, error=error))
+            raise HTTPException(502, error) from None
+    return {"paused": False}
+
+
+class Settings(BaseModel):
+    flock_url: str
+
+
+@app.get("/settings")
+async def get_settings():
+    return settings
+
+
+@app.post("/settings")
+async def set_settings(body: Settings):
+    url = body.flock_url.strip().rstrip("/")
+    if not url.startswith(("http://", "https://")):
+        raise HTTPException(400, "Flock's address starts with http:// or https://")
+    settings["flock_url"] = url
+    return settings
 
 
 @app.post("/move")
@@ -244,7 +326,7 @@ async def move(envelope: dict):
         game.apply(chosen or "up")
         push(view(game, {"probabilities": decision["probabilities"], "move": chosen}))
     if game.alive:
-        await publish(game)
+        await advance(game)
     return {"ok": True}
 
 
@@ -274,27 +356,57 @@ PAGE = """<!doctype html>
 <title>Flock plays Snake</title>
 <style>
   body { font: 15px system-ui, sans-serif; background: #0e0f11; color: #eceef1; display: flex; gap: 28px; padding: 28px; }
-  canvas { background: #16181b; border-radius: 10px; }
+  canvas { background: #16181b; border-radius: 10px; display: block; }
+  .stage { position: relative; }
+  .overlay { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+    background: rgba(14, 15, 17, 0.78); border-radius: 10px; text-align: center; }
+  .overlay.shown { display: flex; }
+  .overlay h1 { margin: 0; font-size: 34px; }
+  .overlay .why { color: #b0b6bf; }
+  .overlay .score { font-family: monospace; font-size: 18px; }
   .side { display: flex; flex-direction: column; gap: 14px; min-width: 260px; }
   .bar { display: grid; grid-template-columns: 56px 1fr 44px; gap: 10px; align-items: center; font-family: monospace; }
   .track { height: 8px; background: #23262b; border-radius: 4px; overflow: hidden; }
   .fill { height: 100%; background: #7ba8f5; }
   .chosen { color: #9dbef8; }
   .over { color: #f59384; }
-  button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid #3a3e45; background: #1c1f23; color: inherit; cursor: pointer; }
+  .buttons { display: flex; gap: 10px; }
+  .buttons button { flex: 1; }
+  button, input { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid #3a3e45; background: #1c1f23; color: inherit; }
+  button { cursor: pointer; }
+  label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #b0b6bf; }
+  input { font-family: monospace; font-size: 13px; }
+  .hint { font-size: 12px; color: #858c96; }
 </style>
-<canvas id="board" width="420" height="420"></canvas>
+<div class="stage">
+  <canvas id="board" width="420" height="420"></canvas>
+  <div class="overlay" id="over">
+    <h1 id="over-title">Game over</h1>
+    <div class="why" id="over-why"></div>
+    <div class="score" id="over-score"></div>
+    <button id="again">Play again</button>
+  </div>
+</div>
 <div class="side">
   <h2 style="margin:0">Flock plays Snake</h2>
-  <div id="stats">Starting…</div>
+  <div id="stats">Press Start to play.</div>
   <div id="bars"></div>
   <div id="status"></div>
-  <button id="new">New game</button>
+  <div class="buttons">
+    <button id="toggle">Start</button>
+    <button id="new">New game</button>
+  </div>
+  <label>Flock
+    <input id="flock" spellcheck="false">
+  </label>
+  <div class="hint" id="hint">Where the game publishes its steps (Flock's REST API).</div>
 </div>
 <script>
   const size = {SIZE}, cell = 42;
   const board = document.getElementById('board').getContext('2d');
-  let current = null;
+  let current = null, alive = false, paused = false;
+  const toggle = document.getElementById('toggle');
+  function buttons() { toggle.textContent = alive && !paused ? 'Pause' : alive ? 'Resume' : 'Start'; }
   function draw(state) {
     board.clearRect(0, 0, 420, 420);
     board.fillStyle = '#f07563';
@@ -318,19 +430,61 @@ PAGE = """<!doctype html>
     const state = JSON.parse(message.data);
     if (current && state.game !== current) return;
     current = state.game;
+    alive = state.alive; paused = state.paused; buttons();
     draw(state);
     bars(state.probabilities, state.move);
     document.getElementById('stats').textContent = `${state.game} · step ${state.step} · food ${state.eaten}`;
-    document.getElementById('status').innerHTML = state.alive ? '' :
-      `<span class="over">Game over: ${state.eaten} food in ${state.step} steps</span>`;
+    // Game over: why, and how far it got (a game that never started has no screen)
+    const why = { wall: 'Flock steered into the wall.', body: 'Flock ran into its own tail.',
+      starved: 'Flock circled until the snake starved.', won: 'Flock filled the whole board.' };
+    const ended = !state.alive && state.ended;
+    document.getElementById('over').classList.toggle('shown', !!ended);
+    if (ended) {
+      document.getElementById('over-title').textContent = state.ended === 'won' ? 'Flock wins!' : 'Game over';
+      document.getElementById('over-why').textContent = why[state.ended];
+      document.getElementById('over-score').textContent =
+        `${state.eaten} food in ${state.step} step${state.step === 1 ? '' : 's'}`;
+    }
+    // The event carries a failure, so it shows whichever of the two answers comes first
+    document.getElementById('status').innerHTML = state.error
+      ? `<span class="over">${state.error}</span>`
+      : !state.alive
+        ? `<span class="over">Game over: ${state.eaten} food in ${state.step} steps</span>`
+        : state.paused ? 'Paused' : '';
   };
   async function start() {
     current = null;
+    document.getElementById('over').classList.remove('shown');
     const response = await fetch('/games', { method: 'POST' });
-    current = (await response.json()).game;
+    const answer = await response.json();
+    if (!response.ok) {
+      current = null; alive = false; buttons();
+      document.getElementById('status').innerHTML = `<span class="over">${answer.detail}</span>`;
+      return;
+    }
+    current = answer.game;
   }
+  toggle.onclick = async () => {
+    if (!current || !alive) return start();
+    const response = await fetch(`/games/${current}/${paused ? 'resume' : 'pause'}`, { method: 'POST' });
+    if (!response.ok) {
+      document.getElementById('status').innerHTML = `<span class="over">${(await response.json()).detail}</span>`;
+    }
+  };
   document.getElementById('new').onclick = start;
-  start();
+  document.getElementById('again').onclick = start;
+  // Flock's address: shown from the game's settings, saved on Enter or when the field is left
+  const flock = document.getElementById('flock'), hint = document.getElementById('hint');
+  fetch('/settings').then((r) => r.json()).then((s) => { flock.value = s.flock_url; });
+  async function save() {
+    const response = await fetch('/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ flock_url: flock.value }) });
+    const answer = await response.json();
+    hint.innerHTML = response.ok
+      ? `Publishing to ${answer.flock_url} · <a href="${answer.flock_url}" target="_blank" style="color:#9dbef8">dashboard</a>`
+      : `<span class="over">${answer.detail}</span>`;
+  }
+  flock.onchange = save;
 </script>
 """
 
@@ -377,11 +531,11 @@ class SnakeHeuristic(DecisionProvider):
 # ============================================================================
 # The flock
 # ============================================================================
-def build_flock(fake: bool) -> Flock:
+def build_flock(fake: bool, game_port: int = GAME_PORT) -> Flock:
     flock = Flock(
         decision_model=SnakeHeuristic() if fake else DECISION_MODEL,
         decision_rate_limit=None if fake else "100/min",
-        endpoints={"game": Endpoint(f"http://127.0.0.1:{GAME_PORT}", retries=3)},
+        endpoints={"game": Endpoint(f"http://127.0.0.1:{game_port}", retries=3)},
     )
     flock.agent("player").description("Picks the snake's next move").consumes(
         SnakeState
@@ -395,17 +549,26 @@ async def main() -> None:
     parser.add_argument(
         "--fake", action="store_true", help="a heuristic plays, no API key"
     )
+    parser.add_argument("--port", type=int, default=GAME_PORT, help="the game's port")
+    parser.add_argument(
+        "--flock-port",
+        type=int,
+        default=FLOCK_PORT,
+        help="Flock's port (API and dashboard)",
+    )
     args = parser.parse_args()
 
-    flock = build_flock(args.fake)
+    settings["flock_url"] = f"http://127.0.0.1:{args.flock_port}"
+    flock = build_flock(args.fake, game_port=args.port)
     server = uvicorn.Server(
-        uvicorn.Config(app, host="127.0.0.1", port=GAME_PORT, log_level="warning")
+        uvicorn.Config(app, host="127.0.0.1", port=args.port, log_level="warning")
     )
     asyncio.get_running_loop().create_task(server.serve())
     print(
-        f"\n🐍 The game: http://127.0.0.1:{GAME_PORT}   🦆 The dashboard: http://127.0.0.1:{FLOCK_PORT}\n"
+        f"\n🐍 The game: http://127.0.0.1:{args.port}   "
+        f"🦆 The dashboard: http://127.0.0.1:{args.flock_port}\n"
     )
-    await flock.serve(dashboard=True, port=FLOCK_PORT)
+    await flock.serve(dashboard=True, port=args.flock_port)
 
 
 if __name__ == "__main__":
