@@ -37,11 +37,22 @@ import {
   scheduleDebouncedAutoLayout,
 } from './autoLayoutTrigger';
 import { MOVE_MS, motionMs } from './animatePositions';
+import { SETTLE_MS, registerCanvas, whenOnBoard } from './canvasCommands';
 import { fromControl } from './nodeClick';
 import { useUnfoldLayout } from './useUnfoldLayout';
 
 const GraphCanvas: React.FC = () => {
-  const { getIntersectingNodes, screenToFlowPosition, getViewport, setViewport } = useReactFlow();
+  const {
+    getIntersectingNodes,
+    screenToFlowPosition,
+    getViewport,
+    setViewport,
+    zoomIn,
+    zoomOut,
+    fitView,
+    setCenter,
+    getNode,
+  } = useReactFlow();
 
   const mode = useUIStore((state) => state.mode);
   // With the timeline dock expanded the board is a strip of chips: no dock or minimap on it
@@ -226,8 +237,10 @@ const GraphCanvas: React.FC = () => {
           });
       }
 
-      // Update nodes with new positions and persist to IndexedDB to avoid snap-back on refresh
-      useGraphStore.setState({ nodes: result.nodes });
+      // Only the positions change: the board's nodes may have changed since this layout's
+      // render (a selection, a refresh), and those changes stay. Persisted to IndexedDB
+      // to avoid snap-back on refresh.
+      useGraphStore.getState().setNodePositions(new Map(result.nodes.map((node) => [node.id, node.position])));
       result.nodes.forEach((node) => {
         persistNodePosition(node.id, node.position);
       });
@@ -322,6 +335,46 @@ const GraphCanvas: React.FC = () => {
       if (dx || dy) setViewport({ x: x + dx, y: y + dy, zoom }, { duration: motionMs(MOVE_MS) });
     },
     [getViewport, setViewport],
+  );
+
+  // Selects an agent, so Space unfolds it, and centers the board on it at the zoom it has
+  const showNode = (nodeId: string) => {
+    const node = getNode(nodeId);
+    if (!node) return;
+    useGraphStore.setState((state) => ({
+      nodes: state.nodes.map((n) => (Boolean(n.selected) === (n.id === nodeId) ? n : { ...n, selected: n.id === nodeId })),
+    }));
+    const width = node.measured?.width ?? node.width ?? 0;
+    const height = node.measured?.height ?? node.height ?? 0;
+    void setCenter(node.position.x + width / 2, node.position.y + height / 2, {
+      zoom: getViewport().zoom,
+      duration: motionMs(300),
+    });
+    // The keyboard goes on from it, once the palette gave the focus back
+    requestAnimationFrame(() =>
+      document.querySelector<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(nodeId)}"]`)?.focus(),
+    );
+  };
+
+  // The palette's commands on this board, registered once; they read the latest layout
+  const applyLayoutRef = useRef(applyLayout);
+  applyLayoutRef.current = applyLayout;
+  useEffect(
+    () =>
+      registerCanvas(
+        {
+          zoomIn: () => void zoomIn({ duration: motionMs(200) }),
+          zoomOut: () => void zoomOut({ duration: motionMs(200) }),
+          fit: () => void fitView({ padding: 0.1, duration: motionMs(300) }),
+          layout: (layoutMode) => applyLayoutRef.current(layoutMode),
+          // A board that just mounted loads its agents and lays them out first
+          show: (nodeId) => whenOnBoard(nodeId, () => showNode(nodeId), SETTLE_MS),
+        },
+        SETTLE_MS,
+      ),
+    // The React Flow functions are stable, showNode uses only them
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
   );
 
   // Neighbors make room while a node is unfolded

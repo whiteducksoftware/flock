@@ -199,3 +199,25 @@ Each entry says what was decided, why, and where it landed.
 - **While a modal dialog is open (`aria-modal`), the board's shortcuts are off except Esc** (review): Ctrl+F opened the filters behind the composer and took the focus out of it. This covers the tournament bracket and the image viewer too.
 - **What an input cannot show keeps JSON mode too** (review): line breaks in a one-line text input and an option the select does not have count as losses; `inputKind` in `form.ts` is the one place that says which input a field gets.
 - **On short screens (under 560 px high) the whole composer scrolls** (review): at 667 × 375 the footer was clipped; the composer is now one scroll area, the footer at its end.
+
+### #568 ⌘K palette
+
+- **No mockup of the palette exists:** it takes the publish composer's overlay (scrim, dialog, tokens), 640 px wide, a 15 px search, results grouped as Agents, Types, Runs, Commands.
+- **One result, up to three actions:** Enter, Shift+Enter, Ctrl/⌘+Enter, and the active result's actions as buttons in the footer (a listbox option cannot hold buttons).
+- **Agents: Show, Unfold, Focus.** Show selects the agent and centers the board on it at the zoom it has, and puts the keyboard focus on it. From the Blackboard the agent's actions switch to the Flow and wait until its agents are loaded and laid out.
+- **Types: Filter by type replaces the type filter** with that type (show only it), it does not add to it. Publish this type opens the composer on the type.
+- **Runs come from the filters' correlation list,** newest first, five without a query; a typed hex start finds the run by its full ID.
+- **Commands offer what applies now:** the other view only, the time ranges but the current one, themes but the current one, "Clear filters" only with filters, the canvas commands only on the Flow, "Collapse the timeline dock" only when it is open.
+- **Ranking:** prefix, word start (camelCase and snake_case split), substring, then the initials of the words (labels only); scattered letters do not match ("tri" found every theme). Groups follow their best match.
+- **Ctrl+F is not caught any more** (the spec's "Where everything went"): the palette replaces it, and the browser's find works again.
+- **Ctrl+K does not open the palette over another modal** (the composer, the bracket, the image viewer); from inside the palette it closes it.
+- **Shortcut labels follow the platform** (`utils/keys.ts`): Ctrl+K and Ctrl+↵ on Windows and Linux, ⌘K and ⌘↵ on a Mac, in the header, the palette and the composer.
+- **The canvas registers its commands** (`canvasCommands.ts`) while it is mounted; a command for an unmounted canvas waits for the next one.
+- **Two fixes the palette needed:** the board's refresh kept no selection (a selected node lost it within a second), and a layout set the nodes of its render over changes made since; it now sets positions only.
+- **The lanes keep showing running runs of other correlations under a correlation filter** (a bug from #565, found in the live check); it gets its own fix.
+- **Unfold and Focus wait for their agent like Show** (review), and **the newest request wins** (review): a command still waiting for the Flow's board is dropped when another comes.
+- **"running" next to an agent comes from the runs going on** (review): `/api/agents` reports ready or waiting, never running.
+- **Ctrl+K does not open the palette over the keyboard shortcuts** (review); the shortcuts dialog becomes a real modal in #569.
+- **A run from before the time range widens it to all time** when the palette filters by it or shows its lane (review); a run inside the range keeps it.
+- **Leaving the Flow drops what still waits for it** (review): a Show from the Blackboard abandoned by switching back does not select the agent on a later visit.
+- **Show its lane turns "Needs review only" off** and **the palette gives the focus back before an action opens another overlay** (review).

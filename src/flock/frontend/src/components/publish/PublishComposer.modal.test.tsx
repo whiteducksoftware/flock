@@ -156,6 +156,16 @@ describe('PublishComposer', () => {
     });
   });
 
+  it('opens on a type asked for (the palette\'s Publish this type), once', async () => {
+    useUIStore.setState({ publishType: 'app.TeamReply' });
+    render(<Harness />);
+    await screen.findByRole('option', { name: /^SupportTicket,/ });
+
+    expect(option('TeamReply')).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('TeamReply', { selector: 'span[title]' })).toBeInTheDocument();
+    expect(useUIStore.getState().publishType).toBeNull();
+  });
+
   describe('the type list', () => {
     it('groups the types, with the system types collapsed', async () => {
       await open();

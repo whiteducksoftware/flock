@@ -22,8 +22,8 @@ const shortcuts: Shortcut[] = [
     category: 'Navigation',
   },
   {
-    keys: isMac ? ['⌘', 'F'] : ['Ctrl', 'F'],
-    description: 'Search correlation IDs in the filters',
+    keys: isMac ? ['⌘', 'K'] : ['Ctrl', 'K'],
+    description: 'Search agents, types and runs, or run a command',
     category: 'Navigation',
   },
   {

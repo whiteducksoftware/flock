@@ -63,6 +63,15 @@ interface UIState {
   needsReviewOnly: boolean;
   setNeedsReviewOnly: (on: boolean) => void;
 
+  // The ⌘K palette (not saved)
+  paletteOpen: boolean;
+  openPalette: () => void;
+  closePalette: () => void;
+
+  // The type the publish composer opens on, once (not saved)
+  publishType: string | null;
+  setPublishType: (type: string | null) => void;
+
   // The toast, one at a time; it closes itself (not saved)
   toast: ToastMessage | null;
   showToast: (toast: ToastMessage) => void;
@@ -124,6 +133,13 @@ export const useUIStore = create<UIState>()(
         foldArtifact: () => set({ unfoldedArtifactId: null }),
         needsReviewOnly: false,
         setNeedsReviewOnly: (on: boolean) => set({ needsReviewOnly: on }),
+
+        paletteOpen: false,
+        openPalette: () => set({ paletteOpen: true }),
+        closePalette: () => set({ paletteOpen: false }),
+
+        publishType: null,
+        setPublishType: (publishType: string | null) => set({ publishType }),
 
         toast: null,
         showToast: (toast: ToastMessage) => set({ toast }),

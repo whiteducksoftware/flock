@@ -240,6 +240,18 @@ describe('graphStore - NEW Simplified Architecture', () => {
       expect(useGraphStore.getState().nodes[0]?.position).toEqual({ x: 100, y: 100 });
     });
 
+    it('keeps the selected node selected when the snapshot refreshes', async () => {
+      const agent = (id: string) => ({ id, type: 'agent', data: {}, position: { x: 0, y: 0 } }) as Node;
+      vi.mocked(fetchGraphSnapshot).mockResolvedValue({ nodes: [], edges: [], statistics: null } as unknown as GraphSnapshot);
+      vi.mocked(mergeNodePositions).mockReturnValue([agent('a'), agent('b')]);
+      vi.mocked(overlayWebSocketState).mockImplementation((nodes) => nodes);
+      useGraphStore.setState({ nodes: [{ ...agent('a'), selected: true }, agent('b')] });
+
+      await useGraphStore.getState().generateAgentViewGraph();
+
+      expect(useGraphStore.getState().nodes.map((node) => Boolean(node.selected))).toEqual([true, false]);
+    });
+
     it('should pass filters from filterStore to backend', async () => {
       const mockFilters = {
         correlationId: 'test-correlation-id',
