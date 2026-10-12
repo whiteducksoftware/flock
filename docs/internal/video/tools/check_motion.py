@@ -104,12 +104,13 @@ def check_recording(folder: Path, start: float | None, end: float | None, calm: 
         detail = f"change {change:.1f}" if kind == "reflowed" else f"dx {dx:+.0f} px, dy {dy:+.0f} px"
         print(f"  {t:7.2f} s  {kind:8s} {detail}")
     if calm:
-        # The window of `calm` seconds with the least motion (a reflow weighs 100 px)
-        span = frames[-1]["t"] - t0
+        # The window of `calm` seconds with the least motion (a reflow weighs 100 px), inside --from/--to
+        first = start if start is not None else 0.0
+        last = min(end, frames[-1]["t"] - t0) if end is not None else frames[-1]["t"] - t0
         cost = lambda a: sum(abs(e[2]) + abs(e[3]) + (100 if e[1] == "reflowed" else 0) for e in events if a <= e[0] < a + calm)
-        starts = [s / 10 for s in range(int((span - calm) * 10) + 1)]
-        best = min(starts, key=lambda a: (cost(a), a)) if starts else 0.0
-        act = index["marks"] and {m["name"]: m["t"] - t0 for m in index["marks"]}.get("act")
+        starts = [first + s / 10 for s in range(int((last - first - calm) * 10) + 1)]
+        best = min(starts, key=lambda a: (cost(a), a)) if starts else first
+        act = {m["name"]: m["t"] - t0 for m in index["marks"]}.get("act")
         offset = f", act {best - act:+.2f} s" if act is not None else ""
         print(f"  calmest {calm:g} s from {best:.1f} s{offset} (motion {cost(best):.0f} px)")
     return wobble

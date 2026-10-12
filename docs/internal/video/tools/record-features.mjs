@@ -30,9 +30,14 @@ async function clip(name, prepare, act, { seconds = 6, ready = 'text=Live' } = {
   await page.context().close();
 }
 
-// The lane of the newest decision that passes `test`, scrolled into view
+// The lane of the newest decision that passes `test`, scrolled into view. A demo
+// that just started may publish one only after a few minutes: wait for it
 const laneOf = (port, test, label = null) => async (page) => {
-  const candidates = decisionsOf(await snapshot(port)).filter(test).reverse();
+  let candidates = [];
+  for (const until = Date.now() + 240_000; !candidates.length && Date.now() < until; ) {
+    candidates = decisionsOf(await snapshot(port)).filter(test).reverse();
+    if (!candidates.length) await sleep(5000);
+  }
   await lastHour(page);  // examples publish slowly: the default 10 minutes may hold none
   await blackboard(page);
   for (const decision of candidates) {
