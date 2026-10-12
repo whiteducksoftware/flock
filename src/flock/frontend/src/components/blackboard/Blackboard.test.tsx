@@ -86,6 +86,9 @@ describe('Blackboard', () => {
   });
 
   afterEach(() => {
+    // Also when a test fails before its own clean-up: geometry, styles, animations
+    vi.restoreAllMocks();
+    delete (HTMLElement.prototype as any).animate;
     vi.unstubAllGlobals();
     useGraphStore.setState(useGraphStore.getInitialState(), true);
     useUIStore.setState({ blackboardView: 'lanes', needsReviewOnly: false, unfoldedArtifactId: null });
@@ -117,6 +120,194 @@ describe('Blackboard', () => {
     const running = lane('cccc');
     expect(running.textContent).toContain('billing_team is writing');
     expect(within(running).getByRole('button', { name: 'TeamReply by billing_team' }).textContent).toContain('Hi, thanks for your patience');
+  });
+
+  it('keeps the placeholder of a run that ended until its output is on the board (#642)', () => {
+    useGraphStore.setState({
+      settling: new Map([['r-8', { agent: 'urgency', types: ['app.SupportTicket'], artifacts: ['t2'], correlationId: 'bbbb2222-0000', known: [] }]]),
+    });
+    render(<Blackboard />);
+
+    const waiting = lane('bbbb');
+    // A placeholder card by urgency next to triage's decision, and the run still going
+    expect(within(waiting).getByLabelText('Not published yet')).toBeTruthy();
+    expect(waiting.textContent).toContain('by urgency');
+    expect(waiting.textContent).toContain('urgency is running');
+  });
+
+  it('opens a lane that arrives while it shows, and only that one (#642)', () => {
+    const { rerender } = render(<Blackboard />);
+    expect(screen.getAllByRole('region').filter((region) => region.hasAttribute('data-entering'))).toEqual([]);
+
+    act(() => {
+      useGraphStore.setState({ nodes: [...nodes, artifact('t4', 'dddd4444-0000', 'app.SupportTicket', 'external', 5000, { payload: { subject: 'New one' } })] });
+    });
+    rerender(<Blackboard />);
+
+    expect(screen.getAllByRole('region').filter((region) => region.hasAttribute('data-entering')).map((region) => region.getAttribute('aria-label'))).toEqual(['Run dddd']);
+  });
+
+  it('lets the lanes below a lane that grows glide to their place (#642)', () => {
+    // jsdom lays nothing out: lane tops come from this table, animations are recorded
+    const tops = new Map<string, number>([['Run cccc', 0], ['Run bbbb', 100], ['Run aaaa', 200]]);
+    const animate = vi.fn(() => ({ cancel: vi.fn(), onfinish: null }));
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const label = this.querySelector('section')?.getAttribute('aria-label') ?? '';
+      return { top: tops.get(label) ?? 0 } as DOMRect;
+    });
+    (HTMLElement.prototype as any).animate = animate;
+    const { rerender } = render(<Blackboard />);
+    expect(animate).not.toHaveBeenCalled();
+
+    // The top lane grows by 40 px: the two below move down
+    tops.set('Run bbbb', 140);
+    tops.set('Run aaaa', 240);
+    act(() => {
+      useGraphStore.setState({ nodes: [...nodes] });
+    });
+    rerender(<Blackboard />);
+
+    expect(animate).toHaveBeenCalledTimes(2);
+    expect((animate.mock.calls[0] as unknown[])[0]).toEqual([{ transform: 'translateY(-40px)' }, { transform: 'translateY(0)' }]);
+    rect.mockRestore();
+    delete (HTMLElement.prototype as any).animate;
+  });
+
+  it('does not glide the lanes after a scroll (#642)', () => {
+    const tops = new Map<string, number>([['Run cccc', 0], ['Run bbbb', 100], ['Run aaaa', 200]]);
+    const animate = vi.fn();
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const label = this.querySelector('section')?.getAttribute('aria-label') ?? '';
+      return { top: tops.get(label) ?? 0 } as DOMRect;
+    });
+    (HTMLElement.prototype as any).animate = animate;
+    const { container, rerender } = render(<Blackboard />);
+
+    // Scrolled down by 60 px: every lane shows 60 px higher, none moved on the board
+    for (const [label, top] of tops) tops.set(label, top - 60);
+    fireEvent.scroll(container.querySelector('.board')!);
+    act(() => {
+      useGraphStore.setState({ nodes: [...nodes] });
+    });
+    rerender(<Blackboard />);
+
+    expect(animate).not.toHaveBeenCalled();
+    rect.mockRestore();
+    delete (HTMLElement.prototype as any).animate;
+  });
+
+  it('continues a glide that another change interrupts from where the lane shows (#642)', () => {
+    const tops = new Map<string, number>([['Run cccc', 0], ['Run bbbb', 100], ['Run aaaa', 200]]);
+    // How far a running glide moves each lane right now
+    const shift = new Map<string, number>();
+    const labelOf = (element: Element) => element.querySelector('section')?.getAttribute('aria-label') ?? '';
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const label = labelOf(this);
+      return { top: (tops.get(label) ?? 0) + (shift.get(label) ?? 0) } as DOMRect;
+    });
+    const real = window.getComputedStyle.bind(window);
+    const style = vi.spyOn(window, 'getComputedStyle').mockImplementation((element: Element) => {
+      const computed = real(element);
+      const y = (element as HTMLElement).dataset?.lane ? shift.get(labelOf(element)) : undefined;
+      if (y === undefined) return computed;
+      return new Proxy(computed, { get: (target, prop) => (prop === 'transform' ? `matrix(1, 0, 0, 1, 0, ${y})` : Reflect.get(target, prop, target)) });
+    });
+    const animate = vi.fn(function (this: HTMLElement) {
+      const label = labelOf(this);
+      return { cancel: () => shift.delete(label), onfinish: null };
+    });
+    (HTMLElement.prototype as any).animate = animate;
+    const { rerender } = render(<Blackboard />);
+
+    // The top lane grows by 40 px; halfway through the glides the second grows by 40 px too
+    tops.set('Run bbbb', 140);
+    tops.set('Run aaaa', 240);
+    act(() => {
+      useGraphStore.setState({ nodes: [...nodes] });
+    });
+    rerender(<Blackboard />);
+    shift.set('Run bbbb', -20);
+    shift.set('Run aaaa', -20);
+    tops.set('Run aaaa', 280);
+    act(() => {
+      useGraphStore.setState({ nodes: [...nodes] });
+    });
+    rerender(<Blackboard />);
+
+    // aaaa showed at 220 (240 - 20): its new glide starts there, 60 px above its place
+    expect(animate).toHaveBeenCalledTimes(3);
+    expect((animate.mock.calls[2] as unknown[])[0]).toEqual([{ transform: 'translateY(-60px)' }, { transform: 'translateY(0)' }]);
+    rect.mockRestore();
+    style.mockRestore();
+    delete (HTMLElement.prototype as any).animate;
+  });
+
+  it('lets the lanes below a lane that resizes without a new snapshot glide (a card unfolds) (#642)', () => {
+    const tops = new Map<string, number>([['Run cccc', 0], ['Run bbbb', 100], ['Run aaaa', 200]]);
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const label = this.querySelector('section')?.getAttribute('aria-label') ?? '';
+      return { top: tops.get(label) ?? 0 } as DOMRect;
+    });
+    const animate = vi.fn(() => ({ cancel: vi.fn(), onfinish: null }));
+    (HTMLElement.prototype as any).animate = animate;
+    const observers: ResizeObserverCallback[] = [];
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          observers.push(callback);
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    render(<Blackboard />);
+
+    // A card in the top lane unfolds: the lane grows by 300 px, the board does not render
+    tops.set('Run bbbb', 400);
+    tops.set('Run aaaa', 500);
+    act(() => observers.forEach((callback) => callback([], {} as ResizeObserver)));
+
+    expect(animate).toHaveBeenCalledTimes(2);
+    expect((animate.mock.calls[0] as unknown[])[0]).toEqual([{ transform: 'translateY(-300px)' }, { transform: 'translateY(0)' }]);
+    rect.mockRestore();
+    vi.unstubAllGlobals();
+    delete (HTMLElement.prototype as any).animate;
+  });
+
+  it('lets go of glides that ended and of lanes that left (#642)', () => {
+    const tops = new Map<string, number>([['Run cccc', 0], ['Run bbbb', 100], ['Run aaaa', 200]]);
+    const glides: { cancel: ReturnType<typeof vi.fn>; onfinish: null | (() => void) }[] = [];
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const label = this.querySelector('section')?.getAttribute('aria-label') ?? '';
+      return { top: tops.get(label) ?? 0 } as DOMRect;
+    });
+    (HTMLElement.prototype as any).animate = vi.fn(() => {
+      const glide = { cancel: vi.fn(), onfinish: null };
+      glides.push(glide);
+      return glide;
+    });
+    const { rerender } = render(<Blackboard />);
+    tops.set('Run bbbb', 140);
+    tops.set('Run aaaa', 240);
+    act(() => {
+      useGraphStore.setState({ nodes: [...nodes] });
+    });
+    rerender(<Blackboard />);
+    expect(glides).toHaveLength(2);
+
+    // bbbb's glide ends; aaaa's lane leaves the board while it glides
+    act(() => glides[0]!.onfinish?.());
+    act(() => {
+      useGraphStore.setState({ nodes: nodes.filter((node) => node.data.correlationId !== 'aaaa1111-0000') });
+    });
+    rerender(<Blackboard />);
+
+    expect(glides[0]!.cancel).not.toHaveBeenCalled();
+    expect(glides[1]!.cancel).toHaveBeenCalledTimes(1);
+    rect.mockRestore();
+    delete (HTMLElement.prototype as any).animate;
   });
 
   it('counts runs, artifacts and reviews, and narrows to the runs that need a review', () => {

@@ -116,6 +116,7 @@ const Canvas: React.FC = () => {
   const storeNodes = useGraphStore((state) => state.nodes);
   const storeEdges = useGraphStore((state) => state.edges);
   const inFlight = useGraphStore((state) => state.inFlight);
+  const settling = useGraphStore((state) => state.settling);
   const viewMode = useGraphStore((state) => state.viewMode);
   const loading = useGraphStore((state) => state.isLoading);
   const reviewOnly = useUIStore((state) => state.needsReviewOnly);
@@ -151,10 +152,19 @@ const Canvas: React.FC = () => {
             storeNodes,
             storeEdges,
             reviewOnly,
-            [...inFlight.entries()].map(([runId, run]) => ({ runId, agent: run.agent, correlationId: run.correlationId ?? null, artifacts: run.artifacts })),
+            // Runs that ended keep their placeholders until their output is on the board (#642)
+            [...inFlight.entries(), ...settling.entries()].map(([runId, run]) => ({
+              runId,
+              agent: run.agent,
+              correlationId: run.correlationId ?? null,
+              artifacts: run.artifacts,
+              types: run.types,
+              produces: run.produces,
+              published: run.published,
+            })),
           )
         : { nodes: [], edges: [] },
-    [viewMode, storeNodes, storeEdges, reviewOnly, inFlight],
+    [viewMode, storeNodes, storeEdges, reviewOnly, inFlight, settling],
   );
 
   const [nodes, setNodes] = useState<ArtifactNode[]>([]);

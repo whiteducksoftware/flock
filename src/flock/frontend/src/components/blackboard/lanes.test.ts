@@ -213,6 +213,127 @@ describe('lanesOf', () => {
     expect(ids(lanesOf(twice, edges, runs).find((each) => each.id === 'c-4')!)).toEqual([['t4'], ['d5', 's2'], ['s1']]);
   });
 
+  it("places a stream whose input is not on the board yet after the lane's placeholders, and keeps it there (#642)", () => {
+    // The deciders ended, their decisions come with the next snapshot; a team
+    // already writes after one of them
+    const board = [
+      artifact('t5', 'c-5', 'app.SupportTicket', 'external', 7000),
+      artifact('s5', 'c-5', 'app.TeamReply', 'shipping_team', 7300, { isStreaming: true, streamingText: 'Thanks for' }),
+    ];
+    const runs = [
+      { agent: 'triage', correlationId: 'c-5', artifacts: ['t5'], types: ['app.SupportTicket'], produces: ['Decision[app.Route]'] },
+      { agent: 'urgency', correlationId: 'c-5', artifacts: ['t5'], types: ['app.SupportTicket'], produces: ['Decision[app.Urgent]'] },
+      { agent: 'shipping_team', correlationId: 'c-5', artifacts: ['d8', 't5'], types: ['Decision[app.Route]', 'app.SupportTicket'], produces: ['app.TeamReply'] },
+    ];
+    expect(ids(lanesOf(board, [], runs)[0]!)).toEqual([['t5'], ['pending:triage', 'pending:urgency'], ['s5']]);
+
+    // The snapshot brings the decisions: the stream stays in its column
+    const later = [
+      ...board,
+      artifact('d8', 'c-5', 'Decision[app.Route]', 'triage', 7100, decision('shipping', 0.9)),
+      artifact('d9', 'c-5', 'Decision[app.Urgent]', 'urgency', 7150, decision('no', 0.8)),
+    ];
+    const laterEdges = [made('t5', 'd8', 'triage'), made('t5', 'd9', 'urgency')];
+    expect(ids(lanesOf(later, laterEdges, [runs[2]!])[0]!)).toEqual([['t5'], ['d8', 'd9'], ['s5']]);
+  });
+
+  it("places a run that consumes a stream after the stream's column, not after its edges (#642)", () => {
+    // billing_team still streams its reply; crm_sync already took it up
+    const board = [
+      artifact('t6', 'c-6', 'app.SupportTicket', 'external', 8000),
+      artifact('d6', 'c-6', 'Decision[app.Route]', 'triage', 8100, decision('billing', 0.95)),
+      artifact('s6', 'c-6', 'app.TeamReply', 'billing_team', 8200, { isStreaming: true, streamingText: 'The amount' }),
+    ];
+    const runs = [
+      { agent: 'billing_team', correlationId: 'c-6', artifacts: ['d6'] },
+      { agent: 'crm_sync', correlationId: 'c-6', artifacts: ['s6'] },
+    ];
+    expect(ids(lanesOf(board, [made('t6', 'd6', 'triage')], runs)[0]!)).toEqual([['t6'], ['d6'], ['s6'], ['pending:crm_sync']]);
+  });
+
+  it("places a run that waits for an input not on the board yet after the runs that make it (#642)", () => {
+    // pager reads both decisions; the deciders ended, their decisions come with the next snapshot
+    const board = [artifact('t7', 'c-7', 'app.SupportTicket', 'external', 9000)];
+    const runs = [
+      { agent: 'triage', correlationId: 'c-7', artifacts: ['t7'], types: ['app.SupportTicket'], produces: ['Decision[app.Route]'] },
+      { agent: 'urgency', correlationId: 'c-7', artifacts: ['t7'], types: ['app.SupportTicket'], produces: ['Decision[app.Urgent]'] },
+      { agent: 'pager', correlationId: 'c-7', artifacts: ['d10', 'd11'], types: ['Decision[app.Route]', 'Decision[app.Urgent]'], produces: ['app.Page'] },
+    ];
+    expect(ids(lanesOf(board, [], runs)[0]!)).toEqual([['t7'], ['pending:triage', 'pending:urgency'], ['pending:pager']]);
+
+    // The decisions arrive: pager's placeholder stays in its column
+    const later = [
+      ...board,
+      artifact('d10', 'c-7', 'Decision[app.Route]', 'triage', 9100, decision('tech', 0.9)),
+      artifact('d11', 'c-7', 'Decision[app.Urgent]', 'urgency', 9150, decision('yes', 0.9)),
+    ];
+    const laterEdges = [made('t7', 'd10', 'triage'), made('t7', 'd11', 'urgency')];
+    expect(ids(lanesOf(later, laterEdges, [runs[2]!])[0]!)).toEqual([['t7'], ['d10', 'd11'], ['pending:pager']]);
+  });
+
+  it('places a run that waits for an input after the runs that make that input only (#642)', () => {
+    // tech_support writes from the summary and triage's decision, which comes with
+    // the next snapshot; archiver works on another branch of the workflow
+    const board = [
+      artifact('t8', 'c-8', 'app.SupportTicket', 'external', 9500),
+      artifact('a8', 'c-8', 'app.Summary', 'summarizer', 9600),
+      artifact('b8', 'c-8', 'app.Translation', 'translator', 9700),
+      artifact('s8', 'c-8', 'app.TeamReply', 'tech_support', 9800, { isStreaming: true, streamingText: 'We are on it' }),
+    ];
+    const branches = [made('t8', 'a8', 'summarizer'), made('a8', 'b8', 'translator')];
+    const runs = [
+      { agent: 'triage', correlationId: 'c-8', artifacts: ['t8'], types: ['app.SupportTicket'], produces: ['Decision[app.Route]'] },
+      { agent: 'archiver', correlationId: 'c-8', artifacts: ['b8'], types: ['app.Translation'], produces: ['app.Archive'] },
+      { agent: 'tech_support', correlationId: 'c-8', artifacts: ['a8', 'd12'], types: ['app.Summary', 'Decision[app.Route]'], produces: ['app.TeamReply'] },
+    ];
+    expect(ids(lanesOf(board, branches, runs)[0]!)).toEqual([['t8'], ['a8', 'pending:triage'], ['b8', 's8'], ['pending:archiver']]);
+  });
+
+  it('places runs that wait for each other in a chain in their order (#642)', () => {
+    // A, B and C ran one after another before the next snapshot: none of their outputs is on the board
+    const board = [artifact('t9', 'c-9', 'app.SupportTicket', 'external', 9900)];
+    const runs = [
+      { agent: 'a', correlationId: 'c-9', artifacts: ['t9'], types: ['app.SupportTicket'], produces: ['app.A'] },
+      { agent: 'b', correlationId: 'c-9', artifacts: ['a9'], types: ['app.A'], produces: ['app.B'] },
+      { agent: 'c', correlationId: 'c-9', artifacts: ['b9'], types: ['app.B'], produces: ['app.C'] },
+    ];
+    expect(ids(lanesOf(board, [], runs)[0]!)).toEqual([['t9'], ['pending:a'], ['pending:b'], ['pending:c']]);
+  });
+
+  it('places a run that waits for an artifact after the run that published it, not after another publisher of its type (#642)', () => {
+    // writer_a and writer_b both write drafts; reviewer read writer_a's, which
+    // comes with the next snapshot; writer_b works further down another branch
+    const board = [
+      artifact('t10', 'c-10', 'app.SupportTicket', 'external', 10000),
+      artifact('m10', 'c-10', 'app.Summary', 'summarizer', 10100),
+      artifact('n10', 'c-10', 'app.Note', 'noter', 10200),
+    ];
+    const branches = [made('t10', 'm10', 'summarizer'), made('m10', 'n10', 'noter')];
+    const runs = [
+      { agent: 'writer_a', correlationId: 'c-10', artifacts: ['t10'], types: ['app.SupportTicket'], produces: ['app.Draft'], published: ['dr-a'] },
+      { agent: 'writer_b', correlationId: 'c-10', artifacts: ['n10'], types: ['app.Note'], produces: ['app.Draft'] },
+      { agent: 'reviewer', correlationId: 'c-10', artifacts: ['dr-a'], types: ['app.Draft'], produces: ['app.Review'] },
+    ];
+    expect(ids(lanesOf(board, branches, runs)[0]!)).toEqual([['t10'], ['m10', 'pending:writer_a'], ['n10', 'pending:reviewer'], ['pending:writer_b']]);
+  });
+
+  it('does not take a running publisher of a type for an input whose run is known (#642)', () => {
+    // reviewer waits for writer_a's draft (writer_a ended) and a note someone
+    // published from outside; writer_b writes another draft further down
+    const board = [
+      artifact('t11', 'c-11', 'app.SupportTicket', 'external', 11000),
+      artifact('m11', 'c-11', 'app.Summary', 'summarizer', 11100),
+      artifact('n11', 'c-11', 'app.Note', 'noter', 11200),
+    ];
+    const branches = [made('t11', 'm11', 'summarizer'), made('m11', 'n11', 'noter')];
+    const runs = [
+      { agent: 'writer_a', correlationId: 'c-11', artifacts: ['t11'], types: ['app.SupportTicket'], produces: ['app.Draft'], published: ['dr-a'] },
+      { agent: 'writer_b', correlationId: 'c-11', artifacts: ['n11'], types: ['app.Note'], produces: ['app.Draft'] },
+      { agent: 'reviewer', correlationId: 'c-11', artifacts: ['dr-a', 'note-x'], types: ['app.Draft', 'app.Remark'], produces: ['app.Review'] },
+    ];
+    expect(ids(lanesOf(board, branches, runs)[0]!)).toEqual([['t11'], ['m11', 'pending:writer_a'], ['n11', 'pending:reviewer'], ['pending:writer_b']]);
+  });
+
   it('names several running agents at once', () => {
     const both = [...running, { agent: 'urgency', correlationId: 'c-3', artifacts: ['t3'] }];
     expect(lanesOf(nodes, edges, both).find((each) => each.id === 'c-3')!.status.text).toBe('triage and 1 more are working');

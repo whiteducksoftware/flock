@@ -111,7 +111,7 @@ describe('WebSocketClient reconnects', () => {
     await vi.advanceTimersByTimeAsync(0);
 
     expect([...useGraphStore.getState().inFlight.entries()]).toEqual([
-      ['r-5', { agent: 'triage', types: [], artifacts: ['t-1'], correlationId: 'c-1' }],
+      ['r-5', { agent: 'triage', types: [], artifacts: ['t-1'], correlationId: 'c-1', known: [] }],
     ]);
   });
 

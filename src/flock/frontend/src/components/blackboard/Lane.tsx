@@ -1,6 +1,7 @@
 /** One run as a lane: its header, then its artifacts left to right, arrows between. */
 
-import React from 'react';
+import React, { useState } from 'react';
+import { prefersLessMotion } from '../graph/animatePositions';
 import { clockTime, shortId } from '../graph/unfold/format';
 import { Icon } from '../icons/Icon';
 import ArtifactCard from './ArtifactCard';
@@ -30,35 +31,47 @@ const Arrow: React.FC<{ column: LaneColumn }> = ({ column }) => (
   </div>
 );
 
-const Lane: React.FC<{ lane: LaneModel }> = ({ lane }) => (
-  <section className={styles.lane} aria-label={`Run ${shortId(lane.id, 4) || 'without a correlation'}`}>
-    <header className={styles.laneHead}>
-      <span className={`mono ${styles.runLine}`}>
-        <StatusMark kind={lane.status.kind} />
-        run {shortId(lane.id, 4) || '—'} · {clockTime(lane.startedAt)}
-      </span>
-      {lane.title && <span className={styles.title}>{lane.title}</span>}
-      <span
-        className={
-          lane.status.kind === 'running' ? styles.statusRunning : lane.status.kind === 'failed' ? styles.statusFailed : styles.status
-        }
-      >
-        {lane.status.text}
-      </span>
-    </header>
-    <div className={styles.columns}>
-      {lane.columns.map((column, index) => (
-        <React.Fragment key={index}>
-          {index > 0 && <Arrow column={column} />}
-          <div className={styles.column}>
-            {column.cards.map((card) => (
-              <ArtifactCard key={card.id} card={card} />
-            ))}
-          </div>
-        </React.Fragment>
-      ))}
+/** `entering`: the lane arrived while the board showed; it fades in while the lanes below glide (#642). */
+const Lane: React.FC<{ lane: LaneModel; entering?: boolean }> = ({ lane, entering = false }) => {
+  const [opening, setOpening] = useState(() => entering && !prefersLessMotion());
+  return (
+    <div
+      className={opening ? styles.entering : undefined}
+      data-lane={lane.id}
+      onAnimationEnd={(event) => {
+        if (event.target === event.currentTarget) setOpening(false);
+      }}
+    >
+      <section className={styles.lane} aria-label={`Run ${shortId(lane.id, 4) || 'without a correlation'}`} data-entering={opening || undefined}>
+        <header className={styles.laneHead}>
+          <span className={`mono ${styles.runLine}`}>
+            <StatusMark kind={lane.status.kind} />
+            run {shortId(lane.id, 4) || '—'} · {clockTime(lane.startedAt)}
+          </span>
+          {lane.title && <span className={styles.title}>{lane.title}</span>}
+          <span
+            className={
+              lane.status.kind === 'running' ? styles.statusRunning : lane.status.kind === 'failed' ? styles.statusFailed : styles.status
+            }
+          >
+            {lane.status.text}
+          </span>
+        </header>
+        <div className={styles.columns}>
+          {lane.columns.map((column, index) => (
+            <React.Fragment key={index}>
+              {index > 0 && <Arrow column={column} />}
+              <div className={styles.column}>
+                {column.cards.map((card) => (
+                  <ArtifactCard key={card.id} card={card} />
+                ))}
+              </div>
+            </React.Fragment>
+          ))}
+        </div>
+      </section>
     </div>
-  </section>
-);
+  );
+};
 
 export default Lane;
