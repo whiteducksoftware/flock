@@ -85,6 +85,17 @@ describe('lanesOf', () => {
     });
   });
 
+  it('takes the title from what the run started with while its outputs wait for their edges', () => {
+    // The request came from another run; the writer's output has no edges until its run is done
+    const prepared = [
+      artifact('x0', 'c-9', 'app.Draft', 'external', 500),
+      artifact('a1', 'c-5', 'app.Request', 'prep', 1000, { payload: { title: 'Prepared request' } }),
+      artifact('o1', 'c-5', 'app.Reply', 'writer', 2000),
+    ];
+    const lanes = lanesOf(prepared, [made('x0', 'a1', 'prep')], [{ agent: 'writer', correlationId: 'c-5', artifacts: ['a1'] }]);
+    expect(lanes.find((each) => each.id === 'c-5')).toMatchObject({ title: 'Prepared request', startedAt: 1000 });
+  });
+
   it('marks a run whose decision is unsure and unreviewed, and who answered it meanwhile', () => {
     const review = lane('c-2');
     expect(review).toMatchObject({ needsReview: true, status: { kind: 'review', text: 'needs review · answered by supervisor' } });

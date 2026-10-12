@@ -239,13 +239,16 @@ export function lanesOf(nodes: Node[], edges: Edge[], running: RunningRun[]): La
           .map((node) => dataOf(node).producedBy ?? ''),
       ),
     ];
-    // What the run started with: the shallowest artifact, then the earliest. A wall
-    // clock can step back (a VM's time sync), so a decision may carry an earlier
-    // time than what it decided about
+    // What the run started with: the shallowest artifact as the lane places it (an
+    // output waiting for its edges goes after what its run consumed), then the
+    // earliest. A wall clock can step back (a VM's time sync), so a decision may
+    // carry an earlier time than what it decided about
+    const placedDepth = new Map(placed.map(({ card, depth }) => [card.id, depth]));
     const first =
       [...recorded].sort(
         (a, b) =>
-          (depths.get(a.id) ?? 0) - (depths.get(b.id) ?? 0) || (dataOf(a).timestamp ?? 0) - (dataOf(b).timestamp ?? 0),
+          (placedDepth.get(a.id) ?? 0) - (placedDepth.get(b.id) ?? 0) ||
+          (dataOf(a).timestamp ?? 0) - (dataOf(b).timestamp ?? 0),
       )[0] ?? members[0]!;
     return {
       id,
