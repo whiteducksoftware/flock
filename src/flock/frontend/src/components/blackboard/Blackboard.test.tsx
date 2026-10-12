@@ -452,6 +452,48 @@ describe('Blackboard', () => {
     expect(screen.getByRole('article', { name: '◆ Route by triage' }).closest('[data-glide]')).toBe(slot);
   });
 
+  it('lets a card that arrives in a lane show once its neighbours made room (#652)', () => {
+    const tops = new Map<string, number>([['Run cccc', 0], ['Run bbbb', 100], ['Run aaaa', 200]]);
+    const rect = layOut(tops);
+    const played: { item: string | undefined; frames: Keyframe[] }[] = [];
+    (HTMLElement.prototype as any).animate = vi.fn(function (this: HTMLElement, frames: Keyframe[]) {
+      played.push({ item: this.dataset.glide, frames });
+      return { cancel: vi.fn(), onfinish: null };
+    });
+    const { rerender } = render(<Blackboard />);
+
+    act(() => {
+      useGraphStore.setState({ nodes: [...nodes, artifact('p9', 'aaaa1111-0000', 'app.Page', 'pager', 4600)] });
+    });
+    rerender(<Blackboard />);
+
+    expect(played).toContainEqual({ item: 'p9', frames: [{ opacity: 0 }, { opacity: 0, offset: 0.5 }, { opacity: 1 }] });
+    rect.mockRestore();
+  });
+
+  it('shows a card that takes the place of one that went at once (a placeholder becomes the output) (#652)', () => {
+    const tops = new Map<string, number>([['Run cccc', 0], ['Run bbbb', 100], ['Run aaaa', 200]]);
+    const cards = new Map<string, { x: number; y: number }>([['r1', { x: 520, y: 10 }], ['r9', { x: 520, y: 10 }]]);
+    const rect = layOut(tops, { cards });
+    const played: (string | undefined)[] = [];
+    (HTMLElement.prototype as any).animate = vi.fn(function (this: HTMLElement) {
+      played.push(this.dataset.glide);
+      return { cancel: vi.fn(), onfinish: null };
+    });
+    const { rerender } = render(<Blackboard />);
+
+    act(() => {
+      useGraphStore.setState({
+        nodes: [...nodes.filter((node) => node.id !== 'r1'), artifact('r9', 'aaaa1111-0000', 'app.TeamReply', 'tech_support', 4500)],
+        edges: [made('t1', 'd1', 'triage'), made('d1', 'r9', 'tech_support'), made('t2', 'd2', 'triage')],
+      });
+    });
+    rerender(<Blackboard />);
+
+    expect(played).not.toContain('r9');
+    rect.mockRestore();
+  });
+
   it('measures when a card unfolds though no lane changes its size (#652)', () => {
     const tops = new Map<string, number>([['Run cccc', 0], ['Run bbbb', 100], ['Run aaaa', 200]]);
     const cards = new Map<string, { x: number; y: number }>([['head', { x: 0, y: 40 }]]);

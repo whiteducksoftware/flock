@@ -42,8 +42,9 @@ interface Layout {
  *   glide away, so nothing is drawn over anything (#652).
  * - What changes its place inside a lane (a card, the header, an arrow: the
  *   lane's alignment changes when a card unfolds, a card arrives in a column)
- *   glides there too, and a card that grows (it unfolds) opens from its old
- *   box while its neighbours make room (#652).
+ *   glides there too, a card that grows (it unfolds) opens from its old box
+ *   while its neighbours make room, and one that arrives shows once they
+ *   have (#652).
  *
  * Returns what a scroll calls: it measures again, a scroll moves nothing.
  */
@@ -116,11 +117,19 @@ export function useLaneMotion(lanesRef: RefObject<HTMLDivElement | null>): () =>
         running.current.get(`clip:${id}`)?.cancel();
         running.current.delete(`clip:${id}`);
       }
+      // What went from this lane, and where it was
+      const gone = [...before.inside].filter(([key]) => key.startsWith(`${id}/`) && !now.inside.has(key)).map(([, at]) => at);
       for (const item of slot.querySelectorAll<HTMLElement>('[data-glide]')) {
         const key = `${id}/${item.dataset.glide}`;
         const from = before.inside.get(key);
         const to = now.inside.get(key)!;
-        if (!from) continue;
+        if (!from) {
+          // Arrived in a lane that was there: it shows once its neighbours made room, unless it
+          // takes the place of one that went (a placeholder becomes the output)
+          const replaces = gone.some((at) => Math.abs(at.x - to.x) < 4 && Math.abs(at.y - to.y) < 4);
+          if (!replaces) play(`inside:${key}`, item, [{ opacity: 0 }, { opacity: 0, offset: 0.5 }, { opacity: 1 }]);
+          continue;
+        }
         // A card that grows (it unfolds) opens from its old box, as its neighbours make room;
         // the header and the arrows (taller in a lane with an unfolded card) just move
         const card = item.dataset.glide !== 'head' && !item.dataset.glide!.startsWith('arrow:');
