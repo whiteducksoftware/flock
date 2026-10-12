@@ -116,9 +116,6 @@ function convertTimeRange(range: { preset: string; start?: number; end?: number 
 }
 
 /**
- * Build GraphRequest from current filter state
- */
-/**
  * The types of a streamed artifact: an agent that publishes several streams
  * under all of them ("app.A, app.B"); a comma inside brackets belongs to a
  * generic type's name ("app.Pair[str, int]").
@@ -166,12 +163,20 @@ function previewFilter(): (data: Record<string, any>) => boolean {
     (filters.visibility.length === 0 || filters.visibility.includes(data.visibilityKind ?? 'Public'));
 }
 
-// Counts the snapshot requests: only the newest one's answer is applied
+// Counts the snapshot requests. An answer applies if it is newer than the one
+// applied and was asked for the board's current view and filters: newer requests
+// still loading (live refreshes in a row) do not hold it back, and an answer to
+// filters changed meanwhile, or an older one arriving late, does not replace the board
 let snapshotRequest = 0;
+let appliedRequest = 0;
+const requestKey = (viewMode: 'agent' | 'blackboard'): string => JSON.stringify(buildGraphRequest(viewMode));
+const stillAsked = (mine: number, key: string, viewMode: 'agent' | 'blackboard', current: 'agent' | 'blackboard'): boolean =>
+  mine > appliedRequest && current === viewMode && key === requestKey(viewMode);
 
 /** The board's filters as the Blackboard's snapshot request carries them, to compare with `blackboardFilters`. */
 export const blackboardFilterKey = (): string => JSON.stringify(buildGraphRequest('blackboard').filters);
 
+/** The graph request for a view, from the current filter state. */
 function buildGraphRequest(viewMode: 'agent' | 'blackboard'): GraphRequest {
   const filterState = useFilterStore.getState();
 
@@ -231,6 +236,7 @@ export const useGraphStore = create<GraphState>()(
       generateAgentViewGraph: async () => {
         set({ isLoading: true, error: null, viewMode: 'agent' });
         const mine = ++snapshotRequest;
+        const key = requestKey('agent');
 
         try {
           // Load saved positions from IndexedDB first
@@ -238,8 +244,8 @@ export const useGraphStore = create<GraphState>()(
 
           const request = buildGraphRequest('agent');
           const snapshot: GraphSnapshot = await fetchGraphSnapshot(request);
-          // A newer request (other filters, the other view) answers for the board
-          if (mine !== snapshotRequest) return;
+          if (!stillAsked(mine, key, 'agent', get().viewMode)) return;
+          appliedRequest = mine;
           // The snapshot's countdowns (joins, batches) go on from here, on the monotonic clock
           const snapshotAt = performance.now();
 
@@ -286,6 +292,7 @@ export const useGraphStore = create<GraphState>()(
             }
           }
         } catch (error) {
+          // A newer request reports for the board
           if (mine !== snapshotRequest) return;
           const errorMessage = error instanceof Error ? error.message : 'Failed to fetch graph';
           set({
@@ -299,12 +306,13 @@ export const useGraphStore = create<GraphState>()(
       generateBlackboardViewGraph: async () => {
         set({ isLoading: true, error: null, viewMode: 'blackboard' });
         const mine = ++snapshotRequest;
+        const key = requestKey('blackboard');
 
         try {
           const request = buildGraphRequest('blackboard');
           const snapshot: GraphSnapshot = await fetchGraphSnapshot(request);
-          // A newer request (other filters, the other view) answers for the board
-          if (mine !== snapshotRequest) return;
+          if (!stillAsked(mine, key, 'blackboard', get().viewMode)) return;
+          appliedRequest = mine;
 
           // The lanes place artifacts themselves (no positions); an artifact
           // that still streams is not on the record yet and stays, if the
@@ -345,6 +353,7 @@ export const useGraphStore = create<GraphState>()(
             }
           }
         } catch (error) {
+          // A newer request reports for the board
           if (mine !== snapshotRequest) return;
           const errorMessage = error instanceof Error ? error.message : 'Failed to fetch graph';
           set({

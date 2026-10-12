@@ -47,6 +47,9 @@ const READABLE_ZOOM = 0.6;
 /** At this zoom the first row of runs fills the board's width */
 const FIRST_ROW_ZOOM = 0.75;
 
+/** The board's smallest zoom */
+const MIN_ZOOM = 0.1;
+
 /** Every card's size: measured, else the estimate. */
 const sizesOf = (nodes: ArtifactNode[]) =>
   Object.fromEntries(
@@ -248,16 +251,32 @@ const Canvas: React.FC = () => {
       right: Math.max(...laid.map(rightOf)),
       bottom: Math.max(...laid.map(bottomOf)),
     };
-    if (whole && width > 0 && height > 0) {
-      const zoom = Math.min(1, (width - 2 * EDGE) / (whole.right - whole.left), (height - 2 * EDGE) / (whole.bottom - whole.top));
-      if (zoom >= READABLE_ZOOM) {
-        void setViewport({ x: EDGE - whole.left * zoom, y: EDGE - whole.top * zoom, zoom });
-        return;
-      }
+    const wholeZoom =
+      whole && width > 0 && height > 0
+        ? Math.min(1, (width - 2 * EDGE) / (whole.right - whole.left), (height - 2 * EDGE) / (whole.bottom - whole.top))
+        : null;
+    if (whole && wholeZoom !== null && wholeZoom >= READABLE_ZOOM) {
+      void setViewport({ x: EDGE - whole.left * wholeZoom, y: EDGE - whole.top * wholeZoom, zoom: wholeZoom });
+      return;
     }
     const ids = new Set(newestRow.current);
     const row = laid.filter((node) => ids.has(node.id));
     if (row.length === 0 || width === 0) {
+      // No rows (a grid, a circle, random places): the whole board if it fits at the
+      // smallest zoom, else as much as that shows around the newest card (a circle of
+      // hundreds of cards is empty in its middle, where a fit would look)
+      const newest = laid.reduce<ArtifactNode | null>(
+        (last, node) => (!last || node.data.card.timestamp > last.data.card.timestamp ? node : last),
+        null,
+      );
+      if (newest && wholeZoom !== null && wholeZoom < MIN_ZOOM) {
+        void setCenter(
+          newest.position.x + (newest.measured?.width ?? ESTIMATE.width) / 2,
+          newest.position.y + (newest.measured?.height ?? ESTIMATE.height) / 2,
+          { zoom: MIN_ZOOM },
+        );
+        return;
+      }
       requestAnimationFrame(() => void fitView({ padding: 0.08, maxZoom: 1 }));
       return;
     }
@@ -266,7 +285,7 @@ const Canvas: React.FC = () => {
     const right = Math.max(...row.map((node) => node.position.x + (node.measured?.width ?? ESTIMATE.width)));
     const zoom = Math.min(1, (width - 2 * EDGE) / Math.max(1, right - left));
     void setViewport({ x: EDGE - left * zoom, y: EDGE - top * zoom, zoom });
-  }, [nodes, viewTick, fitView, setViewport]);
+  }, [nodes, viewTick, fitView, setViewport, setCenter]);
 
   // A change of what the board shows (its filters, Needs review only) lays it out
   // afresh and shows its newest row, as a first visit does, once the result is in:
@@ -318,12 +337,20 @@ const Canvas: React.FC = () => {
     setNodes((current) => applyNodeChanges(changes.filter((change) => change.type !== 'remove'), current));
   }, []);
 
+  // A layout chosen in the canvas dock or the palette: the cards move, so the first
+  // view comes again (a grid or a circle centers on the origin, far from the newest row)
   const layout = useCallback(
     (mode: AutoLayoutMode) => {
       useUIStore.getState().setGraphLayout(mode);
-      setNodes((current) => arrange('all', mode, current));
+      forgetDockView();
+      fitted.current = false;
+      setNodes((current) => {
+        const next = arrange('all', mode, current);
+        firstView.current = next;
+        return next;
+      });
     },
-    [arrange],
+    [arrange, forgetDockView],
   );
 
   // The palette's canvas commands on this board
@@ -401,7 +428,7 @@ const Canvas: React.FC = () => {
         nodesConnectable={false}
         // Backspace would remove a card from the view, not from the blackboard
         deleteKeyCode={null}
-        minZoom={0.1}
+        minZoom={MIN_ZOOM}
         style={{ backgroundColor: 'var(--board)' }}
       >
         <Background color="var(--dot)" bgColor="var(--board)" gap={22} size={1.3} />

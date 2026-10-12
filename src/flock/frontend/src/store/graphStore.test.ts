@@ -371,6 +371,23 @@ describe('graphStore - NEW Simplified Architecture', () => {
     const snapshot = (id: string) =>
       ({ nodes: [{ id, type: 'message', data: {}, position: { x: 0, y: 0 } }], edges: [], statistics: null, truncated: false }) as unknown as GraphSnapshot;
 
+    it('apply an answer for the same filters while newer requests still load (live refreshes in a row)', async () => {
+      const answers: ((value: GraphSnapshot) => void)[] = [];
+      vi.mocked(fetchGraphSnapshot).mockImplementation(() => new Promise((resolve) => answers.push(resolve)));
+
+      const first = useGraphStore.getState().generateBlackboardViewGraph();
+      const second = useGraphStore.getState().generateBlackboardViewGraph();
+      answers[0]!(snapshot('first'));
+      await first;
+      // Newer than nothing applied, and asked for the board's filters: it shows
+      expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual(['first']);
+
+      answers[1]!(snapshot('second'));
+      await second;
+      expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual(['second']);
+      expect(useGraphStore.getState().isLoading).toBe(false);
+    });
+
     it('apply only the newest: an older answer arriving last does not replace it', async () => {
       let answerOld: (value: GraphSnapshot) => void = () => {};
       vi.mocked(fetchGraphSnapshot)
