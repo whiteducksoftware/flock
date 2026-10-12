@@ -313,3 +313,4 @@ for name, service, ms, status, error in conn.execute(
 | Extending | [Agent components](docs/guides/components.md), [orchestrator components](docs/guides/orchestrator-components.md), [DSPy engine](docs/guides/dspy-engine.md), [local models](docs/guides/local-models.md), [context providers](docs/guides/context-providers.md) |
 | Operations | [Scheduling](docs/guides/scheduling.md), [persistence](docs/guides/persistent-blackboard.md), [Dapr](docs/guides/dapr-state-store.md), [dashboard](docs/guides/dashboard.md), [tracing](docs/guides/tracing/index.md), [testing](docs/guides/testing.md) |
 | Contributing | [CONTRIBUTING.md](CONTRIBUTING.md), [configuration](docs/reference/configuration.md), [imports](docs/guides/imports.md) |
+| Videos | [Making a Flock video](docs/internal/video/README.md): recording, staging and rendering in any format |
