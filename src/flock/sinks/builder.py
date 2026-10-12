@@ -62,6 +62,35 @@ class SinkBuilder:
         self._tenant = tenant_id
         return self
 
+    def _reads_like(self, producer: Any, visibility: Any) -> SinkBuilder:
+        """A shorthand sink reads what its agent publishes: the readership of
+        that output (its tenant, its labels) and the agent's own, for a
+        visibility only known when the agent publishes."""
+        from flock.core.visibility import (
+            AfterVisibility,
+            LabelledVisibility,
+            PrivateVisibility,
+            TenantVisibility,
+        )
+
+        seen = visibility
+        while isinstance(seen, AfterVisibility):
+            seen = seen.then
+        if isinstance(seen, PrivateVisibility) and self._name not in seen.agents:
+            raise ValueError(
+                f"Sink '{self._name}' cannot read a private output; name it in the "
+                "visibility's agents, or declare the sink with flock.sink(...)."
+            )
+        if isinstance(seen, TenantVisibility):
+            self._tenant = seen.tenant_id
+        elif producer.tenant_id is not None:
+            self._tenant = producer.tenant_id
+        labels = set(producer.labels)
+        if isinstance(seen, LabelledVisibility):
+            labels |= set(seen.required_labels)
+        self._labels = (*self._labels, *sorted(labels))
+        return self
+
     def description(self, text: str) -> SinkBuilder:
         self._description = text
         return self
