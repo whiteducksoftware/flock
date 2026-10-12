@@ -234,3 +234,4 @@ Each entry says what was decided, why, and where it landed.
 - **The settings fields keep global classes** (`settingsFields.css`): the timeline dock's tracing settings use them too.
 - **Space, Enter and Ctrl+Shift+D act only on an agent on the Flow's board** (review): on the Blackboard an agent unfolded before could still be their target; Enter then closed the timeline dock for a focus stage the Blackboard does not show, and Space was taken from the lanes.
 - **The shortcuts' list is a tab stop** (review): on a short screen it scrolls, so Tab goes round the close button and the list.
+- **The Flow's layouts measure an agent's card, also while it shows as a chip** (review): node and rank spacing changed with the timeline dock expanded laid the board out from chip sizes, and the cards overlapped once the dock closed; the same held for any layout run while zoomed out. The layout takes the card size each agent records (`cardSizes`).

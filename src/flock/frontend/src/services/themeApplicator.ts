@@ -240,7 +240,9 @@ export function appliedTheme(root: HTMLElement = document.documentElement): Appl
 export function restoreTheme(applied: AppliedTheme, root: HTMLElement = document.documentElement): void {
   claim();
   clearOverrides(root);
+  // No base yet (a stored theme still loading at startup) is the default appearance
   if (applied.base) root.dataset.theme = applied.base;
+  else delete root.dataset.theme;
   for (const [token, value] of Object.entries(applied.tokens)) root.style.setProperty(token, value);
 }
 

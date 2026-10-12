@@ -38,6 +38,7 @@ import {
 } from './autoLayoutTrigger';
 import { MOVE_MS, motionMs } from './animatePositions';
 import { SETTLE_MS, registerCanvas, whenOnBoard } from './canvasCommands';
+import { cardSizes } from './cardSizes';
 import { fromControl } from './nodeClick';
 import { useUnfoldLayout } from './useUnfoldLayout';
 
@@ -152,8 +153,11 @@ const GraphCanvas: React.FC = () => {
         return;
       }
 
-      const width = element.offsetWidth;
-      const height = element.offsetHeight;
+      // An agent's card, also while it shows as a chip (the dock expanded, zoomed out):
+      // a layout from chip sizes overlaps once the cards are back
+      const card = cardSizes.get(nodeId);
+      const width = card?.width ?? element.offsetWidth;
+      const height = card?.height ?? element.offsetHeight;
       if (width > 0 && height > 0) {
         dimensionsByNodeId[nodeId] = { width, height };
       }
