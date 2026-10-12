@@ -159,7 +159,8 @@ async def test_a_retried_move_is_played_once(snake, monkeypatch):
     await snake.move(envelope)  # the sink retries after a failed answer
 
     assert snake.games[game].step == 1
-    assert published == [0, 1, 1]  # the start, the step, the same step again
+    # The start and the step; Flock has that step, so the retry publishes nothing
+    assert published == [0, 1]
 
 
 async def test_quick_draw_answers_strokes_drawn_ahead_in_order(quick_draw, monkeypatch):
@@ -277,3 +278,216 @@ async def test_an_overlapping_retry_shows_a_guess_once(quick_draw, monkeypatch):
     await asyncio.gather(quick_draw.guess(envelope), quick_draw.guess(envelope))
 
     assert len(pushed) == 1
+
+
+async def test_a_paused_game_holds_its_next_step_until_it_resumes(snake, monkeypatch):
+    published: list[int] = []
+
+    async def publish(game):
+        published.append(game.step)
+
+    monkeypatch.setattr(snake, "publish", publish)
+    game = (await snake.new_game())["game"]
+    await snake.pause(game)
+
+    # The decision in flight still moves the snake, the next step waits
+    await snake.move({
+        "id": "decision-1",
+        "correlation_id": game,
+        "payload": {"choice": "up", "best_guess": None, "probabilities": {"up": 0.9}},
+    })
+    assert published == [0]
+
+    await snake.resume(game)
+    assert published == [0, 1]
+
+
+async def test_the_game_publishes_where_the_page_points_it(snake):
+    from fastapi import HTTPException
+
+    with respx.mock() as router:
+        route = router.post("http://127.0.0.1:9100/api/v1/artifacts").mock(
+            return_value=httpx.Response(200, json={"status": "accepted"})
+        )
+        await snake.set_settings(snake.Settings(flock_url=" http://127.0.0.1:9100/ "))
+        await snake.new_game()
+
+    assert route.call_count == 1
+    with pytest.raises(HTTPException):
+        await snake.set_settings(snake.Settings(flock_url="localhost:9100"))
+
+
+async def test_a_resume_that_cannot_reach_flock_keeps_its_step(snake, monkeypatch):
+    from fastapi import HTTPException
+
+    published: list[int] = []
+    down = True
+
+    async def publish(game):
+        if down:
+            raise httpx.ConnectError("Flock is down")
+        published.append(game.step)
+
+    async def start_up(game):
+        published.append(game.step)
+
+    monkeypatch.setattr(snake, "publish", start_up)
+    game = (await snake.new_game())["game"]
+    await snake.pause(game)
+    await snake.move({
+        "id": "decision-1",
+        "correlation_id": game,
+        "payload": {"choice": "up", "best_guess": None, "probabilities": {"up": 0.9}},
+    })
+    monkeypatch.setattr(snake, "publish", publish)
+
+    with pytest.raises(HTTPException):
+        await snake.resume(game)
+    assert snake.games[game].paused  # paused again, its step still waiting
+
+    down = False
+    await snake.resume(game)
+    assert published == [0, 1]
+
+
+async def test_a_start_that_cannot_reach_flock_tells_the_page(snake, monkeypatch):
+    from fastapi import HTTPException
+
+    pushed: list[dict] = []
+    snake.listeners.append(_Recorder(pushed))
+
+    async def publish(game):
+        raise httpx.ConnectError("Flock is down")
+
+    monkeypatch.setattr(snake, "publish", publish)
+    with pytest.raises(HTTPException):
+        await snake.new_game()
+
+    assert pushed[-1]["alive"] is False
+    assert "not reachable" in pushed[-1]["error"]
+
+
+async def test_overlapping_resumes_publish_a_step_once(snake, monkeypatch):
+    import asyncio
+
+    published: list[int] = []
+
+    async def publish(game):
+        await asyncio.sleep(0.02)
+        published.append(game.step)
+
+    monkeypatch.setattr(snake, "publish", publish)
+    game = (await snake.new_game())["game"]
+    await snake.pause(game)
+    await snake.move({
+        "id": "decision-1",
+        "correlation_id": game,
+        "payload": {"choice": "up", "best_guess": None, "probabilities": {"up": 0.9}},
+    })
+
+    first = asyncio.create_task(snake.resume(game))
+    await asyncio.sleep(0)
+    await snake.pause(game)
+    await asyncio.gather(first, snake.resume(game))
+
+    assert published == [0, 1]
+
+
+@pytest.mark.parametrize(
+    ("snake_cells", "heading", "food", "move", "ended"),
+    [
+        ([(9, 5), (8, 5), (7, 5)], "east", (0, 0), "up", "wall"),
+        ([(5, 5), (5, 4), (6, 4), (6, 5), (6, 6)], "south", (0, 0), "left", "body"),
+    ],
+)
+def test_a_game_says_why_it_ended(snake, snake_cells, heading, food, move, ended):
+    game = snake.Game()
+    game.snake, game.heading, game.food = snake_cells, heading, food
+
+    game.apply(move)
+
+    assert not game.alive
+    assert game.ended == ended
+    assert snake.view(game)["ended"] == ended
+
+
+def test_a_snake_that_only_circles_starves(snake, monkeypatch):
+    monkeypatch.setattr(snake, "MAX_HUNGRY", 3)
+    game = snake.Game()
+    game.food = (0, 0)
+
+    for move in ("right", "right", "right", "right"):
+        game.apply(move)
+
+    assert game.ended == "starved"
+
+
+async def test_a_move_that_lands_before_flock_answers_still_gets_its_step(
+    snake, monkeypatch
+):
+    """The decision for step 1 comes back (its own request) while its publication
+    still waits for Flock's answer: step 2 is published next, not dropped."""
+    import asyncio
+
+    published: list[int] = []
+    landed: list[asyncio.Task] = []
+    game_id = None
+
+    async def publish(game):
+        published.append(game.step)
+        if game.step == 1:  # Flock decides before it answers the publish
+            landed.append(
+                asyncio.create_task(
+                    snake.move({
+                        "id": "decision-2",
+                        "correlation_id": game_id,
+                        "payload": {
+                            "choice": "up",
+                            "best_guess": None,
+                            "probabilities": {"up": 0.9},
+                        },
+                    })
+                )
+            )
+            await asyncio.sleep(0.01)
+
+    monkeypatch.setattr(snake, "publish", publish)
+    game_id = (await snake.new_game())["game"]
+    await snake.pause(game_id)
+    await snake.move({
+        "id": "decision-1",
+        "correlation_id": game_id,
+        "payload": {"choice": "up", "best_guess": None, "probabilities": {"up": 0.9}},
+    })
+
+    await snake.resume(game_id)
+    await asyncio.gather(*landed)
+
+    assert published == [0, 1, 2]
+
+
+async def test_a_pause_while_a_step_waits_for_the_lock_holds_it(snake, monkeypatch):
+    import asyncio
+
+    published: list[int] = []
+
+    async def publish(game):
+        published.append(game.step)
+        await asyncio.sleep(0.02)
+
+    monkeypatch.setattr(snake, "publish", publish)
+    game_id = (await snake.new_game())["game"]
+    game = snake.games[game_id]
+    # Step 1 is being published when step 2 becomes ready, then the user pauses
+    game.step = 1
+    first = asyncio.create_task(snake.advance(game))
+    await asyncio.sleep(0)
+    game.step = 2
+    queued = asyncio.create_task(snake.advance(game))
+    await asyncio.sleep(0)
+    await snake.pause(game_id)
+    await asyncio.gather(first, queued)
+
+    assert published == [0, 1]
+    await snake.resume(game_id)
+    assert published == [0, 1, 2]
