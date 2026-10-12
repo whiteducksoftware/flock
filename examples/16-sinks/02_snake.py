@@ -372,7 +372,10 @@ PAGE = """<!doctype html>
   .overlay .why { color: #b0b6bf; }
   .overlay .score { font-family: monospace; font-size: 18px; }
   .side { display: flex; flex-direction: column; gap: 14px; min-width: 260px; }
-  .bar { display: grid; grid-template-columns: 56px 1fr 44px; gap: 10px; align-items: center; font-family: monospace; }
+  /* Room for the three bars and the status line from the start: the buttons below keep their place */
+  #bars { min-height: calc(3 * 1.3em); }
+  .bar { display: grid; grid-template-columns: 56px 1fr 44px; gap: 10px; align-items: center; font-family: monospace; height: 1.3em; }
+  #status { min-height: 1.4em; }
   .track { height: 8px; background: #23262b; border-radius: 4px; overflow: hidden; }
   .fill { height: 100%; background: #7ba8f5; }
   .chosen { color: #9dbef8; }

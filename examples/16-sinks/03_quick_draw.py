@@ -214,7 +214,10 @@ PAGE = """<!doctype html>
   body { font: 15px system-ui, sans-serif; background: #0e0f11; color: #eceef1; display: flex; gap: 28px; padding: 28px; }
   canvas { background: #fff; border-radius: 10px; cursor: crosshair; touch-action: none; }
   .side { display: flex; flex-direction: column; gap: 12px; min-width: 300px; }
-  .bar { display: grid; grid-template-columns: 130px 1fr 44px; gap: 10px; align-items: center; font-family: monospace; }
+  /* Room for the five bars and the status line from the start: the button below keeps its place */
+  #bars { min-height: calc(5 * 1.3em); }
+  .bar { display: grid; grid-template-columns: 130px 1fr 44px; gap: 10px; align-items: center; font-family: monospace; height: 1.3em; }
+  #status { min-height: 1.6em; white-space: nowrap; }
   .track { height: 8px; background: #23262b; border-radius: 4px; overflow: hidden; }
   .fill { display: block; height: 100%; background: #7ba8f5; }
   .got { color: #9dbef8; font-size: 18px; }
