@@ -347,11 +347,11 @@ The blackboard is in memory by default. Two persistent stores come with Flock:
 `await flock.serve(dashboard=True)` starts the REST API and the dashboard on port 8344.
 
 <p align="center">
-  <img alt="Dashboard: agent view" src="docs/assets/images/flock_ui_agent_view.png" width="900">
+  <img alt="Dashboard: the Flow, agents as cards with what went along the edges" src="docs/assets/images/flock_ui_agent_view.png" width="900">
 </p>
 
 - **Dashboard:**
-  - an agent view and a blackboard view with live updates over WebSocket;
+  - the Flow (the agents and what went between them) and the Blackboard (each run as a lane, or as a graph), live over WebSocket;
   - five auto-layouts;
   - filters by correlation id and time;
   - publish artifacts and run agents from the browser.

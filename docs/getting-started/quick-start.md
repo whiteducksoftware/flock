@@ -219,14 +219,14 @@ async def main():
 - Live streaming LLM output
 
 <p align="center">
-  <img alt="Flock Dashboard" src="../img/flock_ui_agent_view.png" width="800">
-  <i>Agent View: See communication patterns in real-time</i>
+  <img alt="Flock Dashboard" src="../assets/images/flock_ui_agent_view.png" width="800">
+  <i>The Flow: see communication patterns in real time</i>
 </p>
 
 **Keyboard shortcuts:**
-- `Ctrl+M` - Toggle Agent View ↔ Blackboard View
-- `Ctrl+F` - Focus filter search
-- `Ctrl+P` - Publish artifact from UI
+- `Ctrl+M` - Switch between Flow and Blackboard
+- `Ctrl+K` - Search agents, types and runs, or run a command
+- `Ctrl+Shift+P` - Publish an artifact from the UI
 
 [**👉 Full dashboard guide**](../guides/dashboard.md)
 
