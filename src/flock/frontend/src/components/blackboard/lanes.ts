@@ -243,18 +243,25 @@ export function lanesOf(nodes: Node[], edges: Edge[], running: RunningRun[]): La
     // the earliest of them. A wall clock can step back (a VM's time sync), so a
     // decision may carry an earlier time than what it decided about. An agent still
     // running on this run's artifacts has no edges yet: what it published meanwhile
-    // is not a start, unless it led to what that run consumes (a feedback loop)
+    // is not a start, unless it led to what that same run consumes (a feedback loop)
     const inRun = new Set(members.map((node) => node.id));
-    const ledToRuns = new Set<string>();
-    const visit = (id: string) => {
-      if (ledToRuns.has(id)) return;
-      ledToRuns.add(id);
-      for (const source of inputs.get(id) ?? []) if (inRun.has(source)) visit(source);
+    const ledTo = (run: RunningRun): Set<string> => {
+      const found = new Set<string>();
+      const visit = (id: string) => {
+        if (found.has(id) || !inRun.has(id)) return;
+        found.add(id);
+        for (const source of inputs.get(id) ?? []) visit(source);
+      };
+      for (const id of run.artifacts) visit(id);
+      return found;
     };
-    for (const run of runs) for (const id of run.artifacts) if (inRun.has(id)) visit(id);
     const awaitingEdges = (node: Node) =>
-      !ledToRuns.has(node.id) &&
-      runs.some((run) => run.agent === dataOf(node).producedBy && run.artifacts.some((id) => inRun.has(id)));
+      runs.some(
+        (run) =>
+          run.agent === dataOf(node).producedBy &&
+          run.artifacts.some((id) => inRun.has(id)) &&
+          !ledTo(run).has(node.id),
+      );
     const startedWith = recorded.filter(
       (node) => !(inputs.get(node.id) ?? []).some((source) => inRun.has(source)) && !awaitingEdges(node),
     );

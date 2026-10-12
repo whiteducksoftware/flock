@@ -105,6 +105,18 @@ describe('lanesOf', () => {
     expect(lanes.find((each) => each.id === 'c-7')).toMatchObject({ title: 'Prepared request', startedAt: 1000 });
   });
 
+  it('keeps the title while another agent already consumes an output that waits for its edges', () => {
+    const overlapping = [
+      artifact('r3', 'c-8', 'app.Request', 'external', 1000, { payload: { title: 'Prepared request' } }),
+      artifact('p3', 'c-8', 'app.Reply', 'writer', 900, { payload: { reply: 'Draft' } }),
+    ];
+    const running = [
+      { agent: 'writer', correlationId: 'c-8', artifacts: ['r3'] },
+      { agent: 'reviewer', correlationId: 'c-8', artifacts: ['p3'] },
+    ];
+    expect(lanesOf(overlapping, [], running).find((each) => each.id === 'c-8')).toMatchObject({ title: 'Prepared request', startedAt: 1000 });
+  });
+
   it('keeps the title while the agent that wrote the first artifact runs again', () => {
     // A feedback loop: the writer runs again on the reviewer's feedback
     const loop = [
