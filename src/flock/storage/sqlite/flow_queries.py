@@ -7,6 +7,8 @@ count matches what :class:`~flock.storage.flow.FlowCounts` counts in memory.
 
 from __future__ import annotations
 
+import json
+from collections.abc import Collection, Mapping
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
@@ -40,6 +42,7 @@ class SQLiteFlowQueries:
         conn: aiosqlite.Connection,
         where_clause: str,
         params: tuple[Any, ...],
+        running: Mapping[str, Collection[str]],
     ) -> FlowCounts:
         from flock.decisions.graph import decision_label
 
@@ -56,19 +59,54 @@ class SQLiteFlowQueries:
         decisions = sorted(t for t in types if flow.kind(t) == "decision")
         coverages = sorted(t for t in types if flow.kind(t) == "coverage")
 
-        # Each artifact once per consumer; a decision's edge by its option
+        # Each artifact once per consumer, recorded or still running, in one
+        # statement (a run that ends meanwhile counts once); a decision's
+        # edge by its option
         is_decision = f"a.type IN ({_marks(decisions)})" if decisions else "0"
-        rows = await self._rows(
-            conn,
-            "SELECT a.produced_by, c.consumer, a.type,"  # nosec B608
-            f" CASE WHEN {is_decision} THEN json_extract(a.payload, '$.choice') END,"
-            f" CASE WHEN {is_decision} THEN json_extract(a.payload, '$.kind') END,"
-            f" CASE WHEN {is_decision} THEN json_extract(a.payload, '$.question') END,"
-            " COUNT(DISTINCT a.artifact_id), MAX(a.created_at)"
+        columns = (
+            "a.produced_by AS p, {consumer} AS c, a.type AS t,"
+            f" CASE WHEN {is_decision} THEN json_extract(a.payload, '$.choice') END AS choice,"
+            f" CASE WHEN {is_decision} THEN json_extract(a.payload, '$.kind') END AS kind,"
+            f" CASE WHEN {is_decision} THEN json_extract(a.payload, '$.question') END AS question,"
+            " a.artifact_id AS id, a.created_at AS at"
+        )
+        query = (
+            f"SELECT {columns.format(consumer='c.consumer')}"  # nosec B608
             " FROM artifacts a"
             " JOIN artifact_consumptions c ON c.artifact_id = a.artifact_id"
-            f"{where_clause} GROUP BY 1, 2, 3, 4, 5, 6",
-            (*decisions, *decisions, *decisions, *params),
+            f"{where_clause}"
+        )
+        query_params: tuple[Any, ...] = (*decisions, *decisions, *decisions, *params)
+        if running:
+            unrecorded = (
+                "NOT EXISTS (SELECT 1 FROM artifact_consumptions k"
+                " WHERE k.artifact_id = r.artifact_id AND k.consumer = r.consumer)"
+            )
+            query += (
+                f" UNION ALL SELECT {columns.format(consumer='r.consumer')}"  # nosec B608
+                " FROM (SELECT json_extract(value, '$[0]') AS artifact_id,"
+                " json_extract(value, '$[1]') AS consumer FROM json_each(?)) r"
+                " JOIN artifacts a ON a.artifact_id = r.artifact_id"
+                f"{_and(where_clause, unrecorded)}"
+            )
+            pairs = [
+                [artifact_id, consumer]
+                for artifact_id, consumers in running.items()
+                for consumer in consumers
+            ]
+            query_params += (
+                *decisions,
+                *decisions,
+                *decisions,
+                json.dumps(pairs),
+                *params,
+            )
+        rows = await self._rows(
+            conn,
+            "SELECT p, c, t, choice, kind, question, COUNT(DISTINCT id), MAX(at)"  # nosec B608
+            f" FROM ({query}) AS flow"
+            " GROUP BY 1, 2, 3, 4, 5, 6",
+            query_params,
         )
         for (
             producer,

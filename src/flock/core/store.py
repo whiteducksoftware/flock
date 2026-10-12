@@ -12,7 +12,7 @@ import asyncio
 import json
 from asyncio import Lock
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Collection, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -207,18 +207,25 @@ class BlackboardStore:
         """Return aggregate artifact statistics for the given filters."""
         raise NotImplementedError
 
-    async def flow_counts(self, filters: FilterConfig | None = None) -> FlowCounts:
+    async def flow_counts(
+        self,
+        filters: FilterConfig | None = None,
+        running: Mapping[str, Collection[str]] | None = None,
+    ) -> FlowCounts:
         """What flowed where in the filter range: artifacts per producer and
         type, consumptions per producer, consumer and type, decision tallies,
         unsure decisions, reviews and coverage groups (the dashboard's Agent
-        View, #640). Counts in one pass over the range; stores that can count
-        in their query language override it."""
+        View, #640). ``running`` maps artifact IDs to consumers that may not
+        be recorded yet (runs record what they consumed when they end); each
+        consumer of an artifact counts once, recorded or not, in the same
+        read. Counts in one pass over the range; stores that can count in
+        their query language override it."""
         from flock.storage.flow import count_flow
 
         envelopes, _ = await self.fetch_graph_artifacts(
             filters or FilterConfig(), limit=0
         )
-        return count_flow(envelopes)
+        return count_flow(envelopes, running)
 
     async def artifact_histogram(
         self, filters: FilterConfig, *, buckets: int
@@ -331,7 +338,11 @@ class InMemoryBlackboardStore(BlackboardStore):
             for record in records:
                 self._consumptions_by_artifact[record.artifact_id].append(record)
 
-    async def flow_counts(self, filters: FilterConfig | None = None) -> FlowCounts:
+    async def flow_counts(
+        self,
+        filters: FilterConfig | None = None,
+        running: Mapping[str, Collection[str]] | None = None,
+    ) -> FlowCounts:
         """What flowed where in the filter range, in one pass: counting needs
         no order."""
         from flock.storage.flow import FlowCounts
@@ -344,9 +355,10 @@ class InMemoryBlackboardStore(BlackboardStore):
         for artifact in artifacts:
             if artifact_filter.matches(artifact):
                 records = self._consumptions_by_artifact.get(artifact.id, ())
-                flow.add(
-                    artifact, {record.consumer for record in records} if records else ()
-                )
+                consumers = {record.consumer for record in records}
+                if running:
+                    consumers.update(running.get(str(artifact.id), ()))
+                flow.add(artifact, consumers)
         return flow
 
     async def query_artifacts(
@@ -890,7 +902,9 @@ class SQLiteBlackboardStore(BlackboardStore):
         }
 
     async def flow_counts(  # type: ignore[override]
-        self, filters: FilterConfig | None = None
+        self,
+        filters: FilterConfig | None = None,
+        running: Mapping[str, Collection[str]] | None = None,
     ) -> FlowCounts:
         """What flowed where in the filter range, counted in SQL."""
         with tracer.start_as_current_span("sqlite_store.flow_counts"):
@@ -898,7 +912,9 @@ class SQLiteBlackboardStore(BlackboardStore):
             where_clause, params = self._build_filters(
                 filters or FilterConfig(), table_alias="a"
             )
-            return await self._flow_queries.count(conn, where_clause, tuple(params))
+            return await self._flow_queries.count(
+                conn, where_clause, tuple(params), running or {}
+            )
 
     async def agent_history_summary(
         self,

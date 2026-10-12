@@ -85,13 +85,16 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         limit = max(1, request.options.limit if request.options else 500)
 
         # The Agent View counts the whole range, not only the newest artifacts
-        # (#640). Counted before those are read: what is published or consumed
-        # in between counts at the next refresh, never twice
-        flow = (
-            await self._store.flow_counts(filter_config)
-            if request.view_mode == "agent"
-            else None
-        )
+        # (#640), and what running agents consume with what is recorded, in
+        # one read: a run that ends meanwhile counts once. What is published
+        # after it counts at the next refresh
+        flow = None
+        graph_state: GraphState | None = None
+        if request.view_mode == "agent":
+            graph_state = await self._collector.snapshot_graph_state()
+            flow = await self._store.flow_counts(
+                filter_config, self._unrecorded_consumptions(graph_state)
+            )
         envelopes, total_available = await self._store.fetch_graph_artifacts(
             filter_config,
             limit=limit,
@@ -109,14 +112,14 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             )
             envelopes = envelopes[-limit:]
 
-        graph_state: GraphState = await self._collector.snapshot_graph_state()
+        if graph_state is None:
+            graph_state = await self._collector.snapshot_graph_state()
         agent_snapshots = await self._collector.snapshot_agent_registry()
         artifacts = self._convert_envelopes_to_artifacts(
             envelopes, graph_state.consumptions
         )
 
         if flow is not None:
-            self._count_running_consumptions(flow, envelopes, graph_state.consumptions)
             produced_metrics, consumed_metrics = self._flow_metrics(flow)
         else:
             produced_metrics, consumed_metrics = self._calculate_agent_metrics(
@@ -230,30 +233,21 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         )
 
     @staticmethod
-    def _count_running_consumptions(
-        flow: FlowCounts,
-        envelopes: Sequence[StoreArtifactEnvelope],
-        runtime_consumptions: Mapping[str, Sequence[str]],
-    ) -> None:
-        """Count what running agents consume: the store records a run's
-        consumptions when it ends, the collector when it starts. Of the
-        artifacts in view (a run consumes the newest), each pair once."""
-        for envelope in envelopes:
-            artifact = envelope.artifact
-            stored = {record.consumer for record in envelope.consumptions}
-            running = set(runtime_consumptions.get(str(artifact.id), ())) - stored
-            if not running:
-                continue
-            producer = artifact.produced_by or "external"
-            label = (
-                decision_label(artifact.payload)
-                if flow.kind(artifact.type) == "decision"
-                else None
-            )
-            for consumer in sorted(running):
-                flow.consume(
-                    producer, consumer, artifact.type, label, artifact.created_at
-                )
+    def _unrecorded_consumptions(graph_state: GraphState) -> dict[str, set[str]]:
+        """Artifact ID -> agents whose runs consumed it and may not be recorded
+        yet: a run's consumptions are recorded after it ended and published,
+        so those of running runs and of runs that ended within the margin."""
+        since = datetime.now(UTC) - _CLOCK_MARGIN
+        unrecorded: dict[str, set[str]] = defaultdict(set)
+        for run in graph_state.runs:
+            if (
+                run.status == "active"
+                or not run.completed_at
+                or run.completed_at >= since
+            ):
+                for artifact_id in run.consumed_artifacts:
+                    unrecorded[artifact_id].add(run.agent_name)
+        return unrecorded
 
     def _convert_envelopes_to_artifacts(
         self,

@@ -352,26 +352,50 @@ async def test_a_group_counts_with_its_newest_revision_outside_the_filter(played
     }
 
 
-async def test_what_running_agents_consume_counts_once():
-    flock = Flock()
+async def _reading(kind: str, tmp_path) -> tuple[Flock, Any, DashboardEventCollector]:
+    """A flock whose reader runs only on paper: the collector hears of its
+    runs, nothing schedules them."""
+    store = (
+        SQLiteBlackboardStore(str(tmp_path / "runs.db")) if kind == "sqlite" else None
+    )
+    flock = Flock(**({"store": store} if store else {}))
     reader = flock.agent("reader").consumes(CountTicket)._agent
-    collector = DashboardEventCollector(store=flock.store)
-    done = await flock.publish(CountTicket(org="acme", text="done"))
-    running = await flock.publish(CountTicket(org="acme", text="running"))
+    return flock, reader, DashboardEventCollector(store=flock.store)
+
+
+async def _ticket_on_board(flock: Flock, text: str) -> Artifact:
+    ticket = Artifact(
+        type=type_registry.name_for(CountTicket),
+        payload={"org": "acme", "text": text},
+        produced_by="external",
+    )
+    await flock.store.publish(ticket)  # published, not scheduled
+    return ticket
+
+
+async def _starts(collector, flock, reader, run_id: str, artifact: Artifact) -> None:
+    ctx = Context(
+        board=flock.store,
+        orchestrator=flock,
+        task_id=run_id,
+        state={"artifacts_produced": [], "metrics": {}},
+        correlation_id=str(artifact.correlation_id),
+    )
+    await collector.on_pre_consume(reader, ctx, [artifact])
+
+
+@pytest.mark.parametrize("kind", ["memory", "sqlite"])
+async def test_what_running_agents_consume_counts_once(kind, tmp_path):
+    flock, reader, collector = await _reading(kind, tmp_path)
+    done = await _ticket_on_board(flock, "done")
+    running = await _ticket_on_board(flock, "running")
     # A run that ended: the store and the collector know; one that runs: only
     # the collector, until it ends
     await flock.store.record_consumptions([
         ConsumptionRecord(artifact_id=done.id, consumer="reader", run_id="r1")
     ])
-    for run_id, artifact in (("r1", done), ("r2", running)):
-        ctx = Context(
-            board=flock.store,
-            orchestrator=flock,
-            task_id=run_id,
-            state={"artifacts_produced": [], "metrics": {}},
-            correlation_id=str(artifact.correlation_id),
-        )
-        await collector.on_pre_consume(reader, ctx, [artifact])
+    await _starts(collector, flock, reader, "r1", done)
+    await _starts(collector, flock, reader, "r2", running)
 
     counts = _counts(await _agent_view(flock, limit=5, collector=collector))
 
@@ -380,3 +404,57 @@ async def test_what_running_agents_consume_counts_once():
     assert counts["edges"] == {
         f"external__reader__{ticket_type}": (f"{ticket_type} (2)", 2)
     }
+    if kind == "sqlite":
+        await flock.store.close()
+
+
+@pytest.mark.parametrize("kind", ["memory", "sqlite"])
+async def test_a_run_that_ends_while_the_board_is_read_still_counts(
+    kind, tmp_path, monkeypatch
+):
+    flock, reader, collector = await _reading(kind, tmp_path)
+    ticket = await _ticket_on_board(flock, "running")
+    await _starts(collector, flock, reader, "r1", ticket)
+    counted = flock.store.flow_counts
+
+    async def ends_meanwhile(*args, **kwargs):
+        flow = await counted(*args, **kwargs)
+        # The run ends and the store records it, before the newest are read
+        await flock.store.record_consumptions([
+            ConsumptionRecord(artifact_id=ticket.id, consumer="reader", run_id="r1")
+        ])
+        return flow
+
+    monkeypatch.setattr(flock.store, "flow_counts", ends_meanwhile)
+    counts = _counts(await _agent_view(flock, limit=5, collector=collector))
+
+    ticket_type = type_registry.name_for(CountTicket)
+    assert counts["cards"]["reader"]["received"] == (1, {ticket_type: 1})
+    if kind == "sqlite":
+        await flock.store.close()
+
+
+@pytest.mark.parametrize("kind", ["memory", "sqlite"])
+async def test_a_run_that_ended_before_it_is_recorded_still_counts(kind, tmp_path):
+    flock, reader, collector = await _reading(kind, tmp_path)
+    ticket = await _ticket_on_board(flock, "ended")
+    await _starts(collector, flock, reader, "r1", ticket)
+    # The collector hears the run end; the orchestrator records what it
+    # consumed only after publishing its outputs
+    await collector.on_terminate(
+        reader,
+        Context(
+            board=flock.store,
+            orchestrator=flock,
+            task_id="r1",
+            state={"artifacts_produced": [], "metrics": {}},
+            correlation_id=str(ticket.correlation_id),
+        ),
+    )
+
+    counts = _counts(await _agent_view(flock, limit=5, collector=collector))
+
+    ticket_type = type_registry.name_for(CountTicket)
+    assert counts["cards"]["reader"]["received"] == (1, {ticket_type: 1})
+    if kind == "sqlite":
+        await flock.store.close()

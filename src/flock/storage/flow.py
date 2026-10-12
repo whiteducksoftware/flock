@@ -10,7 +10,7 @@ range, the SQLite store in SQL; both fill a :class:`FlowCounts`.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Collection, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
@@ -163,11 +163,20 @@ class FlowCounts:
             self.cover(producer, type_name, artifact.payload, artifact.created_at)
 
 
-def count_flow(envelopes: Iterable[ArtifactEnvelope]) -> FlowCounts:
-    """The counts of ``envelopes``, in any order, with their consumptions."""
+def count_flow(
+    envelopes: Iterable[ArtifactEnvelope],
+    running: Mapping[str, Collection[str]] | None = None,
+) -> FlowCounts:
+    """The counts of ``envelopes``, in any order, with their consumptions and
+    those in ``running`` (artifact ID -> consumers the store may not have
+    recorded yet), each consumer of an artifact once."""
+    running = running or {}
     flow = FlowCounts()
     for envelope in envelopes:
-        flow.add(envelope.artifact, {r.consumer for r in envelope.consumptions})
+        artifact = envelope.artifact
+        consumers = {r.consumer for r in envelope.consumptions}
+        consumers.update(running.get(str(artifact.id), ()))
+        flow.add(artifact, consumers)
     return flow
 
 
