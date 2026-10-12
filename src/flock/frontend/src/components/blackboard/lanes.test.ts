@@ -289,6 +289,17 @@ describe('lanesOf', () => {
     expect(ids(lanesOf(board, branches, runs)[0]!)).toEqual([['t8'], ['a8', 'pending:triage'], ['b8', 's8'], ['pending:archiver']]);
   });
 
+  it('places runs that wait for each other in a chain in their order (#642)', () => {
+    // A, B and C ran one after another before the next snapshot: none of their outputs is on the board
+    const board = [artifact('t9', 'c-9', 'app.SupportTicket', 'external', 9900)];
+    const runs = [
+      { agent: 'a', correlationId: 'c-9', artifacts: ['t9'], types: ['app.SupportTicket'], produces: ['app.A'] },
+      { agent: 'b', correlationId: 'c-9', artifacts: ['a9'], types: ['app.A'], produces: ['app.B'] },
+      { agent: 'c', correlationId: 'c-9', artifacts: ['b9'], types: ['app.B'], produces: ['app.C'] },
+    ];
+    expect(ids(lanesOf(board, [], runs)[0]!)).toEqual([['t9'], ['pending:a'], ['pending:b'], ['pending:c']]);
+  });
+
   it('names several running agents at once', () => {
     const both = [...running, { agent: 'urgency', correlationId: 'c-3', artifacts: ['t3'] }];
     expect(lanesOf(nodes, edges, both).find((each) => each.id === 'c-3')!.status.text).toBe('triage and 1 more are working');

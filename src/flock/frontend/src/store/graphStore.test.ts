@@ -237,6 +237,14 @@ describe('graphStore - NEW Simplified Architecture', () => {
       expect(useGraphStore.getState().settling.size).toBe(0);
     });
 
+    it('does not keep a run whose output a snapshot already drew', () => {
+      useGraphStore.getState().setInFlight('r1', 'triage', ['app.Ticket'], ['t1'], 'c-1');
+      // The snapshot came before the completion event: the decision and its edge are there
+      useGraphStore.setState({ nodes: [ticket as any, decided as any], edges: [{ id: 't1__d1', source: 't1', target: 'd1' } as any] });
+      useGraphStore.getState().endRun('r1', ['d1']);
+      expect(useGraphStore.getState().settling.has('r1')).toBe(false);
+    });
+
     it('does not keep a run that published nothing', () => {
       useGraphStore.getState().setInFlight('r1', 'triage', ['app.Ticket'], ['t1'], 'c-1');
       useGraphStore.getState().endRun('r1', []);

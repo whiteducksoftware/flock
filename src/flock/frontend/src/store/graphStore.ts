@@ -461,9 +461,14 @@ export const useGraphStore = create<GraphState>()(
       },
 
       endRun: (runId, published) => {
-        const ended = get().inFlight.get(runId);
-        // A run that ended settles until the board shows what it published
-        const settles = ended !== undefined && (published === undefined || published.length > 0);
+        const { inFlight: running, nodes, edges } = get();
+        const ended = running.get(runId);
+        // A run that ended settles until the board shows what it published,
+        // unless a snapshot already drew all of it (with the edges that place it)
+        const drawn = (id: string) =>
+          nodes.some((node) => node.id === id && !node.data.isStreaming && node.data.streamingText === undefined) &&
+          edges.some((edge) => edge.target === id);
+        const settles = ended !== undefined && (published === undefined || (published.length > 0 && !published.every(drawn)));
         set((state) => {
           const inFlight = new Map(state.inFlight);
           inFlight.delete(runId);
