@@ -18,6 +18,9 @@ export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  * every 30 s (time sync), and the stage would play those frames out of order.
  */
 const now = () => (performance.timeOrigin + performance.now()) / 1000;
+// Between two frames, compositor and arrival times differ by the arrival's
+// jitter (a few ms); more than this is the wall clock stepping
+const STEP = 0.06;
 
 /**
  * Chromium, one browser per device scale: the screencast sends frames at device
@@ -51,8 +54,12 @@ export async function newPage(browser, width, height, scale = 1, colorScheme = '
 
 /**
  * Screencast `page` into FRAMES/<name>-raw: one JPEG per repaint and index.json
- * with each frame's time (seconds since the epoch, monotonic: when the frame
- * arrived). mark(name) notes a moment to cut on.
+ * with each frame's time in seconds since the epoch on the monotonic clock.
+ * The time is the compositor's (when the frame was painted: exact, frames of a
+ * glide 16.7 ms apart) moved onto the monotonic clock; arrival times jitter by
+ * a few ms, which made glides stutter when the stage sampled them at 30 fps.
+ * When the wall clock steps, the offset is taken again. mark(name) notes a
+ * moment to cut on.
  * Pages repaint only when something changes, so a still page gives few frames;
  * the stage holds the last frame and dissolves jumps.
  */
@@ -64,8 +71,18 @@ export async function record(page, name, { quality = 92 } = {}) {
   const frames = [];
   const marks = [];
   let n = 0;
-  client.on('Page.screencastFrame', async ({ data, sessionId }) => {
-    const t = now();
+  let offset = null;  // monotonic minus wall clock
+  let last = null;
+  client.on('Page.screencastFrame', async ({ data, metadata, sessionId }) => {
+    const arrived = now();
+    if (offset === null) offset = arrived - metadata.timestamp;
+    else {
+      // The wall clock stepped between the two frames: carry the step in the offset
+      const drift = metadata.timestamp - last.painted - (arrived - last.arrived);
+      if (Math.abs(drift) > STEP) offset -= drift;
+    }
+    const t = Math.max(metadata.timestamp + offset, last ? last.t + 0.001 : 0);
+    last = { painted: metadata.timestamp, arrived, t };
     const file = `f${String(n++).padStart(6, '0')}.jpg`;
     fs.writeFileSync(path.join(dir, file), Buffer.from(data, 'base64'));
     frames.push({ file, t });
