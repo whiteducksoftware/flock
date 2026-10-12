@@ -90,13 +90,13 @@ An agent can send its own output somewhere directly:
 flock.agent("support").consumes(Ticket).publishes(Reply, post="myapp:/audit")
 ```
 
-This creates a sink named `support-reply-post` that consumes `Reply` from `support` only, shown as a node of its own on the dashboard. `put=` and `patch=` work the same way; with several types, each gets its own sink. For `body=`, `response=` or other filters, declare the sink with `flock.sink(...)`.
+This creates a sink named `support-reply-post` that consumes `Reply` from `support` only, shown as a node of its own on the dashboard. It reads what the agent publishes: the output's tenant (`TenantVisibility`) or labels (`LabelledVisibility`), and the agent's own tenant and labels for a visibility the agent decides per artifact. A private output (`PrivateVisibility`) needs the sink's name among its agents. `put=` and `patch=` work the same way; with several types, each gets its own sink. For `body=`, `response=` or other filters, declare the sink with `flock.sink(...)`.
 
 ---
 
 ## What goes out
 
-Every execution of a sink sends **one request**: one artifact as an object, a batch (`batch=BatchSpec(...)`) as a list, also when a timeout flushes a batch of one. Payloads are JSON-encoded as pydantic does it (sets as lists, enums as their values). The request carries:
+Every execution of a sink sends **one request**: one artifact as an object; what a batch (`batch=BatchSpec(...)`), an AND gate (`.consumes(A, B)`) or a join collected as a list, also when a timeout flushes a batch of one. Payloads are JSON-encoded as pydantic does it (sets as lists, enums as their values). The request carries:
 
 | Header | Value |
 |---|---|
@@ -111,7 +111,7 @@ A timeout, a connection error, HTTP 408, 429 and 5xx are retried, up to `retries
 
 ### Order
 
-Deliveries of **one correlation** go out one after another, in the order they were scheduled: a game's moves reach the target in the order they were made, also when one waits for a retry. Deliveries of **different correlations** go out concurrently. The endpoint's `rate_limit` spaces their requests out, and each endpoint keeps up to 100 connections open; `flock.shutdown()` closes them.
+Deliveries of **one correlation** go out one after another, in the order they were scheduled: a game's moves reach the target in the order they were made, also when one waits for a retry. A batch that holds several correlations waits for the earlier deliveries of each of them. Deliveries of **different correlations** go out concurrently. The endpoint's `rate_limit` spaces their requests out, and each endpoint keeps up to 100 connections open; `flock.shutdown()` closes them.
 
 ---
 

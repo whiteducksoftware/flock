@@ -1497,9 +1497,13 @@ class AgentBuilder:
             if target is None:
                 continue
             for model in dict.fromkeys(types):
-                sink = self._orchestrator.sink(
-                    f"{self._agent.name}-{model.__name__.lower()}-{method}"
-                ).consumes(model, from_agents=[self._agent.name])
+                sink = (
+                    self._orchestrator.sink(
+                        f"{self._agent.name}-{model.__name__.lower()}-{method}"
+                    )
+                    .consumes(model, from_agents=[self._agent.name])
+                    ._reads_like(self._agent, resolved_visibility)
+                )
                 getattr(sink, method)(target)
 
         return PublishBuilder(self, outputs)

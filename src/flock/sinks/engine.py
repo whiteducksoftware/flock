@@ -46,40 +46,46 @@ async def _sleep(seconds: float) -> None:
 
 class _Turns:
     """Per correlation, the scheduled deliveries in order: each waits for the
-    ones scheduled before it."""
+    ones scheduled before it, in every correlation it carries.
+
+    A run takes all its turns at once when it is scheduled, so two runs that
+    share correlations are in the same order in each of their queues and
+    cannot wait for each other.
+    """
 
     def __init__(self) -> None:
         self._queues: dict[str, list[tuple[asyncio.Task, asyncio.Event]]] = {}
+        self._keys: dict[asyncio.Task, list[str]] = {}
 
-    def reserve(self, key: str, task: asyncio.Task) -> None:
-        queue = self._queues.setdefault(key, [])
-        turn = asyncio.Event()
-        if not queue:
-            turn.set()
-        queue.append((task, turn))
-        # A run that ends before its delivery (cancelled, failed) frees its turn
-        task.add_done_callback(lambda _: self.release(key, task))
+    def reserve(self, keys: list[str], task: asyncio.Task) -> None:
+        for key in keys:
+            queue = self._queues.setdefault(key, [])
+            turn = asyncio.Event()
+            if not queue:
+                turn.set()
+            queue.append((task, turn))
+        self._keys[task] = keys
+        # A run that ends before its delivery (cancelled, failed) frees its turns
+        task.add_done_callback(self.release)
 
-    async def wait(self, key: str | None, task: asyncio.Task | None) -> None:
-        for queued, turn in self._queues.get(key or "", []):
-            if queued is task:
-                await turn.wait()
-                return
+    async def wait(self, task: asyncio.Task | None) -> None:
+        for key in self._keys.get(task, []):  # type: ignore[arg-type]
+            for queued, turn in self._queues.get(key, []):
+                if queued is task:
+                    await turn.wait()
+                    break
 
-    def release(self, key: str | None, task: asyncio.Task | None) -> None:
-        queue = self._queues.get(key or "")
-        if not queue:
-            return
-        for index, (queued, _) in enumerate(queue):
-            if queued is task:
-                del queue[index]
-                break
-        else:
-            return
-        if queue:
-            queue[0][1].set()
-        else:
-            del self._queues[key or ""]
+    def release(self, task: asyncio.Task | None) -> None:
+        for key in self._keys.pop(task, []):  # type: ignore[arg-type]
+            queue = self._queues.get(key, [])
+            for index, (queued, _) in enumerate(queue):
+                if queued is task:
+                    del queue[index]
+                    break
+            if queue:
+                queue[0][1].set()
+            else:
+                self._queues.pop(key, None)
 
 
 class SinkEngine(EngineComponent):
@@ -111,21 +117,24 @@ class SinkEngine(EngineComponent):
         (subscriptions, batch timeouts, flushes), before the run awaits
         anything that could reorder it. Private, so auto-tracing leaves it out.
         """
-        key = _correlation(artifacts[0].correlation_id) if artifacts else None
-        if key is not None:
-            self._turns.reserve(key, task)
+        keys = sorted({
+            key for a in artifacts if (key := _correlation(a.correlation_id))
+        })
+        if keys:
+            self._turns.reserve(keys, task)
 
     async def evaluate(
         self, agent: Any, ctx: Context, inputs: EvalInputs, output_group: Any
     ) -> EvalResult:
         artifacts = list(inputs.artifacts)
-        key = _correlation(ctx.correlation_id)
         task = asyncio.current_task()
-        await self._turns.wait(key, task)
+        await self._turns.wait(task)
         try:
-            outputs = await self._deliver(agent.name, artifacts, batch=ctx.is_batch)
+            # A batch, an AND gate or a join sends what it collected as a list
+            many = ctx.is_batch or len(artifacts) > 1
+            outputs = await self._deliver(agent.name, artifacts, many=many)
         finally:
-            self._turns.release(key, task)
+            self._turns.release(task)
         visibility = _common_visibility(artifacts, agent.name)
         return EvalResult(
             artifacts=[
@@ -141,7 +150,7 @@ class SinkEngine(EngineComponent):
         )
 
     async def _deliver(
-        self, sink: str, artifacts: list[Artifact], *, batch: bool
+        self, sink: str, artifacts: list[Artifact], *, many: bool
     ) -> list[BaseModel]:
         target: Target = self.target
         endpoint = target.endpoint
@@ -155,7 +164,7 @@ class SinkEngine(EngineComponent):
         bodies = [self._body(artifact) for artifact in artifacts]
         # Sets, enums, dates and models as JSON, not as their str()
         content = json.dumps(
-            to_jsonable_python(bodies if batch else bodies[0], fallback=str)
+            to_jsonable_python(bodies if many else bodies[0], fallback=str)
         ).encode()
         try:
             headers = self._headers(artifacts, content)
@@ -182,7 +191,9 @@ class SinkEngine(EngineComponent):
             status = answer.status_code
             if answer.is_success:
                 latency_ms = (time.monotonic() - started) * 1000
-                return self._delivered(receipt, answer, attempt + 1, latency_ms)
+                return self._delivered(
+                    receipt, answer, attempt + 1, latency_ms, secrets
+                )
             # A target may echo what it was sent, credentials included
             error = _redact(
                 f"HTTP {status}: {answer.text[:ERROR_BODY_CHARS]}".rstrip(": "), secrets
@@ -200,7 +211,12 @@ class SinkEngine(EngineComponent):
         ]
 
     def _delivered(
-        self, receipt: dict, answer: httpx.Response, attempts: int, latency_ms: float
+        self,
+        receipt: dict,
+        answer: httpx.Response,
+        attempts: int,
+        latency_ms: float,
+        secrets: list[str],
     ) -> list[BaseModel]:
         outputs: list[BaseModel] = []
         response_error = None
@@ -208,9 +224,11 @@ class SinkEngine(EngineComponent):
             try:
                 outputs.append(self.response.model_validate(answer.json()))
             except (ValueError, ValidationError) as exc:
-                response_error = (
+                # Validation errors quote the input, which may echo a credential
+                response_error = _redact(
                     f"The answer is not a {self.response.__name__}: "
-                    f"{str(exc)[:ERROR_BODY_CHARS]}"
+                    f"{str(exc)[:ERROR_BODY_CHARS]}",
+                    secrets,
                 )
         delivered = Delivered(
             **receipt,

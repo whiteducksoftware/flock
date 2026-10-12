@@ -591,6 +591,127 @@ async def test_shutdown_closes_the_endpoints_connections():
     assert all(client is not None and client.is_closed for client in clients)
 
 
+async def test_a_secret_echoed_in_an_answer_of_another_shape_is_redacted(monkeypatch):
+    monkeypatch.setenv("SINK_ECHO_KEY", "echoed-secret")
+    flock = flock_with(
+        myapp=Endpoint("https://myapp.test", auth=Header("X-Key", env="SINK_ECHO_KEY"))
+    )
+    flock.sink("crm").consumes(SinkReply).post("myapp:/records", response=SinkCrmRecord)
+
+    with respx.mock() as router:
+        router.post("https://myapp.test/records").mock(
+            return_value=httpx.Response(200, json={"record_id": ["echoed-secret"]})
+        )
+        await flock.publish(SinkReply(ticket="T-40", text="x"))
+        await flock.run_until_idle()
+
+    (delivered,) = await payloads(flock, Delivered)
+    assert "echoed-secret" not in delivered["response_error"]
+    assert "***" in delivered["response_error"]
+
+
+async def test_an_and_gate_delivers_everything_it_collected():
+    flock = flock_with(myapp=Endpoint("https://myapp.test"))
+    flock.sink("pair").consumes(SinkReply, SinkCrmRecord).post("myapp:/pairs")
+
+    with respx.mock() as router:
+        route = router.post("https://myapp.test/pairs").mock(
+            return_value=httpx.Response(200)
+        )
+        await flock.publish(SinkReply(ticket="T-41", text="x"), correlation_id="pair-1")
+        await flock.publish(SinkCrmRecord(record_id="R-41"), correlation_id="pair-1")
+        await flock.run_until_idle()
+
+    body = json.loads(route.calls.last.request.content)
+    assert sorted(item["type"].rsplit(".", 1)[-1] for item in body) == [
+        "SinkCrmRecord",
+        "SinkReply",
+    ]
+
+
+async def test_a_batch_of_several_correlations_waits_for_each_of_them():
+    from flock.core.subscription import BatchSpec
+
+    flock = flock_with(lake=Endpoint("https://lake.test"))
+    flock.sink("lake").consumes(SinkReply, batch=BatchSpec(size=2)).post(
+        "lake:/replies"
+    )
+    order: list[list[str]] = []
+
+    async def respond(request):
+        tickets = [item["payload"]["ticket"] for item in json.loads(request.content)]
+        if tickets == ["A1", "B1"]:
+            await asyncio.sleep(0.2)  # slow: the batch after it holds B2, B3
+        order.append(tickets)
+        return httpx.Response(200)
+
+    with respx.mock() as router:
+        router.post("https://lake.test/replies").mock(side_effect=respond)
+        await flock.publish(SinkReply(ticket="A1", text="x"), correlation_id="corr-a")
+        await flock.publish(SinkReply(ticket="B1", text="x"), correlation_id="corr-b")
+        await flock.publish(SinkReply(ticket="B2", text="x"), correlation_id="corr-b")
+        await flock.publish(SinkReply(ticket="B3", text="x"), correlation_id="corr-b")
+        await flock.run_until_idle()
+
+    assert order == [["A1", "B1"], ["B2", "B3"]]
+
+
+@pytest.mark.parametrize("readership", ["tenant", "labels", "agent tenant"])
+async def test_the_shorthand_sink_reads_what_its_agent_publishes(readership):
+    from flock.components.agent import EngineComponent
+    from flock.core.visibility import LabelledVisibility, TenantVisibility
+    from flock.utils.runtime import EvalResult
+
+    @flock_type
+    class SinkScopedTicket(BaseModel):
+        ticket: str
+
+    class Answer(EngineComponent):
+        async def evaluate(self, agent, ctx, inputs, output_group):
+            return EvalResult.from_object(
+                SinkReply(ticket="T-42", text="Scoped"), agent=agent
+            )
+
+    flock = flock_with(myapp=Endpoint("https://myapp.test"))
+    agent = flock.agent("scoped").consumes(SinkScopedTicket).with_engines(Answer())
+    if readership == "tenant":
+        agent.publishes(
+            SinkReply, visibility=TenantVisibility(tenant_id="T1"), post="myapp:/x"
+        )
+    elif readership == "labels":
+        agent.publishes(
+            SinkReply,
+            visibility=LabelledVisibility(required_labels={"pii"}),
+            post="myapp:/x",
+        )
+    else:
+        agent.tenant("T1").publishes(
+            SinkReply,
+            visibility=lambda reply: TenantVisibility(tenant_id="T1"),
+            post="myapp:/x",
+        )
+
+    with respx.mock() as router:
+        route = router.post("https://myapp.test/x").mock(
+            return_value=httpx.Response(200)
+        )
+        await flock.publish(SinkScopedTicket(ticket="T-42"))
+        await flock.run_until_idle()
+
+    assert route.call_count == 1
+
+
+def test_the_shorthand_cannot_reach_a_private_output():
+    from flock.core.visibility import PrivateVisibility
+
+    flock = flock_with(myapp=Endpoint("https://myapp.test"))
+
+    with pytest.raises(ValueError, match="private"):
+        flock.agent("secretive").consumes(SinkCrmRecord).publishes(
+            SinkReply, visibility=PrivateVisibility(agents={"ops"}), post="myapp:/x"
+        )
+
+
 async def test_a_sinks_card_counts_its_deliveries(waits):
     from flock.api.collector import DashboardEventCollector
     from flock.api.graph_builder import GraphAssembler
