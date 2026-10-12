@@ -193,6 +193,52 @@ describe('Blackboard', () => {
     delete (HTMLElement.prototype as any).animate;
   });
 
+  it('continues a glide that another change interrupts from where the lane shows (#642)', () => {
+    const tops = new Map<string, number>([['Run cccc', 0], ['Run bbbb', 100], ['Run aaaa', 200]]);
+    // How far a running glide moves each lane right now
+    const shift = new Map<string, number>();
+    const labelOf = (element: Element) => element.querySelector('section')?.getAttribute('aria-label') ?? '';
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const label = labelOf(this);
+      return { top: (tops.get(label) ?? 0) + (shift.get(label) ?? 0) } as DOMRect;
+    });
+    const real = window.getComputedStyle.bind(window);
+    const style = vi.spyOn(window, 'getComputedStyle').mockImplementation((element: Element) => {
+      const computed = real(element);
+      const y = (element as HTMLElement).dataset?.lane ? shift.get(labelOf(element)) : undefined;
+      if (y === undefined) return computed;
+      return new Proxy(computed, { get: (target, prop) => (prop === 'transform' ? `matrix(1, 0, 0, 1, 0, ${y})` : Reflect.get(target, prop, target)) });
+    });
+    const animate = vi.fn(function (this: HTMLElement) {
+      const label = labelOf(this);
+      return { cancel: () => shift.delete(label), onfinish: null };
+    });
+    (HTMLElement.prototype as any).animate = animate;
+    const { rerender } = render(<Blackboard />);
+
+    // The top lane grows by 40 px; halfway through the glides the second grows by 40 px too
+    tops.set('Run bbbb', 140);
+    tops.set('Run aaaa', 240);
+    act(() => {
+      useGraphStore.setState({ nodes: [...nodes] });
+    });
+    rerender(<Blackboard />);
+    shift.set('Run bbbb', -20);
+    shift.set('Run aaaa', -20);
+    tops.set('Run aaaa', 280);
+    act(() => {
+      useGraphStore.setState({ nodes: [...nodes] });
+    });
+    rerender(<Blackboard />);
+
+    // aaaa showed at 220 (240 - 20): its new glide starts there, 60 px above its place
+    expect(animate).toHaveBeenCalledTimes(3);
+    expect((animate.mock.calls[2] as unknown[])[0]).toEqual([{ transform: 'translateY(-60px)' }, { transform: 'translateY(0)' }]);
+    rect.mockRestore();
+    style.mockRestore();
+    delete (HTMLElement.prototype as any).animate;
+  });
+
   it('lets go of glides that ended and of lanes that left (#642)', () => {
     const tops = new Map<string, number>([['Run cccc', 0], ['Run bbbb', 100], ['Run aaaa', 200]]);
     const glides: { cancel: ReturnType<typeof vi.fn>; onfinish: null | (() => void) }[] = [];

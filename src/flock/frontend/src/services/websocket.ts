@@ -207,7 +207,14 @@ export class WebSocketClient {
       // What this run works on: the edges carrying these types are in flight
       useGraphStore
         .getState()
-        .setInFlight(data.run_id, data.agent_name, data.consumed_types ?? [], data.consumed_artifacts ?? [], data.correlation_id ?? null);
+        .setInFlight(
+          data.run_id,
+          data.agent_name,
+          data.consumed_types ?? [],
+          data.consumed_artifacts ?? [],
+          data.correlation_id ?? null,
+          data.produced_types ?? [],
+        );
 
       // Schedule debounced refresh (batches within 500ms, then fetches backend snapshot)
       this.scheduleGraphRefresh();

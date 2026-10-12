@@ -153,7 +153,14 @@ const Canvas: React.FC = () => {
             storeEdges,
             reviewOnly,
             // Runs that ended keep their placeholders until their output is on the board (#642)
-            [...inFlight.entries(), ...settling.entries()].map(([runId, run]) => ({ runId, agent: run.agent, correlationId: run.correlationId ?? null, artifacts: run.artifacts })),
+            [...inFlight.entries(), ...settling.entries()].map(([runId, run]) => ({
+              runId,
+              agent: run.agent,
+              correlationId: run.correlationId ?? null,
+              artifacts: run.artifacts,
+              types: run.types,
+              produces: run.produces,
+            })),
           )
         : { nodes: [], edges: [] },
     [viewMode, storeNodes, storeEdges, reviewOnly, inFlight, settling],

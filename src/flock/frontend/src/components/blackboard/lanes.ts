@@ -17,6 +17,9 @@ export interface RunningRun {
   agent: string;
   correlationId: string | null;
   artifacts: string[];
+  /** The types it consumed, and those its agent publishes: who makes what a run waits for */
+  types?: string[];
+  produces?: string[];
 }
 
 export interface LaneCard {
@@ -199,12 +202,21 @@ export function lanesOf(nodes: Node[], edges: Edge[], running: RunningRun[]): La
     };
     // A run that consumed something not on the board yet (a stream, or a
     // placeholder) goes after the placeholders of the runs that will publish it:
-    // those that wait for nothing themselves. It keeps its column when the
-    // snapshot brings the input (#642)
+    // those that publish a type it waits for and wait for nothing themselves. It
+    // keeps its column when the snapshot brings the input (#642)
     const waits = (agent: string, runId?: string | null) => runOf(agent, runId)?.artifacts.some((artifact) => !byId.has(artifact)) ?? false;
     const afterMakers = (agent: string, runId: string | null | undefined, depth: number) => {
-      if (!waits(agent, runId)) return depth;
-      const makers = runs.filter((run) => run.agent !== agent && !showsOutput(run.agent) && !waits(run.agent, run.runId));
+      const run = runOf(agent, runId);
+      if (!run || !waits(agent, runId)) return depth;
+      const shown = new Set(run.artifacts.filter((artifact) => byId.has(artifact)).map((artifact) => dataOf(byId.get(artifact)!).artifactType));
+      const missing = (run.types ?? []).filter((type) => !shown.has(type));
+      const makers = runs.filter(
+        (each) =>
+          each.agent !== agent &&
+          !showsOutput(each.agent) &&
+          !waits(each.agent, each.runId) &&
+          (each.produces ?? []).some((type) => missing.includes(type)),
+      );
       const before = makers.map((run) => runDepth(run.agent, run.runId));
       return before.length > 0 ? Math.max(depth, 1 + Math.max(...before)) : depth;
     };

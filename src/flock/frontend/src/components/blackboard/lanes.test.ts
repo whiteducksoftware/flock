@@ -221,9 +221,9 @@ describe('lanesOf', () => {
       artifact('s5', 'c-5', 'app.TeamReply', 'shipping_team', 7300, { isStreaming: true, streamingText: 'Thanks for' }),
     ];
     const runs = [
-      { agent: 'triage', correlationId: 'c-5', artifacts: ['t5'] },
-      { agent: 'urgency', correlationId: 'c-5', artifacts: ['t5'] },
-      { agent: 'shipping_team', correlationId: 'c-5', artifacts: ['d8', 't5'] },
+      { agent: 'triage', correlationId: 'c-5', artifacts: ['t5'], types: ['app.SupportTicket'], produces: ['Decision[app.Route]'] },
+      { agent: 'urgency', correlationId: 'c-5', artifacts: ['t5'], types: ['app.SupportTicket'], produces: ['Decision[app.Urgent]'] },
+      { agent: 'shipping_team', correlationId: 'c-5', artifacts: ['d8', 't5'], types: ['Decision[app.Route]', 'app.SupportTicket'], produces: ['app.TeamReply'] },
     ];
     expect(ids(lanesOf(board, [], runs)[0]!)).toEqual([['t5'], ['pending:triage', 'pending:urgency'], ['s5']]);
 
@@ -255,9 +255,9 @@ describe('lanesOf', () => {
     // pager reads both decisions; the deciders ended, their decisions come with the next snapshot
     const board = [artifact('t7', 'c-7', 'app.SupportTicket', 'external', 9000)];
     const runs = [
-      { agent: 'triage', correlationId: 'c-7', artifacts: ['t7'] },
-      { agent: 'urgency', correlationId: 'c-7', artifacts: ['t7'] },
-      { agent: 'pager', correlationId: 'c-7', artifacts: ['d10', 'd11'] },
+      { agent: 'triage', correlationId: 'c-7', artifacts: ['t7'], types: ['app.SupportTicket'], produces: ['Decision[app.Route]'] },
+      { agent: 'urgency', correlationId: 'c-7', artifacts: ['t7'], types: ['app.SupportTicket'], produces: ['Decision[app.Urgent]'] },
+      { agent: 'pager', correlationId: 'c-7', artifacts: ['d10', 'd11'], types: ['Decision[app.Route]', 'Decision[app.Urgent]'], produces: ['app.Page'] },
     ];
     expect(ids(lanesOf(board, [], runs)[0]!)).toEqual([['t7'], ['pending:triage', 'pending:urgency'], ['pending:pager']]);
 
@@ -269,6 +269,24 @@ describe('lanesOf', () => {
     ];
     const laterEdges = [made('t7', 'd10', 'triage'), made('t7', 'd11', 'urgency')];
     expect(ids(lanesOf(later, laterEdges, [runs[2]!])[0]!)).toEqual([['t7'], ['d10', 'd11'], ['pending:pager']]);
+  });
+
+  it('places a run that waits for an input after the runs that make that input only (#642)', () => {
+    // tech_support writes from the summary and triage's decision, which comes with
+    // the next snapshot; archiver works on another branch of the workflow
+    const board = [
+      artifact('t8', 'c-8', 'app.SupportTicket', 'external', 9500),
+      artifact('a8', 'c-8', 'app.Summary', 'summarizer', 9600),
+      artifact('b8', 'c-8', 'app.Translation', 'translator', 9700),
+      artifact('s8', 'c-8', 'app.TeamReply', 'tech_support', 9800, { isStreaming: true, streamingText: 'We are on it' }),
+    ];
+    const branches = [made('t8', 'a8', 'summarizer'), made('a8', 'b8', 'translator')];
+    const runs = [
+      { agent: 'triage', correlationId: 'c-8', artifacts: ['t8'], types: ['app.SupportTicket'], produces: ['Decision[app.Route]'] },
+      { agent: 'archiver', correlationId: 'c-8', artifacts: ['b8'], types: ['app.Translation'], produces: ['app.Archive'] },
+      { agent: 'tech_support', correlationId: 'c-8', artifacts: ['a8', 'd12'], types: ['app.Summary', 'Decision[app.Route]'], produces: ['app.TeamReply'] },
+    ];
+    expect(ids(lanesOf(board, branches, runs)[0]!)).toEqual([['t8'], ['a8', 'pending:triage'], ['b8', 's8'], ['pending:archiver']]);
   });
 
   it('names several running agents at once', () => {

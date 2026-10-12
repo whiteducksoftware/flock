@@ -45,6 +45,8 @@ const Blackboard: React.FC = () => {
               agent: run.agent,
               correlationId: run.correlationId ?? null,
               artifacts: run.artifacts,
+              types: run.types,
+              produces: run.produces,
             })),
           )
         : [],
@@ -77,8 +79,10 @@ const Blackboard: React.FC = () => {
       const top = now.get(id)!;
       const was = before.get(id);
       if (was === undefined || Math.abs(was - top) < 1 || prefersLessMotion() || typeof slot.animate !== 'function') continue;
+      // From where it shows: the running glide's offset, read before it is cancelled
+      const offset = translateY(slot);
       glides.current.get(id)?.cancel();
-      const glide = slot.animate([{ transform: `translateY(${was - top + translateY(slot)}px)` }, { transform: 'translateY(0)' }], {
+      const glide = slot.animate([{ transform: `translateY(${was - top + offset}px)` }, { transform: 'translateY(0)' }], {
         duration: 320,
         easing: 'cubic-bezier(0.35, 0, 0.25, 1)',
       });

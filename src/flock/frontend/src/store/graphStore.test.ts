@@ -210,6 +210,17 @@ describe('graphStore - NEW Simplified Architecture', () => {
       expect(useGraphStore.getState().settling.has('r1')).toBe(false);
     });
 
+    it('settles a run whose output a snapshot brought while it still ran', async () => {
+      useGraphStore.getState().setInFlight('r1', 'triage', ['app.Ticket'], ['t1'], 'c-1');
+      vi.mocked(fetchGraphSnapshot).mockResolvedValueOnce({ nodes: [ticket, decided], edges: [], statistics: null } as unknown as GraphSnapshot);
+      await useGraphStore.getState().generateBlackboardViewGraph();
+      useGraphStore.getState().setInFlight('r1', 'triage', null);
+
+      vi.mocked(fetchGraphSnapshot).mockResolvedValueOnce({ nodes: [ticket, decided], edges: [], statistics: null } as unknown as GraphSnapshot);
+      await useGraphStore.getState().generateBlackboardViewGraph();
+      expect(useGraphStore.getState().settling.has('r1')).toBe(false);
+    });
+
     it('lets a run that published nothing go after a few seconds', () => {
       vi.useFakeTimers();
       end();

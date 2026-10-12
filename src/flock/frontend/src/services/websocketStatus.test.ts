@@ -87,13 +87,13 @@ describe('WebSocketClient agent status', () => {
     const client = new WebSocketClient('ws://test/ws');
 
     receive(client, 'agent_activated', { agent_name: 'digest', run_id: 'r-9', consumed_types: [], consumed_artifacts: [], correlation_id: 'c-9' });
-    expect(useGraphStore.getState().inFlight.get('r-9')).toEqual({ agent: 'digest', types: [], artifacts: [], correlationId: 'c-9' });
+    expect(useGraphStore.getState().inFlight.get('r-9')).toEqual({ agent: 'digest', types: [], artifacts: [], correlationId: 'c-9', produces: [], known: [] });
 
     receive(client, 'agent_completed', { agent_name: 'digest', run_id: 'r-9', agent_status: 'idle' });
     expect(useGraphStore.getState().inFlight.has('r-9')).toBe(false);
   });
 
-  it('remembers what a starting run consumed, and its run', () => {
+  it('remembers what a starting run consumed, its run and what its agent publishes', () => {
     vi.useFakeTimers();
     const client = new WebSocketClient('ws://test/ws');
 
@@ -103,12 +103,15 @@ describe('WebSocketClient agent status', () => {
       consumed_types: ['Decision[app.Route]'],
       consumed_artifacts: ['d-1'],
       correlation_id: 'c-1',
+      produced_types: ['app.TeamReply'],
     });
     expect(useGraphStore.getState().inFlight.get('r-1')).toEqual({
       agent: 'billing',
       types: ['Decision[app.Route]'],
       artifacts: ['d-1'],
       correlationId: 'c-1',
+      produces: ['app.TeamReply'],
+      known: [],
     });
   });
 
