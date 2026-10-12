@@ -216,7 +216,7 @@ const Unfolded: React.FC<{ card: LaneCard }> = ({ card }) => {
   );
 };
 
-const ArtifactCard: React.FC<{ card: LaneCard }> = ({ card }) => {
+const CardFace: React.FC<{ card: LaneCard }> = ({ card }) => {
   const unfolded = useUIStore((state) => state.unfoldedArtifactId === card.id);
   const decision = (card.data as { decision?: DecisionInfo }).decision;
   const pending = card.state === 'pending';
@@ -290,5 +290,15 @@ const ArtifactCard: React.FC<{ card: LaneCard }> = ({ card }) => {
     </div>
   );
 };
+
+/**
+ * A card in a lane: one element for it, folded or unfolded, that the lane's
+ * motion glides and opens (`data-glide`, #652); folding swaps what is inside
+ */
+const ArtifactCard: React.FC<{ card: LaneCard }> = ({ card }) => (
+  <div className={styles.cardSlot} data-glide={card.id}>
+    <CardFace card={card} />
+  </div>
+);
 
 export default ArtifactCard;
