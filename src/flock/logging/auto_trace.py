@@ -35,6 +35,28 @@ def _trace_level_from_env() -> str:
 _trace_filter_config.level = _trace_level_from_env()
 
 
+def _max_attribute_bytes_from_env() -> int:
+    """FLOCK_TRACE_MAX_ATTRIBUTE_BYTES: the longest input or output a span
+    keeps, 4096 by default, 0 for no cap."""
+    value = os.getenv("FLOCK_TRACE_MAX_ATTRIBUTE_BYTES", "").strip()
+    if not value:
+        return 4096
+    try:
+        limit = int(value)
+    except ValueError:
+        limit = -1
+    if limit < 0:
+        print(
+            f"Warning: Invalid FLOCK_TRACE_MAX_ATTRIBUTE_BYTES value: {value} "
+            "(use a number of bytes, 0 for no cap)"
+        )
+        return 4096
+    return limit
+
+
+_trace_filter_config.max_attribute_bytes = _max_attribute_bytes_from_env()
+
+
 def http_telemetry() -> dict:
     """FastAPI's own spans of the server's requests: at FLOCK_TRACE_LEVEL=all only."""
     return {"tracing": _trace_filter_config.level == "all"}

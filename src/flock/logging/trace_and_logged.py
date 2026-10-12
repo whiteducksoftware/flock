@@ -25,6 +25,8 @@ class TraceFilterConfig:
         )  # Blacklist: never trace these operations
         # FLOCK_TRACE_LEVEL: `agents` traces agent work, `all` also Flock's internals
         self.level: str = "agents"
+        # FLOCK_TRACE_MAX_ATTRIBUTE_BYTES: longer inputs and outputs are cut (0: no cap)
+        self.max_attribute_bytes: int = 4096
 
     def hides(self, owner: object) -> bool:
         """Whether a call on ``owner`` is one of Flock's internals left out at this level.
@@ -65,6 +67,36 @@ class TraceFilterConfig:
 _trace_filter_config = TraceFilterConfig()
 
 
+def capped(value: str) -> str:
+    """An input or output attribute within FLOCK_TRACE_MAX_ATTRIBUTE_BYTES.
+
+    A longer value becomes JSON that says it was cut and how large it was,
+    with as much of its start as ``preview`` as fits in the cap, escaping and
+    marker included; the cut never splits a character.
+    """
+    limit = _trace_filter_config.max_attribute_bytes
+    encoded = value.encode()
+    if limit <= 0 or len(encoded) <= limit:
+        return value
+
+    def marker(preview: str) -> str:
+        return json.dumps(
+            {"truncated": True, "bytes": len(encoded), "preview": preview},
+            ensure_ascii=False,
+        )
+
+    # The value's start that fits next to the marker; escaping can make the
+    # preview longer than its bytes, so it shrinks until the whole fits
+    room = max(0, limit - len(marker("").encode()))
+    preview = encoded[:room].decode(errors="ignore")
+    while preview:
+        excess = len(marker(preview).encode()) - limit
+        if excess <= 0:
+            break
+        preview = preview[: len(preview) - max(1, excess // 6)]
+    return marker(preview)
+
+
 def _serialize_value(value, max_depth=10, current_depth=0):
     """Serialize a value to JSON-compatible format for span attributes.
 
@@ -93,6 +125,20 @@ def _serialize_value(value, max_depth=10, current_depth=0):
         # Handle primitives - these are already JSON-serializable
         if isinstance(value, (int, float, bool)):
             return value
+
+        # An artifact in short: what it is, who made it and what it says
+        # (its visibility, tags and times are on the blackboard, if it got there)
+        from flock.core.artifacts import Artifact
+
+        if isinstance(value, Artifact):
+            return {
+                "artifact": value.type,
+                "id": str(value.id),
+                "produced_by": value.produced_by,
+                "payload": _serialize_value(
+                    value.payload, max_depth, current_depth + 1
+                ),
+            }
 
         # Handle lists/tuples
         if isinstance(value, (list, tuple)):
@@ -207,10 +253,12 @@ def _extract_span_attributes(func, args, kwargs):
             serialized = _serialize_value(param_value)
             # Convert to JSON string for OTEL attribute storage
             try:
-                attributes[f"input.{param_name}"] = json.dumps(serialized, default=str)
+                attributes[f"input.{param_name}"] = capped(
+                    json.dumps(serialized, default=str)
+                )
             except Exception:
                 # If JSON serialization fails, use string representation
-                attributes[f"input.{param_name}"] = str(serialized)
+                attributes[f"input.{param_name}"] = capped(str(serialized))
     except Exception as e:
         # If we can't capture inputs, just note that
         attributes["input.error"] = str(e)
@@ -258,10 +306,11 @@ def traced_and_logged(func):
                     try:
                         serialized_result = _serialize_value(result)
                         span.set_attribute(
-                            "output.value", json.dumps(serialized_result, default=str)
+                            "output.value",
+                            capped(json.dumps(serialized_result, default=str)),
                         )
                     except Exception as e:
-                        span.set_attribute("output.value", str(result))
+                        span.set_attribute("output.value", capped(str(result)))
                         span.set_attribute("output.serialization_error", str(e))
 
                     # Set result type and metadata
@@ -309,10 +358,11 @@ def traced_and_logged(func):
                 try:
                     serialized_result = _serialize_value(result)
                     span.set_attribute(
-                        "output.value", json.dumps(serialized_result, default=str)
+                        "output.value",
+                        capped(json.dumps(serialized_result, default=str)),
                     )
                 except Exception as e:
-                    span.set_attribute("output.value", str(result))
+                    span.set_attribute("output.value", capped(str(result)))
                     span.set_attribute("output.serialization_error", str(e))
 
                 # Set result type and metadata
