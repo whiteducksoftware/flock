@@ -113,6 +113,10 @@ describe('lanesOf', () => {
     ];
     const lanes = lanesOf(loop, [made('w1', 'f1', 'reviewer')], [{ agent: 'writer', correlationId: 'c-6', artifacts: ['f1'] }]);
     expect(lanes.find((each) => each.id === 'c-6')).toMatchObject({ title: 'First draft', startedAt: 1000 });
+    // Also after the clock stepped back between the draft and the feedback
+    const stepped = loop.map((node) => (node.id === 'f1' ? { ...node, data: { ...node.data, timestamp: 900 } } : node));
+    const again = lanesOf(stepped, [made('w1', 'f1', 'reviewer')], [{ agent: 'writer', correlationId: 'c-6', artifacts: ['f1'] }]);
+    expect(again.find((each) => each.id === 'c-6')).toMatchObject({ title: 'First draft', startedAt: 1000 });
   });
 
   it('marks a run whose decision is unsure and unreviewed, and who answered it meanwhile', () => {

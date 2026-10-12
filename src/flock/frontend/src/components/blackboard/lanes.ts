@@ -242,9 +242,18 @@ export function lanesOf(nodes: Node[], edges: Edge[], running: RunningRun[]): La
     // What the run started with: an artifact none of whose inputs are in this run,
     // the earliest of them. A wall clock can step back (a VM's time sync), so a
     // decision may carry an earlier time than what it decided about. An agent still
-    // running on this run's artifacts has no edges yet: what it published is not a start
+    // running on this run's artifacts has no edges yet: what it published meanwhile
+    // is not a start, unless it led to what that run consumes (a feedback loop)
     const inRun = new Set(members.map((node) => node.id));
+    const ledToRuns = new Set<string>();
+    const visit = (id: string) => {
+      if (ledToRuns.has(id)) return;
+      ledToRuns.add(id);
+      for (const source of inputs.get(id) ?? []) if (inRun.has(source)) visit(source);
+    };
+    for (const run of runs) for (const id of run.artifacts) if (inRun.has(id)) visit(id);
     const awaitingEdges = (node: Node) =>
+      !ledToRuns.has(node.id) &&
       runs.some((run) => run.agent === dataOf(node).producedBy && run.artifacts.some((id) => inRun.has(id)));
     const startedWith = recorded.filter(
       (node) => !(inputs.get(node.id) ?? []).some((source) => inRun.has(source)) && !awaitingEdges(node),
