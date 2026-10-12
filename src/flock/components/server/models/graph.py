@@ -121,6 +121,8 @@ class GraphArtifact(BaseModel):
     correlation_id: str | None = Field(default=None, alias="correlationId")
     visibility_kind: str | None = Field(default=None, alias="visibilityKind")
     tags: list[str] = Field(default_factory=list)
+    # The artifacts this one follows (#618): the board draws them before it
+    follows: list[str] = Field(default_factory=list)
 
 
 class GraphRun(BaseModel):

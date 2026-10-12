@@ -95,6 +95,7 @@ class ArtifactsComponent(ServerComponent):
             "partition_key": artifact.partition_key,
             "tags": sorted(artifact.tags),
             "version": artifact.version,
+            "follows": [str(followed) for followed in artifact.follows],
         }
         if thumbnails and (images := image_summaries(artifact.payload)):
             data["images"] = images
@@ -304,7 +305,38 @@ class ArtifactsComponent(ServerComponent):
             tags = set(parsed) or None
         return visibility, tags
 
-    async def _publish_upload(self, form, orchestrator) -> ArtifactPublishResponse:
+    async def _checked_follows(
+        self, follows: list[str] | None, request: Request, orchestrator
+    ) -> list[str] | None:
+        """What a REST publish follows, as far as its caller may read: an
+        artifact the caller cannot see counts as unknown (400), like one that is
+        not there. Flock checks the IDs and the limit."""
+        if not follows or not self.config.enforce_visibility:
+            return follows
+        identity = self._resolve_identity(request)
+        for value in follows:
+            try:
+                artifact_id = UUID(str(value))
+            except ValueError:
+                continue  # Flock refuses it with its own message
+            artifact = await orchestrator.store.get(artifact_id)
+            if artifact is None:
+                continue
+            allowed = (
+                self._allows_anonymous(artifact.visibility)
+                if self._is_anonymous(identity)
+                else artifact.visibility.allows(identity)
+            )
+            if not allowed:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"follows: no artifact {artifact_id} on the blackboard",
+                )
+        return follows
+
+    async def _publish_upload(
+        self, form, orchestrator, request: Request
+    ) -> ArtifactPublishResponse:
         # Control values come from text parts only: a file part may be named
         # like them (an artifact can have a field called "type" or "payload")
         controls = {
@@ -319,8 +351,25 @@ class ArtifactsComponent(ServerComponent):
                 "tags",
                 "partition_key",
                 "correlation_id",
+                "follows",
             )
         }
+        follows = None
+        if controls.get("follows"):
+            try:
+                follows = json.loads(controls["follows"])
+            except json.JSONDecodeError as exc:
+                raise HTTPException(
+                    status_code=400, detail=f"Invalid 'follows': {exc}"
+                ) from exc
+            if not (
+                isinstance(follows, list) and all(isinstance(f, str) for f in follows)
+            ):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid 'follows': expected a JSON array of artifact IDs",
+                )
+            follows = await self._checked_follows(follows, request, orchestrator)
         correlation_id = controls.get("correlation_id")
         if correlation_id is not None and not _RUN_ID.fullmatch(correlation_id):
             raise HTTPException(
@@ -366,6 +415,7 @@ class ArtifactsComponent(ServerComponent):
                 visibility=visibility,
                 tags=tags,
                 partition_key=controls.get("partition_key") or None,
+                follows=follows,
             )
         except image_uploads.UploadError as exc:
             raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
@@ -380,7 +430,7 @@ class ArtifactsComponent(ServerComponent):
             tags=self.config.tags,
         )
         async def publish_artifact(
-            body: ArtifactPublishRequest,
+            body: ArtifactPublishRequest, request: Request
         ) -> ArtifactPublishResponse:
             # The correlation id ties the cascade this publish triggers together
             # (a new one unless the caller names its run); it is artifact
@@ -390,13 +440,19 @@ class ArtifactsComponent(ServerComponent):
                 if body.visibility is not None:
                     visibility = deserialize_visibility(body.visibility, strict=True)
                 tags = set(body.tags) if body.tags else None
+                follows = await self._checked_follows(
+                    body.follows, request, orchestrator
+                )
                 await orchestrator.publish(
                     {"type": body.type, "payload": body.payload},
                     correlation_id=body.correlation_id or str(uuid4()),
                     visibility=visibility,
                     tags=tags,
                     partition_key=body.partition_key,
+                    follows=follows,
                 )
+            except HTTPException:
+                raise
             except Exception as exc:  # pragma: no cover - FastAPI converts
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
             return ArtifactPublishResponse(status="accepted")
@@ -434,7 +490,7 @@ class ArtifactsComponent(ServerComponent):
                 max_files=image_uploads.MAX_UPLOAD_FILES, max_fields=20
             )
             try:
-                return await self._publish_upload(form, orchestrator)
+                return await self._publish_upload(form, orchestrator, request)
             finally:
                 await form.close()  # spooled uploads, also after an error
 

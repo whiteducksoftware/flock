@@ -312,3 +312,11 @@ Each entry says what was decided, why, and where it landed.
 - **`FLOCK_LOG_LEVEL` takes the names of `LOG_LEVELS`**, any case; an invalid value prints a warning and keeps WARNING, as `FLOCK_TRACE_LEVEL` does.
 - **Version 0.5.810, a series of its own:** #601's earlier steps are 0.5.790 and 0.5.791 on `main`, but `ui-rework` is at 0.5.801 already, and a version cannot go back.
 - **The broken `configure_logging(level=...)` examples are fixed along the way** (imports and silent-mode guides): they are where a reader now goes to turn the logs up.
+
+### #618 `follows`: what an outside step follows (asked: name, limit, 400)
+
+- **The user chose the idea (an artifact names its predecessor), 400 for unknown IDs, and 20 IDs by default with a way to set more.** The limit is a setting of the flock, `Flock(max_follows=20)`, not a per-request parameter: a caller that could raise its own limit would make it no limit.
+- **`follows` is stored on the artifact** (`Artifact.follows`), so every store keeps it: in memory as is, Dapr in its JSON, SQLite in a new `follows` column (schema version 5; a table without it gets the column on open, also one stamped current by mistake).
+- **The board draws it as a run from what it follows to it** (`GraphAssembler._follow_runs`): the lanes and the graph already lay out runs' arrows, so the dashboard needs no new edge type. The Flow is unchanged; it draws agents from consumptions.
+- **IDs are checked when published:** malformed or unknown IDs and more than `max_follows` raise `ValueError` (400 over REST), duplicates count once. Over REST an artifact the caller cannot read counts as unknown, so `follows` does not reveal what exists behind a visibility.
+- **Agent outputs do not take `follows`:** their arrows come from what their run consumed; `follows` is for what reaches the blackboard from outside.

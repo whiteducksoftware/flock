@@ -449,6 +449,7 @@ class SQLiteBlackboardStore(BlackboardStore):
             payload_json = json.dumps(to_jsonable_python(artifact.payload))
             visibility_json = json.dumps(artifact.visibility.model_dump(mode="json"))
             tags_json = json.dumps(sorted(artifact.tags))
+            follows_json = json.dumps([str(followed) for followed in artifact.follows])
             created_at = as_utc(artifact.created_at).isoformat()
 
             canonical_type = TypeResolutionHelper.safe_resolve(
@@ -469,6 +470,7 @@ class SQLiteBlackboardStore(BlackboardStore):
                 else None,
                 "partition_key": artifact.partition_key,
                 "created_at": created_at,
+                "follows": follows_json,
             }
 
             async with self._write_lock:
@@ -485,7 +487,8 @@ class SQLiteBlackboardStore(BlackboardStore):
                         tags,
                         correlation_id,
                         partition_key,
-                        created_at
+                        created_at,
+                        follows
                     ) VALUES (
                         :artifact_id,
                         :type,
@@ -497,7 +500,8 @@ class SQLiteBlackboardStore(BlackboardStore):
                         :tags,
                         :correlation_id,
                         :partition_key,
-                        :created_at
+                        :created_at,
+                        :follows
                     )
                     ON CONFLICT(artifact_id) DO UPDATE SET
                         type=excluded.type,
@@ -509,7 +513,8 @@ class SQLiteBlackboardStore(BlackboardStore):
                         tags=excluded.tags,
                         correlation_id=excluded.correlation_id,
                         partition_key=excluded.partition_key,
-                        created_at=excluded.created_at
+                        created_at=excluded.created_at,
+                        follows=excluded.follows
                     """,
                     record,
                 )
@@ -586,7 +591,8 @@ class SQLiteBlackboardStore(BlackboardStore):
                     tags,
                     correlation_id,
                     partition_key,
-                    created_at
+                    created_at,
+                    follows
                 FROM artifacts
                 WHERE artifact_id = ?
                 """,
@@ -614,7 +620,8 @@ class SQLiteBlackboardStore(BlackboardStore):
                     tags,
                     correlation_id,
                     partition_key,
-                    created_at
+                    created_at,
+                    follows
                 FROM artifacts
                 ORDER BY created_at ASC, rowid ASC
                 """
@@ -640,7 +647,8 @@ class SQLiteBlackboardStore(BlackboardStore):
                     tags,
                     correlation_id,
                     partition_key,
-                    created_at
+                    created_at,
+                    follows
                 FROM artifacts
                 WHERE canonical_type = ?
                 ORDER BY created_at ASC, rowid ASC
@@ -717,7 +725,8 @@ class SQLiteBlackboardStore(BlackboardStore):
                 tags,
                 correlation_id,
                 partition_key,
-                created_at
+                created_at,
+                follows
             FROM artifacts
             {where_clause}
             ORDER BY created_at ASC, artifact_id ASC
@@ -1040,4 +1049,5 @@ class SQLiteBlackboardStore(BlackboardStore):
             partition_key=row["partition_key"],
             created_at=datetime.fromisoformat(row["created_at"]),
             version=row["version"],
+            follows=[UUID(followed) for followed in json.loads(row["follows"] or "[]")],
         )

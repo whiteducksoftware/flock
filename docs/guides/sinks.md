@@ -152,6 +152,20 @@ flock.agent("ops").consumes(DeliveryFailed).publishes(Incident)
 
 ---
 
+## When the target answers later
+
+`response=` publishes the target's answer to the request itself. A target that answers later, or over its own calls, publishes back over REST and names what its answer follows: the envelope's `id` is the delivered artifact's ID.
+
+```python
+# In the app: the next step follows the decision the sink delivered
+httpx.post(f"{flock_url}/api/v1/artifacts", json={
+    "type": "SnakeState", "payload": {...},
+    "correlation_id": envelope["correlation_id"], "follows": [envelope["id"]],
+})
+```
+
+The dashboard then draws the answer after the delivered artifact, so a game or a conversation shows as one chain ([REST API](rest-api.md)).
+
 ## Sinks and webhooks
 
 [Webhook notifications](webhooks.md) send every artifact of a REST publish request to the URL that request names: the caller chooses where it hears back. A sink is declared in the flock: it chooses what it delivers with a subscription, sends it to a named system with that system's secrets, keeps the order per correlation and leaves a receipt on the blackboard. The two work side by side.

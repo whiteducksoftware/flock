@@ -282,6 +282,7 @@ class GraphAssembler(metaclass=AutoTracedMeta):
                 correlation_id=correlation_id,
                 visibility_kind=visibility_kind,
                 tags=sorted(artifact.tags),
+                follows=[str(followed) for followed in artifact.follows],
             )
         return artifacts
 
@@ -1200,7 +1201,24 @@ class GraphAssembler(metaclass=AutoTracedMeta):
         synthetic_runs = self._build_synthetic_runs(
             artifacts, graph_state.consumptions, existing_runs
         )
-        return existing_runs + synthetic_runs
+        return existing_runs + synthetic_runs + self._follow_runs(artifacts)
+
+    @staticmethod
+    def _follow_runs(artifacts: Mapping[str, GraphArtifact]) -> list[GraphRun]:
+        """An artifact that follows others, as a run from them to it (#618):
+        its arrows are drawn like an agent's from what it consumed."""
+        return [
+            GraphRun(
+                run_id=f"follows_{artifact.artifact_id}",
+                agent_name=artifact.produced_by or "external",
+                correlation_id=artifact.correlation_id,
+                status="completed",
+                consumed_artifacts=list(artifact.follows),
+                produced_artifacts=[artifact.artifact_id],
+            )
+            for artifact in artifacts.values()
+            if artifact.follows
+        ]
 
     def _build_synthetic_runs(
         self,

@@ -114,6 +114,7 @@ class BlackboardHTTPService:
                 "partition_key": artifact.partition_key,
                 "tags": sorted(artifact.tags),
                 "version": artifact.version,
+                "follows": [str(followed) for followed in artifact.follows],
             }
             if consumptions is not None:
                 data["consumptions"] = [
@@ -192,6 +193,7 @@ class BlackboardHTTPService:
                 await orchestrator.publish(
                     {"type": body.type, "payload": body.payload},
                     correlation_id=correlation_id,
+                    follows=body.follows,
                 )
             except Exception as exc:  # pragma: no cover - FastAPI converts
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
