@@ -154,14 +154,21 @@ class WebhookContext:
     secret: str | None
     correlation_id: str
     sequence: int = field(default=0)
+    # The last sequence number per run, shared by the requests that publish
+    # into a run they name, so their deliveries keep counting on
+    run_sequences: dict[str, int] | None = None
 
     def next_sequence(self) -> int:
         """Increment and return the next sequence number.
 
         Returns:
-            The new sequence number (starts at 1)
+            The new sequence number (starts at 1, or after the run's last one)
         """
-        self.sequence += 1
+        if self.run_sequences is None:
+            self.sequence += 1
+            return self.sequence
+        self.sequence = self.run_sequences.get(self.correlation_id, 0) + 1
+        self.run_sequences[self.correlation_id] = self.sequence
         return self.sequence
 
 

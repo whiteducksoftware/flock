@@ -126,9 +126,64 @@ def test_an_upload_with_an_empty_correlation_id_is_rejected(component):
 
     response = client.post(
         "/api/v1/artifacts/upload",
-        data={"type": "CorrelatedSketch", "payload": '{"stroke": 1}', "correlation_id": ""},
+        data={
+            "type": "CorrelatedSketch",
+            "payload": '{"stroke": 1}',
+            "correlation_id": "",
+        },
         files={"image": ("sketch.png", _png(), "image/png")},
     )
 
     assert response.status_code == 400
     assert "correlation_id" in response.json()["detail"]
+
+
+@pytest.mark.parametrize("correlation_id", ["game/7", "game 7", "spiel?7"])
+def test_a_correlation_id_stays_one_path_segment(component, correlation_id):
+    """So /api/v1/correlations/{correlation_id}/status can find the run."""
+    _, client = component
+
+    response = client.post(
+        "/api/v1/artifacts",
+        json={
+            "type": "CorrelatedMove",
+            "payload": {"step": 1},
+            "correlation_id": correlation_id,
+        },
+    )
+
+    assert response.status_code == 422
+
+
+async def test_webhooks_of_one_run_count_on_across_its_requests():
+    """Every request into the run continues its sequence; another run starts at 1."""
+    from unittest.mock import AsyncMock, Mock
+
+    from flock.api.service import BlackboardHTTPService
+    from flock.api.webhooks import get_webhook_context
+
+    sequences: list[tuple[str, int]] = []
+
+    async def publish(*_, **__):
+        # What the delivery component does for the artifact it delivers
+        context = get_webhook_context()
+        sequences.append((context.correlation_id, context.next_sequence()))
+
+    orchestrator = Mock()
+    orchestrator.publish = AsyncMock(side_effect=publish)
+    client = TestClient(BlackboardHTTPService(orchestrator).app)
+    webhook = {"url": "https://hooks.test/flock"}
+
+    for run in ("game-1", "game-1", "game-2", "game-1"):
+        response = client.post(
+            "/api/v1/artifacts",
+            json={
+                "type": "CorrelatedMove",
+                "payload": {"step": 1},
+                "correlation_id": run,
+                "webhook": webhook,
+            },
+        )
+        assert response.status_code == 200, response.text
+
+    assert sequences == [("game-1", 1), ("game-1", 2), ("game-2", 1), ("game-1", 3)]

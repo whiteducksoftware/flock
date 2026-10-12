@@ -47,7 +47,7 @@ Content-Type: application/json
 
 **Use case:** Publish artifacts and return immediately. Use with polling or WebSocket for results.
 
-`correlation_id` (optional, 1 to 256 characters) joins the run it names: every step of a game, every stroke of a drawing, every message of a conversation published with the same ID is one run on the blackboard, one lane on the dashboard, and the cascade it triggers carries it. Without it, each publish starts a run of its own.
+`correlation_id` (optional, 1 to 256 letters, digits or `._:-`, so `/api/v1/correlations/{correlation_id}/status` finds it) joins the run it names: every step of a game, every stroke of a drawing, every message of a conversation published with the same ID is one run on the blackboard, one lane on the dashboard, and the cascade it triggers carries it. Without it, each publish starts a run of its own. With a `webhook`, the deliveries of a named run are numbered (`sequence`) across all its requests.
 
 ---
 
@@ -80,7 +80,7 @@ curl -F type=Photo -F 'payload={"caption": "a red square"}' \
 - **Files:** name each part after the field or its alias, and repeat the name for a `list[Image]` field. Accepted formats are JPEG, PNG, GIF, WebP and BMP. A request carries at most 20 files and needs a `Content-Length` header (411 otherwise). Its size is checked before the body is parsed, and an oversized request returns 413.
 - **Limits and checks:** a file may have at most 20 MB and 50 million pixels. The pixel count is checked before the file is decoded. An oversized file returns HTTP 413; a file that is not a supported image, or that is sent for a field that is not an `Image` field, returns 400.
 - **Re-encoding:** each file is processed like `Image.from_bytes()`. It is scaled down to 1024 px and re-encoded, which drops metadata such as GPS positions.
-- **Metadata:** `visibility` (a JSON object, as in the JSON body), `tags` (a JSON array of strings), `partition_key` (text) and `correlation_id` (text, the run to join) are optional form fields; without `visibility` the artifact is public.
+- **Metadata:** `visibility` (a JSON object, as in the JSON body), `tags` (a JSON array of strings), `partition_key` (text) and `correlation_id` (the run to join, as in the JSON body) are optional form fields; without `visibility` the artifact is public.
 - **Response:** `{"status": "accepted"}`, as for the JSON endpoint.
 
 ---

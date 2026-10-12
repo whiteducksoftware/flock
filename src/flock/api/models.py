@@ -126,7 +126,10 @@ class ArtifactPublishRequest(BaseModel):
         default=None,
         min_length=1,
         max_length=256,
-        description="The run to join (a game, a drawing); a new one without it",
+        # One path segment, so /correlations/{correlation_id}/status finds it
+        pattern=r"^[A-Za-z0-9._:-]+$",
+        description="The run to join (a game, a drawing): letters, digits and "
+        "._:- ; a new one without it",
     )
     webhook: "WebhookConfig | None" = Field(
         default=None, description="Optional webhook for delivery notifications"

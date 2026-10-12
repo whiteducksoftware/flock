@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import re
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
@@ -36,6 +37,10 @@ from flock.storage.histogram import bucket_artifacts, too_wide
 from flock.utils.time_utils import as_utc, format_time_span
 from flock.utils.type_resolution import TypeResolutionHelper
 from flock.utils.visibility_utils import deserialize_visibility
+
+
+# A run ID a client names: one path segment of the status route (#618)
+_RUN_ID = re.compile(r"[A-Za-z0-9._:-]{1,256}")
 
 
 class ArtifactComponentConfig(ServerComponentConfig):
@@ -317,10 +322,10 @@ class ArtifactsComponent(ServerComponent):
             )
         }
         correlation_id = controls.get("correlation_id")
-        if correlation_id is not None and not 1 <= len(correlation_id) <= 256:
+        if correlation_id is not None and not _RUN_ID.fullmatch(correlation_id):
             raise HTTPException(
                 status_code=400,
-                detail="Invalid 'correlation_id': 1 to 256 characters",
+                detail="Invalid 'correlation_id': 1 to 256 letters, digits or ._:-",
             )
         artifact_type = controls.get("type")
         if not artifact_type:
