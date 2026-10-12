@@ -104,6 +104,9 @@ class DashboardEventCollector(AgentComponent):
     Phase 3: Emits events via WebSocket using WebSocketManager.
     """
 
+    # Traced at FLOCK_TRACE_LEVEL=all only: the dashboard serving itself (#601)
+    __trace_level__ = "all"
+
     priority: int = -100  # Run before other agent utilities for event capture
 
     # Use PrivateAttr for non-Pydantic fields (AgentComponent extends BaseModel)

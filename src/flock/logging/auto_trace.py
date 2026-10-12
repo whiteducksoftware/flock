@@ -17,6 +17,29 @@ ENABLE_AUTO_TRACE = os.getenv("FLOCK_AUTO_TRACE", "true").lower() in {
 }
 
 
+TRACE_LEVELS = ("agents", "all")
+
+
+def _trace_level_from_env() -> str:
+    """FLOCK_TRACE_LEVEL: `agents` (the default) traces agent work, `all` also
+    Flock's internals (the dashboard, built-in orchestrator components, building
+    and registering)."""
+    value = os.getenv("FLOCK_TRACE_LEVEL", "").strip().lower()
+    if value in TRACE_LEVELS:
+        return value
+    if value:
+        print(f"Warning: Invalid FLOCK_TRACE_LEVEL value: {value} (use agents or all)")
+    return "agents"
+
+
+_trace_filter_config.level = _trace_level_from_env()
+
+
+def http_telemetry() -> dict:
+    """FastAPI's own spans of the server's requests: at FLOCK_TRACE_LEVEL=all only."""
+    return {"tracing": _trace_filter_config.level == "all"}
+
+
 # Parse trace filter configuration from environment variables
 def _parse_trace_filters():
     """Parse FLOCK_TRACE_SERVICES and FLOCK_TRACE_IGNORE from environment."""
@@ -121,6 +144,10 @@ class AutoTracedMeta(type):
             # If auto-tracing is disabled, return the class unchanged
             return super().__new__(mcs, name, bases, namespace, **kwargs)
 
+        # Methods of a class (or a single method) marked `all` are Flock's internals:
+        # traced only at FLOCK_TRACE_LEVEL=all (#601)
+        class_level = namespace.get("__trace_level__", "agents")
+
         # Apply @traced_and_logged to all public methods
         for attr_name, attr_value in list(namespace.items()):
             # Skip private methods (starting with _)
@@ -137,6 +164,15 @@ class AutoTracedMeta(type):
 
             # Skip if explicitly marked to skip tracing
             if getattr(attr_value, "_skip_trace", False):
+                continue
+
+            function = getattr(
+                attr_value, "__func__", attr_value
+            )  # a staticmethod's function
+            if (
+                getattr(function, "_trace_level", class_level) == "all"
+                and _trace_filter_config.level != "all"
+            ):
                 continue
 
             # Apply the decorator
@@ -162,3 +198,19 @@ def skip_trace(func):
     """
     func._skip_trace = True
     return func
+
+
+def trace_level(level: str):
+    """Decorator: trace this method only at ``FLOCK_TRACE_LEVEL=level``.
+
+    ``all`` marks Flock's internals, such as building and registering agents;
+    a whole class sets ``__trace_level__ = "all"`` instead.
+    """
+    if level not in TRACE_LEVELS:
+        raise ValueError(f"trace level must be one of {TRACE_LEVELS}, not {level!r}")
+
+    def mark(func):
+        func._trace_level = level
+        return func
+
+    return mark

@@ -25,6 +25,9 @@ class BuiltinCollectionComponent(OrchestratorComponent):
     Priority: 100 (runs after user components for circuit breaking/dedup)
     """
 
+    # Traced at FLOCK_TRACE_LEVEL=all only: a built-in orchestrator component (#601)
+    __trace_level__ = "all"
+
     priority: int = 100  # Run late (after circuit breaker/dedup components)
     name: str = "builtin_collection"
 

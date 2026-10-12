@@ -95,6 +95,23 @@ if not should_trace(service_name, span_name):
 
 **Key Point**: Methods that are not wrapped (e.g., plain functions, non-component classes) are never traced, regardless of whitelist/blacklist settings.
 
+### Trace level: FLOCK_TRACE_LEVEL
+
+By default Flock traces the work of a flock, not itself:
+
+| `FLOCK_TRACE_LEVEL` | Traced |
+|---|---|
+| `agents` (default) | Workflow roots (`Flock.publish`, `invoke`, `run_until_idle`, `traced_run`, ...), `Agent.execute`, the engines and the agent's own utility components, decision requests, tool and MCP calls, and errors |
+| `all` | Also Flock's internals: the dashboard serving itself (`DashboardEventCollector`, `GraphAssembler`, the HTTP requests), the built-in orchestrator components (circuit breaker, deduplication, collection, activation, timer), and building and registering (`Flock.agent`, `register_agent`, `serve`, ...) |
+
+```bash
+export FLOCK_TRACE_LEVEL=all   # to debug Flock itself
+```
+
+With the triage demo and the dashboard open, 30 seconds wrote 208 spans (1.2 MB of attributes) at `agents` and 1,551 spans (8.3 MB) at `all`. `FLOCK_TRACE_SERVICES` and `FLOCK_TRACE_IGNORE` filter on top of the level: a service the level leaves out stays out.
+
+Classes of your own can do the same: `__trace_level__ = "all"` in a class that uses the auto-tracing metaclass (or a component's subclass), or `@trace_level("all")` on one method (`from flock.logging.auto_trace import trace_level`), traces it only at `all`.
+
 ### Whitelist: FLOCK_TRACE_SERVICES
 
 **Filters by CLASS NAME** (case-insensitive). Only trace methods from specified classes.
@@ -150,7 +167,7 @@ FLOCK_TRACE_IGNORE='["DashboardEventCollector.set_websocket_manager"]'
 
 1. **Blacklist** (highest priority) - If in `FLOCK_TRACE_IGNORE`, never trace
 2. **Whitelist** - If `FLOCK_TRACE_SERVICES` is set, only trace listed services
-3. **Default** - If no filters set, trace everything that's wrapped
+3. **Default** - If no filters set, trace everything that's wrapped at the trace level
 
 ### Recommended Configuration
 

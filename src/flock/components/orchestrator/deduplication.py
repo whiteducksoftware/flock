@@ -31,6 +31,9 @@ class DeduplicationComponent(OrchestratorComponent):
         >>> # - Duplicate work from retry logic
     """
 
+    # Traced at FLOCK_TRACE_LEVEL=all only: a built-in orchestrator component (#601)
+    __trace_level__ = "all"
+
     priority: int = 20  # Run after circuit breaker (10)
     name: str = "deduplication"
 

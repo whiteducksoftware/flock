@@ -6,6 +6,7 @@ from fastapi import FastAPI
 
 from flock.components.server.base import ServerComponent
 from flock.core.orchestrator import Flock
+from flock.logging.auto_trace import http_telemetry
 from flock.logging.logging import get_logger
 
 
@@ -98,6 +99,7 @@ class BaseHTTPService:
                 orchestrator=self.orchestrator
             )
             self.app = FastAPI(
+                telemetry=http_telemetry(),
                 version=self._version,
                 title=self._title,
                 description=self._description,
