@@ -43,7 +43,7 @@ One row, from left to right:
 | **Publish** | The publish composer (Ctrl/⌘+Shift+P) |
 | **Settings, shortcuts** | The settings sheet (Ctrl/⌘+,) and the keyboard shortcuts (Ctrl/⌘+/) |
 
-The filters apply to both views and to the timeline dock.
+The filters apply to both views and to the timeline dock's activity strip and History; Traces and Metrics have a search of their own.
 
 ---
 
@@ -100,9 +100,9 @@ A decision model's answers (see [Decision models](decisions.md)) show wherever t
 
 The strip at the bottom shows the last hour's activity for the board's filters: artifacts per minute, failed workflows marked. Dragging over it sets the time range. Its tabs open it upwards:
 
-- **Traces:** the runs' traces with their spans as a waterfall, and every span's input and output. A trace link anywhere in the dashboard opens it here. Tracing needs `FLOCK_AUTO_TRACE=true` (see [Tracing](tracing/index.md)).
+- **Traces:** the traces with their spans as a waterfall, and every span's input and output. Its search takes free text and `agent:billing_team`, `status:error` or `service:DecisionEngine`, not the board's filters; a trace link anywhere in the dashboard opens it here on that run. Tracing needs `FLOCK_AUTO_TRACE=true` (see [Tracing](tracing/index.md)).
 - **History:** every artifact, newest first, with *Load older*.
-- **Metrics:** rate, errors and durations per service, and who calls whom.
+- **Metrics:** rate, errors and durations per service, and who calls whom, from the loaded traces.
 - **Tracing settings:** which services and operations are traced.
 
 While the dock is open the board is a strip: it fits what was in view, and gives the view back when the dock closes.
