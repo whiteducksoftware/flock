@@ -239,7 +239,14 @@ export function lanesOf(nodes: Node[], edges: Edge[], running: RunningRun[]): La
           .map((node) => dataOf(node).producedBy ?? ''),
       ),
     ];
-    const first = [...recorded].sort((a, b) => (dataOf(a).timestamp ?? 0) - (dataOf(b).timestamp ?? 0))[0] ?? members[0]!;
+    // What the run started with: the shallowest artifact, then the earliest. A wall
+    // clock can step back (a VM's time sync), so a decision may carry an earlier
+    // time than what it decided about
+    const first =
+      [...recorded].sort(
+        (a, b) =>
+          (depths.get(a.id) ?? 0) - (depths.get(b.id) ?? 0) || (dataOf(a).timestamp ?? 0) - (dataOf(b).timestamp ?? 0),
+      )[0] ?? members[0]!;
     return {
       id,
       title: titleOf(dataOf(first).payload),

@@ -76,6 +76,15 @@ describe('lanesOf', () => {
     });
   });
 
+  it('takes the title from what the run started with, also when a wall clock stepped back', () => {
+    // A VM's time sync set the clock back between the ticket and its decision
+    const stepped = nodes.map((node) => (node.id === 'd1' ? { ...node, data: { ...node.data, timestamp: 900 } } : node));
+    expect(lanesOf(stepped, edges, running).find((each) => each.id === 'c-1')).toMatchObject({
+      title: 'App crashes on login',
+      startedAt: 1000,
+    });
+  });
+
   it('marks a run whose decision is unsure and unreviewed, and who answered it meanwhile', () => {
     const review = lane('c-2');
     expect(review).toMatchObject({ needsReview: true, status: { kind: 'review', text: 'needs review · answered by supervisor' } });
