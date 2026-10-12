@@ -304,3 +304,11 @@ Each entry says what was decided, why, and where it landed.
 - **A guess reports the stroke it answers, read back over REST** (review): the decision's `subject_ids` name its sketch, and `GET /api/v1/artifacts/{id}` has its stroke. Counting the guesses that arrived went wrong when a guess failed or a delivery was retried; the app shows each decision once. The guesser runs one sketch at a time, so guesses also arrive in stroke order.
 - **Snake plays a retried delivery once** (review): it remembers the decisions it played and only publishes the step again.
 - **`--fake` stand-ins are providers of the example**, not `FakeDecider`: Snake's moves toward the food from `moves`, the drawing's grows surer of the prompt stroke by stroke. `tests/test_sink_demos.py` plays both loops with them, the sink delivering into the app's handlers.
+
+### #601 step 4: logging apart from tracing (option A, asked)
+
+- **The default is set where the loggers live** (`flock/logging/logging.py`, at import, before `auto_trace`, litellm and dspy are imported, as the tracing call was), not in `auto_trace.py`: logging is configured the same with tracing on and off.
+- **External libraries stay at WARNING**, as tracing set them by default; only Flock's loggers change (DEBUG → WARNING) and the specific DEBUG levels tracing gave `tools`, `agent` and `flock` are gone.
+- **`FLOCK_LOG_LEVEL` takes the names of `LOG_LEVELS`**, any case; an invalid value prints a warning and keeps WARNING, as `FLOCK_TRACE_LEVEL` does.
+- **Version 0.5.810, a series of its own:** #601's earlier steps are 0.5.790 and 0.5.791 on `main`, but `ui-rework` is at 0.5.801 already, and a version cannot go back.
+- **The broken `configure_logging(level=...)` examples are fixed along the way** (imports and silent-mode guides): they are where a reader now goes to turn the logs up.

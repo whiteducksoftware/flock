@@ -27,6 +27,7 @@ Useful environment variables (see `.envtemplate` and [configuration reference](d
 | `OPENAI_API_KEY`, `AZURE_API_KEY`, `AZURE_API_BASE`, `AZURE_API_VERSION` | Provider credentials |
 | `DEFAULT_DECISION_MODEL` | Decision model for `.decides()`, e.g. `azure/decision-1` |
 | `FLOCK_AUTO_TRACE`, `FLOCK_TRACE_FILE` | Tracing on (default on) and DuckDB trace file (default off) |
+| `FLOCK_LOG_LEVEL` | Level of Flock's logs (default `WARNING`, `DEBUG` for everything); tracing does not change it |
 | `FLOCK_LIVE_DECISIONS=1` | Opt-in live tests against decision model providers |
 
 ## Commands
