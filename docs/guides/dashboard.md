@@ -43,7 +43,7 @@ One row, from left to right:
 | **Publish** | The publish composer (Ctrl/⌘+Shift+P) |
 | **Settings, shortcuts** | The settings sheet (Ctrl/⌘+,) and the keyboard shortcuts (Ctrl/⌘+/) |
 
-The filters apply to both views and to the timeline dock's activity strip and History; Traces and Metrics have a search of their own.
+The filters apply to both views and to the timeline dock's activity strip and History; Traces has a search of its own, and Metrics counts every loaded trace.
 
 ---
 
