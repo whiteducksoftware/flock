@@ -4,10 +4,13 @@
  * (docs/internal/design-system/README.md, Nodes: four levels).
  */
 
-import React, { useId, useState } from 'react';
+import React, { useId, useLayoutEffect, useRef, useState } from 'react';
 import { useUIStore } from '../../../store/uiStore';
 import { Icon } from '../../icons/Icon';
+import { prefersLessMotion } from '../animatePositions';
+import { cardSizes } from '../cardSizes';
 import { nextTab } from '../tabKeys';
+import { UNFOLDED_SIZE } from '../unfoldLayout';
 import type { AgentData, PortRow } from '../card/cardModel';
 import type { AggregatorInfo, DeciderInfo } from '../DecisionDisplay';
 import type { SinkInfo } from '../../sinks/deliveries';
@@ -70,8 +73,25 @@ const UnfoldedAgent: React.FC<UnfoldedAgentProps> = ({
     : agent.model;
   const counts: Partial<Record<UnfoldTab, number>> = { history: messages, runs: runs?.length };
 
+  // It opens from its card's box (the board keeps the card's size) instead of
+  // appearing at full size in one frame (#644)
+  const root = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const card = cardSizes.get(id);
+    const element = root.current;
+    if (!card || !element || prefersLessMotion() || typeof element.animate !== 'function') return;
+    const right = Math.max(0, UNFOLDED_SIZE.width - card.width);
+    const bottom = Math.max(0, UNFOLDED_SIZE.height - card.height);
+    element.animate([{ clipPath: `inset(0px ${right}px ${bottom}px 0px round 12px)` }, { clipPath: 'inset(0px 0px 0px 0px round 12px)' }], {
+      duration: 240,
+      easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)',
+    });
+    // Once, when it unfolds
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
-    <div className={styles.node} data-status={status} data-testid="unfolded" aria-label={`${agent.name ?? id}, unfolded`}>
+    <div ref={root} className={styles.node} data-status={status} data-testid="unfolded" aria-label={`${agent.name ?? id}, unfolded`}>
       {handles}
       <div className={styles.header}>
         {dot}

@@ -4,6 +4,7 @@ import { useUIStore } from '../../../store/uiStore';
 import type { PortRow } from '../card/cardModel';
 import type { StreamEvent } from './LiveTab';
 import UnfoldedAgent from './UnfoldedAgent';
+import { cardSizes } from '../cardSizes';
 
 // A websocket client the tests drive
 const listeners = new Map<string, Set<(data: unknown) => void>>();
@@ -123,6 +124,23 @@ describe('UnfoldedAgent', () => {
     expect(overview.textContent).toContain('Failed1');
     expect(overview.textContent).toContain('Tokens1,500');
     expect(overview.textContent).toContain('Cost$0.0012');
+  });
+
+  it('opens from the box of its card instead of appearing at full size (#644)', () => {
+    cardSizes.set('billing_team', { width: 300, height: 180 });
+    const animate = vi.fn();
+    (HTMLElement.prototype as any).animate = animate;
+    try {
+      renderAgent();
+      expect(animate).toHaveBeenCalledTimes(1);
+      const [keyframes, options] = animate.mock.calls[0]!;
+      // 560 x 470 shows only the card's 300 x 180 at first, then all of it
+      expect(keyframes).toEqual([{ clipPath: 'inset(0px 260px 290px 0px round 12px)' }, { clipPath: 'inset(0px 0px 0px 0px round 12px)' }]);
+      expect(options).toMatchObject({ duration: 240 });
+    } finally {
+      delete (HTMLElement.prototype as any).animate;
+      cardSizes.delete('billing_team');
+    }
   });
 
   it('names a decider\'s decision model and threshold', () => {

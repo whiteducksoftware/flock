@@ -682,6 +682,29 @@ describe('AgentNode', () => {
     });
   });
 
+  it('fades its card in when it folds back, instead of popping (#644)', () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ runs: [] }))));
+    const animate = vi.fn();
+    (HTMLElement.prototype as any).animate = animate;
+    try {
+      useUIStore.setState({ unfoldedNodeId: 'test-agent' });
+      render(
+        <ReactFlowProvider>
+          <AgentNode {...createNodeProps({ name: 'test-agent', status: 'idle', subscriptions: ['app.Ticket'] })} />
+        </ReactFlowProvider>,
+      );
+      animate.mockClear();
+      act(() => useUIStore.setState({ unfoldedNodeId: null }));
+
+      expect(screen.queryByTestId('unfolded')).toBeNull();
+      expect(animate).toHaveBeenCalledWith([{ opacity: 0 }, { opacity: 1 }], expect.objectContaining({ duration: 200 }));
+    } finally {
+      delete (HTMLElement.prototype as any).animate;
+      useUIStore.setState({ unfoldedNodeId: null });
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('unfolds in place when it is the unfolded node, at any zoom', () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ runs: [] }))));
     useUIStore.setState({ unfoldedNodeId: 'test-agent' });
