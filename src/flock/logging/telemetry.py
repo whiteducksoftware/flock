@@ -230,15 +230,21 @@ _flushes_lock = threading.Lock()
 
 
 def _stopped(provider) -> bool:
-    """Whether every batch processor of the provider was shut down (and so drained)."""
+    """Whether every batch processor of the provider was shut down and its worker,
+    which still exports during a shutdown, has finished: nothing is left to write."""
     processors = getattr(
         getattr(provider, "_active_span_processor", None), "_span_processors", ()
     )
     batches = [p for p in processors if isinstance(p, BatchSpanProcessor)]
-    return bool(batches) and all(
-        getattr(getattr(p, "_batch_processor", None), "_shutdown", False)
-        for p in batches
-    )
+
+    def drained(processor) -> bool:
+        state = getattr(processor, "_batch_processor", None)
+        worker = getattr(state, "_worker_thread", None)
+        return bool(getattr(state, "_shutdown", False)) and not (
+            worker is not None and worker.is_alive()
+        )
+
+    return bool(batches) and all(drained(p) for p in batches)
 
 
 def _flush_in_thread(provider, flush, timeout_millis: int):
@@ -269,7 +275,7 @@ def flush_traces(timeout_millis: int = 5_000) -> bool:
     """
     provider = trace.get_tracer_provider()
     flush = getattr(provider, "force_flush", None)
-    if not callable(flush) or _stopped(provider):
+    if not callable(flush):
         return True
     deadline = time.monotonic() + timeout_millis / 1000
     with _flushes_lock:
@@ -278,6 +284,8 @@ def flush_traces(timeout_millis: int = 5_000) -> bool:
         older[0].join(max(0.0, deadline - time.monotonic()))
         if older[0].is_alive():
             return False
+    if _stopped(provider):
+        return True
     remaining = max(0, int((deadline - time.monotonic()) * 1000))
     worker, outcome = _flush_in_thread(provider, flush, remaining)
     worker.join(max(0.0, deadline - time.monotonic()))

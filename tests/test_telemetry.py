@@ -890,6 +890,39 @@ class TestFlushTraces:
 
         assert flush_traces() is True
 
+    def test_a_provider_still_exporting_while_it_shuts_down_is_not_drained(
+        self, monkeypatch
+    ):
+        import threading
+
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
+
+        from flock.logging.telemetry import flush_traces
+
+        released = threading.Event()
+
+        class Slow(SpanExporter):
+            def export(self, spans):
+                released.wait(5)
+                return SpanExportResult.SUCCESS
+
+        provider = TracerProvider()
+        provider.add_span_processor(
+            BatchSpanProcessor(Slow(), schedule_delay_millis=60_000)
+        )
+        monkeypatch.setattr(trace, "get_tracer_provider", lambda: provider)
+        with provider.get_tracer("test").start_as_current_span("pending"):
+            pass
+        stopping = threading.Thread(target=provider.shutdown)
+        stopping.start()
+        try:
+            assert flush_traces(timeout_millis=200) is False
+        finally:
+            released.set()
+            stopping.join(5)
+        assert flush_traces() is True
+
     def test_reports_a_flush_that_failed(self, monkeypatch):
         from opentelemetry.sdk.trace import SpanProcessor, TracerProvider
 
