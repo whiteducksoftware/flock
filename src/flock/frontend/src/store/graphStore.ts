@@ -31,6 +31,8 @@ import { indexedDBService } from '../services/indexeddb';
 const RUN_TAIL_CHARS = 160;
 /** How long a run that ended waits for its output on the board, at most */
 const SETTLE_MS = 4000;
+/** Runs ended so far: a snapshot asked after a run's end holds all it published */
+let runsEnded = 0;
 
 /** A running run: what it consumed, what its agent publishes, and what of that the board held when it started */
 export interface InFlightRun {
@@ -79,7 +81,7 @@ interface GraphState {
    * Runs that ended and whose output is not on the board yet: it comes with the
    * next snapshot. The lanes keep their placeholders meanwhile (#642).
    */
-  settling: Map<string, InFlightRun & { known: string[] }>;
+  settling: Map<string, InFlightRun & { known: string[]; endSeq?: number }>;
   /** The filters the Blackboard's snapshot answers (`blackboardFilterKey` when they are the board's) */
   blackboardFilters: string | null;
   /** Per running run, the end of its streamed output (an agent's ticker mixes its runs) */
@@ -362,6 +364,7 @@ export const useGraphStore = create<GraphState>()(
       generateBlackboardViewGraph: async () => {
         set({ isLoading: true, error: null, viewMode: 'blackboard' });
         const mine = ++snapshotRequest;
+        const endedBefore = runsEnded;
 
         try {
           const request = buildGraphRequest('blackboard');
@@ -379,13 +382,16 @@ export const useGraphStore = create<GraphState>()(
             (node) => node.type === 'message' && node.data.isStreaming && !known.has(node.id) && passes(node.data),
           );
 
-          // Runs that ended settle once their output is on the board: what they
-          // published, or (not told) a new artifact of the agent in the workflow
+          // Runs that ended settle once their output is on the board. A snapshot
+          // asked after a run ended holds all it published that the board's
+          // filters let through, placed (the server counts the run as done);
+          // one read before must place all of it. Not told what it published,
+          // a run waits for a new artifact of its agent in its workflow
           const settling = new Map(get().settling);
           const inSnapshot = new Set(snapshot.nodes.map((node) => node.id));
           for (const [runId, run] of settling) {
             const published = run.published
-              ? run.published.some((id) => drawn(id, run, inSnapshot, snapshot.edges as Edge[]))
+              ? (run.endSeq ?? Infinity) <= endedBefore || run.published.every((id) => drawn(id, run, inSnapshot, snapshot.edges as Edge[]))
               : snapshot.nodes.some(
                   (node) =>
                     node.data?.producedBy === run.agent &&
@@ -487,7 +493,7 @@ export const useGraphStore = create<GraphState>()(
           const changes: Partial<GraphState> = { inFlight };
           if (ended && settles) {
             const settling = new Map(state.settling);
-            settling.set(runId, { ...ended, known: ended.known ?? [], published });
+            settling.set(runId, { ...ended, known: ended.known ?? [], published, endSeq: ++runsEnded });
             changes.settling = settling;
           }
           // A run that ends takes its output's tail along
