@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+from datetime import timedelta
 from typing import Any
 
 import pytest
@@ -458,3 +460,97 @@ async def test_a_run_that_ended_before_it_is_recorded_still_counts(kind, tmp_pat
     assert counts["cards"]["reader"]["received"] == (1, {ticket_type: 1})
     if kind == "sqlite":
         await flock.store.close()
+
+
+@pytest.mark.parametrize("kind", ["memory", "sqlite"])
+async def test_a_failed_run_counts_what_it_consumed_for_good(
+    kind, tmp_path, monkeypatch
+):
+    from flock.api import graph_builder
+
+    flock, reader, collector = await _reading(kind, tmp_path)
+    ticket = await _ticket_on_board(flock, "fails")
+    await _starts(collector, flock, reader, "r1", ticket)
+    # A failed run records nothing: the orchestrator stops before it would
+    ctx = Context(
+        board=flock.store,
+        orchestrator=flock,
+        task_id="r1",
+        state={"artifacts_produced": [], "metrics": {}},
+        correlation_id=str(ticket.correlation_id),
+    )
+    await collector.on_error(reader, ctx, RuntimeError("boom"))
+    # Long after the margin in which an ended run may still be recorded
+    monkeypatch.setattr(graph_builder, "_CLOCK_MARGIN", timedelta(0))
+
+    counts = _counts(await _agent_view(flock, limit=5, collector=collector))
+
+    ticket_type = type_registry.name_for(CountTicket)
+    assert counts["cards"]["reader"]["received"] == (1, {ticket_type: 1})
+    if kind == "sqlite":
+        await flock.store.close()
+
+
+async def test_sqlite_counts_one_state_of_the_board(tmp_path, monkeypatch):
+    from flock.storage.sqlite.flow_queries import SQLiteFlowQueries
+
+    flock, reader, collector = await _reading("sqlite", tmp_path)
+    first = await _ticket_on_board(flock, "first")
+    await flock.store.record_consumptions([
+        ConsumptionRecord(artifact_id=first.id, consumer="reader", run_id="r1")
+    ])
+    rows = SQLiteFlowQueries._rows
+    meanwhile: list[asyncio.Task] = []
+    queries = 0
+
+    async def publish_meanwhile():
+        # Another ticket and its consumption, while the board is counted
+        second = await _ticket_on_board(flock, "second")
+        await flock.store.record_consumptions([
+            ConsumptionRecord(artifact_id=second.id, consumer="reader", run_id="r2")
+        ])
+
+    async def interleaved(conn, query, params):
+        nonlocal queries
+        queries += 1
+        if queries == 2:  # after the artifacts, before the consumptions
+            meanwhile.append(asyncio.create_task(publish_meanwhile()))
+            await asyncio.sleep(0.05)
+        return await rows(conn, query, params)
+
+    monkeypatch.setattr(SQLiteFlowQueries, "_rows", staticmethod(interleaved))
+    counts = _counts(await _agent_view(flock, limit=5, collector=collector))
+    await meanwhile[0]
+
+    # What external published and what reader consumed: the same board
+    sent = counts["cards"]["external"]["sent"][0]
+    assert counts["cards"]["reader"]["received"][0] == sent
+    await flock.store.close()
+
+
+def test_a_store_that_records_no_consumptions_counts_every_run():
+    from datetime import UTC, datetime
+
+    from flock.components.server.models.graph import GraphRun, GraphState
+    from flock.core.store import BlackboardStore
+
+    class Unrecording(BlackboardStore):
+        """Keeps artifacts only: what was consumed lives in the collector."""
+
+    ended = GraphRun(
+        run_id="r1",
+        agent_name="reader",
+        status="completed",
+        consumed_artifacts=["a1"],
+        completed_at=datetime(2020, 1, 1, tzinfo=UTC),
+    )
+    state = GraphState(runs=[ended])
+    flock = Flock()
+    collector = DashboardEventCollector(store=flock.store)
+
+    recording = GraphAssembler(flock.store, collector, flock)
+    unrecording = GraphAssembler(Unrecording(), collector, flock)
+
+    # The in-memory store recorded what the long-ended run consumed
+    assert recording._unrecorded_consumptions(state) == {}
+    assert unrecording._unrecorded_consumptions(state) == {"a1": {"reader"}}

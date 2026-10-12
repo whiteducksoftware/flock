@@ -906,15 +906,18 @@ class SQLiteBlackboardStore(BlackboardStore):
         filters: FilterConfig | None = None,
         running: Mapping[str, Collection[str]] | None = None,
     ) -> FlowCounts:
-        """What flowed where in the filter range, counted in SQL."""
+        """What flowed where in the filter range, counted in SQL. Writes wait
+        meanwhile, so the counts are of one state of the board (they would
+        queue behind the reads on the connection anyway)."""
         with tracer.start_as_current_span("sqlite_store.flow_counts"):
             conn = await self._get_connection()
             where_clause, params = self._build_filters(
                 filters or FilterConfig(), table_alias="a"
             )
-            return await self._flow_queries.count(
-                conn, where_clause, tuple(params), running or {}
-            )
+            async with self._write_lock:
+                return await self._flow_queries.count(
+                    conn, where_clause, tuple(params), running or {}
+                )
 
     async def agent_history_summary(
         self,

@@ -232,16 +232,21 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             {k: v for k, v in explanations.items() if k in in_view},
         )
 
-    @staticmethod
-    def _unrecorded_consumptions(graph_state: GraphState) -> dict[str, set[str]]:
-        """Artifact ID -> agents whose runs consumed it and may not be recorded
-        yet: a run's consumptions are recorded after it ended and published,
-        so those of running runs and of runs that ended within the margin."""
+    def _unrecorded_consumptions(self, graph_state: GraphState) -> dict[str, set[str]]:
+        """Artifact ID -> agents whose runs consumed it and may not be recorded:
+        a run records what it consumed after it published, so a running one
+        and one that ended within the margin may not yet, and a failed one
+        never does. With a store that records no consumptions, every run."""
+        records = (
+            type(self._store).record_consumptions
+            is not BlackboardStore.record_consumptions
+        )
         since = datetime.now(UTC) - _CLOCK_MARGIN
         unrecorded: dict[str, set[str]] = defaultdict(set)
         for run in graph_state.runs:
             if (
-                run.status == "active"
+                not records
+                or run.status in ("active", "error")
                 or not run.completed_at
                 or run.completed_at >= since
             ):
