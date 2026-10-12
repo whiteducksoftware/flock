@@ -4,6 +4,12 @@ import os
 from unittest.mock import Mock, patch
 
 import pytest
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+    InMemorySpanExporter,
+)
 from pydantic import BaseModel
 
 from flock.core import Flock
@@ -193,3 +199,28 @@ async def test_auto_workflow_trace_env_var_false():
     with patch.dict(os.environ, {"FLOCK_AUTO_WORKFLOW_TRACE": "false"}):
         flock = Flock("test-model")
         assert flock._auto_workflow_enabled is False
+
+
+@pytest.mark.asyncio
+async def test_shutdown_writes_the_spans_still_waiting_in_a_batch(
+    orchestrator, monkeypatch
+):
+    """Exporters run behind batch processors: shutdown flushes them (#601)."""
+    written = InMemorySpanExporter()
+    provider = TracerProvider()
+    provider.add_span_processor(
+        BatchSpanProcessor(written, schedule_delay_millis=60_000)
+    )
+    monkeypatch.setattr(trace, "get_tracer_provider", lambda: provider)
+    try:
+        with provider.get_tracer("test").start_as_current_span("waiting in a batch"):
+            pass
+        assert written.get_finished_spans() == ()
+
+        await orchestrator.shutdown()
+
+        assert "waiting in a batch" in [
+            span.name for span in written.get_finished_spans()
+        ]
+    finally:
+        provider.shutdown()

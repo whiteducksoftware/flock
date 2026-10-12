@@ -10,6 +10,39 @@ from opentelemetry.trace import Status, StatusCode
 from flock.logging.telemetry_exporter.base_exporter import TelemetryExporter
 
 
+_COLUMNS = (
+    "trace_id",
+    "span_id",
+    "parent_id",
+    "name",
+    "service",
+    "operation",
+    "kind",
+    "start_time",
+    "end_time",
+    "duration_ms",
+    "status_code",
+    "status_description",
+    "attributes",
+    "events",
+    "links",
+    "resource",
+)
+
+# Rows per INSERT: DuckDB runs each statement on its own, so one statement with
+# many rows writes a batch about ten times faster than a statement per row (#601)
+_ROWS_PER_INSERT = 128
+
+
+def _insert_sql(rows: int) -> str:
+    """An INSERT OR REPLACE of ``rows`` spans (a span exported again replaces itself)."""
+    row = "(" + ", ".join("?" * len(_COLUMNS)) + ")"
+    return (
+        f"INSERT OR REPLACE INTO spans ({', '.join(_COLUMNS)}) VALUES "  # nosec B608
+        + ", ".join([row] * rows)
+    )
+
+
 class DuckDBSpanExporter(TelemetryExporter):
     """Export spans to DuckDB for fast analytical queries.
 
@@ -67,16 +100,13 @@ class DuckDBSpanExporter(TelemetryExporter):
                 )
             """)
 
-            # Create indexes for common query patterns
+            # trace_id serves lookups of one trace. Indexes on service,
+            # start_time, name and created_at took space (5.5 of 143 MB at
+            # 20,000 spans) and sped up no query of the dashboard (#601):
+            # earlier files lose them
             conn.execute("CREATE INDEX IF NOT EXISTS idx_trace_id ON spans(trace_id)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_service ON spans(service)")
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_start_time ON spans(start_time)"
-            )
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_name ON spans(name)")
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_created_at ON spans(created_at)"
-            )
+            for column in ("service", "start_time", "name", "created_at"):
+                conn.execute(f"DROP INDEX IF EXISTS idx_{column}")  # nosec B608
 
         # Cleanup old traces if TTL is configured
         if self.ttl_days is not None:
@@ -172,42 +202,20 @@ class DuckDBSpanExporter(TelemetryExporter):
         }
 
     def export(self, spans):
-        """Export spans to DuckDB."""
+        """Export a batch of spans to DuckDB in one transaction: all or none."""
         try:
+            records = [self._span_to_record(span) for span in spans]
+            if not records:
+                return SpanExportResult.SUCCESS
             with duckdb.connect(str(self.db_path)) as conn:
-                for span in spans:
-                    record = self._span_to_record(span)
-
-                    # Insert span record
+                conn.execute("BEGIN TRANSACTION")
+                for start in range(0, len(records), _ROWS_PER_INSERT):
+                    part = records[start : start + _ROWS_PER_INSERT]
                     conn.execute(
-                        """
-                        INSERT OR REPLACE INTO spans (
-                            trace_id, span_id, parent_id, name, service, operation,
-                            kind, start_time, end_time, duration_ms,
-                            status_code, status_description,
-                            attributes, events, links, resource
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                        (
-                            record["trace_id"],
-                            record["span_id"],
-                            record["parent_id"],
-                            record["name"],
-                            record["service"],
-                            record["operation"],
-                            record["kind"],
-                            record["start_time"],
-                            record["end_time"],
-                            record["duration_ms"],
-                            record["status_code"],
-                            record["status_description"],
-                            record["attributes"],
-                            record["events"],
-                            record["links"],
-                            record["resource"],
-                        ),
+                        _insert_sql(len(part)),
+                        [record[column] for record in part for column in _COLUMNS],
                     )
-
+                conn.execute("COMMIT")
             return SpanExportResult.SUCCESS
         except Exception as e:
             print(f"Error exporting spans to DuckDB: {e}")

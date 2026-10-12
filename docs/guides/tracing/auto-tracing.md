@@ -197,7 +197,7 @@ export FLOCK_TRACE_TTL_DAYS=30
 - ❌ Long-term analytics - If you need historical trace data, disable TTL or export to separate storage
 
 **Performance impact:**
-- Cleanup uses indexed `created_at` field for fast deletion
+- Cleanup deletes by the `created_at` timestamp in one statement; DuckDB skips the blocks that hold only newer spans
 - Runs only once per application startup
 - Near-zero runtime overhead
 
@@ -216,6 +216,18 @@ FLOCK_TRACE_TTL_DAYS=90
 # No cleanup: Keep all traces forever
 # FLOCK_TRACE_TTL_DAYS=  (leave empty or comment out)
 ```
+
+### Export in batches
+
+Spans are exported in batches by a background thread, not one at a time by the code that ends them. A batch goes out at least every second, so the dashboard's traces stay current, or once 512 spans are waiting. OpenTelemetry's variables tune this:
+
+```bash
+export OTEL_BSP_SCHEDULE_DELAY=5000        # milliseconds between batches (Flock's default: 1000)
+export OTEL_BSP_MAX_EXPORT_BATCH_SIZE=512  # spans per batch
+export OTEL_BSP_MAX_QUEUE_SIZE=2048        # spans waiting at most; more are dropped
+```
+
+`Flock.shutdown()` writes the spans still waiting (it waits at most five seconds for a slow exporter), and so does the end of the process. `Flock.clear_traces()` and the dashboard's clear write them before they delete, so cleared spans do not come back.
 
 ## What Gets Captured
 

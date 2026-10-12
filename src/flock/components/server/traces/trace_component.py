@@ -298,7 +298,10 @@ class TracingComponent(ServerComponent):
                 }
             """
             if self._db_path_exists:
-                result = orchestrator.clear_traces(db_path=self._db_path)
+                # Off the event loop: the clear writes waiting spans first (#601)
+                result = await asyncio.to_thread(
+                    orchestrator.clear_traces, db_path=self._db_path
+                )
                 if result["success"]:
                     logger.info(
                         f"TracingComponent: Cleared {result['deleted_count']} trace spans via API"
