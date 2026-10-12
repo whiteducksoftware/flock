@@ -9,6 +9,9 @@ export const prefersLessMotion = (): boolean =>
 /** A movement's duration, none for people who ask for less motion (the board panning, fitting). */
 export const motionMs = (ms: number): number => (prefersLessMotion() ? 0 : ms);
 
+/** How nodes move: fast at first, slowing down (cubic) */
+export const easeOut = (t: number): number => 1 - (1 - t) ** 3;
+
 /**
  * Moves nodes from `from` to `to` in `duration` ms, easing out, handing
  * every frame's positions to `apply`; at once for people who ask for less
@@ -32,7 +35,7 @@ export function animatePositions(
   let frame = 0;
   const step = (now: number) => {
     const t = Math.min(1, Math.max(0, (now - start) / duration));
-    const eased = 1 - (1 - t) ** 3;
+    const eased = easeOut(t);
     apply(
       new Map(
         [...to].map(([id, end]) => {
