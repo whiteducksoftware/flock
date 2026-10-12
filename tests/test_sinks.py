@@ -710,3 +710,42 @@ def test_the_shorthand_cannot_reach_a_private_output():
         flock.agent("secretive").consumes(SinkCrmRecord).publishes(
             SinkReply, visibility=PrivateVisibility(agents={"ops"}), post="myapp:/x"
         )
+
+
+async def test_a_sinks_card_counts_its_deliveries(waits):
+    from flock.api.collector import DashboardEventCollector
+    from flock.api.graph_builder import GraphAssembler
+    from flock.components.server.models.graph import GraphRequest
+
+    flock = flock_with(myapp=Endpoint("https://myapp.test", retries=0))
+    flock.sink("billing-api").consumes(SinkReply).post("myapp:/billing")
+
+    with respx.mock() as router:
+        router.post("https://myapp.test/billing").mock(
+            side_effect=[
+                httpx.Response(200),
+                httpx.Response(200),
+                httpx.Response(503, text="down"),
+            ]
+        )
+        for n in range(3):
+            await flock.publish(
+                SinkReply(ticket=f"T-2{n}", text="Counted"), correlation_id="one-run"
+            )
+        await flock.run_until_idle()
+
+    collector = DashboardEventCollector(store=flock.store)
+    snapshot = await GraphAssembler(flock.store, collector, flock).build_snapshot(
+        GraphRequest(view_mode="agent")
+    )
+    node = next(node for node in snapshot.nodes if node.id == "billing-api")
+
+    sink = node.data["sink"]
+    assert sink["method"] == "POST"
+    assert sink["target"] == "myapp:/billing"
+    assert (sink["delivered"], sink["failed"]) == (2, 1)
+    assert sink["last"]["ok"] is False
+    assert sink["last"]["status"] == 503
+    assert "down" in sink["last"]["error"]
+    # Agents that are not sinks have no deliveries
+    assert all("sink" not in n.data for n in snapshot.nodes if n.id != "billing-api")

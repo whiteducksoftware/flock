@@ -404,6 +404,31 @@ describe('AgentNode', () => {
     expect(screen.getByTestId('decider-shadow')).toHaveTextContent('shadow candidate · agrees 2/3');
   });
 
+  it('should count the deliveries of a sink and show the last one', () => {
+    const data: AgentNodeData = {
+      name: 'billing-api',
+      status: 'idle',
+      subscriptions: ['Reply'],
+      engineTag: '↗ POST /billing',
+      sink: {
+        method: 'POST',
+        target: 'myapp:/billing',
+        delivered: 12,
+        failed: 1,
+        last: { ok: false, status: 503, latencyMs: null, error: 'HTTP 503: down', at: '2026-10-12T08:24:00Z', correlationId: 'c-1' },
+      },
+    };
+
+    render(
+      <ReactFlowProvider>
+        <AgentNode {...createNodeProps(data)} />
+      </ReactFlowProvider>
+    );
+
+    expect(screen.getByTestId('card-tag').textContent).toBe('↗ POST /billing');
+    expect(screen.getByTestId('deliveries').textContent).toBe('12 delivered1 failedlast HTTP 503');
+  });
+
   it('should summarize the coverage of an aggregating agent', () => {
     const data: AgentNodeData = {
       name: 'coverage',

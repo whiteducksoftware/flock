@@ -10,6 +10,7 @@ import { Icon } from '../../icons/Icon';
 import { nextTab } from '../tabKeys';
 import type { AgentData, PortRow } from '../card/cardModel';
 import type { AggregatorInfo, DeciderInfo } from '../DecisionDisplay';
+import type { SinkInfo } from '../../sinks/deliveries';
 import { useAgentRuns } from './agentRuns';
 import { count } from './format';
 import HistoryTab from './HistoryTab';
@@ -42,6 +43,7 @@ interface UnfoldedAgentProps {
   states: React.ReactNode;
   decider?: DeciderInfo;
   aggregator?: AggregatorInfo;
+  sink?: SinkInfo;
   onOpenTrace: (correlationId: string) => void;
 }
 
@@ -56,6 +58,7 @@ const UnfoldedAgent: React.FC<UnfoldedAgentProps> = ({
   states,
   decider,
   aggregator,
+  sink,
   onOpenTrace,
 }) => {
   const [tab, setTab] = useState<UnfoldTab>('overview');
@@ -169,7 +172,7 @@ const UnfoldedAgent: React.FC<UnfoldedAgentProps> = ({
         className={`nodrag nowheel nopan ${styles.body}`}
         data-scroll
       >
-        {tab === 'overview' && <OverviewTab runs={runs} states={states} decider={decider} aggregator={aggregator} />}
+        {tab === 'overview' && <OverviewTab runs={runs} states={states} decider={decider} aggregator={aggregator} sink={sink} />}
         {tab === 'live' && <LiveTab agent={id} running={status === 'running'} />}
         {tab === 'history' && <HistoryTab agent={id} revision={messages} />}
         {tab === 'runs' && <RunsTab runs={runs} error={error} />}

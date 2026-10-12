@@ -13,6 +13,7 @@ import { Icon } from '../icons/Icon';
 import JsonAttributeRenderer from '../modules/JsonAttributeRenderer';
 import { clockTime, shortId } from '../graph/unfold/format';
 import type { ImageSummary } from '../../utils/imageFields';
+import { outcomeText, receiptOf } from '../sinks/deliveries';
 import ArtifactBody from './ArtifactBody';
 import type { LaneCard } from './lanes';
 import { useArtifact } from './useArtifact';
@@ -87,6 +88,23 @@ const Summary: React.FC<{ card: LaneCard }> = ({ card }) => {
     );
   }
   if (data.decision) return <DecisionLine decision={data.decision} />;
+  const receipt = receiptOf(card.type, data.payload);
+  if (receipt) {
+    // Where it went and how it ended, as the two fields of other cards
+    return (
+      <div className={styles.kv} data-testid="receipt" data-ok={receipt.ok}>
+        <span>to</span>
+        <span className={`mono ${styles.clip}`} title={`${receipt.method} ${receipt.target}`}>
+          {receipt.method} {receipt.target}
+        </span>
+        <span>answer</span>
+        <span className={`${styles.receipt} ${receipt.ok ? '' : styles.receiptFailed}`}>
+          <Icon name={receipt.ok ? 'check' : 'error'} size={12} />
+          <span className={`mono ${styles.clip}`}>{outcomeText(receipt)}</span>
+        </span>
+      </div>
+    );
+  }
   const rows = data.payload && typeof data.payload === 'object' ? Object.entries(data.payload as Record<string, unknown>).slice(0, 2) : [];
   // A stream that just ended, before the board's snapshot has its payload
   if (rows.length === 0 && data.streamingText) return <span className={`mono ${styles.stream}`}>{data.streamingText.slice(-140)}</span>;
@@ -192,12 +210,14 @@ const ArtifactCard: React.FC<{ card: LaneCard }> = ({ card }) => {
   const unfolded = useUIStore((state) => state.unfoldedArtifactId === card.id);
   const decision = (card.data as { decision?: DecisionInfo }).decision;
   const pending = card.state === 'pending';
+  const undelivered = receiptOf(card.type, (card.data as { payload?: unknown }).payload)?.ok === false;
   const classes = [
     styles.card,
     unfolded && styles.unfolded,
     card.state === 'streaming' && styles.streaming,
     pending && styles.pending,
     decision?.choice === 'UNSURE' && styles.unsureCard,
+    undelivered && styles.failedCard,
   ]
     .filter(Boolean)
     .join(' ');
@@ -224,7 +244,7 @@ const ArtifactCard: React.FC<{ card: LaneCard }> = ({ card }) => {
   }
   if (unfolded) {
     return (
-      <article className={classes} aria-label={`${labelOf(card.type)} by ${card.producedBy}`}>
+      <article className={classes} aria-label={`${labelOf(card.type)} by ${card.producedBy}`} data-failed={undelivered || undefined}>
         <div className={styles.unfoldedHead}>
           {head}
           <button
@@ -247,6 +267,7 @@ const ArtifactCard: React.FC<{ card: LaneCard }> = ({ card }) => {
       tabIndex={0}
       aria-expanded={false}
       aria-label={`${labelOf(card.type)} by ${card.producedBy}`}
+      data-failed={undelivered || undefined}
       onClick={() => useUIStore.getState().unfoldArtifact(card.id)}
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return;

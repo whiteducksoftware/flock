@@ -282,3 +282,12 @@ Each entry says what was decided, why, and where it landed.
 - **A batch execution always sends a list**, also of one artifact (review: a timed-out batch of one went out as an object); payloads go out JSON-encoded by pydantic (sets as lists, enums as values), not by `str()` (review).
 - **The card tag is per instance** (`↗ POST /billing`, host and path for a full URL): the graph builder reads an engine's `kind` from the instance, where a sink's engine computes it.
 - **`DeliveryFailed` counts as an error in the activity histogram**, in both stores, next to `WorkflowError`: a failed delivery is a failed step of the workflow the timeline should mark.
+
+### #618 Sinks (dashboard)
+
+- **A sink is an agent card with a delivery line**, not a new node type: its tag already names the method and path (`↗ POST /billing`), and the line below its ports counts delivered and failed (coral) and shows the last answer. A distinct node shape would be a second card anatomy for one kind of agent.
+- **The counts come from the receipts on the board** (the snapshot's `sink` per agent node, as a decider's answers come from its decisions), so they follow the board's filters and time range.
+- **A receipt's card shows `to` and `answer` as its two fields**, the place other cards show two payload fields; one line (`POST myapp:/billing · 200 · 41 ms`) was cut off at the card's width.
+- **Coral for a failed delivery, nothing new for a delivered one:** coral is the design's signal for failure; a delivery that went through is the normal case and keeps the card neutral, with a check before the answer.
+- **A run whose delivery failed says so in its lane header** (coral, *· 1 delivery failed*, an error mark instead of the check): the run is done, but not everything reached its target. Workflow errors are not marked this way yet; that is a change of its own.
+- **The timeline needed no change:** the backend counts `DeliveryFailed` as an error in the histogram (#618 backend), and the dock marks errors.

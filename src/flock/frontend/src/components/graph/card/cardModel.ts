@@ -5,6 +5,7 @@
 
 import type { ScheduleSpecDisplay } from '../../../types/graph';
 import { shortTypeName } from '../../../utils/typeName';
+import type { SinkInfo } from '../../sinks/deliveries';
 
 /** The node data the card reads (the backend sends more). */
 export interface AgentData {
@@ -28,6 +29,8 @@ export interface AgentData {
   };
   decision?: { questions?: { name: string }[] };
   engineTag?: string | null;
+  /** A sink's target and deliveries */
+  sink?: SinkInfo;
   isOpenClawAgent?: boolean;
   streamingTokens?: string[];
   /** When the snapshot arrived, on the monotonic clock (`performance.now()`) */

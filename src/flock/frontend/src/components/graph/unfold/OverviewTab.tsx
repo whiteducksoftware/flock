@@ -1,5 +1,6 @@
 import React from 'react';
 import { AggregatorInfo, CoverageSummary, DeciderInfo, DeciderOptions } from '../DecisionDisplay';
+import { lastText, type SinkInfo } from '../../sinks/deliveries';
 import type { AgentRun } from './agentRuns';
 import { count, usd } from './format';
 import ReviewQueue from './ReviewQueue';
@@ -11,6 +12,7 @@ interface OverviewTabProps {
   states: React.ReactNode;
   decider?: DeciderInfo;
   aggregator?: AggregatorInfo;
+  sink?: SinkInfo;
 }
 
 /** How many runs `GET /api/agents/{name}/runs` lists at most. */
@@ -24,7 +26,7 @@ const Stat: React.FC<{ label: string; value: string }> = ({ label, value }) => (
 );
 
 /** What the agent is doing, what it decided, and its runs in numbers. */
-const OverviewTab: React.FC<OverviewTabProps> = ({ runs, states, decider, aggregator }) => {
+const OverviewTab: React.FC<OverviewTabProps> = ({ runs, states, decider, aggregator, sink }) => {
   const finished = runs ?? [];
   const failed = finished.filter((run) => run.status === 'error').length;
   const tokens = finished.reduce((sum, run) => sum + (run.tokens ?? 0), 0);
@@ -47,6 +49,17 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ runs, states, decider, aggreg
           <span className={styles.label}>Coverage</span>
           <CoverageSummary aggregator={aggregator} />
         </div>
+      )}
+      {sink && (
+        <section className={styles.section} aria-label="Deliveries">
+          <span className={styles.label}>Deliveries</span>
+          <div className={styles.stats}>
+            <Stat label="Delivered" value={count(sink.delivered)} />
+            <Stat label="Failed" value={count(sink.failed)} />
+            <Stat label="Last" value={sink.last ? lastText(sink.last) : '—'} />
+          </div>
+          {sink.last && !sink.last.ok && sink.last.error && <p className={styles.error}>{sink.last.error}</p>}
+        </section>
       )}
       <div className={styles.section}>
         {/* The server lists an agent's latest runs */}

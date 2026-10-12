@@ -227,3 +227,17 @@ describe('titleOf', () => {
     expect(titleOf({ ticket_id: 'T-0010', title: 'Refund not received' })).toBe('Refund not received');
   });
 });
+
+describe('lane status', () => {
+  it("says when a run's delivery failed", () => {
+    const run = [
+      artifact('x1', 'c-9', 'app.Reply', 'support', 1000, { payload: { text: 'Refunded' } }),
+      artifact('x2', 'c-9', 'flock.sinks.models.Delivered', 'audit', 1200),
+      artifact('x3', 'c-9', 'flock.sinks.models.DeliveryFailed', 'billing-api', 1300),
+    ];
+    const status = lanesOf(run, [made('x1', 'x2', 'audit'), made('x1', 'x3', 'billing-api')], [])[0]!.status;
+
+    expect(status.kind).toBe('failed');
+    expect(status.text).toBe('done in 300 ms · 3 artifacts · 1 delivery failed');
+  });
+});

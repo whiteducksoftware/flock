@@ -86,4 +86,25 @@ describe('OverviewTab', () => {
 
     expect(screen.queryByRole('region', { name: 'Needs review' })).toBeNull();
   });
+
+  it("counts a sink's deliveries and shows why the last one failed", () => {
+    render(
+      <OverviewTab
+        runs={[]}
+        states={null}
+        sink={{
+          method: 'POST',
+          target: 'myapp:/billing',
+          delivered: 12,
+          failed: 1,
+          last: { ok: false, status: 503, latencyMs: null, error: 'HTTP 503: down', at: '2026-10-12T08:24:00Z', correlationId: 'c-1' },
+        }}
+      />,
+    );
+
+    const deliveries = screen.getByRole('region', { name: 'Deliveries' });
+    expect(within(deliveries).getByText('Delivered').nextSibling!.textContent).toBe('12');
+    expect(within(deliveries).getByText('Failed').nextSibling!.textContent).toBe('1');
+    expect(deliveries.textContent).toContain('HTTP 503: down');
+  });
 });

@@ -8,6 +8,7 @@
 import type { Edge, Node } from '@xyflow/react';
 import type { DecisionInfo } from '../graph/DecisionDisplay';
 import { duration } from '../graph/unfold/format';
+import { DELIVERY_FAILED } from '../sinks/deliveries';
 
 /** A running run of an agent: its correlation and what it consumed. */
 export interface RunningRun {
@@ -39,7 +40,8 @@ export interface LaneColumn {
 }
 
 export interface LaneStatus {
-  kind: 'running' | 'review' | 'done';
+  /** Failed: done, and a sink could not deliver one of its artifacts */
+  kind: 'running' | 'review' | 'done' | 'failed';
   text: string;
 }
 
@@ -129,7 +131,12 @@ function statusOf(cards: LaneCard[], runs: RunningRun[], deciders: Set<string>, 
   // A stream whose run ended before anything was published has no time to tell
   if (done.length === 0) return { kind: 'done', text: 'done · 0 artifacts' };
   const span = Math.max(...done.map((card) => card.timestamp)) - Math.min(...done.map((card) => card.timestamp));
-  return { kind: 'done', text: `done in ${duration(span)} · ${done.length} artifact${done.length === 1 ? '' : 's'}` };
+  const text = `done in ${duration(span)} · ${done.length} artifact${done.length === 1 ? '' : 's'}`;
+  const undelivered = done.filter((card) => card.type === DELIVERY_FAILED).length;
+  if (undelivered > 0) {
+    return { kind: 'failed', text: `${text} · ${undelivered} deliver${undelivered === 1 ? 'y' : 'ies'} failed` };
+  }
+  return { kind: 'done', text };
 }
 
 /**

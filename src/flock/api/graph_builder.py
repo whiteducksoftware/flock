@@ -440,6 +440,9 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             type_labels = choice_type_labels(agent)
             if type_labels:
                 node_data["typeLabels"] = type_labels
+            deliveries = self._deliveries(agent, artifacts)
+            if deliveries:
+                node_data["sink"] = deliveries
 
             # Add schedule data if present
             if schedule_spec_data:
@@ -585,6 +588,54 @@ class GraphAssembler(metaclass=AutoTracedMeta):
             if isinstance(kind, str) and kind:
                 return kind
         return None
+
+    @staticmethod
+    def _deliveries(
+        agent: object, artifacts: dict[str, GraphArtifact]
+    ) -> dict[str, Any] | None:
+        """A sink's target and its receipts on the board: how many deliveries
+        went out and failed, and the latest."""
+        from flock.sinks.engine import SinkEngine
+        from flock.sinks.models import Delivered, DeliveryFailed
+
+        engine = next(
+            (
+                e
+                for e in getattr(agent, "engines", None) or []
+                if isinstance(e, SinkEngine)
+            ),
+            None,
+        )
+        if engine is None:
+            return None
+        delivered = type_registry.name_for(Delivered)
+        failed = type_registry.name_for(DeliveryFailed)
+        receipts = sorted(
+            (
+                artifact
+                for artifact in artifacts.values()
+                if artifact.produced_by == getattr(agent, "name", None)
+                and artifact.artifact_type in (delivered, failed)
+            ),
+            key=lambda artifact: artifact.published_at,
+        )
+        last = receipts[-1] if receipts else None
+        return {
+            "method": engine.method,
+            "target": engine.target.declared,
+            "delivered": sum(r.artifact_type == delivered for r in receipts),
+            "failed": sum(r.artifact_type == failed for r in receipts),
+            "last": None
+            if last is None
+            else {
+                "ok": last.artifact_type == delivered,
+                "status": last.payload.get("status"),
+                "latencyMs": last.payload.get("latency_ms"),
+                "error": last.payload.get("error"),
+                "at": last.published_at.isoformat(),
+                "correlationId": last.correlation_id,
+            },
+        }
 
     def _model(self, agent: object) -> str | None:
         """The model the agent's engine runs on, for its card.

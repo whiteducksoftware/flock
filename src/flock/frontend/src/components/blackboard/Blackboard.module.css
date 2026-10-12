@@ -125,6 +125,17 @@
   color: var(--signal-ink);
 }
 
+/* Done, and a sink could not deliver one of the run's artifacts */
+.statusFailed {
+  font-size: 12px;
+  color: var(--error-ink);
+}
+
+.failedMark {
+  display: inline-flex;
+  color: var(--error-ink);
+}
+
 .columns {
   display: flex;
   align-items: center;
@@ -205,6 +216,26 @@
 
 .unsureCard {
   border-style: dashed;
+}
+
+/* A sink's failed delivery */
+.failedCard {
+  border-color: var(--error);
+}
+
+.failedCard:hover {
+  border-color: var(--error-ink);
+}
+
+.receipt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.receiptFailed {
+  color: var(--error-ink);
 }
 
 .cardHead {
