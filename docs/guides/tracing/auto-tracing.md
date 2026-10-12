@@ -110,7 +110,7 @@ export FLOCK_TRACE_LEVEL=all   # to debug Flock itself
 
 With the triage demo and the dashboard open, 30 seconds wrote 208 spans (1.2 MB of attributes) at `agents` and 1,551 spans (8.3 MB) at `all`. `FLOCK_TRACE_SERVICES` and `FLOCK_TRACE_IGNORE` filter on top of the level: a service the level leaves out stays out.
 
-At both levels, agent work that an HTTP request starts joins the caller's trace (`traceparent` and `baggage` headers); `agents` only leaves out the request's own span.
+At both levels, agent work that an HTTP request starts joins the caller's trace (`traceparent` and `baggage` headers), or the request span of a host that instruments the app itself; `agents` only leaves out Flock's own request span.
 
 Classes of your own can do the same: `__trace_level__ = "all"` in a class that uses the auto-tracing metaclass (or a component's subclass), or `@trace_level("all")` on one method (`from flock.logging.auto_trace import trace_level`), traces it only at `all`.
 

@@ -193,3 +193,70 @@ def test_the_server_continues_the_callers_trace_at_every_level(
     )
 
     assert response.json() == caller
+
+
+def _probed_app():
+    """The REST app at the agents level, with a route reporting the request's
+    trace ID and baggage."""
+    from opentelemetry import baggage, trace
+
+    from flock import Flock
+    from flock.api.service import BlackboardHTTPService
+
+    app = BlackboardHTTPService(Flock()).app
+
+    @app.get("/probe-trace")
+    async def probe():
+        return {
+            "trace_id": format(
+                trace.get_current_span().get_span_context().trace_id, "032x"
+            ),
+            "baggage": dict(baggage.get_all()),
+        }
+
+    return app
+
+
+def test_the_server_keeps_every_baggage_header(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    monkeypatch.setattr(_trace_filter_config, "level", "agents")
+
+    response = TestClient(_probed_app()).get(
+        "/probe-trace",
+        headers=[("baggage", "session_id=first"), ("baggage", "run_id=second")],
+    )
+
+    assert response.json()["baggage"] == {"session_id": "first", "run_id": "second"}
+
+
+@pytest.mark.parametrize("traceparent", [False, True])
+def test_the_server_keeps_a_request_span_its_host_already_started(
+    monkeypatch, traceparent
+):
+    from fastapi.testclient import TestClient
+    from opentelemetry import context, trace
+    from opentelemetry.trace import NonRecordingSpan, SpanContext, TraceFlags
+
+    monkeypatch.setattr(_trace_filter_config, "level", "agents")
+    app = _probed_app()
+    host = "0af7651916cd43dd8448eb211c80319c"
+
+    async def instrumented_host(scope, receive, send):
+        span = NonRecordingSpan(
+            SpanContext(int(host, 16), 0xB7AD6B7169203331, False, TraceFlags(1))
+        )
+        token = context.attach(trace.set_span_in_context(span))
+        try:
+            await app(scope, receive, send)
+        finally:
+            context.detach(token)
+
+    headers = (
+        {"traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"}
+        if traceparent
+        else {}
+    )
+    response = TestClient(instrumented_host).get("/probe-trace", headers=headers)
+
+    assert response.json()["trace_id"] == host

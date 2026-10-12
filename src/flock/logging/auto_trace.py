@@ -40,23 +40,50 @@ def http_telemetry() -> dict:
     return {"tracing": _trace_filter_config.level == "all"}
 
 
+class _ScopeHeaders:
+    """An ASGI scope's headers as a propagation carrier: every value of a
+    repeated header, repeated ``baggage`` joined as one list."""
+
+    def get(self, carrier: dict[str, list[str]], key: str) -> list[str] | None:
+        values = carrier.get(key.lower())
+        if not values:
+            return None
+        if key.lower() == "baggage":
+            # The baggage propagator reads only the first value
+            return [",".join(values)]
+        return values
+
+    def keys(self, carrier: dict[str, list[str]]) -> list[str]:
+        return list(carrier)
+
+
 class CallerTraceMiddleware:
     """Continues the caller's trace (``traceparent``, ``baggage``) when FastAPI's
-    request spans are off, which also turns off FastAPI reading those headers."""
+    request spans are off, which also turns off FastAPI reading those headers.
+    A request span a host's own instrumentation started stays the parent."""
 
     def __init__(self, app) -> None:
         self.app = app
 
     async def __call__(self, scope, receive, send) -> None:
-        if scope["type"] not in ("http", "websocket"):
+        from opentelemetry import context, propagate, trace
+
+        if (
+            scope["type"] not in ("http", "websocket")
+            or trace.get_current_span().get_span_context().is_valid
+        ):
             await self.app(scope, receive, send)
             return
-        from opentelemetry import context, propagate
-
-        headers: dict[str, str] = {}
+        headers: dict[str, list[str]] = {}
         for name, value in scope.get("headers", []):
-            headers.setdefault(name.decode("latin-1"), value.decode("latin-1"))
-        token = context.attach(propagate.extract(headers))
+            headers.setdefault(name.decode("latin-1").lower(), []).append(
+                value.decode("latin-1")
+            )
+        token = context.attach(
+            propagate.extract(
+                headers, context=context.get_current(), getter=_ScopeHeaders()
+            )
+        )
         try:
             await self.app(scope, receive, send)
         finally:
