@@ -8,6 +8,7 @@ import {
   applyEdgeChanges,
   useReactFlow,
   type Node,
+  type OnNodeDrag,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import AgentNode, { openTrace } from './AgentNode';
@@ -437,8 +438,8 @@ const GraphCanvas: React.FC = () => {
   });
 
   // Node drag handler - prevent overlaps with collision detection
-  const onNodeDrag = useCallback(
-    (_event: React.MouseEvent | MouseEvent, node: Node) => {
+  const onNodeDrag = useCallback<OnNodeDrag>(
+    (_event, node) => {
       const intersections = getIntersectingNodes(node);
 
       // If there are intersecting nodes, snap back to prevent overlap
@@ -457,8 +458,8 @@ const GraphCanvas: React.FC = () => {
   );
 
   // Node drag stop handler - persist position with 300ms debounce
-  const onNodeDragStop = useCallback(
-    (_event: React.MouseEvent | MouseEvent, node: Node) => {
+  const onNodeDragStop = useCallback<OnNodeDrag>(
+    (_event, node) => {
       const { transientPositions, setTransientPositions } = useGraphStore.getState();
       if (transientPositions) {
         // A node is unfolded: the move lasts until it folds and is not saved

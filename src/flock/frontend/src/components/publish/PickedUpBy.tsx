@@ -6,7 +6,7 @@
 import React, { useId } from 'react';
 import type { Agent } from '../../services/api';
 import { shortTypeName } from '../../utils/typeName';
-import { orList, pickedUpBy } from './pickedUpBy';
+import { orList, pickedUpBy } from './reach';
 import { isDecisionType, questionOf } from './typeGroups';
 import styles from './PublishComposer.module.css';
 
