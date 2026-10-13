@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Agent } from '../../services/api';
-import { orList, pickedUpBy } from './pickedUpBy';
+import { orList, pickedUpBy } from './reach';
 
 const agent = (name: string, subscriptions: string[], output_types: string[]): Agent => ({
   name,
