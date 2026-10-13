@@ -34,7 +34,7 @@ async function clip(name, prepare, act, { seconds = 6, ready = 'text=Live' } = {
 // that just started may publish one only after a few minutes: wait for it
 const laneOf = (port, test, label = null) => async (page) => {
   let candidates = [];
-  for (const until = Date.now() + 240_000; !candidates.length && Date.now() < until; ) {
+  for (const until = performance.now() + 240_000; !candidates.length && performance.now() < until; ) {
     candidates = decisionsOf(await snapshot(port)).filter(test).reverse();
     if (!candidates.length) await sleep(5000);
   }
@@ -104,7 +104,7 @@ const WRITERS = ['tech_support', 'billing_team', 'shipping_team', 'supervisor'];
 // Chosen in the take, not before: a reply streams for a second or two
 await clip('focus', async (page) => { await fit(page); }, async (page, _ctx, rec) => {
   let node = page.locator(`.react-flow__node[data-id="${WRITERS[0]}"]`);
-  for (const until = Date.now() + 30_000; Date.now() < until; await sleep(100)) {
+  for (const until = performance.now() + 30_000; performance.now() < until; await sleep(100)) {  // monotonic: the wall clock steps on WSL
     const running = WRITERS.map((name) => page.locator(`.react-flow__node[data-id="${name}"]`));
     const found = await Promise.all(running.map((each) => each.locator('[data-status="running"]').count()));
     if (found.some(Boolean)) { node = running[found.findIndex(Boolean)]; break; }
