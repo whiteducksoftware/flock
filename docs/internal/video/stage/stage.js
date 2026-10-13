@@ -278,7 +278,7 @@ twoWindowScene('play', 18, {
   ],
 });
 
-// 3 SEE: Quick, Draw! on a vision model, every stroke a thumbnail in the node
+// 3 SEE: Quick, Draw! on a decision model with vision, every stroke a thumbnail in the node
 // Two cuts of one recording: the first drawing, then the last (the prompts are random)
 const drawStarts = (rec) => Object.entries(recordings[rec].marks)
   .filter(([name]) => name.startsWith('start:')).map(([, t]) => t).sort((a, b) => a - b);
@@ -298,7 +298,7 @@ twoWindowScene('see', 19, {
   chips: [
     { head: 'Images via REST', sub: 'POST /api/v1/artifacts/upload', at: 4.0, out: 8.4 },
     { head: 'Image view in the node', sub: 'every stroke, filed under its guess', at: 9.6, out: 14.0, dot: 'blue' },
-    { head: 'Any vision model', sub: 'openai/gpt-6-luna', at: 14.4, out: 18.4 },
+    { head: 'Any decision model with vision', sub: 'openai/gpt-6-luna', at: 14.4, out: 18.4 },
   ],
 });
 
