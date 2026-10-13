@@ -1,17 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { DECISION_COLOR, DECISION_TEXT, type TournamentRound } from './DecisionDisplay';
+import type { TournamentRound } from './DecisionDisplay';
+import styles from './TournamentBracket.module.css';
 
 /**
  * Maximized view of a tournament decision: one column per round plus the
  * final, group boxes with their top candidates, lines from every survivor to
- * its place in the next round, and the champion's path highlighted.
+ * its place in the next round, and the champion's path in blue.
  */
-
-const AMBER = '#f59e0b';
-const PANEL_BG = '#14141c';
-const BOX_BG = '#1d1d29';
-const LINE = 'rgba(148, 163, 184, 0.35)';
 
 interface BracketGroup {
   key: string;
@@ -172,8 +168,9 @@ export const TournamentBracket = ({ question, rounds, final, champion, onClose }
     return () => window.removeEventListener('resize', measure);
   }, [measure]);
 
+  // The champion's path is blue; a hovered option is traced in the text color
   const lineColor = (option: string) =>
-    option === hovered ? AMBER : option === champion ? DECISION_COLOR : LINE;
+    option === hovered ? 'var(--text)' : option === champion ? 'var(--sure)' : 'var(--line-2)';
 
   return createPortal(
     <div
@@ -181,62 +178,23 @@ export const TournamentBracket = ({ question, rounds, final, champion, onClose }
       aria-modal="true"
       aria-label={`Tournament bracket: ${question}`}
       onClick={onClose}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 2000,
-        background: 'rgba(6, 6, 10, 0.78)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '32px',
-      }}
+      className={styles.scrim}
     >
-      <div
-        onClick={(event) => event.stopPropagation()}
-        style={{
-          background: PANEL_BG,
-          border: `1px solid rgba(139, 92, 246, 0.35)`,
-          borderRadius: '14px',
-          boxShadow: '0 24px 64px rgba(0, 0, 0, 0.6)',
-          width: '100%',
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          color: '#e7e5e4',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px 20px', borderBottom: '1px solid rgba(148,163,184,0.15)' }}>
-          <span style={{ fontSize: '16px', fontWeight: 700, color: DECISION_TEXT }}>🏆 {question}</span>
-          <span style={{ fontSize: '12px', color: '#a8a29e', fontFamily: 'monospace' }}>
+      <div onClick={(event) => event.stopPropagation()} className={styles.panel}>
+        <div className={styles.header}>
+          <span className={styles.label}>Tournament</span>
+          <span className={styles.title}>
+            <span className={styles.diamond}>◆</span> {question}
+          </span>
+          <span className={styles.subtitle}>
             {champion ? `winner: ${champion}` : 'no winner'} · hover an option to trace it
           </span>
-          <button
-            ref={closeRef}
-            type="button"
-            aria-label="Close bracket"
-            onClick={onClose}
-            style={{
-              marginLeft: 'auto',
-              background: 'transparent',
-              border: '1px solid rgba(148,163,184,0.3)',
-              color: '#e7e5e4',
-              borderRadius: '8px',
-              padding: '4px 10px',
-              cursor: 'pointer',
-            }}
-          >
-            ✕ Close
+          <button ref={closeRef} type="button" aria-label="Close bracket" onClick={onClose} className={`btn sm ${styles.close}`}>
+            Close
           </button>
         </div>
-        <div ref={containerRef} style={{ position: 'relative', flex: 1, overflow: 'auto', padding: '20px' }}>
-          <svg
-            aria-hidden
-            width={size.width}
-            height={size.height}
-            style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none' }}
-          >
+        <div ref={containerRef} className={styles.stage}>
+          <svg aria-hidden width={size.width} height={size.height} className={styles.lines}>
             {lines.map((line) => (
               <path
                 key={line.key}
@@ -248,44 +206,33 @@ export const TournamentBracket = ({ question, rounds, final, champion, onClose }
               />
             ))}
           </svg>
-          <div style={{ position: 'relative', display: 'flex', gap: '72px', alignItems: 'flex-start' }}>
+          <div className={styles.columns}>
             {columns.map((column, columnIndex) => (
-              <div
-                key={column.title}
-                data-testid="bracket-column"
-                data-title={column.title}
-                style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '230px', flexShrink: 0 }}
-              >
-                <div style={{ position: 'sticky', top: 0 }}>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: DECISION_TEXT }}>{column.title}</div>
-                  <div style={{ fontSize: '11px', color: '#a8a29e', fontFamily: 'monospace' }}>{column.subtitle}</div>
+              <div key={column.title} data-testid="bracket-column" data-title={column.title} className={styles.column}>
+                <div className={styles.columnHead}>
+                  <div className={styles.columnTitle}>{column.title}</div>
+                  <div className={styles.columnSub}>{column.subtitle}</div>
                 </div>
                 {column.groups.map((group) => (
                   <div
                     key={group.key}
                     ref={anchor(group.key)}
                     data-testid="bracket-group"
-                    style={{
-                      background: BOX_BG,
-                      border: `1px solid ${group.refused ? 'rgba(245, 158, 11, 0.5)' : 'rgba(148,163,184,0.18)'}`,
-                      borderRadius: '10px',
-                      padding: '8px 10px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '4px',
-                    }}
+                    className={group.refused ? `${styles.group} ${styles.groupRefused}` : styles.group}
                   >
-                    <div style={{ fontSize: '10px', color: '#78716c', fontFamily: 'monospace' }}>
+                    <div className={styles.groupLabel}>
                       {group.label} · {group.size} options
                     </div>
                     {group.refused && (
-                      <div style={{ fontSize: '11px', color: AMBER }}>refused: no option fits</div>
+                      <div className={styles.refused}>
+                        <span aria-hidden className={styles.refusedMark} />
+                        refused: no option fits
+                      </div>
                     )}
                     {group.top.map(([option, p]) => {
                       const isFinal = columnIndex === columns.length - 1;
                       const survivor = isFinal ? option === champion : group.survivors.has(option);
                       const winner = option === champion;
-                      const highlight = option === hovered ? AMBER : winner ? DECISION_COLOR : null;
                       return (
                         <div
                           key={option}
@@ -295,57 +242,25 @@ export const TournamentBracket = ({ question, rounds, final, champion, onClose }
                           data-column={String(columnIndex)}
                           data-survivor={String(survivor)}
                           data-winner={String(winner)}
+                          data-hovered={option === hovered || undefined}
                           onMouseEnter={() => setHovered(option)}
                           onMouseLeave={() => setHovered(null)}
                           title={`${option} · p ${p.toFixed(3)}`}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            padding: '2px 6px',
-                            borderRadius: '6px',
-                            border: `1px solid ${highlight ?? 'transparent'}`,
-                            boxShadow: highlight ? `0 0 10px ${highlight}55` : 'none',
-                            opacity: survivor || option === hovered ? 1 : 0.45,
-                            cursor: 'default',
-                          }}
+                          className={styles.option}
                         >
-                          <span
-                            style={{
-                              width: '86px',
-                              fontSize: '11px',
-                              fontFamily: 'monospace',
-                              fontWeight: survivor ? 700 : 500,
-                              color: winner ? DECISION_TEXT : '#e7e5e4',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap',
-                            }}
-                          >
-                            {winner ? '★ ' : ''}
+                          <span className={styles.name}>
+                            {winner ? '◆ ' : ''}
                             {option}
                           </span>
-                          <span style={{ flex: 1, height: '6px', borderRadius: '3px', background: 'rgba(148,163,184,0.15)' }}>
-                            <span
-                              style={{
-                                display: 'block',
-                                height: '100%',
-                                width: `${Math.max(p * 100, 1)}%`,
-                                borderRadius: '3px',
-                                background: survivor ? DECISION_COLOR : '#78716c',
-                              }}
-                            />
+                          <span className={styles.track}>
+                            <span className={styles.fill} style={{ width: `${Math.max(p * 100, 1)}%` }} />
                           </span>
-                          <span style={{ width: '34px', textAlign: 'right', fontSize: '10px', color: '#a8a29e' }}>
-                            {Math.round(p * 100)}%
-                          </span>
+                          <span className={styles.value}>{p.toFixed(2)}</span>
                         </div>
                       );
                     })}
                     {group.size > group.top.length && !group.refused && (
-                      <div style={{ fontSize: '10px', color: '#78716c', fontFamily: 'monospace' }}>
-                        +{group.size - group.top.length} more
-                      </div>
+                      <div className={styles.groupMore}>+{group.size - group.top.length} more</div>
                     )}
                   </div>
                 ))}

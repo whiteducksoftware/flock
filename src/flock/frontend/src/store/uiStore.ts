@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
 
 export type VisualizationMode = 'agent' | 'blackboard';
+export type DockTab = 'traces' | 'history' | 'metrics' | 'settings';
+
 export type AutoLayoutMode =
   | 'hierarchical-horizontal'
   | 'hierarchical-vertical'
@@ -9,11 +11,16 @@ export type AutoLayoutMode =
   | 'grid'
   | 'random';
 
-interface DetailWindow {
-  nodeId: string;
-  position: { x: number; y: number };
-  size: { width: number; height: number };
-  activeTab: 'liveOutput' | 'messageHistory' | 'runStatus';
+export type BlackboardView = 'lanes' | 'graph';
+
+/** A short message at the bottom of the board, with an optional action. */
+export interface ToastMessage {
+  message: string;
+  /** The tooltip of the message, e.g. a full run ID */
+  title?: string;
+  /** A second, fainter line */
+  detail?: string;
+  action?: { label: string; onClick: () => void };
 }
 
 interface UIState {
@@ -27,11 +34,53 @@ interface UIState {
   deselectNode: (nodeId: string) => void;
   clearSelection: () => void;
 
-  // Detail windows
-  detailWindows: Map<string, DetailWindow>;
-  openDetailWindow: (nodeId: string) => void;
-  closeDetailWindow: (nodeId: string) => void;
-  updateDetailWindow: (nodeId: string, updates: Partial<DetailWindow>) => void;
+  // The node unfolded on the board, one at a time (not saved)
+  unfoldedNodeId: string | null;
+  unfold: (nodeId: string) => void;
+  fold: () => void;
+  toggleUnfold: (nodeId: string) => void;
+
+  // The timeline dock, expanded on a tab (not saved); the trace search it opens with
+  dockOpen: boolean;
+  dockTab: DockTab;
+  traceSearch: string;
+  openDock: (tab: DockTab, traceSearch?: string) => void;
+  setTraceSearch: (traceSearch: string) => void;
+  closeDock: () => void;
+
+  // The node in focus: a full stage over the dimmed board (not saved)
+  focusedNodeId: string | null;
+  focus: (nodeId: string) => void;
+  unfocus: () => void;
+
+  // The Blackboard view: lanes or the table (saved), the artifact card unfolded in place
+  // and whether only runs that need a review show (not saved)
+  blackboardView: BlackboardView;
+  setBlackboardView: (view: BlackboardView) => void;
+  // The Blackboard graph's layout and whether new artifacts lay it out (saved)
+  graphLayout: AutoLayoutMode;
+  setGraphLayout: (mode: AutoLayoutMode) => void;
+  graphAutoArrange: boolean;
+  setGraphAutoArrange: (on: boolean) => void;
+  unfoldedArtifactId: string | null;
+  unfoldArtifact: (artifactId: string) => void;
+  foldArtifact: () => void;
+  needsReviewOnly: boolean;
+  setNeedsReviewOnly: (on: boolean) => void;
+
+  // The ⌘K palette (not saved)
+  paletteOpen: boolean;
+  openPalette: () => void;
+  closePalette: () => void;
+
+  // The type the publish composer opens on, once (not saved)
+  publishType: string | null;
+  setPublishType: (type: string | null) => void;
+
+  // The toast, one at a time; it closes itself (not saved)
+  toast: ToastMessage | null;
+  showToast: (toast: ToastMessage) => void;
+  dismissToast: () => void;
 
   // Layout preferences
   layoutDirection: 'TB' | 'LR';
@@ -40,10 +89,6 @@ interface UIState {
   setAutoLayoutEnabled: (enabled: boolean) => void;
   autoLayoutMode: AutoLayoutMode;
   setAutoLayoutMode: (mode: AutoLayoutMode) => void;
-
-  // Preferences
-  defaultTab: 'liveOutput' | 'messageHistory' | 'runStatus';
-  setDefaultTab: (tab: 'liveOutput' | 'messageHistory' | 'runStatus') => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -66,35 +111,50 @@ export const useUIStore = create<UIState>()(
           }),
         clearSelection: () => set({ selectedNodeIds: new Set() }),
 
-        detailWindows: new Map(),
-        openDetailWindow: (nodeId: string) =>
-          set((state) => {
-            const windows = new Map(state.detailWindows);
-            if (!windows.has(nodeId)) {
-              windows.set(nodeId, {
-                nodeId,
-                position: { x: 100 + windows.size * 20, y: 100 + windows.size * 20 },
-                size: { width: 600, height: 400 },
-                activeTab: state.defaultTab,
-              });
-            }
-            return { detailWindows: windows };
-          }),
-        closeDetailWindow: (nodeId: string) =>
-          set((state) => {
-            const windows = new Map(state.detailWindows);
-            windows.delete(nodeId);
-            return { detailWindows: windows };
-          }),
-        updateDetailWindow: (nodeId: string, updates: Partial<DetailWindow>) =>
-          set((state) => {
-            const windows = new Map(state.detailWindows);
-            const existing = windows.get(nodeId);
-            if (existing) {
-              windows.set(nodeId, { ...existing, ...updates });
-            }
-            return { detailWindows: windows };
-          }),
+        unfoldedNodeId: null,
+        unfold: (nodeId: string) => set({ unfoldedNodeId: nodeId }),
+        fold: () => set({ unfoldedNodeId: null }),
+        toggleUnfold: (nodeId: string) =>
+          set((state) => ({ unfoldedNodeId: state.unfoldedNodeId === nodeId ? null : nodeId })),
+
+        dockOpen: false,
+        dockTab: 'traces',
+        traceSearch: '',
+        // The expanded dock and the focus stage each need the board's room: one closes the other
+        openDock: (tab: DockTab, traceSearch?: string) =>
+          set((state) => ({ dockOpen: true, dockTab: tab, traceSearch: traceSearch ?? state.traceSearch, focusedNodeId: null })),
+        closeDock: () => set({ dockOpen: false }),
+        setTraceSearch: (traceSearch: string) => set({ traceSearch }),
+
+        focusedNodeId: null,
+        focus: (nodeId: string) => set({ focusedNodeId: nodeId, dockOpen: false }),
+        unfocus: () => set({ focusedNodeId: null }),
+
+        blackboardView: 'lanes',
+        setBlackboardView: (view: BlackboardView) => set({ blackboardView: view }),
+        // Runs as narrow trees side by side; left to right they are wide, one or two a row
+        graphLayout: 'hierarchical-vertical',
+        setGraphLayout: (mode: AutoLayoutMode) => set({ graphLayout: mode }),
+        // A busy board would move all the time: cards stay where they are unless asked
+        graphAutoArrange: false,
+        setGraphAutoArrange: (on: boolean) => set({ graphAutoArrange: on }),
+        // One card at a time, as one agent unfolds at a time
+        unfoldedArtifactId: null,
+        unfoldArtifact: (artifactId: string) => set({ unfoldedArtifactId: artifactId }),
+        foldArtifact: () => set({ unfoldedArtifactId: null }),
+        needsReviewOnly: false,
+        setNeedsReviewOnly: (on: boolean) => set({ needsReviewOnly: on }),
+
+        paletteOpen: false,
+        openPalette: () => set({ paletteOpen: true }),
+        closePalette: () => set({ paletteOpen: false }),
+
+        publishType: null,
+        setPublishType: (publishType: string | null) => set({ publishType }),
+
+        toast: null,
+        showToast: (toast: ToastMessage) => set({ toast }),
+        dismissToast: () => set({ toast: null }),
 
         layoutDirection: 'TB',
         setLayoutDirection: (direction: 'TB' | 'LR') => set({ layoutDirection: direction }),
@@ -103,27 +163,26 @@ export const useUIStore = create<UIState>()(
         autoLayoutMode: 'hierarchical-horizontal',
         setAutoLayoutMode: (mode: AutoLayoutMode) => set({ autoLayoutMode: mode }),
 
-        defaultTab: 'liveOutput',
-        setDefaultTab: (tab: 'liveOutput' | 'messageHistory' | 'runStatus') => set({ defaultTab: tab }),
       }),
       {
         name: 'ui-storage',
         partialize: (state) => ({
           mode: state.mode,
-          detailWindows: Array.from(state.detailWindows.entries()),
-          defaultTab: state.defaultTab,
+          blackboardView: state.blackboardView,
+          graphLayout: state.graphLayout,
+          graphAutoArrange: state.graphAutoArrange,
           layoutDirection: state.layoutDirection,
           autoLayoutEnabled: state.autoLayoutEnabled,
           autoLayoutMode: state.autoLayoutMode,
         }) as any,
         merge: (persistedState: any, currentState: any) => {
-          // Convert detailWindows array back to Map
-          if (persistedState?.detailWindows && Array.isArray(persistedState.detailWindows)) {
-            persistedState.detailWindows = new Map(persistedState.detailWindows);
-          }
+          // Older dashboards saved their detail windows and their default tab; agents and artifacts unfold now
+          const { detailWindows: _windows, defaultTab: _tab, ...saved } = persistedState ?? {};
+          // The Blackboard's table is gone (it was the timeline dock's History)
+          if (saved.blackboardView === 'table') saved.blackboardView = 'lanes';
           return {
             ...currentState,
-            ...persistedState,
+            ...saved,
           };
         },
       }

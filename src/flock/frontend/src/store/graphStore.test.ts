@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { useGraphStore } from './graphStore';
+import { blackboardFilterKey, useGraphStore } from './graphStore';
 import { fetchGraphSnapshot, mergeNodePositions, overlayWebSocketState } from '../services/graphService';
 import { useFilterStore } from './filterStore';
 import { GraphSnapshot, GraphNode } from '../types/graph';
@@ -45,9 +45,11 @@ describe('graphStore - NEW Simplified Architecture', () => {
       streamingTokens: new Map(),
       nodes: [],
       edges: [],
+      moving: new Set(),
       statistics: null,
       events: [],
       viewMode: 'agent',
+      transientPositions: null,
     });
 
     // Clear all mocks
@@ -69,7 +71,267 @@ describe('graphStore - NEW Simplified Architecture', () => {
     vi.restoreAllMocks();
   });
 
+  describe('streaming previews on the Blackboard', () => {
+    const stream = (artifactId: string, correlation: string, agent = 'writer', type = 'app.Reply') =>
+      useGraphStore.getState().createOrUpdateStreamingMessageNode(artifactId, 'tok', {
+        artifact_type: type,
+        agent_name: agent,
+        correlation_id: correlation,
+        run_id: `run-${artifactId}`,
+      } as any);
+
+    beforeEach(() => {
+      useGraphStore.setState({ viewMode: 'blackboard', nodes: [] });
+    });
+
+    it('show only what the board\'s filters let through', () => {
+      vi.mocked(useFilterStore.getState).mockReturnValue({
+        correlationId: 'c-1',
+        timeRange: { preset: 'last10min' },
+        selectedArtifactTypes: [],
+        selectedProducers: [],
+        selectedTags: [],
+        selectedVisibility: [],
+      } as any);
+
+      stream('a-1', 'c-1');
+      stream('a-2', 'c-2'); // another run: no lane for it
+
+      expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual(['a-1']);
+    });
+
+    it('match a type filter by any type of an agent that publishes several', () => {
+      vi.mocked(useFilterStore.getState).mockReturnValue({
+        correlationId: null,
+        timeRange: { preset: 'all' },
+        selectedArtifactTypes: ['app.B'],
+        selectedProducers: [],
+        selectedTags: [],
+        selectedVisibility: [],
+      } as any);
+
+      // `.publishes(A, B)` streams under the label "app.A, app.B"
+      stream('a-1', 'c-1', 'writer', 'app.A, app.B');
+      stream('a-2', 'c-1', 'writer', 'app.A, app.C');
+
+      expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual(['a-1']);
+    });
+
+    it('keep a generic type name whole: its commas are not between types', () => {
+      vi.mocked(useFilterStore.getState).mockReturnValue({
+        correlationId: null,
+        timeRange: { preset: 'all' },
+        selectedArtifactTypes: ['app.Pair[str, int]'],
+        selectedProducers: [],
+        selectedTags: [],
+        selectedVisibility: [],
+      } as any);
+
+      stream('a-1', 'c-1', 'writer', 'app.Pair[str, int]');
+      stream('a-2', 'c-1', 'writer', 'app.Pair[str, int], app.Note');
+      stream('a-3', 'c-1', 'writer', 'app.Pair[str, bool]');
+
+      expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual(['a-1', 'a-2']);
+    });
+
+    it('follow the type, producer and tag filters', () => {
+      const filters = { correlationId: null, timeRange: { preset: 'all' }, selectedVisibility: [] };
+      vi.mocked(useFilterStore.getState).mockReturnValue({
+        ...filters,
+        selectedArtifactTypes: ['app.Reply'],
+        selectedProducers: ['writer'],
+        selectedTags: [],
+      } as any);
+      stream('a-1', 'c-1');
+      stream('a-2', 'c-1', 'other');
+      stream('a-3', 'c-1', 'writer', 'app.Note');
+      expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual(['a-1']);
+
+      // A preview has no tags yet: a tag filter keeps it out
+      vi.mocked(useFilterStore.getState).mockReturnValue({
+        ...filters,
+        selectedArtifactTypes: [],
+        selectedProducers: [],
+        selectedTags: ['urgent'],
+      } as any);
+      stream('a-4', 'c-1');
+      expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual(['a-1']);
+    });
+  });
+
+  describe('runs that ended, until the board shows their output (#642)', () => {
+    const message = (id: string, producedBy: string) => ({
+      id,
+      type: 'message',
+      position: { x: 0, y: 0 },
+      data: { producedBy, correlationId: 'c-1', artifactType: producedBy === 'triage' ? 'Decision[app.Route]' : 'app.Ticket', timestamp: 1 },
+    });
+    const ticket = message('t1', 'external');
+    const decided = message('d1', 'triage');
+    const end = () => {
+      useGraphStore.getState().setInFlight('r1', 'triage', ['app.Ticket'], ['t1'], 'c-1');
+      useGraphStore.getState().setInFlight('r1', 'triage', null);
+    };
+
+    beforeEach(() => {
+      useGraphStore.setState({ viewMode: 'blackboard', nodes: [ticket as any], inFlight: new Map(), settling: new Map() });
+    });
+    afterEach(() => vi.useRealTimers());
+    const placing = (...ids: string[]) => ids.map((id) => ({ id: `t1__${id}`, source: 't1', target: id }));
+    // A snapshot asked now and answered later
+    const askNow = () => {
+      let answer!: (snapshot: GraphSnapshot) => void;
+      vi.mocked(fetchGraphSnapshot).mockReturnValueOnce(new Promise<GraphSnapshot>((resolve) => (answer = resolve)));
+      const asked = useGraphStore.getState().generateBlackboardViewGraph();
+      return async (nodes: unknown[], edges: unknown[] = []) => {
+        answer({ nodes, edges, statistics: null } as unknown as GraphSnapshot);
+        await asked;
+      };
+    };
+
+    it('keeps a decider that ended until a snapshot brings its decision', async () => {
+      end();
+      expect(useGraphStore.getState().inFlight.has('r1')).toBe(false);
+      expect(useGraphStore.getState().settling.get('r1')).toMatchObject({ agent: 'triage', artifacts: ['t1'], correlationId: 'c-1' });
+
+      // A snapshot asked for before its decision was stored
+      vi.mocked(fetchGraphSnapshot).mockResolvedValueOnce({ nodes: [ticket], edges: [], statistics: null } as unknown as GraphSnapshot);
+      await useGraphStore.getState().generateBlackboardViewGraph();
+      expect(useGraphStore.getState().settling.has('r1')).toBe(true);
+
+      vi.mocked(fetchGraphSnapshot).mockResolvedValueOnce({ nodes: [ticket, decided], edges: [], statistics: null } as unknown as GraphSnapshot);
+      await useGraphStore.getState().generateBlackboardViewGraph();
+      expect(useGraphStore.getState().settling.size).toBe(0);
+    });
+
+    it('does not take an earlier output of the agent for the one it waits for', async () => {
+      useGraphStore.setState({ nodes: [ticket as any, decided as any] });
+      end();
+      vi.mocked(fetchGraphSnapshot).mockResolvedValueOnce({ nodes: [ticket, decided], edges: [], statistics: null } as unknown as GraphSnapshot);
+      await useGraphStore.getState().generateBlackboardViewGraph();
+      expect(useGraphStore.getState().settling.has('r1')).toBe(true);
+    });
+
+    it('settles a streamed run whose output the board already holds as its preview', async () => {
+      // The finished preview keeps the artifact's ID until the snapshot brings the artifact
+      const preview = { ...decided, data: { ...decided.data, isStreaming: false, streamingText: 'tech', runId: 'r1' } };
+      useGraphStore.setState({ nodes: [ticket as any, preview as any] });
+      end();
+      vi.mocked(fetchGraphSnapshot).mockResolvedValueOnce({ nodes: [ticket, decided], edges: [], statistics: null } as unknown as GraphSnapshot);
+      await useGraphStore.getState().generateBlackboardViewGraph();
+      expect(useGraphStore.getState().settling.has('r1')).toBe(false);
+    });
+
+    it('settles a run whose output a snapshot brought while it still ran', async () => {
+      useGraphStore.getState().setInFlight('r1', 'triage', ['app.Ticket'], ['t1'], 'c-1');
+      vi.mocked(fetchGraphSnapshot).mockResolvedValueOnce({ nodes: [ticket, decided], edges: [], statistics: null } as unknown as GraphSnapshot);
+      await useGraphStore.getState().generateBlackboardViewGraph();
+      useGraphStore.getState().setInFlight('r1', 'triage', null);
+
+      vi.mocked(fetchGraphSnapshot).mockResolvedValueOnce({ nodes: [ticket, decided], edges: [], statistics: null } as unknown as GraphSnapshot);
+      await useGraphStore.getState().generateBlackboardViewGraph();
+      expect(useGraphStore.getState().settling.has('r1')).toBe(false);
+    });
+
+    it('settles each of two runs of the agent in a workflow by what it published', async () => {
+      const second = { ...decided, id: 'd2' };
+      useGraphStore.getState().setInFlight('r1', 'triage', ['app.Ticket'], ['t1'], 'c-1');
+      useGraphStore.getState().setInFlight('r2', 'triage', ['app.Ticket'], ['t1'], 'c-1');
+      useGraphStore.getState().endRun('r1', ['d1']);
+      // Asked after r1 ended, before r2 did
+      const answer = askNow();
+      useGraphStore.getState().endRun('r2', ['d2']);
+      await answer([ticket, decided], placing('d1'));
+      expect([...useGraphStore.getState().settling.keys()]).toEqual(['r2']);
+
+      vi.mocked(fetchGraphSnapshot).mockResolvedValueOnce({ nodes: [ticket, decided, second], edges: placing('d1', 'd2'), statistics: null } as unknown as GraphSnapshot);
+      await useGraphStore.getState().generateBlackboardViewGraph();
+      expect(useGraphStore.getState().settling.size).toBe(0);
+    });
+
+    it('does not keep a run whose output a snapshot already drew', () => {
+      useGraphStore.getState().setInFlight('r1', 'triage', ['app.Ticket'], ['t1'], 'c-1');
+      // The snapshot came before the completion event: the decision and its edge are there
+      useGraphStore.setState({ nodes: [ticket as any, decided as any], edges: [{ id: 't1__d1', source: 't1', target: 'd1' } as any] });
+      useGraphStore.getState().endRun('r1', ['d1']);
+      expect(useGraphStore.getState().settling.has('r1')).toBe(false);
+    });
+
+    it('keeps a run until a snapshot holds all it published, each placed by its edge', async () => {
+      const second = { ...decided, id: 'd2' };
+      useGraphStore.getState().setInFlight('r1', 'triage', ['app.Ticket'], ['t1'], 'c-1');
+      useGraphStore.getState().endRun('r1', ['d1', 'd2']);
+      vi.mocked(fetchGraphSnapshot).mockResolvedValueOnce({ nodes: [ticket, decided], edges: placing('d1'), statistics: null } as unknown as GraphSnapshot);
+      await useGraphStore.getState().generateBlackboardViewGraph();
+      expect(useGraphStore.getState().settling.has('r1')).toBe(true);
+
+      vi.mocked(fetchGraphSnapshot).mockResolvedValueOnce({ nodes: [ticket, decided, second], edges: placing('d1'), statistics: null } as unknown as GraphSnapshot);
+      await useGraphStore.getState().generateBlackboardViewGraph();
+      expect(useGraphStore.getState().settling.has('r1')).toBe(true);
+
+      vi.mocked(fetchGraphSnapshot).mockResolvedValueOnce({ nodes: [ticket, decided, second], edges: placing('d1', 'd2'), statistics: null } as unknown as GraphSnapshot);
+      await useGraphStore.getState().generateBlackboardViewGraph();
+      expect(useGraphStore.getState().settling.has('r1')).toBe(false);
+    });
+
+    it('keeps a run whose output is not stored yet when a snapshot comes after its end', async () => {
+      useGraphStore.getState().setInFlight('r1', 'triage', ['app.Ticket'], ['t1'], 'c-1');
+      useGraphStore.getState().endRun('r1', ['d1']);
+      // The completion event comes before the output is stored
+      vi.mocked(fetchGraphSnapshot).mockResolvedValueOnce({ nodes: [ticket], edges: [], statistics: null } as unknown as GraphSnapshot);
+      await useGraphStore.getState().generateBlackboardViewGraph();
+      expect(useGraphStore.getState().settling.has('r1')).toBe(true);
+    });
+
+    it('settles a run whose inputs the board hides once its output is there (no edge places it)', async () => {
+      useGraphStore.getState().setInFlight('r1', 'triage', ['app.Ticket'], ['t1'], 'c-1');
+      useGraphStore.getState().endRun('r1', ['d1']);
+      // The board's filters let the decision through, not the ticket
+      vi.mocked(fetchGraphSnapshot).mockResolvedValueOnce({ nodes: [decided], edges: [], statistics: null } as unknown as GraphSnapshot);
+      await useGraphStore.getState().generateBlackboardViewGraph();
+      expect(useGraphStore.getState().settling.has('r1')).toBe(false);
+    });
+
+    it('settles a run that consumed nothing once its output is there (no edge places it)', async () => {
+      useGraphStore.getState().setInFlight('r1', 'triage', [], [], 'c-1');
+      const answer = askNow();
+      useGraphStore.getState().endRun('r1', ['d1']);
+      await answer([ticket, decided]);
+      expect(useGraphStore.getState().settling.has('r1')).toBe(false);
+    });
+
+    it('does not keep a run that published nothing', () => {
+      useGraphStore.getState().setInFlight('r1', 'triage', ['app.Ticket'], ['t1'], 'c-1');
+      useGraphStore.getState().endRun('r1', []);
+      expect(useGraphStore.getState().inFlight.has('r1')).toBe(false);
+      expect(useGraphStore.getState().settling.has('r1')).toBe(false);
+    });
+
+    it('lets a run that published nothing go after a few seconds', () => {
+      vi.useFakeTimers();
+      end();
+      vi.advanceTimersByTime(3900);
+      expect(useGraphStore.getState().settling.has('r1')).toBe(true);
+      vi.advanceTimersByTime(200);
+      expect(useGraphStore.getState().settling.has('r1')).toBe(false);
+    });
+  });
+
   describe('generateAgentViewGraph()', () => {
+    it('keeps nodes on their way to a new layout where the glide has them (#650)', async () => {
+      const snapshot = { nodes: [{ id: 'agent1', type: 'agent', data: {}, position: { x: 0, y: 0 } }], edges: [], statistics: null } as unknown as GraphSnapshot;
+      // The saved layout puts it at 100, 100; it is halfway there
+      const merged = [{ id: 'agent1', type: 'agent', data: {}, position: { x: 100, y: 100 } } as Node];
+      vi.mocked(fetchGraphSnapshot).mockResolvedValue(snapshot);
+      vi.mocked(mergeNodePositions).mockReturnValue(merged);
+      vi.mocked(overlayWebSocketState).mockReturnValue(merged);
+      useGraphStore.setState({ nodes: [{ id: 'agent1', type: 'agent', data: {}, position: { x: 50, y: 50 } } as Node], moving: new Set(['agent1']) });
+
+      await useGraphStore.getState().generateAgentViewGraph();
+
+      expect(useGraphStore.getState().nodes[0]!.position).toEqual({ x: 50, y: 50 });
+    });
+
     it('should fetch agent view graph from backend', async () => {
       const mockSnapshot: GraphSnapshot = {
         nodes: [
@@ -122,6 +384,45 @@ describe('graphStore - NEW Simplified Architecture', () => {
       expect(state.nodes).toHaveLength(1);
       expect(state.edges).toHaveLength(1);
       expect(state.viewMode).toBe('agent');
+    });
+
+    it('stamps agent nodes with when the snapshot arrived, for their countdowns', async () => {
+      const agent = { id: 'agent1', type: 'agent', data: { name: 'batcher' }, position: { x: 0, y: 0 } } as Node;
+      vi.mocked(fetchGraphSnapshot).mockResolvedValue({ nodes: [], edges: [], statistics: null } as unknown as GraphSnapshot);
+      vi.mocked(mergeNodePositions).mockReturnValue([agent]);
+      vi.mocked(overlayWebSocketState).mockReturnValue([agent]);
+      vi.spyOn(performance, 'now').mockReturnValue(1234.5);
+
+      await useGraphStore.getState().generateAgentViewGraph();
+
+      expect(useGraphStore.getState().nodes[0]?.data).toEqual({ name: 'batcher', snapshotAt: 1234.5 });
+    });
+
+    it('keeps an unfolded board\'s positions over the saved ones when the snapshot refreshes', async () => {
+      const agent = { id: 'agent1', type: 'agent', data: {}, position: { x: 100, y: 100 } } as Node;
+      vi.mocked(fetchGraphSnapshot).mockResolvedValue({ nodes: [], edges: [], statistics: null } as unknown as GraphSnapshot);
+      vi.mocked(mergeNodePositions).mockReturnValue([agent]);
+      vi.mocked(overlayWebSocketState).mockReturnValue([agent]);
+      useGraphStore.getState().setTransientPositions(new Map([['agent1', { x: 5, y: 6 }]]));
+
+      await useGraphStore.getState().generateAgentViewGraph();
+      expect(useGraphStore.getState().nodes[0]?.position).toEqual({ x: 5, y: 6 });
+
+      useGraphStore.getState().setTransientPositions(null);
+      await useGraphStore.getState().generateAgentViewGraph();
+      expect(useGraphStore.getState().nodes[0]?.position).toEqual({ x: 100, y: 100 });
+    });
+
+    it('keeps the selected node selected when the snapshot refreshes', async () => {
+      const agent = (id: string) => ({ id, type: 'agent', data: {}, position: { x: 0, y: 0 } }) as Node;
+      vi.mocked(fetchGraphSnapshot).mockResolvedValue({ nodes: [], edges: [], statistics: null } as unknown as GraphSnapshot);
+      vi.mocked(mergeNodePositions).mockReturnValue([agent('a'), agent('b')]);
+      vi.mocked(overlayWebSocketState).mockImplementation((nodes) => nodes);
+      useGraphStore.setState({ nodes: [{ ...agent('a'), selected: true }, agent('b')] });
+
+      await useGraphStore.getState().generateAgentViewGraph();
+
+      expect(useGraphStore.getState().nodes.map((node) => Boolean(node.selected))).toEqual([true, false]);
     });
 
     it('should pass filters from filterStore to backend', async () => {
@@ -239,6 +540,88 @@ describe('graphStore - NEW Simplified Architecture', () => {
     });
   });
 
+  describe('overlapping snapshot requests', () => {
+    const snapshot = (id: string) =>
+      ({ nodes: [{ id, type: 'message', data: {}, position: { x: 0, y: 0 } }], edges: [], statistics: null, truncated: false }) as unknown as GraphSnapshot;
+
+    it('apply an answer for the same filters while newer requests still load (live refreshes in a row)', async () => {
+      const answers: ((value: GraphSnapshot) => void)[] = [];
+      vi.mocked(fetchGraphSnapshot).mockImplementation(() => new Promise((resolve) => answers.push(resolve)));
+
+      const first = useGraphStore.getState().generateBlackboardViewGraph();
+      const second = useGraphStore.getState().generateBlackboardViewGraph();
+      answers[0]!(snapshot('first'));
+      await first;
+      // Newer than nothing applied, and asked for the board's filters: it shows
+      expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual(['first']);
+
+      answers[1]!(snapshot('second'));
+      await second;
+      expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual(['second']);
+      expect(useGraphStore.getState().isLoading).toBe(false);
+    });
+
+    it('compare an Agent View answer with the filters its request was built for, after the saved positions load', async () => {
+      const filters = (correlationId: string | null) =>
+        vi.mocked(useFilterStore.getState).mockReturnValue({
+          correlationId,
+          timeRange: { preset: 'last10min' },
+          selectedArtifactTypes: [],
+          selectedProducers: [],
+          selectedTags: [],
+          selectedVisibility: [],
+          updateFacets: vi.fn(),
+        } as any);
+      vi.mocked(mergeNodePositions).mockImplementation((nodes) => nodes as Node[]);
+      vi.mocked(overlayWebSocketState).mockImplementation((nodes) => nodes);
+      let positionsLoaded: () => void = () => {};
+      vi.spyOn(indexedDBService, 'getAllAgentViewLayouts').mockImplementationOnce(
+        () => new Promise((resolve) => (positionsLoaded = () => resolve([]))),
+      );
+      let answer: (value: GraphSnapshot) => void = () => {};
+      vi.mocked(fetchGraphSnapshot).mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)));
+
+      // Asked under no filter; a run is filtered before the request goes out, then the filter is lifted
+      const asked = useGraphStore.getState().generateAgentViewGraph();
+      filters('c-2');
+      positionsLoaded();
+      await vi.waitFor(() => expect(fetchGraphSnapshot).toHaveBeenCalledTimes(1));
+      expect(vi.mocked(fetchGraphSnapshot).mock.calls[0]![0].filters.correlation_id).toBe('c-2');
+      filters(null);
+      answer(snapshot('for-c-2'));
+      await asked;
+
+      // The answer is for the run's filter, not for the board's
+      expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual([]);
+    });
+
+    it('apply only the newest: an older answer arriving last does not replace it', async () => {
+      let answerOld: (value: GraphSnapshot) => void = () => {};
+      vi.mocked(fetchGraphSnapshot)
+        .mockImplementationOnce(() => new Promise((resolve) => (answerOld = resolve)))
+        .mockResolvedValueOnce(snapshot('new'));
+
+      const older = useGraphStore.getState().generateBlackboardViewGraph();
+      vi.mocked(useFilterStore.getState).mockReturnValue({
+        correlationId: 'c-2',
+        timeRange: { preset: 'last10min' },
+        selectedArtifactTypes: [],
+        selectedProducers: [],
+        selectedTags: [],
+        selectedVisibility: [],
+      } as any);
+      await useGraphStore.getState().generateBlackboardViewGraph();
+      answerOld(snapshot('old'));
+      await older;
+
+      expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual(['new']);
+      expect(useGraphStore.getState().isLoading).toBe(false);
+      // The board knows which filters its snapshot answers
+      expect(useGraphStore.getState().blackboardFilters).toBe(blackboardFilterKey());
+      expect(useGraphStore.getState().blackboardFilters).toContain('c-2');
+    });
+  });
+
   describe('generateBlackboardViewGraph()', () => {
     it('should fetch blackboard view graph from backend', async () => {
       const mockSnapshot: GraphSnapshot = {
@@ -286,6 +669,119 @@ describe('graphStore - NEW Simplified Architecture', () => {
       expect(state.edges).toHaveLength(1);
       expect(state.viewMode).toBe('blackboard');
     });
+
+    it('keeps an artifact that still streams, and says when the view is cut off', async () => {
+      const streaming = {
+        id: 'live',
+        type: 'message',
+        position: { x: 0, y: 0 },
+        data: { artifactType: 'TeamReply', timestamp: Date.now(), isStreaming: true, streamingText: 'Hi, ' },
+      } as Node;
+      useGraphStore.setState({ nodes: [streaming] });
+      vi.mocked(fetchGraphSnapshot).mockResolvedValue({
+        nodes: [{ id: 'msg1', type: 'message', data: { artifactType: 'Pizza' }, position: { x: 0, y: 0 }, hidden: false }],
+        edges: [],
+        statistics: null,
+        viewMode: 'blackboard',
+        filters: { correlation_id: null, time_range: { preset: 'last10min' }, artifactTypes: [], producers: [], tags: [], visibility: [] },
+        generatedAt: '2026-10-11T00:00:00Z',
+        totalArtifacts: 900,
+        truncated: true,
+      });
+
+      await useGraphStore.getState().generateBlackboardViewGraph();
+
+      const state = useGraphStore.getState();
+      expect(state.nodes.map((node) => node.id)).toEqual(['msg1', 'live']);
+      expect(state.truncated).toBe(true);
+    });
+
+    it('keeps no preview older than the last minutes the board shows', async () => {
+      useGraphStore.setState({
+        nodes: [{ id: 'old', type: 'message', position: { x: 0, y: 0 }, data: { artifactType: 'TeamReply', timestamp: Date.now() - 6 * 60_000, isStreaming: true } } as Node],
+      });
+      vi.mocked(useFilterStore.getState).mockReturnValue({
+        correlationId: null,
+        timeRange: { preset: 'last5min' },
+        selectedArtifactTypes: [],
+        selectedProducers: [],
+        selectedTags: [],
+        selectedVisibility: [],
+        updateFacets: vi.fn(),
+      } as any);
+      vi.mocked(fetchGraphSnapshot).mockResolvedValue({
+        nodes: [],
+        edges: [],
+        statistics: null,
+        viewMode: 'blackboard',
+        filters: { correlation_id: null, time_range: { preset: 'last5min' }, artifactTypes: [], producers: [], tags: [], visibility: [] },
+        generatedAt: '2026-10-11T00:00:00Z',
+        totalArtifacts: 0,
+        truncated: false,
+      });
+
+      await useGraphStore.getState().generateBlackboardViewGraph();
+
+      expect(useGraphStore.getState().nodes).toEqual([]);
+    });
+
+    it('keeps no live preview in a time range that ended', async () => {
+      useGraphStore.setState({
+        nodes: [{ id: 'live', type: 'message', position: { x: 0, y: 0 }, data: { artifactType: 'TeamReply', timestamp: Date.now(), isStreaming: true } } as Node],
+      });
+      vi.mocked(useFilterStore.getState).mockReturnValue({
+        correlationId: null,
+        timeRange: { preset: 'custom', start: Date.now() - 7_200_000, end: Date.now() - 3_600_000 },
+        selectedArtifactTypes: [],
+        selectedProducers: [],
+        selectedTags: [],
+        selectedVisibility: [],
+        updateFacets: vi.fn(),
+      } as any);
+      vi.mocked(fetchGraphSnapshot).mockResolvedValue({
+        nodes: [],
+        edges: [],
+        statistics: null,
+        viewMode: 'blackboard',
+        filters: { correlation_id: null, time_range: { preset: 'custom' }, artifactTypes: [], producers: [], tags: [], visibility: [] },
+        generatedAt: '2026-10-11T00:00:00Z',
+        totalArtifacts: 0,
+        truncated: false,
+      });
+
+      await useGraphStore.getState().generateBlackboardViewGraph();
+
+      expect(useGraphStore.getState().nodes).toEqual([]);
+    });
+
+    it('keeps only the streaming artifacts the board\'s filters let through', async () => {
+      const preview = (id: string, correlationId: string) =>
+        ({ id, type: 'message', position: { x: 0, y: 0 }, data: { artifactType: 'TeamReply', producedBy: 'billing', correlationId, timestamp: Date.now(), isStreaming: true } }) as Node;
+      useGraphStore.setState({ nodes: [preview('in-c2', 'c2'), preview('in-c1', 'c1')] });
+      vi.mocked(useFilterStore.getState).mockReturnValue({
+        correlationId: 'c2',
+        timeRange: { preset: 'last10min' },
+        selectedArtifactTypes: [],
+        selectedProducers: [],
+        selectedTags: [],
+        selectedVisibility: [],
+        updateFacets: vi.fn(),
+      } as any);
+      vi.mocked(fetchGraphSnapshot).mockResolvedValue({
+        nodes: [],
+        edges: [],
+        statistics: null,
+        viewMode: 'blackboard',
+        filters: { correlation_id: 'c2', time_range: { preset: 'last10min' }, artifactTypes: [], producers: [], tags: [], visibility: [] },
+        generatedAt: '2026-10-11T00:00:00Z',
+        totalArtifacts: 0,
+        truncated: false,
+      });
+
+      await useGraphStore.getState().generateBlackboardViewGraph();
+
+      expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual(['in-c2']);
+    });
   });
 
   describe('updateAgentStatus() - Real-time WebSocket updates', () => {
@@ -322,6 +818,24 @@ describe('graphStore - NEW Simplified Architecture', () => {
       const state = useGraphStore.getState();
       expect(state.nodes.find((n) => n.id === 'agent1')?.data.status).toBe('running');
       expect(state.nodes.find((n) => n.id === 'agent2')?.data.status).toBe('idle');
+    });
+  });
+
+  describe('setNodePositions()', () => {
+    it('moves the given nodes and leaves the others', () => {
+      useGraphStore.setState({
+        nodes: [
+          { id: 'a', position: { x: 0, y: 0 }, data: {} },
+          { id: 'b', position: { x: 10, y: 10 }, data: {} },
+        ] as Node[],
+      });
+
+      useGraphStore.getState().setNodePositions(new Map([['a', { x: 3, y: 4 }]]));
+
+      expect(useGraphStore.getState().nodes.map((node) => node.position)).toEqual([
+        { x: 3, y: 4 },
+        { x: 10, y: 10 },
+      ]);
     });
   });
 

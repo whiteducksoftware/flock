@@ -1,6 +1,6 @@
 {
   "name": "flock-ui",
-  "version": "0.1.35",
+  "version": "0.2.14",
   "description": "Flock Real-Time Dashboard Frontend",
   "type": "module",
   "scripts": {
@@ -15,6 +15,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@fontsource-variable/geist": "^5.3.0",
+    "@fontsource-variable/geist-mono": "^5.3.0",
     "@types/dagre": "^0.7.53",
     "@types/react-window": "^1.8.8",
     "@uiw/react-json-view": "^2.0.0-alpha.39",

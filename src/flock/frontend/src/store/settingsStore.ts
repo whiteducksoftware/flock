@@ -25,21 +25,12 @@ export interface SettingsState {
   };
 
   appearance: {
-    agentIdleColor: string;
-    agentActiveColor: string;
-    agentErrorColor: string;
-    nodeShadow: 'none' | 'small' | 'medium' | 'large';
-    showStatusPulse: boolean;
-    compactNodeView: boolean;
     theme: string;
   };
 
   advanced: {
-    layoutDirection: 'TB' | 'LR';
     nodeSpacing: number;
     rankSpacing: number;
-    debugMode: boolean;
-    performanceMode: boolean;
   };
 
   // UI Actions
@@ -55,19 +46,10 @@ export interface SettingsState {
 
   // Appearance Actions
   setTheme: (theme: string) => void;
-  setAgentIdleColor: (color: string) => void;
-  setAgentActiveColor: (color: string) => void;
-  setAgentErrorColor: (color: string) => void;
-  setNodeShadow: (shadow: SettingsState['appearance']['nodeShadow']) => void;
-  setShowStatusPulse: (show: boolean) => void;
-  setCompactNodeView: (compact: boolean) => void;
 
   // Advanced Actions
-  setLayoutDirection: (direction: SettingsState['advanced']['layoutDirection']) => void;
   setNodeSpacing: (spacing: number) => void;
   setRankSpacing: (spacing: number) => void;
-  setDebugMode: (enabled: boolean) => void;
-  setPerformanceMode: (enabled: boolean) => void;
 
   // Utility Actions
   resetToDefaults: () => void;
@@ -76,35 +58,27 @@ export interface SettingsState {
 const DEFAULT_SETTINGS: Omit<SettingsState, keyof ReturnType<typeof createActions>> = {
   version: '1.0.0',
 
+  // Which panels are open; not saved, so the dashboard opens on the board
   ui: {
-    showFilters: false, // Hidden by default
-    showControls: true, // Shown by default
-    showSettings: false, // Hidden by default
+    showFilters: false,
+    showControls: false,
+    showSettings: false,
   },
 
   graph: {
     edgeType: 'bezier',
-    edgeStrokeWidth: 3,
+    edgeStrokeWidth: 1.5,
     edgeAnimation: true,
     showEdgeLabels: true,
   },
 
   appearance: {
-    agentIdleColor: '#60a5fa', // Blue
-    agentActiveColor: '#10b981', // Green
-    agentErrorColor: '#ef4444', // Red
-    nodeShadow: 'medium',
-    showStatusPulse: true,
-    compactNodeView: false,
-    theme: 'default',
+    theme: 'graphite',
   },
 
   advanced: {
-    layoutDirection: 'LR',
     nodeSpacing: 75,       // Horizontal spacing between nodes
     rankSpacing: 150,      // Vertical spacing between ranks
-    debugMode: false,
-    performanceMode: false,
   },
 };
 
@@ -136,39 +110,13 @@ const createActions = (set: any) => ({
   setTheme: (theme: string) =>
     set((state: SettingsState) => ({ appearance: { ...state.appearance, theme } })),
 
-  setAgentIdleColor: (color: string) =>
-    set((state: SettingsState) => ({ appearance: { ...state.appearance, agentIdleColor: color } })),
-
-  setAgentActiveColor: (color: string) =>
-    set((state: SettingsState) => ({ appearance: { ...state.appearance, agentActiveColor: color } })),
-
-  setAgentErrorColor: (color: string) =>
-    set((state: SettingsState) => ({ appearance: { ...state.appearance, agentErrorColor: color } })),
-
-  setNodeShadow: (shadow: SettingsState['appearance']['nodeShadow']) =>
-    set((state: SettingsState) => ({ appearance: { ...state.appearance, nodeShadow: shadow } })),
-
-  setShowStatusPulse: (show: boolean) =>
-    set((state: SettingsState) => ({ appearance: { ...state.appearance, showStatusPulse: show } })),
-
-  setCompactNodeView: (compact: boolean) =>
-    set((state: SettingsState) => ({ appearance: { ...state.appearance, compactNodeView: compact } })),
-
   // Advanced Actions
-  setLayoutDirection: (direction: SettingsState['advanced']['layoutDirection']) =>
-    set((state: SettingsState) => ({ advanced: { ...state.advanced, layoutDirection: direction } })),
-
   setNodeSpacing: (spacing: number) =>
     set((state: SettingsState) => ({ advanced: { ...state.advanced, nodeSpacing: spacing } })),
 
   setRankSpacing: (spacing: number) =>
     set((state: SettingsState) => ({ advanced: { ...state.advanced, rankSpacing: spacing } })),
 
-  setDebugMode: (enabled: boolean) =>
-    set((state: SettingsState) => ({ advanced: { ...state.advanced, debugMode: enabled } })),
-
-  setPerformanceMode: (enabled: boolean) =>
-    set((state: SettingsState) => ({ advanced: { ...state.advanced, performanceMode: enabled } })),
 
   // Utility Actions
   resetToDefaults: () => set(DEFAULT_SETTINGS),
@@ -183,6 +131,21 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'flock-flow-settings',
       version: 1,
+      partialize: ({ ui: _ui, ...saved }) => saved,
+      // Sessions before this one saved the open panels too, and settings that are gone
+      // (layout direction, debug and performance mode); a saved section may lack newer keys
+      merge: (persisted, current) => {
+        const saved = (persisted ?? {}) as Partial<SettingsState>;
+        return {
+          ...current,
+          graph: { ...current.graph, ...saved.graph },
+          appearance: { ...current.appearance, ...saved.appearance },
+          advanced: {
+            nodeSpacing: saved.advanced?.nodeSpacing ?? current.advanced.nodeSpacing,
+            rankSpacing: saved.advanced?.rankSpacing ?? current.advanced.rankSpacing,
+          },
+        };
+      },
     }
   )
 );

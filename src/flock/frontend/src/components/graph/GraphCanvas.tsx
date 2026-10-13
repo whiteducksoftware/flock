@@ -1,29 +1,27 @@
-import { useCallback, useMemo, useEffect, useState, useRef } from 'react';
+import { useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   ReactFlow,
   Background,
-  Controls,
   NodeChange,
   EdgeChange,
   applyNodeChanges,
   applyEdgeChanges,
   useReactFlow,
   type Node,
+  type OnNodeDrag,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import AgentNode from './AgentNode';
-import MessageNode from './MessageNode';
+import AgentNode, { openTrace } from './AgentNode';
+import { useDockViewport } from './useDockViewport';
+import CanvasDock from './CanvasDock';
+import FocusStage from './focus/FocusStage';
 import MessageFlowEdge from './MessageFlowEdge';
-import TransformEdge from './TransformEdge';
 import PendingJoinEdge from './PendingJoinEdge';
 import PendingBatchEdge from './PendingBatchEdge';
 import MiniMap from './MiniMap';
 import { useGraphStore } from '../../store/graphStore';
-import { useFilterStore } from '../../store/filterStore';
 import { useUIStore, type AutoLayoutMode } from '../../store/uiStore';
-import { useModuleStore } from '../../store/moduleStore';
 import { useSettingsStore } from '../../store/settingsStore';
-import { moduleRegistry } from '../modules/ModuleRegistry';
 import {
   applyHierarchicalLayout,
   applyCircularLayout,
@@ -31,7 +29,6 @@ import {
   applyRandomLayout
 } from '../../services/layout';
 import { usePersistence } from '../../hooks/usePersistence';
-import { v4 as uuidv4 } from 'uuid';
 import {
   clearDebouncedAutoLayout,
   getEdgeIdSet,
@@ -39,13 +36,35 @@ import {
   hasNewEdgeAdditions,
   hasNewNodeAdditions,
   scheduleDebouncedAutoLayout,
+  cardsResized,
+  RESIZE_LAYOUT_DELAY_MS,
 } from './autoLayoutTrigger';
+import { motionMs } from './animatePositions';
+import { revealGlide, revealViewport } from './reveal';
+import { SETTLE_MS, asNewest, registerCanvas, whenOnBoard } from './canvasCommands';
+import { cardSizes } from './cardSizes';
+import { fromControl } from './nodeClick';
+import { useUnfoldLayout } from './useUnfoldLayout';
+import { useLayoutGlide } from './useLayoutGlide';
+import { afterGlide, movedByHand } from './glideNodes';
 
 const GraphCanvas: React.FC = () => {
-  const { fitView, getIntersectingNodes, screenToFlowPosition } = useReactFlow();
+  const {
+    getIntersectingNodes,
+    screenToFlowPosition,
+    getViewport,
+    setViewport,
+    zoomIn,
+    zoomOut,
+    fitView,
+    setCenter,
+    getNode,
+  } = useReactFlow();
 
   const mode = useUIStore((state) => state.mode);
-  const openDetailWindow = useUIStore((state) => state.openDetailWindow);
+  // With the timeline dock expanded the board is a strip of chips: no dock or minimap on it
+  const dockOpen = useUIStore((state) => state.dockOpen);
+  useDockViewport(dockOpen);
   const autoLayoutEnabled = useUIStore((state) => state.autoLayoutEnabled);
   const setAutoLayoutEnabled = useUIStore((state) => state.setAutoLayoutEnabled);
   const autoLayoutMode = useUIStore((state) => state.autoLayoutMode);
@@ -53,37 +72,24 @@ const GraphCanvas: React.FC = () => {
   const nodes = useGraphStore((state) => state.nodes);
   const edges = useGraphStore((state) => state.edges);
   const generateAgentViewGraph = useGraphStore((state) => state.generateAgentViewGraph);
-  const generateBlackboardViewGraph = useGraphStore((state) => state.generateBlackboardViewGraph);
   const updateNodePosition = useGraphStore((state) => state.updateNodePosition);
   const persistNodePosition = useGraphStore((state) => state.saveNodePosition);
-  const addModule = useModuleStore((state) => state.addModule);
-  // UI Optimization Migration (Phase 4 - Spec 002): Use filterStore.applyFilters (backend-driven)
-  const applyFilters = useFilterStore((state) => state.applyFilters);
-
-  const correlationId = useFilterStore((state) => state.correlationId);
-  const timeRange = useFilterStore((state) => state.timeRange);
-  const selectedArtifactTypes = useFilterStore((state) => state.selectedArtifactTypes);
-  const selectedProducers = useFilterStore((state) => state.selectedProducers);
-  const selectedTags = useFilterStore((state) => state.selectedTags);
-  const selectedVisibility = useFilterStore((state) => state.selectedVisibility);
 
   // Graph settings from settings store
   const edgeType = useSettingsStore((state) => state.graph.edgeType);
   const edgeStrokeWidth = useSettingsStore((state) => state.graph.edgeStrokeWidth);
   const edgeAnimation = useSettingsStore((state) => state.graph.edgeAnimation);
-  const layoutDirection = useSettingsStore((state) => state.advanced.layoutDirection);
   const nodeSpacing = useSettingsStore((state) => state.advanced.nodeSpacing);
   const rankSpacing = useSettingsStore((state) => state.advanced.rankSpacing);
 
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
-  const [showModuleSubmenu, setShowModuleSubmenu] = useState(false);
-  const [showLayoutSubmenu, setShowLayoutSubmenu] = useState(false);
 
   const autoLayoutDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousNodeIdsRef = useRef<Set<string> | null>(null);
   const previousEdgeIdsRef = useRef<Set<string> | null>(null);
   const previousModeRef = useRef(mode);
   const latestAutoLayoutModeRef = useRef(autoLayoutMode);
+  // A layout that came due while a node is unfolded; folding runs it
+  const layoutDueRef = useRef(false);
 
   // Persistence hook - loads positions on mount and handles debounced drag saves
   const { saveNodePosition: saveNodePositionDebounced } = usePersistence();
@@ -92,7 +98,6 @@ const GraphCanvas: React.FC = () => {
   const nodeTypes = useMemo(
     () => ({
       agent: AgentNode,
-      message: MessageNode,
     }),
     []
   );
@@ -101,66 +106,76 @@ const GraphCanvas: React.FC = () => {
   const edgeTypes = useMemo(
     () => ({
       message_flow: MessageFlowEdge,
-      transformation: TransformEdge,
       pending_join: PendingJoinEdge,  // Phase 1.5: Pending edges for JoinSpec correlation groups
       pending_batch: PendingBatchEdge, // Phase 1.5: Pending edges for BatchSpec accumulation
     }),
     []
   );
 
-  // UI Optimization Migration (Phase 4.1 - Spec 002): Generate graph when mode changes
-  // Backend snapshot includes ALL latest data, no need to watch OLD agents/messages/runs Maps
-  // Note: generateAgentViewGraph and generateBlackboardViewGraph are stable zustand functions
-  // DO NOT add them to dependencies or it will cause infinite loop when nodes update
+  // The board's data loads in useBoardData; new edge settings redraw the graph
+  // (not on mount: the board loads it then). generateAgentViewGraph is a stable
+  // zustand function; as a dependency it would loop on every node update.
+  const edgeSettingsSeen = useRef(false);
   useEffect(() => {
-    if (mode === 'agent') {
-      generateAgentViewGraph();
-    } else {
-      generateBlackboardViewGraph();
+    if (!edgeSettingsSeen.current) {
+      edgeSettingsSeen.current = true;
+      return;
     }
+    // A failed load is the store's error, which the board shows
+    generateAgentViewGraph().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode]);
+  }, [edgeType, edgeStrokeWidth, edgeAnimation]);
 
-  // Regenerate graph when edge settings change to apply new edge styles
-  // Note: generateAgentViewGraph and generateBlackboardViewGraph are stable zustand functions
-  // DO NOT add them to dependencies or it will cause infinite loop when nodes update
-  useEffect(() => {
-    if (mode === 'agent') {
-      generateAgentViewGraph();
-    } else {
-      generateBlackboardViewGraph();
+  // The cards' sizes the last layout used: one that grows off them lays the board out again (#655)
+  const laidOutRef = useRef<Record<string, { width: number; height: number }> | null>(null);
+  // A layout for new nodes or edges is due (debounced); a card that resizes brings it forward
+  const topologyDueRef = useRef(false);
+  const topologyLayout = () => {
+    topologyDueRef.current = false;
+    // A node unfolded meanwhile: the fold lays the board out
+    if (useUIStore.getState().unfoldedNodeId) {
+      layoutDueRef.current = true;
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [edgeType, edgeStrokeWidth, edgeAnimation, mode]);
-
-  // Apply filters whenever filter store state changes
-  useEffect(() => {
-    applyFilters();
-  }, [
-    applyFilters,
-    correlationId,
-    timeRange.preset,
-    timeRange.start,
-    timeRange.end,
-    selectedArtifactTypes.join('|'),
-    selectedProducers.join('|'),
-    selectedTags.join('|'),
-    selectedVisibility.join('|'),
-  ]);
+    // Auto-layout should not overwrite the user's last explicit mode selection.
+    applyLayoutRef.current(latestAutoLayoutModeRef.current, { updateStoredMode: false });
+  };
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
       const updatedNodes = applyNodeChanges(changes, nodes);
       useGraphStore.setState({ nodes: updatedNodes });
 
-      // Update position in store for persistence
+      // With Auto-arrange on, a card that changed its size lays the board out again, centred, and
+      // the nodes glide there (#655); an unfolded agent keeps its card's size and does not count.
+      // Compared a moment later: the cards' sizes (AgentNode) are measured by then. A layout for
+      // new nodes or edges that is due comes forward instead, so the board makes room as the card opens
+      if (autoLayoutEnabled && changes.some((change) => change.type === 'dimensions') && topologyDueRef.current) {
+        scheduleDebouncedAutoLayout(autoLayoutDebounceRef, topologyLayout, RESIZE_LAYOUT_DELAY_MS);
+      } else if (autoLayoutEnabled && changes.some((change) => change.type === 'dimensions') && !autoLayoutDebounceRef.current) {
+        scheduleDebouncedAutoLayout(
+          autoLayoutDebounceRef,
+          () => {
+            if (useUIStore.getState().unfoldedNodeId) return;
+            // Cards no layout placed (Auto-arrange switched on, a board from saved positions): their sizes now are the baseline
+            const laidOut = (laidOutRef.current ??= {});
+            for (const [id, size] of cardSizes) laidOut[id] ??= size;
+            if (!cardsResized(laidOut, cardSizes)) return;
+            applyLayoutRef.current(latestAutoLayoutModeRef.current, { updateStoredMode: false });
+          },
+          RESIZE_LAYOUT_DELAY_MS,
+        );
+      }
+
+      // Update position in store for persistence; a glide going on leaves the node to the hand that moves it
       changes.forEach((change) => {
         if (change.type === 'position' && change.position) {
+          movedByHand(change.id);
           updateNodePosition(change.id, change.position);
         }
       });
     },
-    [nodes, updateNodePosition]
+    [nodes, updateNodePosition, autoLayoutEnabled]
   );
 
   const onEdgesChange = useCallback(
@@ -181,8 +196,11 @@ const GraphCanvas: React.FC = () => {
         return;
       }
 
-      const width = element.offsetWidth;
-      const height = element.offsetHeight;
+      // An agent's card, also while it shows as a chip (the dock expanded, zoomed out):
+      // a layout from chip sizes overlaps once the cards are back
+      const card = cardSizes.get(nodeId);
+      const width = card?.width ?? element.offsetWidth;
+      const height = card?.height ?? element.offsetHeight;
       if (width > 0 && height > 0) {
         dimensionsByNodeId[nodeId] = { width, height };
       }
@@ -191,20 +209,36 @@ const GraphCanvas: React.FC = () => {
     return dimensionsByNodeId;
   }, []);
 
+  // A new layout glides there; declared before useUnfoldLayout, so an unfold
+  // finishes the glide before it makes room
+  const glideTo = useLayoutGlide();
+
+  // Switched on with no layout yet: the cards' sizes now are what a resize compares with (#655)
+  useEffect(() => {
+    if (autoLayoutEnabled && !laidOutRef.current) laidOutRef.current = collectRenderedNodeDimensions();
+  }, [autoLayoutEnabled, collectRenderedNodeDimensions]);
+
   // Generic layout handler (manual + auto-layout)
   const applyLayout = useCallback(
     (
       layoutType: AutoLayoutMode,
       options?: {
-        closeMenus?: boolean;
         // When true, persist selected layout as the user's preferred auto-layout mode.
         updateStoredMode?: boolean;
       }
     ) => {
-      const { closeMenus = true, updateStoredMode = true } = options || {};
+      const { updateStoredMode = true } = options || {};
 
       if (updateStoredMode) {
         setAutoLayoutMode(layoutType);
+      }
+
+      // A node is unfolded: fold it, and the fold lays the board out in this mode
+      if (useUIStore.getState().unfoldedNodeId) {
+        latestAutoLayoutModeRef.current = layoutType;
+        layoutDueRef.current = true;
+        useUIStore.getState().fold();
+        return;
       }
 
       // Get the React Flow pane element to find its actual center
@@ -221,6 +255,7 @@ const GraphCanvas: React.FC = () => {
       }
 
       const dimensionsByNodeId = collectRenderedNodeDimensions();
+      laidOutRef.current = dimensionsByNodeId;
       const hierarchicalBaseOptions = {
         center: viewportCenter,
         nodeSpacing,
@@ -254,21 +289,18 @@ const GraphCanvas: React.FC = () => {
         default:
           result = applyHierarchicalLayout(nodes, edges, {
             ...hierarchicalBaseOptions,
-            direction: layoutDirection,
+            direction: 'LR',
           });
       }
 
-      // Update nodes with new positions and persist to IndexedDB to avoid snap-back on refresh
-      useGraphStore.setState({ nodes: result.nodes });
+      // Only the positions change: the board's nodes may have changed since this layout's
+      // render (a selection, a refresh), and those changes stay. They glide there (#650).
+      // Persisted to IndexedDB to avoid snap-back on refresh.
+      glideTo(new Map(result.nodes.map((node) => [node.id, node.position])));
       result.nodes.forEach((node) => {
         persistNodePosition(node.id, node.position);
       });
 
-      if (closeMenus) {
-        setContextMenu(null);
-        setShowModuleSubmenu(false);
-        setShowLayoutSubmenu(false);
-      }
     },
     [
       nodes,
@@ -276,16 +308,28 @@ const GraphCanvas: React.FC = () => {
       persistNodePosition,
       screenToFlowPosition,
       collectRenderedNodeDimensions,
-      layoutDirection,
       nodeSpacing,
       rankSpacing,
       setAutoLayoutMode,
+      glideTo,
     ]
   );
 
   useEffect(() => {
     latestAutoLayoutModeRef.current = autoLayoutMode;
   }, [autoLayoutMode]);
+
+  // New spacing in the settings lays the board out again (not on mount)
+  const spacingSeen = useRef(false);
+  useEffect(() => {
+    if (!spacingSeen.current) {
+      spacingSeen.current = true;
+      return;
+    }
+    applyLayout(latestAutoLayoutModeRef.current, { updateStoredMode: false });
+    // Only a change of the spacing: applyLayout changes with every node update
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodeSpacing, rankSpacing]);
 
   // Auto-layout on topology-changing redraws (new nodes or new edges), debounced to avoid jumpy relayouts
   useEffect(() => {
@@ -308,14 +352,14 @@ const GraphCanvas: React.FC = () => {
     if (!autoLayoutEnabled || (!hasNewNodes && !hasNewEdges)) {
       return;
     }
+    // While a node is unfolded the board waits; folding lays it out
+    if (useUIStore.getState().unfoldedNodeId) {
+      layoutDueRef.current = true;
+      return;
+    }
 
-    scheduleDebouncedAutoLayout(autoLayoutDebounceRef, () => {
-      applyLayout(latestAutoLayoutModeRef.current, {
-        closeMenus: false,
-        // Auto-layout should not overwrite the user's last explicit mode selection.
-        updateStoredMode: false,
-      });
-    });
+    topologyDueRef.current = true;
+    scheduleDebouncedAutoLayout(autoLayoutDebounceRef, topologyLayout);
   }, [nodes, edges, mode, autoLayoutEnabled, applyLayout]);
 
   useEffect(() => {
@@ -330,48 +374,72 @@ const GraphCanvas: React.FC = () => {
     };
   }, []);
 
-  // Auto-zoom handler
-  const handleAutoZoom = useCallback(() => {
-    fitView({ padding: 0.1, duration: 300 });
-    setContextMenu(null);
-    setShowModuleSubmenu(false);
-  }, [fitView]);
+  // Pans the board, as little as it takes, so the box is in view (with a margin)
+  const reveal = useCallback(
+    (box: { x: number; y: number; width: number; height: number }) => {
+      const pane = document.querySelector('.react-flow')?.getBoundingClientRect();
+      if (!pane) return;
+      const next = revealViewport(getViewport(), box, pane);
+      if (next) setViewport(next, revealGlide());
+    },
+    [getViewport, setViewport],
+  );
 
-  // Add module handler
-  const handleAddModule = useCallback((moduleType: string, clickX: number, clickY: number) => {
-    const moduleInstance = {
-      id: uuidv4(),
-      type: moduleType,
-      position: { x: clickX, y: clickY },
-      size: { width: 600, height: 400 },
-      visible: true,
-    };
-
-    addModule(moduleInstance);
-    setContextMenu(null);
-    setShowModuleSubmenu(false);
-  }, [addModule]);
-
-  // Context menu handler
-  const onPaneContextMenu = useCallback((event: React.MouseEvent | MouseEvent) => {
-    event.preventDefault();
-    setContextMenu({
-      x: event.clientX,
-      y: event.clientY,
+  // Selects an agent, so Space unfolds it, and centers the board on it at the zoom it has
+  const showNode = (nodeId: string) => {
+    const node = getNode(nodeId);
+    if (!node) return;
+    useGraphStore.setState((state) => ({
+      nodes: state.nodes.map((n) => (Boolean(n.selected) === (n.id === nodeId) ? n : { ...n, selected: n.id === nodeId })),
+    }));
+    const width = node.measured?.width ?? node.width ?? 0;
+    const height = node.measured?.height ?? node.height ?? 0;
+    void setCenter(node.position.x + width / 2, node.position.y + height / 2, {
+      zoom: getViewport().zoom,
+      duration: motionMs(300),
     });
-    setShowModuleSubmenu(false);
-  }, []);
+    // The keyboard goes on from it, once the palette gave the focus back
+    requestAnimationFrame(() =>
+      document.querySelector<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(nodeId)}"]`)?.focus(),
+    );
+  };
 
-  // Close context menu on click outside
-  const onPaneClick = useCallback(() => {
-    setContextMenu(null);
-    setShowModuleSubmenu(false);
-    setShowLayoutSubmenu(false);
-  }, []);
+  // The palette's commands on this board, registered once; they read the latest layout
+  const applyLayoutRef = useRef(applyLayout);
+  applyLayoutRef.current = applyLayout;
+  useEffect(
+    () =>
+      registerCanvas(
+        {
+          kind: 'flow',
+          zoomIn: () => void zoomIn({ duration: motionMs(200) }),
+          zoomOut: () => void zoomOut({ duration: motionMs(200) }),
+          fit: () => afterGlide(asNewest(() => void fitView({ padding: 0.1, duration: motionMs(300) }))),
+          layout: (layoutMode) => applyLayoutRef.current(layoutMode),
+          // A board that just mounted loads its agents and lays them out first
+          show: (nodeId) => whenOnBoard(nodeId, () => showNode(nodeId), SETTLE_MS),
+        },
+        SETTLE_MS,
+      ),
+    // The React Flow functions are stable, showNode uses only them
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  // Neighbors make room while a node is unfolded
+  useUnfoldLayout({
+    reveal,
+    layoutDue: layoutDueRef,
+    mode: autoLayoutMode,
+    nodeSpacing,
+    rankSpacing,
+    collectDimensions: collectRenderedNodeDimensions,
+    relayout: () => applyLayout(latestAutoLayoutModeRef.current, { updateStoredMode: false }),
+  });
 
   // Node drag handler - prevent overlaps with collision detection
-  const onNodeDrag = useCallback(
-    (_event: React.MouseEvent | MouseEvent, node: Node) => {
+  const onNodeDrag = useCallback<OnNodeDrag>(
+    (_event, node) => {
       const intersections = getIntersectingNodes(node);
 
       // If there are intersecting nodes, snap back to prevent overlap
@@ -390,396 +458,81 @@ const GraphCanvas: React.FC = () => {
   );
 
   // Node drag stop handler - persist position with 300ms debounce
-  const onNodeDragStop = useCallback(
-    (_event: React.MouseEvent | MouseEvent, node: Node) => {
+  const onNodeDragStop = useCallback<OnNodeDrag>(
+    (_event, node) => {
+      const { transientPositions, setTransientPositions } = useGraphStore.getState();
+      if (transientPositions) {
+        // A node is unfolded: the move lasts until it folds and is not saved
+        setTransientPositions(new Map(transientPositions).set(node.id, node.position));
+        return;
+      }
       saveNodePositionDebounced(node.id, node.position);
     },
     [saveNodePositionDebounced]
   );
 
-  // Node double-click handler - open detail window
-  const onNodeDoubleClick = useCallback(
-    (_event: React.MouseEvent, node: Node) => {
-      openDetailWindow(node.id);
-    },
-    [openDetailWindow]
-  );
+  // A click unfolds an agent in place (a click inside the unfolded one, or on a control, changes nothing)
+  const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
+    if (fromControl(event.target)) return;
+    if (node.type === 'agent' && useUIStore.getState().unfoldedNodeId !== node.id) {
+      useUIStore.getState().unfold(node.id);
+    }
+  }, []);
 
-  const defaultEdgeOptions = useMemo(
-    () => ({
-      type: edgeType,
-      animated: edgeAnimation,
-      style: {
-        stroke: 'var(--color-edge-default)',
-        strokeWidth: edgeStrokeWidth,
-      },
-    }),
-    [edgeType, edgeAnimation, edgeStrokeWidth]
+  // A double-click puts an agent in focus
+  const onNodeDoubleClick = useCallback((event: React.MouseEvent, node: Node) => {
+    if (fromControl(event.target)) return;
+    if (node.type === 'agent') useUIStore.getState().focus(node.id);
+  }, []);
+
+  // The edges animate themselves while an artifact is in flight
+  const defaultEdgeOptions = useMemo(() => ({ type: edgeType }), [edgeType]);
+
+  // Arrowheads in the line color of the theme
+  const themedEdges = useMemo(
+    () =>
+      edges.map((edge) =>
+        edge.markerEnd && typeof edge.markerEnd === 'object'
+          ? { ...edge, markerEnd: { ...edge.markerEnd, color: 'var(--line-2)', width: 14, height: 14 } }
+          : edge,
+      ),
+    [edges],
   );
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
       <ReactFlow
         nodes={nodes}
-        edges={edges}
+        edges={themedEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
+        onNodeClick={onNodeClick}
         onNodeDoubleClick={onNodeDoubleClick}
+        // Space unfolds and folds the selected node; dragging the board pans it
+        panActivationKeyCode={null}
+        // Backspace would remove an agent from the view, not from the flock
+        deleteKeyCode={null}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         defaultEdgeOptions={defaultEdgeOptions}
-        onPaneContextMenu={onPaneContextMenu}
-        onPaneClick={onPaneClick}
-        style={{
-          backgroundColor: 'var(--color-bg-elevated)',
-        }}
+        style={{ backgroundColor: 'var(--board)' }}
       >
-        <Background
-          color="var(--color-border-subtle)"
-          gap={16}
-          size={1}
-          style={{
-            backgroundColor: 'var(--color-bg-elevated)',
-          }}
-        />
-        <Controls
-          style={{
-            backgroundColor: 'var(--color-bg-surface)',
-            border: '1px solid var(--color-border-default)',
-            borderRadius: 'var(--radius-lg)',
-            overflow: 'hidden',
-            boxShadow: 'var(--shadow-lg)',
-          }}
-          showZoom={true}
-          showFitView={true}
-          showInteractive={true}
-        />
-        <MiniMap />
+        <Background color="var(--dot)" bgColor="var(--board)" gap={22} size={1.3} />
+        {!dockOpen && <MiniMap />}
       </ReactFlow>
 
-      {/* Context Menu */}
-      {contextMenu && (
-        <div
-          style={{
-            position: 'fixed',
-            top: contextMenu.y,
-            left: contextMenu.x,
-            background: 'var(--color-bg-surface)',
-            border: 'var(--border-default)',
-            borderRadius: 'var(--radius-md)',
-            boxShadow: 'var(--shadow-lg)',
-            zIndex: 1000,
-            minWidth: 180,
-          }}
-        >
-          <div style={{ position: 'relative' }}>
-            <button
-              onMouseEnter={() => setShowLayoutSubmenu(true)}
-              onMouseLeave={(e) => {
-                const relatedTarget = e.relatedTarget as HTMLElement;
-                if (!relatedTarget || !relatedTarget.closest('.layout-submenu')) {
-                  setShowLayoutSubmenu(false);
-                }
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                width: '100%',
-                padding: 'var(--spacing-2) var(--spacing-4)',
-                border: 'none',
-                background: showLayoutSubmenu ? 'var(--color-bg-overlay)' : 'transparent',
-                cursor: 'pointer',
-                textAlign: 'left',
-                fontSize: 'var(--font-size-body-sm)',
-                color: 'var(--color-text-primary)',
-                transition: 'var(--transition-colors)',
-              }}
-            >
-              <span>Auto Layout</span>
-              <span style={{ marginLeft: 'var(--spacing-2)' }}>▶</span>
-            </button>
-
-            {/* Layout Submenu */}
-            {showLayoutSubmenu && (
-              <div
-                className="layout-submenu"
-                onMouseEnter={() => setShowLayoutSubmenu(true)}
-                onMouseLeave={() => setShowLayoutSubmenu(false)}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: '100%',
-                  background: 'var(--color-bg-surface)',
-                  border: 'var(--border-default)',
-                  borderRadius: 'var(--radius-md)',
-                  boxShadow: 'var(--shadow-lg)',
-                  zIndex: 1001,
-                  minWidth: 180,
-                }}
-              >
-                <button
-                  onClick={() => applyLayout('hierarchical-vertical')}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: 'var(--spacing-2) var(--spacing-4)',
-                    border: 'none',
-                    background: 'transparent',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    fontSize: 'var(--font-size-body-sm)',
-                    color: 'var(--color-text-primary)',
-                    transition: 'var(--transition-colors)',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'var(--color-bg-overlay)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  Hierarchical (Vertical)
-                </button>
-                <button
-                  onClick={() => applyLayout('hierarchical-horizontal')}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: 'var(--spacing-2) var(--spacing-4)',
-                    border: 'none',
-                    background: 'transparent',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    fontSize: 'var(--font-size-body-sm)',
-                    color: 'var(--color-text-primary)',
-                    transition: 'var(--transition-colors)',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'var(--color-bg-overlay)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  Hierarchical (Horizontal)
-                </button>
-                <button
-                  onClick={() => applyLayout('circular')}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: 'var(--spacing-2) var(--spacing-4)',
-                    border: 'none',
-                    background: 'transparent',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    fontSize: 'var(--font-size-body-sm)',
-                    color: 'var(--color-text-primary)',
-                    transition: 'var(--transition-colors)',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'var(--color-bg-overlay)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  Circular
-                </button>
-                <button
-                  onClick={() => applyLayout('grid')}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: 'var(--spacing-2) var(--spacing-4)',
-                    border: 'none',
-                    background: 'transparent',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    fontSize: 'var(--font-size-body-sm)',
-                    color: 'var(--color-text-primary)',
-                    transition: 'var(--transition-colors)',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'var(--color-bg-overlay)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  Grid
-                </button>
-                <button
-                  onClick={() => applyLayout('random')}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: 'var(--spacing-2) var(--spacing-4)',
-                    border: 'none',
-                    background: 'transparent',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    fontSize: 'var(--font-size-body-sm)',
-                    color: 'var(--color-text-primary)',
-                    transition: 'var(--transition-colors)',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'var(--color-bg-overlay)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  Random
-                </button>
-
-                <div
-                  style={{
-                    borderTop: '1px solid var(--color-border-subtle)',
-                    margin: 'var(--spacing-1) 0',
-                  }}
-                />
-
-                <button
-                  onClick={() => {
-                    setAutoLayoutEnabled(!autoLayoutEnabled);
-                    setContextMenu(null);
-                    setShowLayoutSubmenu(false);
-                    setShowModuleSubmenu(false);
-                  }}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: 'var(--spacing-2) var(--spacing-4)',
-                    border: 'none',
-                    background: 'transparent',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    fontSize: 'var(--font-size-body-sm)',
-                    color: 'var(--color-text-primary)',
-                    transition: 'var(--transition-colors)',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'var(--color-bg-overlay)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  Auto Layout: {autoLayoutEnabled ? 'On' : 'Off'}
-                </button>
-              </div>
-            )}
-          </div>
-
-          <button
-            onClick={handleAutoZoom}
-            style={{
-              display: 'block',
-              width: '100%',
-              padding: 'var(--spacing-2) var(--spacing-4)',
-              border: 'none',
-              background: 'transparent',
-              cursor: 'pointer',
-              textAlign: 'left',
-              fontSize: 'var(--font-size-body-sm)',
-              color: 'var(--color-text-primary)',
-              transition: 'var(--transition-colors)',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'var(--color-bg-overlay)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent';
-            }}
-          >
-            Auto Zoom
-          </button>
-
-          <div style={{ position: 'relative' }}>
-            <button
-              onMouseEnter={() => setShowModuleSubmenu(true)}
-              onMouseLeave={(e) => {
-                // Only close submenu if not moving to submenu itself
-                const relatedTarget = e.relatedTarget as HTMLElement;
-                if (!relatedTarget || !relatedTarget.closest('.module-submenu')) {
-                  setShowModuleSubmenu(false);
-                }
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                width: '100%',
-                padding: 'var(--spacing-2) var(--spacing-4)',
-                border: 'none',
-                background: showModuleSubmenu ? 'var(--color-bg-overlay)' : 'transparent',
-                cursor: 'pointer',
-                textAlign: 'left',
-                fontSize: 'var(--font-size-body-sm)',
-                color: 'var(--color-text-primary)',
-                transition: 'var(--transition-colors)',
-              }}
-            >
-              <span>Add Module</span>
-              <span style={{ marginLeft: 'var(--spacing-2)' }}>▶</span>
-            </button>
-
-            {/* Module Submenu */}
-            {showModuleSubmenu && (
-              <div
-                className="module-submenu"
-                onMouseEnter={() => setShowModuleSubmenu(true)}
-                onMouseLeave={() => setShowModuleSubmenu(false)}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: '100%',
-                  background: 'var(--color-bg-surface)',
-                  border: 'var(--border-default)',
-                  borderRadius: 'var(--radius-md)',
-                  boxShadow: 'var(--shadow-lg)',
-                  zIndex: 1001,
-                  minWidth: 160,
-                }}
-              >
-                {moduleRegistry.getAll().map((module) => (
-                  <button
-                    key={module.id}
-                    onClick={() => handleAddModule(module.id, contextMenu.x, contextMenu.y)}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 'var(--gap-sm)',
-                      width: '100%',
-                      padding: 'var(--spacing-2) var(--spacing-4)',
-                      border: 'none',
-                      background: 'transparent',
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      fontSize: 'var(--font-size-body-sm)',
-                      color: 'var(--color-text-primary)',
-                      transition: 'var(--transition-colors)',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'var(--color-bg-overlay)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'transparent';
-                    }}
-                  >
-                    {module.icon && <span>{module.icon}</span>}
-                    <span>{module.name}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+      {!dockOpen && (
+        <CanvasDock
+          layout={autoLayoutMode}
+          autoArrange={autoLayoutEnabled}
+          onLayout={(mode) => applyLayout(mode)}
+          onAutoArrange={setAutoLayoutEnabled}
+        />
       )}
+
+      <FocusStage onOpenTrace={openTrace} />
     </div>
   );
 };

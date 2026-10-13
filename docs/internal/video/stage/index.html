@@ -1,0 +1,52 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>flock video stage</title>
+<style>
+  @font-face { font-family: "Geist"; src: url(fonts/geist-latin-wght-normal.woff2) format("woff2"); font-weight: 100 900; }
+  @font-face { font-family: "Geist Mono"; src: url(fonts/geist-mono-latin-wght-normal.woff2) format("woff2"); font-weight: 100 900; }
+  :root {
+    --bg: #0b0c0e; --board: #0d0f12; --surface: #15171b; --surface-2: #1b1e23; --surface-3: #24282e;
+    --line: rgba(255,255,255,0.075); --line-2: rgba(255,255,255,0.14);
+    --text: #eceef1; --text-2: #b0b6bf; --text-3: #858c96;
+    --signal: #f2a33a; --signal-ink: #f6b860; --sure: #7ba8f5; --sure-ink: #9dbef8; --error: #f07563;
+    --sans: "Geist", system-ui, sans-serif; --mono: "Geist Mono", ui-monospace, monospace;
+  }
+  html, body { margin: 0; background: var(--bg); overflow: hidden; }
+  #stage { position: relative; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--sans); }
+  .layer { position: absolute; inset: 0; }
+  .abs { position: absolute; will-change: transform, opacity; }
+  /* The board's dot grid, drifting */
+  .dots { position: absolute; inset: -60px; background-image: radial-gradient(rgba(255,255,255,0.07) 1.2px, transparent 1.3px); }
+  .vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.65) 100%); }
+  .glow { position: absolute; border-radius: 50%; filter: blur(80px); }
+  /* A recorded window */
+  .panel { position: absolute; overflow: hidden; border-radius: 16px; background: var(--board);
+    box-shadow: 0 0 0 1px var(--line-2), 0 30px 80px -24px rgba(0,0,0,0.85); }
+  .panel .inner { position: absolute; inset: 0; transform-origin: 50% 50%; }
+  .panel img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .scrim { position: absolute; inset: 0; pointer-events: none; }
+  /* Type */
+  .title { font-weight: 760; letter-spacing: -0.035em; line-height: 0.95; white-space: nowrap; }
+  .title .w { display: inline-block; overflow: hidden; vertical-align: bottom; padding-bottom: 0.08em; }
+  .title .w > span { display: inline-block; }
+  .amber { color: var(--signal); }
+  .blue { color: var(--sure); }
+  .label { font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-3); }
+  .chip { display: flex; flex-direction: column; gap: 0.35em; padding: 0.75em 1.1em; border-radius: 12px;
+    background: rgba(21,23,27,0.88); box-shadow: 0 0 0 1px var(--line-2), 0 18px 40px -18px rgba(0,0,0,0.75);
+    backdrop-filter: blur(6px); white-space: nowrap; }
+  .chip .head { display: flex; align-items: center; gap: 0.55em; font-weight: 620; }
+  .chip .dot { width: 0.55em; height: 0.55em; border-radius: 50%; background: var(--signal); }
+  .chip .dot.blue { background: var(--sure); }
+  .chip .sub { font-family: var(--mono); color: var(--text-2); font-size: 0.78em; }
+  .mono { font-family: var(--mono); }
+  .bar { position: absolute; border-radius: 8px; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script src="stage.js"></script>
+</body>
+</html>

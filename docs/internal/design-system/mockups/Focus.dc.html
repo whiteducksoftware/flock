@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Flock · Focus billing_team</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.fl{--bg:#0B0C0E;--board:#0D0F12;--dot:rgba(255,255,255,.06);--surface:#15171B;--surface-2:#1B1E23;--surface-3:#24282E;--line:rgba(255,255,255,.075);--line-2:rgba(255,255,255,.14);--text:#ECEEF1;--text-2:#B0B6BF;--text-3:#858C96;--invert:#ECEEF1;--on-invert:#0B0C0E;--signal:#F2A33A;--signal-ink:#F6B860;--signal-soft:rgba(242,163,58,.13);--sure:#7BA8F5;--sure-ink:#9DBEF8;--sure-soft:rgba(123,168,245,.16);--error:#F07563;--error-soft:rgba(240,117,99,.13);--hatch:rgba(255,255,255,.22);--scrim:rgba(5,6,8,.72);--shadow:0 1px 0 rgba(255,255,255,.035) inset,0 30px 80px -24px rgba(0,0,0,.85);font-family:'Geist',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;font-size:13px;line-height:1.45;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+.fl[data-theme="paper"]{--bg:#F3F2EE;--board:#F6F5F1;--dot:rgba(20,20,20,.08);--surface:#FFFFFF;--surface-2:#F5F4F0;--surface-3:#EAE8E2;--line:rgba(20,20,20,.08);--line-2:rgba(20,20,20,.15);--text:#16171A;--text-2:#4A4F57;--text-3:#676C74;--invert:#16171A;--on-invert:#FFFFFF;--signal:#D9861A;--signal-ink:#9A5A06;--signal-soft:rgba(217,134,26,.13);--sure:#2E6BD1;--sure-ink:#2559B0;--sure-soft:rgba(46,107,209,.12);--error:#C8432F;--error-soft:rgba(200,67,47,.1);--hatch:rgba(20,20,20,.24);--scrim:rgba(240,239,235,.7);--shadow:0 1px 2px rgba(0,0,0,.05),0 30px 70px -24px rgba(0,0,0,.28)}
+.fl *{box-sizing:border-box}
+.mono{font-family:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace}
+.num{font-variant-numeric:tabular-nums}
+.board{background-color:var(--board);background-image:radial-gradient(var(--dot) 1px,transparent 1.3px);background-size:22px 22px}
+.hatch{background-image:repeating-linear-gradient(135deg,var(--hatch) 0 1.5px,transparent 1.5px 5px)}
+.sdot{width:8px;height:8px;border-radius:50%;background:var(--text-3);flex:none}
+.sdot.run{background:var(--signal);animation:pulse 1.8s ease-out infinite}
+.tag{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:6px;border:1px solid var(--line-2);color:var(--text-2);font-size:11.5px;white-space:nowrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--line-2);background:var(--surface-2);color:var(--text);font:inherit;font-size:13px;font-weight:500;text-decoration:none;cursor:pointer;white-space:nowrap}
+.btn:hover{background:var(--surface-3);color:var(--text)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--text-2)}
+.btn.ghost:hover{background:var(--surface-2);color:var(--text)}
+.btn.icon{width:32px;padding:0}
+.tab{height:40px;padding:0 2px;margin-bottom:-1px;display:inline-flex;align-items:center;gap:6px;background:none;border:0;border-bottom:2px solid transparent;color:var(--text-3);font:inherit;font-size:13px;font-weight:500;cursor:pointer;text-decoration:none}
+.tab:hover{color:var(--text)}
+.tab.is-on{color:var(--text);border-bottom-color:var(--text)}
+.count{font-size:11px;color:var(--text-3)}
+.label{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);font-weight:500}
+.card{background:var(--surface-2);border:1px solid var(--line);border-radius:12px}
+.row{display:grid;align-items:center;gap:12px;min-height:40px;border-bottom:1px solid var(--line);font-size:12.5px}
+.lin{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 12px;border-radius:9px;border:1px solid var(--line-2);background:var(--surface);font-size:12.5px;color:var(--text);text-decoration:none;white-space:nowrap}
+.lin:hover{border-color:var(--text-3);color:var(--text)}
+.kv{display:grid;grid-template-columns:84px minmax(0,1fr);gap:6px 12px;font-size:12.5px}
+kbd{font-family:'Geist Mono',ui-monospace,monospace;font-size:10.5px;padding:1px 5px;border-radius:4px;border:1px solid var(--line-2);color:var(--text-3)}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(242,163,58,.5)}70%{box-shadow:0 0 0 6px rgba(242,163,58,0)}100%{box-shadow:0 0 0 0 rgba(242,163,58,0)}}
+@keyframes blink{50%{opacity:0}}
+.caret{animation:blink 1s step-end infinite}
+@media (prefers-reduced-motion:reduce){.sdot.run,.caret{animation:none}}
+a{color:var(--sure-ink)}a:hover{color:var(--text)}
+button:focus-visible,a:focus-visible{outline:2px solid var(--sure);outline-offset:2px}
+</style>
+</helmet>
+<div class="fl board" data-theme="{{theme}}" style="position: relative; height: 100vh; overflow: hidden">
+  <div aria-hidden="true" style="position: absolute; inset: 0; background: var(--scrim); backdrop-filter: blur(3px)"></div>
+
+  <div role="dialog" aria-modal="true" aria-label="billing_team in focus" style="position: absolute; inset: 24px 32px; max-width: 1376px; margin: 0 auto; display: flex; flex-direction: column; border-radius: 16px; background: var(--surface); border: 1px solid var(--line-2); box-shadow: var(--shadow); overflow: hidden">
+
+    <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 12px; padding: 16px 16px 0 20px">
+      <a href="Main.dc.html" class="btn ghost" style="padding: 0 10px 0 6px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>
+        <span>Board</span>
+        <kbd>Esc</kbd>
+      </a>
+      <span style="width: 1px; height: 22px; background: var(--line-2)"></span>
+      <span class="sdot run"></span>
+      <h1 style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.015em">billing_team</h1>
+      <span class="tag">LLM</span>
+      <span class="mono" style="font-size: 12px; color: var(--text-3)">DSPyEngine · openai/gpt-4.1</span>
+      <span style="margin-left: auto; font-size: 12.5px; color: var(--signal-ink)">writing a reply · 2.1 s</span>
+      <a href="Main.dc.html" class="btn icon ghost" aria-label="Close focus mode">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+      </a>
+    </div>
+    <p style="margin: 6px 0 0; padding: 0 20px; font-size: 13px; color: var(--text-2)">Answers billing questions as the billing team</p>
+
+    <nav aria-label="Lineage" style="display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 16px 20px 0; padding: 12px; border-radius: 12px; background: var(--board); border: 1px solid var(--line)">
+      <a href="Main.dc.html" class="lin"><span class="sdot"></span><span>external</span><span class="mono" style="color: var(--text-3)">SupportTicket</span></a>
+      <svg width="28" height="10" viewBox="0 0 28 10" aria-hidden="true"><path d="M0 5h24M20 1l4 4-4 4" fill="none" stroke="var(--text-3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      <a href="Main.dc.html" class="lin"><span class="sdot"></span><span>triage</span><span class="mono" style="color: var(--sure-ink)">◆ Route.billing</span></a>
+      <svg width="28" height="10" viewBox="0 0 28 10" aria-hidden="true"><path d="M0 5h24M20 1l4 4-4 4" fill="none" stroke="var(--signal)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      <span class="lin" style="border-color: color-mix(in srgb, var(--signal) 60%, transparent); background: var(--signal-soft)"><span class="sdot run"></span><span style="font-weight: 600">billing_team</span></span>
+      <svg width="28" height="10" viewBox="0 0 28 10" aria-hidden="true"><path d="M0 5h24M20 1l4 4-4 4" fill="none" stroke="var(--text-3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+      <span class="lin" style="border-style: dashed; color: var(--text-2)"><span class="mono">TeamReply</span><span style="color: var(--text-3)">no consumers yet</span></span>
+    </nav>
+
+    <div role="tablist" aria-label="Agent details" style="display: flex; gap: 22px; padding: 6px 20px 0; border-bottom: 1px solid var(--line)">
+      <sc-for list="{{tabs}}" as="t" hint-placeholder-count="4">
+        <button type="button" role="tab" class="{{t.cls}}" aria-selected="{{t.selected}}" onClick="{{t.pick}}">
+          <span>{{t.label}}</span>
+          <sc-if value="{{t.hasCount}}" hint-placeholder-val="{{false}}"><span class="count mono num">{{t.count}}</span></sc-if>
+        </button>
+      </sc-for>
+      <a href="Dock.dc.html" class="tab">Traces <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8"></path></svg></a>
+    </div>
+
+    <div style="flex: 1 1 0; min-height: 0; overflow: auto; padding: 20px">
+      <sc-if value="{{isLive}}" hint-placeholder-val="{{true}}">
+        <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: stretch; min-height: 100%">
+          <section aria-label="Live output" style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; border-radius: 12px; border: 1px solid var(--line); background: var(--board); overflow: hidden">
+            <div style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--line)">
+              <span class="label">Run 7c1e04</span>
+              <span class="mono num" style="font-size: 11.5px; color: var(--text-3)">started 13:24:41 · 184 tokens so far</span>
+              <label style="margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-2); cursor: pointer">
+                <input type="checkbox" checked style="accent-color: var(--text); width: 14px; height: 14px; margin: 0">
+                <span>Follow output</span>
+              </label>
+            </div>
+            <div class="mono" style="flex: 1 1 0; padding: 16px; font-size: 12.5px; line-height: 1.7; display: flex; flex-direction: column; gap: 14px">
+              <div style="color: var(--text-3)">↓ SupportTicket 9c34 from external, routed by triage <span style="color: var(--sure-ink)">◆ billing 0.93</span></div>
+              <div style="color: var(--text-3)">signature SupportTicket → TeamReply</div>
+              <div>
+                <div style="color: var(--text-3)">reply</div>
+                <div style="color: var(--text); font-family: 'Geist', ui-sans-serif, system-ui, sans-serif; font-size: 15px; line-height: 1.6; max-width: 64ch; text-wrap: pretty">Hi, thanks for your patience. I checked your order: the returned shoes reached our warehouse on 30 September, and we have issued the refund for<span class="caret" style="color: var(--signal)">▍</span></div>
+              </div>
+            </div>
+          </section>
+
+          <aside style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 14px">
+            <div class="card" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 10px">
+              <div style="display: flex; align-items: center; gap: 8px">
+                <span class="label">Input</span>
+                <span class="mono" style="font-size: 12px">SupportTicket</span>
+                <span class="mono" style="margin-left: auto; font-size: 11px; color: var(--text-3)">9c34</span>
+              </div>
+              <div class="kv">
+                <span class="mono" style="color: var(--text-3)">subject</span><span>Refund not received</span>
+                <span class="mono" style="color: var(--text-3)">message</span><span style="color: var(--text-2); text-wrap: pretty">I returned the shoes two weeks ago and still have no refund.</span>
+              </div>
+            </div>
+            <div class="card" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; border-style: dashed">
+              <div style="display: flex; align-items: center; gap: 8px">
+                <span class="label">Output</span>
+                <span class="mono" style="font-size: 12px">TeamReply</span>
+                <span style="margin-left: auto; font-size: 11.5px; color: var(--signal-ink)">streaming</span>
+              </div>
+              <div class="kv">
+                <span class="mono" style="color: var(--text-3)">team</span><span class="mono">billing_team</span>
+                <span class="mono" style="color: var(--text-3)">reply</span><span style="display: flex; flex-direction: column; gap: 6px; padding-top: 4px"><span class="hatch" style="height: 8px; border-radius: 3px; width: 100%"></span><span class="hatch" style="height: 8px; border-radius: 3px; width: 62%"></span></span>
+              </div>
+            </div>
+            <div class="card" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 4px">
+              <div class="label" style="margin-bottom: 6px">Earlier runs</div>
+              <button type="button" onClick="{{goRuns}}" style="display: flex; align-items: center; gap: 10px; height: 34px; width: 100%; padding: 0; background: none; border: 0; border-top: 1px solid var(--line); color: var(--text); font: inherit; font-size: 12.5px; text-align: left; cursor: pointer">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-2)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
+                <span>Invoice copy</span><span class="mono num" style="margin-left: auto; color: var(--text-3)">2.6 s · 412 tok</span>
+              </button>
+              <button type="button" onClick="{{goRuns}}" style="display: flex; align-items: center; gap: 10px; height: 34px; width: 100%; padding: 0; background: none; border: 0; border-top: 1px solid var(--line); color: var(--text); font: inherit; font-size: 12.5px; text-align: left; cursor: pointer">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-2)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
+                <span>Charged twice</span><span class="mono num" style="margin-left: auto; color: var(--text-3)">2.3 s · 388 tok</span>
+              </button>
+            </div>
+          </aside>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{isHistory}}" hint-placeholder-val="{{false}}">
+        <div style="display: flex; flex-direction: column">
+          <div class="row label" style="grid-template-columns: 84px 90px 160px minmax(0, 1fr) 70px; min-height: 30px">
+            <span>Time</span><span>Direction</span><span>Type</span><span>Content</span><span>Run</span>
+          </div>
+          <div class="row" style="grid-template-columns: 84px 90px 160px minmax(0, 1fr) 70px">
+            <span class="mono num" style="color: var(--text-3)">13:24:41</span><span style="color: var(--text-2)">↓ consumed</span><span class="mono"><span style="color: var(--sure-ink)">◆</span> Route.billing</span><span style="color: var(--text-2)">Refund not received</span><span class="mono" style="color: var(--text-3)">7c1e04</span>
+          </div>
+          <div style="border-bottom: 1px solid var(--line); background: var(--board)">
+            <div class="row" style="grid-template-columns: 84px 90px 160px minmax(0, 1fr) 70px; border-bottom: 0; padding: 0">
+              <span class="mono num" style="color: var(--text-3)">13:22:10</span><span style="color: var(--text-2)">↑ published</span><span class="mono">TeamReply</span><span style="color: var(--text)">Invoice copy: "Here is a fresh copy of your invoice…"</span><span class="mono" style="color: var(--text-3)">e81a77</span>
+            </div>
+            <pre class="mono" style="margin: 0 0 12px 96px; padding: 12px 14px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); font-size: 12px; line-height: 1.6; color: var(--text-2); white-space: pre-wrap">{
+  "team": "billing_team",
+  "reply": "Here is a fresh copy of your invoice for order 4471. You can also download every invoice under Account › Orders."
+}</pre>
+          </div>
+          <div class="row" style="grid-template-columns: 84px 90px 160px minmax(0, 1fr) 70px">
+            <span class="mono num" style="color: var(--text-3)">13:22:08</span><span style="color: var(--text-2)">↓ consumed</span><span class="mono"><span style="color: var(--sure-ink)">◆</span> Route.billing</span><span style="color: var(--text-2)">Invoice copy</span><span class="mono" style="color: var(--text-3)">e81a77</span>
+          </div>
+          <div class="row" style="grid-template-columns: 84px 90px 160px minmax(0, 1fr) 70px">
+            <span class="mono num" style="color: var(--text-3)">13:21:33</span><span style="color: var(--text-2)">↑ published</span><span class="mono">TeamReply</span><span style="color: var(--text-2)">Charged twice: "Sorry about the double charge…"</span><span class="mono" style="color: var(--text-3)">0b5d21</span>
+          </div>
+          <div class="row" style="grid-template-columns: 84px 90px 160px minmax(0, 1fr) 70px">
+            <span class="mono num" style="color: var(--text-3)">13:21:31</span><span style="color: var(--text-2)">↓ consumed</span><span class="mono"><span style="color: var(--sure-ink)">◆</span> Route.billing</span><span style="color: var(--text-2)">Charged twice</span><span class="mono" style="color: var(--text-3)">0b5d21</span>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{isRuns}}" hint-placeholder-val="{{false}}">
+        <div style="display: flex; flex-direction: column">
+          <div class="row label" style="grid-template-columns: 90px 90px 80px 80px 80px minmax(0, 1fr); min-height: 30px">
+            <span>Run</span><span>Started</span><span>Took</span><span>Tokens</span><span>Cost</span><span>Result</span>
+          </div>
+          <div class="row" style="grid-template-columns: 90px 90px 80px 80px 80px minmax(0, 1fr)">
+            <span class="mono">7c1e04</span><span class="mono num" style="color: var(--text-3)">13:24:41</span><span class="mono num" style="color: var(--signal-ink)">2.1 s…</span><span class="mono num">184</span><span class="mono num" style="color: var(--text-3)">—</span><span style="display: inline-flex; align-items: center; gap: 8px; color: var(--signal-ink)"><span class="sdot run" style="width: 6px; height: 6px"></span>running</span>
+          </div>
+          <div class="row" style="grid-template-columns: 90px 90px 80px 80px 80px minmax(0, 1fr)">
+            <span class="mono">e81a77</span><span class="mono num" style="color: var(--text-3)">13:22:08</span><span class="mono num">2.6 s</span><span class="mono num">412</span><span class="mono num">$0.004</span><span style="color: var(--text-2)">1 × TeamReply</span>
+          </div>
+          <div class="row" style="grid-template-columns: 90px 90px 80px 80px 80px minmax(0, 1fr)">
+            <span class="mono">0b5d21</span><span class="mono num" style="color: var(--text-3)">13:21:31</span><span class="mono num">2.3 s</span><span class="mono num">388</span><span class="mono num">$0.003</span><span style="color: var(--text-2)">1 × TeamReply</span>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{isContract}}" hint-placeholder-val="{{false}}">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(380px, 100%), 1fr)); gap: 20px">
+          <section class="card" style="padding: 16px 18px; display: flex; flex-direction: column; gap: 12px">
+            <div class="label">Consumes</div>
+            <div style="display: flex; align-items: baseline; gap: 10px"><span class="mono" style="font-size: 15px"><span style="color: var(--sure-ink)">◆</span> Route.billing</span><span style="font-size: 12px; color: var(--text-3)">decision handle · receives the SupportTicket</span></div>
+            <div class="kv mono" style="grid-template-columns: 110px minmax(0, 1fr)">
+              <span>subject</span><span style="color: var(--text-3)">str</span>
+              <span>message</span><span style="color: var(--text-3)">str · The customer's issue or question</span>
+            </div>
+          </section>
+          <section class="card" style="padding: 16px 18px; display: flex; flex-direction: column; gap: 12px">
+            <div class="label">Publishes</div>
+            <div style="display: flex; align-items: baseline; gap: 10px"><span class="mono" style="font-size: 15px">TeamReply</span><span style="font-size: 12px; color: var(--text-3)">visibility public</span></div>
+            <div class="kv mono" style="grid-template-columns: 110px minmax(0, 1fr)">
+              <span>team</span><span style="color: var(--text-3)">str</span>
+              <span>reply</span><span style="color: var(--text-3)">str · Short, friendly answer to the customer</span>
+            </div>
+          </section>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["graphite","paper"],"default":"graphite"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const tab = (this.state && this.state.tab) || 'live';
+    const defs = [['live', 'Live', ''], ['history', 'History', '6'], ['runs', 'Runs', '3'], ['contract', 'Contract', '']];
+    return {
+      theme: this.props.theme ?? 'graphite',
+      tabs: defs.map(([id, label, count]) => ({
+        id, label, count,
+        hasCount: count !== '',
+        cls: id === tab ? 'tab is-on' : 'tab',
+        selected: id === tab ? 'true' : 'false',
+        pick: () => this.setState({ tab: id })
+      })),
+      isLive: tab === 'live',
+      isHistory: tab === 'history',
+      isRuns: tab === 'runs',
+      isContract: tab === 'contract',
+      goRuns: () => this.setState({ tab: 'runs' })
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -128,7 +128,16 @@ class DashboardLauncher:
             self._copy_build_output()
 
         except subprocess.CalledProcessError as e:
-            print(f"[Dashboard] Warning: Production build failed: {e.stderr}")
+            # tsc reports type errors on stdout, so print both streams
+            output = "\n".join(
+                stream.strip()
+                for stream in (e.stdout, e.stderr)
+                if stream and stream.strip()
+            )
+            print(
+                f"[Dashboard] Warning: Production build failed (exit code {e.returncode}):"
+            )
+            print(output or "(no output)")
             print("[Dashboard] Dashboard may not be available")
         except FileNotFoundError:
             print("[Dashboard] Error: npm not found. Build skipped.")
@@ -189,6 +198,13 @@ class DashboardLauncher:
 
         # Step 2: Start npm process
         self._start_npm_process()
+
+        # A failed build leaves nothing to serve, unless an earlier build is still there
+        if not self.dev_mode and not self.static_dir.exists():
+            raise RuntimeError(
+                f"Dashboard build failed and there is no earlier build in {self.static_dir}; "
+                "the [Dashboard] output above says why."
+            )
 
         # Step 3: Launch browser
         self._launch_browser()

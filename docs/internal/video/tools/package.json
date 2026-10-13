@@ -1,0 +1,9 @@
+{
+  "name": "flock-video-tools",
+  "private": true,
+  "type": "module",
+  "description": "Record, stage and render Flock videos (see ../README.md)",
+  "dependencies": {
+    "playwright": "1.60.0"
+  }
+}

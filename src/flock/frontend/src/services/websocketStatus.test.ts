@@ -30,6 +30,131 @@ describe('WebSocketClient agent status', () => {
     expect(useGraphStore.getState().streamingTokens.get('billing')).toEqual([]);
   });
 
+  it('drops the ticker of a run that failed, unless another run goes on', () => {
+    vi.useFakeTimers();
+    const client = new WebSocketClient('ws://test/ws');
+    useGraphStore.setState({ streamingTokens: new Map([['billing', ['we have']]]) });
+
+    receive(client, 'agent_error', { agent_name: 'billing', agent_status: 'running' });
+    expect(useGraphStore.getState().streamingTokens.get('billing')).toEqual(['we have']);
+
+    receive(client, 'agent_error', { agent_name: 'billing', agent_status: 'error' });
+    expect(useGraphStore.getState().streamingTokens.get('billing')).toEqual([]);
+  });
+
+  it('drops the streaming preview of a run that ended without publishing it', () => {
+    vi.useFakeTimers();
+    const client = new WebSocketClient('ws://test/ws');
+    const preview = (id: string, producedBy: string, correlationId: string) => ({
+      id,
+      type: 'message',
+      position: { x: 0, y: 0 },
+      data: { artifactType: 'TeamReply', producedBy, correlationId, isStreaming: true },
+    });
+    useGraphStore.setState({ nodes: [preview('p1', 'billing', 'c-1'), preview('p2', 'billing', 'c-2')] as never });
+
+    receive(client, 'agent_error', { agent_name: 'billing', correlation_id: 'c-1', agent_status: 'error' });
+
+    expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual(['p2']);
+  });
+
+  it('drops only the preview of the run that ended, when the agent runs twice in a run', () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    useGraphStore.setState({ viewMode: 'blackboard', nodes: [] });
+    const client = new WebSocketClient('ws://test/ws');
+    const token = (artifact_id: string, run_id: string) =>
+      receive(client, 'streaming_output', {
+        agent_name: 'billing',
+        correlation_id: 'c-1',
+        run_id,
+        artifact_id,
+        artifact_type: 'TeamReply',
+        output_type: 'llm_token',
+        content: 'Hi',
+        sequence: 1,
+      });
+    token('a-1', 'r-1');
+    token('a-2', 'r-2');
+
+    receive(client, 'agent_completed', { agent_name: 'billing', correlation_id: 'c-1', run_id: 'r-1', agent_status: 'running' });
+
+    expect(useGraphStore.getState().nodes.map((node) => node.id)).toEqual(['a-2']);
+  });
+
+  it('knows a run that consumed nothing (a direct invocation, a timer) is running', () => {
+    vi.useFakeTimers();
+    const client = new WebSocketClient('ws://test/ws');
+
+    receive(client, 'agent_activated', { agent_name: 'digest', run_id: 'r-9', consumed_types: [], consumed_artifacts: [], correlation_id: 'c-9' });
+    expect(useGraphStore.getState().inFlight.get('r-9')).toEqual({ agent: 'digest', types: [], artifacts: [], correlationId: 'c-9', produces: [], known: [] });
+
+    receive(client, 'agent_completed', { agent_name: 'digest', run_id: 'r-9', agent_status: 'idle' });
+    expect(useGraphStore.getState().inFlight.has('r-9')).toBe(false);
+  });
+
+  it('keeps a run that ended until what it published is on the board, and one that published nothing not at all (#642)', () => {
+    vi.useFakeTimers();
+    const client = new WebSocketClient('ws://test/ws');
+    const start = (run_id: string) =>
+      receive(client, 'agent_activated', { agent_name: 'billing', run_id, consumed_types: [], consumed_artifacts: [], correlation_id: 'c-1' });
+
+    start('r-1');
+    receive(client, 'agent_completed', { agent_name: 'billing', run_id: 'r-1', correlation_id: 'c-1', agent_status: 'idle', artifacts_produced: ['a-1'] });
+    expect(useGraphStore.getState().settling.get('r-1')?.published).toEqual(['a-1']);
+
+    // A failed run's outputs are not published: its lane lets go at once,
+    // also of a settling its completion event began
+    start('r-2');
+    receive(client, 'agent_error', { agent_name: 'billing', run_id: 'r-2', correlation_id: 'c-1', agent_status: 'error' });
+    expect(useGraphStore.getState().settling.has('r-2')).toBe(false);
+    receive(client, 'agent_error', { agent_name: 'billing', run_id: 'r-1', correlation_id: 'c-1', agent_status: 'error' });
+    expect(useGraphStore.getState().settling.has('r-1')).toBe(false);
+  });
+
+  it('remembers what a starting run consumed, its run and what its agent publishes', () => {
+    vi.useFakeTimers();
+    const client = new WebSocketClient('ws://test/ws');
+
+    receive(client, 'agent_activated', {
+      agent_name: 'billing',
+      run_id: 'r-1',
+      consumed_types: ['Decision[app.Route]'],
+      consumed_artifacts: ['d-1'],
+      correlation_id: 'c-1',
+      produced_types: ['app.TeamReply'],
+    });
+    expect(useGraphStore.getState().inFlight.get('r-1')).toEqual({
+      agent: 'billing',
+      types: ['Decision[app.Route]'],
+      artifacts: ['d-1'],
+      correlationId: 'c-1',
+      produces: ['app.TeamReply'],
+      known: [],
+    });
+  });
+
+  it('keeps the end of each running run\'s output apart, until the run ends', () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const client = new WebSocketClient('ws://test/ws');
+    const token = (run_id: string, content: string) =>
+      receive(client, 'streaming_output', { agent_name: 'billing', run_id, content, output_type: 'llm_token', sequence: 1 });
+
+    token('r-1', 'Your refund ');
+    token('r-2', 'The second ');
+    token('r-1', 'is on its way');
+    expect(useGraphStore.getState().runTails.get('r-1')).toBe('Your refund is on its way');
+    expect(useGraphStore.getState().runTails.get('r-2')).toBe('The second ');
+
+    token('r-1', 'x'.repeat(200));
+    expect(useGraphStore.getState().runTails.get('r-1')).toHaveLength(160);
+
+    receive(client, 'agent_completed', { agent_name: 'billing', run_id: 'r-1', agent_status: 'running' });
+    receive(client, 'agent_error', { agent_name: 'billing', run_id: 'r-2', agent_status: 'error' });
+    expect(useGraphStore.getState().runTails.size).toBe(0);
+  });
+
   it('reloads the board when an agent ends failed, which says what failed', () => {
     vi.useFakeTimers();
     vi.spyOn(console, 'log').mockImplementation(() => {});

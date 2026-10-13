@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Flock · Timeline dock</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.fl{--bg:#0B0C0E;--board:#0D0F12;--dot:rgba(255,255,255,.06);--surface:#15171B;--surface-2:#1B1E23;--surface-3:#24282E;--line:rgba(255,255,255,.075);--line-2:rgba(255,255,255,.14);--text:#ECEEF1;--text-2:#B0B6BF;--text-3:#858C96;--invert:#ECEEF1;--on-invert:#0B0C0E;--signal:#F2A33A;--signal-ink:#F6B860;--signal-soft:rgba(242,163,58,.13);--sure:#7BA8F5;--sure-ink:#9DBEF8;--sure-soft:rgba(123,168,245,.16);--error:#F07563;--error-ink:#F59384;--error-soft:rgba(240,117,99,.13);--hatch:rgba(255,255,255,.22);--shadow:0 1px 0 rgba(255,255,255,.035) inset,0 18px 40px -18px rgba(0,0,0,.75);font-family:'Geist',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;font-size:13px;line-height:1.45;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+.fl[data-theme="paper"]{--bg:#F3F2EE;--board:#F6F5F1;--dot:rgba(20,20,20,.08);--surface:#FFFFFF;--surface-2:#F5F4F0;--surface-3:#EAE8E2;--line:rgba(20,20,20,.08);--line-2:rgba(20,20,20,.15);--text:#16171A;--text-2:#4A4F57;--text-3:#676C74;--invert:#16171A;--on-invert:#FFFFFF;--signal:#D9861A;--signal-ink:#9A5A06;--signal-soft:rgba(217,134,26,.13);--sure:#2E6BD1;--sure-ink:#2559B0;--sure-soft:rgba(46,107,209,.12);--error:#C8432F;--error-ink:#A8361F;--error-soft:rgba(200,67,47,.1);--hatch:rgba(20,20,20,.24);--shadow:0 1px 2px rgba(0,0,0,.05),0 14px 30px -16px rgba(0,0,0,.2)}
+.fl *{box-sizing:border-box}
+.mono{font-family:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace}
+.num{font-variant-numeric:tabular-nums}
+.board{background-color:var(--board);background-image:radial-gradient(var(--dot) 1px,transparent 1.3px);background-size:22px 22px}
+.hatch{background-image:repeating-linear-gradient(135deg,var(--hatch) 0 1.5px,transparent 1.5px 5px)}
+.sdot{width:8px;height:8px;border-radius:50%;background:var(--text-3);flex:none}
+.sdot.run{background:var(--signal);animation:pulse 1.8s ease-out infinite}
+.sdot.err{background:var(--error)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--line-2);background:var(--surface-2);color:var(--text);font:inherit;font-size:13px;font-weight:500;text-decoration:none;cursor:pointer;white-space:nowrap}
+.btn:hover{background:var(--surface-3);color:var(--text)}
+.btn.primary{background:var(--invert);color:var(--on-invert);border-color:transparent}
+.btn.primary:hover{color:var(--on-invert);opacity:.88}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--text-2)}
+.btn.ghost:hover{background:var(--surface-2);color:var(--text)}
+.btn.icon{width:32px;padding:0}
+.chip{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border-radius:8px;background:var(--surface);border:1px solid var(--line);color:var(--text-2);font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}
+.chip:hover{color:var(--text);border-color:var(--line-2)}
+.seg{height:28px;padding:0 12px;border-radius:7px;display:inline-flex;align-items:center;font-size:13px;font-weight:500;color:var(--text-2);text-decoration:none}
+.seg:hover{color:var(--text)}
+.seg.is-on{background:var(--surface-3);color:var(--text)}
+.tab{height:44px;padding:0 2px;margin-bottom:-1px;display:inline-flex;align-items:center;gap:6px;background:none;border:0;border-bottom:2px solid transparent;color:var(--text-3);font:inherit;font-size:13px;font-weight:500;cursor:pointer}
+.tab:hover{color:var(--text)}
+.tab.is-on{color:var(--text);border-bottom-color:var(--text)}
+.count{font-size:11px;color:var(--text-3)}
+.label{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);font-weight:500}
+.pill{position:absolute;display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 11px;border-radius:15px;background:var(--surface);border:1px solid var(--line-2);font-size:12px;white-space:nowrap;box-shadow:var(--shadow)}
+.edge{fill:none;stroke:var(--line-2);stroke-width:1.5}
+.edge.live{stroke:var(--signal);stroke-dasharray:3 7;stroke-linecap:round;animation:flow .9s linear infinite}
+.edge.unsure{stroke-dasharray:2 5}
+.bar{flex:1;min-width:2px;border-radius:2px 2px 0 0;background:var(--text-3);opacity:.3}
+.bar.on{background:var(--text-2);opacity:.85}
+.h0{height:2px}.h1{height:4px}.h2{height:6px}.h3{height:8px}.h4{height:10px}.h5{height:13px}.h6{height:16px}.h7{height:19px}.h8{height:22px}.h9{height:25px}
+.row{display:grid;align-items:center;gap:12px;min-height:38px;border-bottom:1px solid var(--line);font-size:12.5px}
+.tr{display:flex;flex-direction:column;gap:3px;padding:10px 14px;border-bottom:1px solid var(--line);border-left:2px solid transparent;cursor:pointer;background:none;border-top:0;border-right:0;width:100%;text-align:left;font:inherit;color:var(--text)}
+.tr:hover{background:var(--surface-2)}
+.tr.is-on{background:var(--surface-2);border-left-color:var(--text)}
+.span{display:grid;grid-template-columns:260px minmax(0,1fr) 70px;align-items:center;gap:12px;height:32px;font-size:12px;border-bottom:1px solid var(--line)}
+.sbar{position:absolute;top:9px;height:12px;border-radius:3px}
+.kv{display:grid;grid-template-columns:150px minmax(0,1fr);gap:6px 14px;font-size:12px}
+.kv>span:nth-child(odd){font-family:'Geist Mono',ui-monospace,monospace;color:var(--text-3)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px}
+kbd{font-family:'Geist Mono',ui-monospace,monospace;font-size:10.5px;padding:1px 5px;border-radius:4px;border:1px solid var(--line-2);color:var(--text-3)}
+@keyframes flow{to{stroke-dashoffset:-20}}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(242,163,58,.5)}70%{box-shadow:0 0 0 6px rgba(242,163,58,0)}100%{box-shadow:0 0 0 0 rgba(242,163,58,0)}}
+@media (prefers-reduced-motion:reduce){.edge.live,.sdot.run{animation:none}}
+a{color:var(--sure-ink)}a:hover{color:var(--text)}
+button:focus-visible,a:focus-visible{outline:2px solid var(--sure);outline-offset:2px}
+</style>
+</helmet>
+<div class="fl" data-theme="{{theme}}" style="height: 100vh; display: flex; flex-direction: column; overflow: hidden">
+
+  <header style="flex: none; min-height: 56px; display: flex; align-items: center; flex-wrap: wrap; gap: 12px 16px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--bg)">
+    <a href="Main.dc.html" aria-label="Flock" style="display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--text)">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3.5l4 3-4 3" stroke="currentColor"></path><path d="M8 14.5l4 3-4 3" stroke="currentColor"></path><path d="M15 9l4 3-4 3" stroke="var(--signal)"></path></svg>
+      <span style="font-size: 16px; font-weight: 600; letter-spacing: -0.02em">flock</span>
+    </a>
+    <nav aria-label="Views" style="display: flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line)">
+      <a href="Main.dc.html" class="seg is-on" aria-current="page">Flow</a>
+      <a href="Blackboard.dc.html" class="seg">Blackboard</a>
+    </nav>
+    <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap">
+      <button type="button" class="chip">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3 2"></path></svg>
+        <span>Last 15 min</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+      </button>
+      <button type="button" class="chip" style="border-style: dashed; background: transparent">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+        <span>Filter</span>
+      </button>
+    </div>
+    <div style="flex: 1 1 0"></div>
+    <button type="button" class="chip" style="min-width: 232px; justify-content: space-between; height: 32px">
+      <span style="display: inline-flex; align-items: center; gap: 8px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="M16 16l4 4"></path></svg>
+        <span>Search agents, types, runs</span>
+      </span>
+      <kbd>⌘K</kbd>
+    </button>
+    <div role="status" style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-2)">
+      <span class="sdot run" style="width: 7px; height: 7px"></span>
+      <span>Live</span>
+      <span style="color: var(--text-3)">7 agents · 2 running</span>
+    </div>
+    <a href="Publish.dc.html" class="btn primary">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+      <span>Publish</span>
+    </a>
+    <div style="display: flex; gap: 2px">
+      <button type="button" class="btn icon ghost" aria-label="Settings">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h9M18 7h2M4 17h3M12 17h8"></path><circle cx="15.5" cy="7" r="2.3"></circle><circle cx="9.5" cy="17" r="2.3"></circle></svg>
+      </button>
+      <button type="button" class="btn icon ghost" aria-label="Keyboard shortcuts">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2.5"></rect><path d="M7 10h.01M11 10h.01M15 10h.01M8 14h8"></path></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="board" style="position: relative; flex: none; height: 220px; overflow: auto">
+    <div style="position: relative; width: 1440px; height: 220px">
+      <svg width="1440" height="220" viewBox="0 0 1440 220" aria-hidden="true" style="position: absolute; inset: 0">
+        <path class="edge live" d="M196 110 C250 110 250 70 304 70"></path>
+        <path class="edge" d="M196 110 C250 110 250 150 304 150"></path>
+        <path class="edge live" d="M410 70 C540 70 540 34 670 34"></path>
+        <path class="edge" d="M410 70 C540 70 540 82 670 82"></path>
+        <path class="edge" d="M410 70 C540 70 540 130 670 130"></path>
+        <path class="edge unsure" d="M410 70 C540 70 540 178 670 178"></path>
+        <path class="edge" d="M420 150 C470 150 470 150 520 150"></path>
+      </svg>
+      <span class="pill" style="left: 92px; top: 95px"><span class="sdot"></span>external<span class="mono num" style="color: var(--text-3)">8</span></span>
+      <span class="pill" style="left: 304px; top: 55px; border-color: color-mix(in srgb, var(--signal) 55%, transparent)"><span class="sdot run"></span>triage<span class="mono" style="color: var(--sure-ink)">◆</span></span>
+      <span class="pill" style="left: 304px; top: 135px"><span class="sdot"></span>urgency<span class="mono" style="color: var(--sure-ink)">◆</span></span>
+      <span class="pill" style="left: 520px; top: 135px"><span class="sdot"></span>pager<span class="mono num" style="color: var(--text-3)">1</span></span>
+      <span class="pill" style="left: 670px; top: 19px; border-color: color-mix(in srgb, var(--signal) 55%, transparent)"><span class="sdot run"></span>billing_team<span class="mono num" style="color: var(--text-3)">3</span></span>
+      <span class="pill" style="left: 670px; top: 67px"><span class="sdot"></span>shipping_team<span class="mono num" style="color: var(--text-3)">1</span></span>
+      <span class="pill" style="left: 670px; top: 115px"><span class="sdot"></span>tech_support<span class="mono num" style="color: var(--text-3)">1</span></span>
+      <span class="pill" style="left: 670px; top: 163px"><span class="sdot"></span>supervisor<span class="mono num" style="color: var(--text-3)">2</span></span>
+    </div>
+  </div>
+
+  <section aria-label="Timeline dock" style="flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; border-top: 1px solid var(--line-2); background: var(--bg); box-shadow: 0 -18px 40px -24px rgba(0,0,0,.6)">
+    <div style="flex: none; display: flex; align-items: center; gap: 22px; padding: 0 12px 0 20px; border-bottom: 1px solid var(--line)">
+      <div role="tablist" aria-label="Timeline dock" style="display: flex; gap: 22px">
+        <sc-for list="{{tabs}}" as="t" hint-placeholder-count="4">
+          <button type="button" role="tab" class="{{t.cls}}" aria-selected="{{t.selected}}" onClick="{{t.pick}}">
+            <span>{{t.label}}</span>
+            <sc-if value="{{t.hasCount}}" hint-placeholder-val="{{false}}"><span class="count mono num">{{t.count}}</span></sc-if>
+          </button>
+        </sc-for>
+      </div>
+      <div style="flex: 1 1 0; min-width: 200px; display: flex; align-items: center; gap: 12px">
+        <div style="position: relative; flex: 1 1 0; height: 26px; display: flex; align-items: flex-end; gap: 2px">
+          <sc-for list="{{bars}}" as="b" hint-placeholder-count="60">
+            <div class="{{b.cls}}"></div>
+          </sc-for>
+          <div aria-hidden="true" style="position: absolute; left: 33.3%; right: 0; top: -3px; bottom: -1px; border-left: 2px solid var(--text-2); border-radius: 2px; background: color-mix(in srgb, var(--text) 5%, transparent)"></div>
+          <div aria-hidden="true" style="position: absolute; left: 71%; top: -3px; bottom: -1px; width: 2px; background: var(--error)"></div>
+        </div>
+        <span class="mono num" style="font-size: 11px; color: var(--text-3)">13:15 – now</span>
+      </div>
+      <a href="Main.dc.html" class="btn icon ghost" aria-label="Collapse timeline dock">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+      </a>
+    </div>
+
+    <sc-if value="{{isTraces}}" hint-placeholder-val="{{true}}">
+      <div style="flex: 1 1 0; min-height: 0; display: flex; flex-wrap: wrap">
+        <div style="flex: 1 1 320px; max-width: 360px; min-width: 0; display: flex; flex-direction: column; border-right: 1px solid var(--line)">
+          <div style="display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line)">
+            <label style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--surface); color: var(--text-3)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="M16 16l4 4"></path></svg>
+              <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search traces</span>
+              <input type="text" placeholder="agent:billing_team status:error" class="mono" style="flex: 1 1 0; min-width: 0; height: 30px; border: 0; background: transparent; color: var(--text); font-size: 12px; outline: none">
+            </label>
+            <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-3)">
+              <span>Sort</span>
+              <button type="button" class="chip" style="height: 24px; color: var(--text); border-color: var(--line-2)">Newest</button>
+              <button type="button" class="chip" style="height: 24px">Slowest</button>
+              <button type="button" class="chip" style="height: 24px">Errors first</button>
+            </div>
+          </div>
+          <div style="flex: 1 1 0; min-height: 0; overflow: auto">
+            <button type="button" class="tr is-on">
+              <span style="display: flex; align-items: center; gap: 8px"><span class="sdot" style="background: var(--text-2)"></span><span class="mono" style="font-size: 12px">Agent.execute</span><span style="font-size: 12px; color: var(--text-2)">billing_team</span><span class="mono num" style="margin-left: auto; font-size: 12px">2.61 s</span></span>
+              <span class="mono num" style="padding-left: 16px; font-size: 11px; color: var(--text-3)">13:22:08 · 9 spans · run e81a</span>
+            </button>
+            <button type="button" class="tr">
+              <span style="display: flex; align-items: center; gap: 8px"><span class="sdot err"></span><span class="mono" style="font-size: 12px">Agent.execute</span><span style="font-size: 12px; color: var(--text-2)">tech_support</span><span class="mono num" style="margin-left: auto; font-size: 12px; color: var(--error-ink)">failed</span></span>
+              <span class="mono num" style="padding-left: 16px; font-size: 11px; color: var(--text-3)">13:20:44 · 6 spans · RateLimitError, retried</span>
+            </button>
+            <button type="button" class="tr">
+              <span style="display: flex; align-items: center; gap: 8px"><span class="sdot" style="background: var(--text-2)"></span><span class="mono" style="font-size: 12px">Agent.execute</span><span style="font-size: 12px; color: var(--text-2)">triage</span><span class="mono num" style="margin-left: auto; font-size: 12px">61 ms</span></span>
+              <span class="mono num" style="padding-left: 16px; font-size: 11px; color: var(--text-3)">13:24:41 · 3 spans · run 9c34</span>
+            </button>
+            <button type="button" class="tr">
+              <span style="display: flex; align-items: center; gap: 8px"><span class="sdot" style="background: var(--text-2)"></span><span class="mono" style="font-size: 12px">Flock.publish</span><span style="font-size: 12px; color: var(--text-2)">SupportTicket</span><span class="mono num" style="margin-left: auto; font-size: 12px">4 ms</span></span>
+              <span class="mono num" style="padding-left: 16px; font-size: 11px; color: var(--text-3)">13:24:41 · 2 spans · run 9c34</span>
+            </button>
+            <button type="button" class="tr">
+              <span style="display: flex; align-items: center; gap: 8px"><span class="sdot" style="background: var(--text-2)"></span><span class="mono" style="font-size: 12px">Agent.execute</span><span style="font-size: 12px; color: var(--text-2)">supervisor</span><span class="mono num" style="margin-left: auto; font-size: 12px">3.02 s</span></span>
+              <span class="mono num" style="padding-left: 16px; font-size: 11px; color: var(--text-3)">13:23:59 · 9 spans · run b20c</span>
+            </button>
+          </div>
+        </div>
+
+        <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+          <div style="flex: none; display: flex; align-items: baseline; gap: 12px; padding: 12px 20px 8px">
+            <span style="font-weight: 600">billing_team · Invoice copy</span>
+            <span class="mono" style="font-size: 11.5px; color: var(--text-3)">trace 4f2a9c81e0b3 · correlation e81a77</span>
+            <a href="Blackboard.dc.html" style="margin-left: auto; font-size: 12px; text-decoration: none">Open run in blackboard →</a>
+          </div>
+          <div style="flex: 1 1 0; min-height: 0; overflow: auto; padding: 0 20px">
+            <div class="span label" style="height: 26px">
+              <span>Span</span>
+              <span class="mono num" style="display: flex; justify-content: space-between; text-transform: none; letter-spacing: 0"><span>0</span><span>0.65 s</span><span>1.3 s</span><span>1.95 s</span><span>2.61 s</span></span>
+              <span style="text-align: right">Took</span>
+            </div>
+            <div class="span">
+              <span class="mono">Agent.execute</span>
+              <span style="position: relative; height: 100%"><span class="sbar" style="left: 0; width: 100%; background: var(--text-2)"></span></span>
+              <span class="mono num" style="text-align: right">2,612 ms</span>
+            </div>
+            <div class="span">
+              <span class="mono" style="padding-left: 16px; color: var(--text-2)">Agent._run_components</span>
+              <span style="position: relative; height: 100%"><span class="sbar" style="left: 0.4%; width: 1.2%; background: var(--text-3)"></span></span>
+              <span class="mono num" style="text-align: right; color: var(--text-2)">31 ms</span>
+            </div>
+            <div class="span" style="background: var(--surface)">
+              <span class="mono" style="padding-left: 16px">DSPyEngine.evaluate</span>
+              <span style="position: relative; height: 100%"><span class="sbar" style="left: 1.8%; width: 96.4%; background: var(--sure)"></span></span>
+              <span class="mono num" style="text-align: right">2,518 ms</span>
+            </div>
+            <div class="span">
+              <span class="mono" style="padding-left: 32px; color: var(--text-2)">litellm.completion</span>
+              <span style="position: relative; height: 100%"><span class="sbar" style="left: 3.1%; width: 92.8%; background: color-mix(in srgb, var(--sure) 60%, transparent)"></span></span>
+              <span class="mono num" style="text-align: right; color: var(--text-2)">2,424 ms</span>
+            </div>
+            <div class="span">
+              <span class="mono" style="padding-left: 16px; color: var(--text-2)">Flock.publish</span>
+              <span style="position: relative; height: 100%"><span class="sbar" style="left: 98.3%; width: 0.6%; min-width: 3px; background: var(--text-3)"></span></span>
+              <span class="mono num" style="text-align: right; color: var(--text-2)">6 ms</span>
+            </div>
+            <div class="span">
+              <span class="mono" style="padding-left: 32px; color: var(--text-2)">sqlite_store.publish</span>
+              <span style="position: relative; height: 100%"><span class="sbar" style="left: 98.5%; width: 0.4%; min-width: 3px; background: var(--text-3)"></span></span>
+              <span class="mono num" style="text-align: right; color: var(--text-2)">4 ms</span>
+            </div>
+
+            <div class="card" style="margin: 16px 0 20px; padding: 14px 16px; display: flex; flex-direction: column; gap: 12px">
+              <div style="display: flex; align-items: baseline; gap: 10px">
+                <span class="label">Selected span</span>
+                <span class="mono" style="font-size: 12.5px">DSPyEngine.evaluate</span>
+                <span class="mono" style="margin-left: auto; font-size: 11.5px; color: var(--text-3)">status OK · start +47 ms</span>
+              </div>
+              <div class="kv">
+                <span>agent.name</span><span class="mono">billing_team</span>
+                <span>model</span><span class="mono">openai/gpt-4.1</span>
+                <span>input</span><span class="mono" style="color: var(--text-2)">SupportTicket {"subject": "Invoice copy", …}</span>
+                <span>output</span><span class="mono" style="color: var(--text-2)">TeamReply {"team": "billing_team", …}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{isHistory}}" hint-placeholder-val="{{false}}">
+      <div style="flex: 1 1 0; min-height: 0; display: flex; flex-direction: column">
+        <div style="flex: none; display: flex; align-items: center; flex-wrap: wrap; gap: 10px 16px; padding: 10px 20px; border-bottom: 1px solid var(--line); font-size: 12px; color: var(--text-3)">
+          <span class="mono num">30 artifacts · 13:10:22 – 13:24:42</span>
+          <span>Follows the filters above</span>
+          <button type="button" class="btn" style="margin-left: auto; height: 28px; font-size: 12px">Load older</button>
+        </div>
+        <div style="flex: 1 1 0; min-height: 0; overflow: auto; padding: 0 20px">
+          <div class="row label" style="grid-template-columns: 80px 170px 130px 70px 90px 90px minmax(0, 1fr); min-height: 32px">
+            <span>Time</span><span>Type</span><span>Produced by</span><span>Run</span><span>Tags</span><span>Visibility</span><span>Consumed by</span>
+          </div>
+          <div class="row" style="grid-template-columns: 80px 170px 130px 70px 90px 90px minmax(0, 1fr)">
+            <span class="mono num" style="color: var(--text-3)">13:24:42</span><span class="mono">SupportTicket</span><span>external</span><span class="mono" style="color: var(--text-3)">5a1f</span><span style="color: var(--text-3)">—</span><span>Public</span><span style="color: var(--text-2)">triage, urgency</span>
+          </div>
+          <div class="row" style="grid-template-columns: 80px 170px 130px 70px 90px 90px minmax(0, 1fr)">
+            <span class="mono num" style="color: var(--text-3)">13:24:42</span><span class="mono"><span style="color: var(--sure-ink)">◆</span> Decision[Urgent]</span><span>urgency</span><span class="mono" style="color: var(--text-3)">5a1f</span><span style="color: var(--text-3)">—</span><span>Public</span><span style="color: var(--text-3)">nobody</span>
+          </div>
+          <div class="row" style="grid-template-columns: 80px 170px 130px 70px 90px 90px minmax(0, 1fr)">
+            <span class="mono num" style="color: var(--text-3)">13:24:41</span><span class="mono"><span style="color: var(--sure-ink)">◆</span> Decision[Route]</span><span>triage</span><span class="mono" style="color: var(--text-3)">9c34</span><span style="color: var(--text-3)">—</span><span>Public</span><span style="color: var(--text-2)">billing_team</span>
+          </div>
+          <div class="row" style="grid-template-columns: 80px 170px 130px 70px 90px 90px minmax(0, 1fr)">
+            <span class="mono num" style="color: var(--text-3)">13:24:41</span><span class="mono">SupportTicket</span><span>external</span><span class="mono" style="color: var(--text-3)">9c34</span><span style="color: var(--text-3)">—</span><span>Public</span><span style="color: var(--text-2)">triage, urgency</span>
+          </div>
+          <div class="row" style="grid-template-columns: 80px 170px 130px 70px 90px 90px minmax(0, 1fr)">
+            <span class="mono num" style="color: var(--text-3)">13:23:59</span><span class="mono">TeamReply</span><span>supervisor</span><span class="mono" style="color: var(--text-3)">b20c</span><span style="color: var(--text-3)">—</span><span>Public</span><span style="color: var(--text-3)">nobody</span>
+          </div>
+          <div class="row" style="grid-template-columns: 80px 170px 130px 70px 90px 90px minmax(0, 1fr)">
+            <span class="mono num" style="color: var(--text-3)">13:23:58</span><span class="mono"><span style="color: var(--sure-ink)">◆</span> Decision[Route]</span><span>triage</span><span class="mono" style="color: var(--text-3)">b20c</span><span style="color: var(--text-3)">—</span><span>Public</span><span style="color: var(--text-2)">supervisor</span>
+          </div>
+          <div class="row" style="grid-template-columns: 80px 170px 130px 70px 90px 90px minmax(0, 1fr)">
+            <span class="mono num" style="color: var(--text-3)">13:23:12</span><span class="mono">Page</span><span>pager</span><span class="mono" style="color: var(--text-3)">3f9a</span><span style="color: var(--text-3)">—</span><span>Public</span><span style="color: var(--text-3)">nobody</span>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{isMetrics}}" hint-placeholder-val="{{false}}">
+      <div style="flex: 1 1 0; min-height: 0; overflow: auto; padding: 16px 20px">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 14px">
+          <div class="card" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 10px">
+            <span class="mono" style="font-size: 13px">Agent</span>
+            <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+              <div><div class="label">Rate</div><div class="mono num" style="font-size: 18px">0.4/s</div></div>
+              <div><div class="label">Errors</div><div class="mono num" style="font-size: 18px; color: var(--error-ink)">3.1%</div></div>
+              <div><div class="label">p95</div><div class="mono num" style="font-size: 18px">2.9 s</div></div>
+            </div>
+          </div>
+          <div class="card" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 10px">
+            <span class="mono" style="font-size: 13px">Flock</span>
+            <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+              <div><div class="label">Rate</div><div class="mono num" style="font-size: 18px">1.1/s</div></div>
+              <div><div class="label">Errors</div><div class="mono num" style="font-size: 18px">0%</div></div>
+              <div><div class="label">p95</div><div class="mono num" style="font-size: 18px">6 ms</div></div>
+            </div>
+          </div>
+          <div class="card" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 10px">
+            <span class="mono" style="font-size: 13px">DSPyEngine</span>
+            <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+              <div><div class="label">Rate</div><div class="mono num" style="font-size: 18px">0.1/s</div></div>
+              <div><div class="label">Errors</div><div class="mono num" style="font-size: 18px; color: var(--error-ink)">8.3%</div></div>
+              <div><div class="label">p95</div><div class="mono num" style="font-size: 18px">2.8 s</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{isSettings}}" hint-placeholder-val="{{false}}">
+      <div style="flex: 1 1 0; min-height: 0; overflow: auto; padding: 16px 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 16px; align-content: start">
+        <div class="card" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 10px">
+          <span class="label">Recording</span>
+          <label style="display: flex; align-items: center; gap: 10px; font-size: 13px"><input type="checkbox" checked style="accent-color: var(--text); margin: 0"> Trace every operation <span class="mono" style="margin-left: auto; font-size: 11px; color: var(--text-3)">FLOCK_AUTO_TRACE</span></label>
+          <label style="display: flex; align-items: center; gap: 10px; font-size: 13px"><input type="checkbox" checked style="accent-color: var(--text); margin: 0"> Keep traces in DuckDB <span class="mono" style="margin-left: auto; font-size: 11px; color: var(--text-3)">FLOCK_TRACE_FILE</span></label>
+          <label style="display: flex; align-items: center; gap: 10px; font-size: 13px"><input type="checkbox" style="accent-color: var(--text); margin: 0"> One trace per workflow <span class="mono" style="margin-left: auto; font-size: 11px; color: var(--text-3)">FLOCK_AUTO_WORKFLOW_TRACE</span></label>
+        </div>
+        <div class="card" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 10px">
+          <span class="label">Store</span>
+          <div class="kv" style="grid-template-columns: 110px minmax(0, 1fr)">
+            <span>spans</span><span class="mono num">1,284</span>
+            <span>traces</span><span class="mono num">96</span>
+            <span>file size</span><span class="mono num">2.4 MB</span>
+          </div>
+          <button type="button" class="btn" style="align-self: flex-start; height: 28px; font-size: 12px; color: var(--error-ink)">Clear all traces</button>
+        </div>
+      </div>
+    </sc-if>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["graphite","paper"],"default":"graphite"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const tab = (this.state && this.state.tab) || 'traces';
+    const defs = [['traces', 'Traces', '96'], ['history', 'History', '30'], ['metrics', 'Metrics', ''], ['settings', 'Tracing settings', '']];
+    const heights = [0,0,1,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,2,4,3,1,0,0,0,0,1,0,0,0,0,0,0,0,2,5,7,6,3,2,1,0,0,1,0,3,6,9,8,5,3,2,4,6,5,3,2,1];
+    return {
+      theme: this.props.theme ?? 'graphite',
+      tabs: defs.map(([id, label, count]) => ({
+        id, label, count,
+        hasCount: count !== '',
+        cls: id === tab ? 'tab is-on' : 'tab',
+        selected: id === tab ? 'true' : 'false',
+        pick: () => this.setState({ tab: id })
+      })),
+      isTraces: tab === 'traces',
+      isHistory: tab === 'history',
+      isMetrics: tab === 'metrics',
+      isSettings: tab === 'settings',
+      bars: heights.map((h, i) => ({ cls: 'bar h' + h + (i >= 20 ? ' on' : '') }))
+    };
+  }
+}
+</script>
+</body>
+</html>

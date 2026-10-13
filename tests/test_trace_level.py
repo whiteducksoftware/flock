@@ -92,7 +92,13 @@ def test_flock_traces_agent_work_and_leaves_its_internals_at_the_default_level()
         assert traced(method), method
     assert traced(Agent.execute)
     # Building and registering
-    for method in (Flock.agent, Flock.register_agent, Flock.add_component, Flock.serve):
+    for method in (
+        Flock.agent,
+        Flock.sink,
+        Flock.register_agent,
+        Flock.add_component,
+        Flock.serve,
+    ):
         assert not traced(method), method
     # The dashboard serving itself
     assert not traced(GraphAssembler.build_snapshot)

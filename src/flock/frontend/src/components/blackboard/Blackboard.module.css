@@ -1,0 +1,484 @@
+/* The Blackboard view: run lanes or the table (mockups/Blackboard.dc.html) */
+
+.view {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--board);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 13px;
+}
+
+.toolbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 56px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+}
+
+.segs {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.counts {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.spacer {
+  flex: 1 1 0;
+}
+
+.reviewMark {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid var(--line-2);
+}
+
+.on,
+.on:hover {
+  border-color: var(--sure);
+  background: var(--sure-soft);
+  color: var(--sure-ink);
+}
+
+/* The graph: the cards on a canvas with the canvas dock */
+.graph {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.graph :global(.react-flow__node) {
+  cursor: default;
+}
+
+.handle {
+  opacity: 0;
+  pointer-events: none;
+}
+
+
+.lanes {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.note {
+  margin: 16px 20px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* A lane: its header, then the columns */
+
+.lane {
+  display: flex;
+  align-items: center;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+/* A lane that arrives while the board shows fades in; the lanes below glide
+   down (FLIP in Blackboard.tsx) instead of jumping (#642) */
+.entering {
+  animation: lane-in 260ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@keyframes lane-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* A lane with an unfolded card keeps its top: its header and first row of
+   cards stay where they were, the arrows at the first row's middle (a folded
+   artifact card is 85 px high), as in the mockup (#652) */
+.lane[data-unfolded],
+.lane[data-unfolded] .columns {
+  align-items: flex-start;
+}
+
+.lane[data-unfolded] .arrow {
+  height: 85px;
+}
+
+.laneHead {
+  flex: none;
+  width: 208px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-right: 16px;
+}
+
+.runLine {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.status {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.statusRunning {
+  font-size: 12px;
+  color: var(--signal-ink);
+  /* Who is working changes while a run goes on ("triage and 1 more are working",
+     "tech_support is writing"): two lines kept, so the lane does not grow and
+     shrink by a line each time (#642) */
+  line-height: 1.35;
+  min-height: calc(2 * 1.35em);
+}
+
+/* Done, and a sink could not deliver one of the run's artifacts */
+.statusFailed {
+  font-size: 12px;
+  color: var(--error-ink);
+}
+
+.failedMark {
+  display: inline-flex;
+  color: var(--error-ink);
+}
+
+.columns {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.column {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.arrow {
+  flex: none;
+  width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+}
+
+.arrowActive {
+  color: var(--signal);
+}
+
+/* An artifact card */
+
+/* The element a card glides and opens in (#652): as wide as its card */
+.cardSlot {
+  align-self: flex-start;
+}
+
+.card {
+  flex: none;
+  width: 236px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 11px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  text-align: left;
+}
+
+.card:hover {
+  border-color: var(--text-3);
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--sure);
+  outline-offset: 2px;
+}
+
+.unfolded {
+  width: 420px;
+  gap: 10px;
+  padding: 14px 16px;
+  cursor: default;
+}
+
+.unfolded:hover {
+  border-color: var(--line-2);
+}
+
+.streaming {
+  border-color: var(--signal);
+}
+
+.pending {
+  border-style: dashed;
+  border-color: var(--signal);
+  box-shadow: none;
+  cursor: default;
+}
+
+.pending:hover {
+  border-color: var(--signal);
+}
+
+.unsureCard {
+  border-style: dashed;
+}
+
+/* A sink's failed delivery */
+.failedCard {
+  border-color: var(--error);
+}
+
+.failedCard:hover {
+  border-color: var(--error-ink);
+}
+
+.receipt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.receiptFailed {
+  color: var(--error-ink);
+}
+
+.cardHead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  font-size: 12.5px;
+}
+
+.by {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.unfoldedHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.unfoldedHead > .cardHead {
+  flex: 1 1 0;
+}
+
+.clip {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: fit-content(96px) minmax(0, 1fr);
+  gap: 2px 10px;
+  font-size: 12px;
+}
+
+.kv > span:nth-child(odd) {
+  font-family: var(--font-mono);
+  color: var(--text-3);
+}
+
+.decision {
+  display: grid;
+  grid-template-columns: auto minmax(40px, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.sure {
+  color: var(--sure-ink);
+}
+
+.unsure {
+  color: var(--text-2);
+}
+
+.track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-3);
+  overflow: hidden;
+  display: flex;
+}
+
+.fill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--sure);
+}
+
+.fillUnsure {
+  background-color: transparent;
+}
+
+.quiet {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.faint {
+  color: var(--text-3);
+}
+
+.stream {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+  /* A fixed box for what is being written, the newest line at the bottom: the
+     card keeps its height while the text grows (#642) */
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  height: calc(1.45em * 5);
+  overflow: hidden;
+}
+
+/* Unfolded: all of it, from its first line (the folded box does not apply) */
+.streamFull {
+  display: block;
+  height: auto;
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.waiting {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.waiting > span {
+  display: block;
+  height: 8px;
+  border-radius: 3px;
+}
+
+.waiting > span:last-child:not(:first-child) {
+  width: 60%;
+}
+
+.wait {
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+/* A stream before its first words holds the box its words will fill */
+.streamWait {
+  height: calc(11.5px * 1.45 * 5);
+}
+
+.caret {
+  animation: blink 1s step-end infinite;
+  color: var(--signal);
+}
+
+@keyframes shimmer {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wait,
+  .caret {
+    animation: none;
+  }
+}
+
+/* An unfolded card's details */
+
+.meta {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 3px 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.meta > span:nth-child(odd) {
+  font-family: var(--font-mono);
+  color: var(--text-3);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.label {
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.history {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.history > li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+}

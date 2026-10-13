@@ -1,429 +1,395 @@
-import { memo, useState, useEffect, useRef } from 'react';
-import { NodeProps, Handle, Position } from '@xyflow/react';
+/**
+ * An agent on the board, as a card or, zoomed out, as a chip
+ * (docs/internal/design-system/README.md, Nodes: four levels).
+ */
+
+import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Handle, NodeProps, Position, useStore } from '@xyflow/react';
 import { useUIStore } from '../../store/uiStore';
-import { useSettingsStore } from '../../store/settingsStore';
-import LogicOperationsDisplay from './LogicOperationsDisplay';
-import ScheduledAgentDisplay from './ScheduledAgentDisplay';
-import { AggregatorInfo, CoverageSummary, DeciderInfo, DeciderOptions, DecisionBadge } from './DecisionDisplay';
-import { ScheduleSpecDisplay, TimerStateDisplay } from '../../types/graph';
+import { Icon } from '../icons/Icon';
+import {
+  AgentData,
+  batchWait,
+  CardTag,
+  formatAgo,
+  formatClock,
+  formatSpan,
+  joinWait,
+  portRows,
+  PortRow,
+  tagOf,
+} from './card/cardModel';
+import { cardSizes } from './cardSizes';
+import { AggregatorInfo, CoverageSummary, DeciderInfo, DeciderOptions } from './DecisionDisplay';
+import { lastText, type SinkInfo } from '../sinks/deliveries';
+import { count } from './unfold/format';
+import { MOVE_MS, prefersLessMotion } from './animatePositions';
+import { RESIZE_THRESHOLD_PX } from './autoLayoutTrigger';
+import UnfoldedAgent from './unfold/UnfoldedAgent';
+import styles from './AgentNode.module.css';
 
-// UI Optimization Migration (Phase 4.1 - Spec 002): Backend GraphNode.data is Record<string, any>
-// Agent-specific properties populated by backend snapshot
-const AgentNode = memo(({ data, selected }: NodeProps) => {
-  const nodeData = data as Record<string, any>;
-  const name = nodeData.name;
-  const status = nodeData.status;
-  const sentCount = nodeData.sentCount;
-  const recvCount = nodeData.recvCount;
-  const subscriptions = nodeData.subscriptions || [];
-  const labels = nodeData.labels || [];
-  const outputTypes = nodeData.outputTypes || [];
-  const receivedByType = nodeData.receivedByType || {};
-  const sentByType = nodeData.sentByType || {};
-  const streamingTokens = nodeData.streamingTokens || [];
-  const logicOperations = nodeData.logicOperations || []; // Phase 1.4: Logic operations state
-  const scheduleSpec = nodeData.scheduleSpec as ScheduleSpecDisplay | undefined; // Phase 1.6: Schedule spec
-  const timerState = nodeData.timerState as TimerStateDisplay | undefined; // Phase 1.6: Timer state
-  const decider = nodeData.decision as DeciderInfo | undefined; // Decision agent: questions + answer counts
-  const aggregator = nodeData.coverage as AggregatorInfo | undefined; // Aggregating agent: coverage per group
-  const typeLabels = (nodeData.typeLabels || {}) as Record<string, string>; // Choice handles, e.g. "◆ Route.billing"
+/** Below this zoom the board shows chips instead of cards. */
+export const CHIP_ZOOM = 0.55;
 
-  // Merge known types with actual counts - show all types even with 0 count
-  // Start with actual counts, then add known types that haven't happened yet
-  const displayReceivedByType: Record<string, number> = { ...receivedByType };
-  subscriptions.forEach((type: string) => {
-    if (!(type in displayReceivedByType)) {
-      displayReceivedByType[type] = 0;
-    }
+/** Expiry countdowns turn amber below this many seconds. */
+const URGENT_SECONDS = 30;
+
+/** The time now, ticking every second while `active`. */
+const useNow = (active: boolean): number => {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) return;
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [active]);
+  return now;
+};
+
+/** A count that flashes when it changes (the number, not its row). */
+const Count: React.FC<{ value: number }> = ({ value }) => {
+  const previous = useRef(value);
+  const [flash, setFlash] = useState(false);
+  useEffect(() => {
+    if (previous.current === value) return;
+    previous.current = value;
+    setFlash(true);
+    const timer = window.setTimeout(() => setFlash(false), 600);
+    return () => window.clearTimeout(timer);
+  }, [value]);
+  return <span className={`mono num ${styles.count} ${flash ? styles.flash : ''}`}>{value}</span>;
+};
+
+export const Tag: React.FC<{ tag: CardTag }> = ({ tag }) => (
+  <span className={styles.tag} data-testid="card-tag">
+    {tag.kind === 'schedule' && <Icon name="scheduled" size={11} />}
+    {tag.kind === 'decision' ? (
+      <>
+        <span className={styles.diamond}>◆</span>
+        {/* Spaces for the text (screen readers); the gap spaces the look */}
+        {` ${tag.text.replace(/^◆\s*/, '')}`}
+        {tag.more > 0 && <span className={styles.more}>{` +${tag.more}`}</span>}
+      </>
+    ) : (
+      tag.text
+    )}
+  </span>
+);
+
+const Port: React.FC<{ row: PortRow }> = ({ row }) => (
+  <div className={styles.port} title={row.type}>
+    <span className={styles.dir}>{row.dir}</span>
+    <span className={`mono ${styles.type}`}>
+      {row.decision && <span className={styles.diamond}>◆ </span>}
+      {row.label}
+      {row.times > 1 && <span className={styles.times}> ×{row.times}</span>}
+    </span>
+    <Count value={row.count} />
+  </div>
+);
+
+/** Show a run's traces: the timeline dock's Traces tab, searching its correlation. */
+export const openTrace = (correlationId: string) => {
+  useUIStore.getState().openDock('traces', correlationId);
+};
+
+const ErrorRow: React.FC<{ error: AgentData['lastError'] }> = ({ error }) => {
+  const at = error?.at ? new Date(error.at).toLocaleTimeString([], { hour12: false }) : null;
+  const text = [error?.type ?? 'Failed', at].filter(Boolean).join(' · ');
+  const correlationId = error?.correlationId;
+  const content = (
+    <>
+      <Icon name="error" size={13} />
+      <span className={`mono ${styles.errorText}`}>{text}</span>
+    </>
+  );
+  return correlationId ? (
+    <button
+      type="button"
+      className={`nodrag ${styles.error}`}
+      title={`${error?.message ?? 'The run failed'} · open its trace`}
+      onClick={() => openTrace(correlationId)}
+    >
+      {content}
+    </button>
+  ) : (
+    <div className={styles.error} title={error?.message ?? undefined}>
+      {content}
+    </div>
+  );
+};
+
+const ScheduleLine: React.FC<{ timer: NonNullable<AgentData['timerState']>; now: number }> = ({ timer, now }) => {
+  const last = timer.last_fire_time ? (now - Date.parse(timer.last_fire_time)) / 1000 : null;
+  // The timer counts its fires from 0
+  const runs = [last !== null && `run ${timer.iteration + 1}`, last !== null && `last ${formatAgo(last)}`]
+    .filter(Boolean)
+    .join(' · ');
+  let next: React.ReactNode = null;
+  if (timer.is_completed) next = 'finished';
+  else if (timer.is_stopped) next = 'stopped';
+  else if (timer.next_fire_time) {
+    next = (
+      <>
+        next in <span className={`mono num ${styles.strong}`}>{formatSpan((Date.parse(timer.next_fire_time) - now) / 1000)}</span>
+      </>
+    );
+  }
+  return (
+    <div className={styles.schedule}>
+      {next && <span>{next}</span>}
+      {runs && <span className={styles.quiet}>{runs}</span>}
+    </div>
+  );
+};
+
+/** A sink's deliveries: how many went out, how many failed, and the last one. */
+const DeliveryLine: React.FC<{ sink: SinkInfo }> = ({ sink }) => (
+  <div className={styles.schedule} data-testid="deliveries">
+    <span>
+      <span className={`mono num ${styles.strong}`}>{count(sink.delivered)}</span> delivered
+    </span>
+    {sink.failed > 0 && (
+      <span className={styles.failedCount}>
+        <span className="mono num">{count(sink.failed)}</span> failed
+      </span>
+    )}
+    {sink.last && <span className={sink.last.ok ? styles.quiet : styles.failedCount}>last {lastText(sink.last)}</span>}
+  </div>
+);
+
+const JoinBox: React.FC<{ wait: NonNullable<ReturnType<typeof joinWait>> }> = ({ wait }) => {
+  const share = wait.required > 0 ? Math.min(1, wait.collected / wait.required) : 0;
+  const urgent = wait.secondsLeft !== null && wait.secondsLeft < URGENT_SECONDS;
+  return (
+    <div className={styles.wait} data-testid="join-wait">
+      <div className={styles.waitHead}>
+        <Icon name="join" size={13} />
+        <span className={`mono ${styles.quietStrong}`}>{wait.key}</span>
+        {wait.more > 0 && <span className={styles.quiet}>+{wait.more}</span>}
+        {wait.secondsLeft !== null && (
+          <span className={`mono num ${styles.end} ${urgent ? styles.urgent : styles.quietStrong}`}>
+            {formatClock(wait.secondsLeft)}
+          </span>
+        )}
+      </div>
+      <div
+        className={styles.track}
+        title={`${wait.collected} of ${wait.required}`}
+        role="progressbar"
+        aria-label={`Join ${wait.key}`}
+        aria-valuemin={0}
+        aria-valuemax={wait.required}
+        aria-valuenow={wait.collected}
+      >
+        <span className={styles.filled} style={{ width: `${share * 100}%` }} />
+        <span className="hatch" style={{ width: `${(1 - share) * 100}%` }} />
+      </div>
+    </div>
+  );
+};
+
+/** At most this many cells; a bigger batch is a bar. */
+const MAX_CELLS = 24;
+
+const BatchBox: React.FC<{ wait: NonNullable<ReturnType<typeof batchWait>> }> = ({ wait }) => {
+  const target = wait.target;
+  const urgent = wait.secondsLeft !== null && wait.secondsLeft < URGENT_SECONDS;
+  return (
+    <div className={styles.wait} data-testid="batch-wait">
+      <div className={styles.waitHead}>
+        <span className={`mono ${styles.quietStrong}`}>
+          batch {wait.collected} / {target ?? '∞'}
+        </span>
+        {wait.secondsLeft !== null && (
+          <span className={`${styles.end} ${styles.quiet}`}>
+            or in{' '}
+            <span className={`mono num ${urgent ? styles.urgent : styles.quietStrong}`}>{formatClock(wait.secondsLeft)}</span>
+          </span>
+        )}
+      </div>
+      {target !== null && target <= MAX_CELLS ? (
+        <div className={styles.cells} style={{ gridTemplateColumns: `repeat(${target}, minmax(0, 1fr))` }}>
+          {Array.from({ length: target }, (_, index) => (
+            <span key={index} className={index < wait.collected ? styles.cellOn : `hatch ${styles.cell}`} />
+          ))}
+        </div>
+      ) : (
+        target !== null && (
+          <div className={styles.track}>
+            <span className={styles.filled} style={{ width: `${Math.min(1, wait.collected / target) * 100}%` }} />
+            <span className="hatch" style={{ flex: 1 }} />
+          </div>
+        )
+      )}
+    </div>
+  );
+};
+
+const AgentNode = memo(({ id, data, selected }: NodeProps) => {
+  const agent = data as AgentData;
+  // An unfolded node stays unfolded at any zoom; it is what the reader looks at
+  const unfolded = useUIStore((state) => state.unfoldedNodeId === id);
+  // Chips when zoomed out or while the timeline dock is expanded (the board is a strip then)
+  const dockOpen = useUIStore((state) => state.dockOpen);
+  const chip = (useStore((state) => state.transform[2] < CHIP_ZOOM) || dockOpen) && !unfolded;
+  const card = useRef<HTMLDivElement>(null);
+  const status = agent.status === 'running' ? 'running' : agent.status === 'error' ? 'error' : 'idle';
+  const operations = agent.logicOperations ?? [];
+  const timer = agent.scheduleSpec ? agent.timerState : undefined;
+  const waits = operations.some((operation) => operation.waiting_state?.is_waiting);
+  const now = useNow(!chip && (Boolean(timer) || waits));
+
+  // Labelled: the color is not the only way to learn the status
+  const dot = (
+    <span
+      className={`sdot ${status === 'running' ? 'run' : status === 'error' ? 'err' : ''}`}
+      role="img"
+      aria-label={status === 'error' ? 'failed' : status}
+    />
+  );
+  const handles = (
+    <>
+      <Handle type="target" position={Position.Left} className={styles.handle} />
+      <Handle type="source" position={Position.Right} className={styles.handle} />
+    </>
+  );
+
+  // Making room for the unfolded node starts from its card's size; Auto-arrange
+  // compares it with the last layout's (#655). Kept up to date also when the
+  // card resizes without rendering (fonts loading)
+  useLayoutEffect(() => {
+    if (card.current) cardSizes.set(id, { width: card.current.offsetWidth, height: card.current.offsetHeight });
   });
+  const shownAsCard = !chip && !unfolded;
+  useEffect(() => {
+    const element = card.current;
+    if (!shownAsCard || !element || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => cardSizes.set(id, { width: element.offsetWidth, height: element.offsetHeight }));
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [id, shownAsCard]);
 
-  const displaySentByType: Record<string, number> = { ...sentByType };
-  outputTypes.forEach((type: string) => {
-    if (!(type in displaySentByType)) {
-      displaySentByType[type] = 0;
+  // A card that grows (a new row of thumbnails) opens the part it grew by while
+  // the board lays itself out around it, instead of popping (#655)
+  const lastHeight = useRef<number | null>(null);
+  const opening = useRef<Animation | null>(null);
+  const autoArrange = useUIStore((state) => state.autoLayoutEnabled);
+  useLayoutEffect(() => {
+    const element = card.current;
+    if (!element) {
+      lastHeight.current = null;
+      return;
     }
-  });
-  // A decision agent shows its options instead of the generic Decision output row
-  if (decider) {
-    Object.keys(displaySentByType).forEach((type) => {
-      if (type.startsWith('Decision[')) {
-        delete displaySentByType[type];
-      }
+    const was = lastHeight.current;
+    const height = element.offsetHeight;
+    lastHeight.current = height;
+    if (was === null) return;
+    // Smaller again before the opening ended: it would clip what is left
+    if (height < was) {
+      opening.current?.cancel();
+      opening.current = null;
+      return;
+    }
+    // Only when the board makes room (Auto-arrange); a board arranged by hand keeps still
+    if (height - was < RESIZE_THRESHOLD_PX || !autoArrange || prefersLessMotion() || typeof element.animate !== 'function') return;
+    // Growing again while it opens: from what it hides now, read before the opening is cancelled
+    const clip = getComputedStyle(element).clipPath;
+    const hidden = opening.current && clip?.startsWith('inset(') ? parseFloat(clip.slice(6).split(/\s+/)[2] ?? '0') || 0 : 0;
+    opening.current?.cancel();
+    opening.current = element.animate([{ clipPath: `inset(0px 0px ${hidden + height - was}px 0px)` }, { clipPath: 'inset(0px 0px 0px 0px)' }], {
+      duration: MOVE_MS,
+      // animatePositions' easeOut, for CSS
+      easing: 'cubic-bezier(0.33, 1, 0.68, 1)',
     });
+  });
+
+  // A card that comes back from being unfolded fades in instead of popping (#644)
+  const wasUnfolded = useRef(unfolded);
+  useLayoutEffect(() => {
+    const element = card.current;
+    if (wasUnfolded.current && !unfolded && element && !prefersLessMotion() && typeof element.animate === 'function') {
+      element.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'ease-out' });
+    }
+    wasUnfolded.current = unfolded;
+  });
+
+  if (chip) {
+    return (
+      <div className={styles.chip} data-status={status} data-selected={selected || undefined}>
+        {handles}
+        {dot}
+        <span className={styles.name}>{agent.name}</span>
+        <span className={`mono num ${styles.quiet}`}>{agent.recvCount ?? 0}</span>
+      </div>
+    );
   }
 
-  const isOpenClawAgent = Boolean(nodeData.isOpenClawAgent)
-    || nodeData.engineKind === 'openclaw'
-    || labels.some((label: unknown) => typeof label === 'string' && label.toLowerCase().includes('openclaw'));
+  const tag = tagOf(agent);
+  const rows = portRows(agent);
+  const decider = agent.decision as DeciderInfo | undefined;
+  const aggregator = (data as Record<string, unknown>).coverage as AggregatorInfo | undefined;
+  const sink = agent.sink;
+  const tokens = agent.streamingTokens ?? [];
+  // Seconds since the snapshot came, on the monotonic clock (`now` re-renders every second)
+  const age = agent.snapshotAt !== undefined ? (performance.now() - agent.snapshotAt) / 1000 : 0;
+  const join = waits ? joinWait(operations, age) : null;
+  const batch = waits ? batchWait(operations, age) : null;
+  const ticker = status === 'running' && tokens.length > 0 && (
+    <div className={`mono ${styles.ticker}`} data-testid="ticker">
+      …{tokens.join('').slice(-48)}
+      <span className={styles.caret}>▍</span>
+    </div>
+  );
+  const states = (ticker || status === 'error' || timer || join || batch) && (
+    <>
+      {ticker}
+      {status === 'error' && <ErrorRow error={agent.lastError} />}
+      {timer && <ScheduleLine timer={timer} now={now} />}
+      {join && <JoinBox wait={join} />}
+      {batch && <BatchBox wait={batch} />}
+    </>
+  );
 
-  // Track which types just changed for flash animation
-  const [flashingKeys, setFlashingKeys] = useState<Set<string>>(new Set());
-  const prevCounts = useRef<Record<string, number>>({});
-
-  // Detect changes and trigger flash
-  useEffect(() => {
-    // Check only actual received/sent counts for flashing (not predicted types)
-    const allCounts = { ...receivedByType, ...sentByType };
-    const changedKeys = new Set<string>();
-
-    Object.entries(allCounts).forEach(([key, count]) => {
-      const numCount = count as number;
-      if (prevCounts.current[key] !== undefined && prevCounts.current[key] !== numCount) {
-        changedKeys.add(key);
-      }
-      prevCounts.current[key] = numCount;
-    });
-
-    if (changedKeys.size > 0) {
-      setFlashingKeys(changedKeys);
-      const timer = setTimeout(() => setFlashingKeys(new Set()), 500);
-      return () => clearTimeout(timer);
-    }
-  }, [receivedByType, sentByType]);
-
-  // Format schedule badge for header display
-  const formatScheduleBadge = (spec: ScheduleSpecDisplay): string => {
-    if (spec.type === 'interval' && spec.interval) {
-      // Parse ISO 8601 duration (PT30S, PT5M, PT1H, P1D)
-      const match = spec.interval.match(/PT?(\d+)([SMHD])/);
-      if (match && match[1] && match[2]) {
-        const value = match[1];
-        const unit = match[2].toLowerCase();
-        return `${value}${unit}`;
-      }
-    }
-    if (spec.type === 'time' && spec.time) {
-      return spec.time; // e.g., "17:00"
-    }
-    if (spec.type === 'datetime' && spec.datetime) {
-      return '1x'; // One-time schedule
-    }
-    if (spec.type === 'cron' && spec.cron) {
-      return spec.cron; // Show cron expression
-    }
-    return '';
-  };
-
-  const handleDoubleClick = () => {
-    useUIStore.getState().openDetailWindow(name);
-  };
-
-  // Appearance settings from settings store
-  const agentIdleColor = useSettingsStore((state) => state.appearance.agentIdleColor);
-  const agentActiveColor = useSettingsStore((state) => state.appearance.agentActiveColor);
-  const agentErrorColor = useSettingsStore((state) => state.appearance.agentErrorColor);
-  const nodeShadow = useSettingsStore((state) => state.appearance.nodeShadow);
-  const showStatusPulse = useSettingsStore((state) => state.appearance.showStatusPulse);
-  const compactNodeView = useSettingsStore((state) => state.appearance.compactNodeView);
-
-  // Status styling: customizable colors from settings
-  const getStatusStyle = () => {
-    if (status === 'running') {
-      return {
-        indicatorColor: agentActiveColor,
-        borderColor: agentActiveColor,
-        borderWidth: '3px', // Thick border for active
-      };
-    } else if (status === 'error') {
-      return {
-        indicatorColor: agentErrorColor,
-        borderColor: agentErrorColor,
-        borderWidth: '2px',
-      };
-    } else {
-      // idle
-      return {
-        indicatorColor: agentIdleColor,
-        borderColor: agentIdleColor,
-        borderWidth: '2px',
-      };
-    }
-  };
-
-  const statusStyle = getStatusStyle();
-
-  // Shadow mapping
-  const shadowMap = {
-    none: 'none',
-    small: 'var(--shadow-sm)',
-    medium: 'var(--shadow-md)',
-    large: 'var(--shadow-lg)',
-  };
-
-  const baseShadow = shadowMap[nodeShadow];
-  const selectedShadow = selected ? 'var(--shadow-lg), var(--shadow-glow-primary)' : baseShadow;
+  if (unfolded) {
+    return (
+      <UnfoldedAgent
+        id={id}
+        agent={agent}
+        status={status}
+        dot={dot}
+        tag={tag && <Tag tag={tag} />}
+        handles={handles}
+        rows={rows}
+        states={states}
+        decider={decider}
+        aggregator={aggregator}
+        sink={sink}
+        onOpenTrace={openTrace}
+      />
+    );
+  }
 
   return (
-    <div
-      className={`agent-node ${selected ? 'selected' : ''}`}
-      onDoubleClick={handleDoubleClick}
-      style={{
-        padding: compactNodeView ? 'var(--space-component-sm)' : 'var(--space-component-md)',
-        border: `${statusStyle.borderWidth} solid ${statusStyle.borderColor}`,
-        borderRadius: 'var(--radius-lg)',
-        backgroundColor: 'var(--color-bg-surface)',
-        minWidth: compactNodeView ? '160px' : '200px',
-        maxWidth: '300px',
-        boxShadow: selectedShadow,
-        cursor: 'pointer',
-        transition: 'var(--transition-all)',
-      }}
-    >
-      <Handle type="target" position={Position.Left} />
-      <Handle type="source" position={Position.Right} />
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-2)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1 }}>
-          <span style={{
-            fontWeight: 600,
-            fontSize: compactNodeView ? '14px' : '16px',
-            color: 'var(--color-text-primary)',
-            lineHeight: 1.4,
-          }}>{name}</span>
-          {isOpenClawAgent && (
-            <span
-              aria-label="OpenClaw agent"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px',
-                padding: compactNodeView ? '1px 6px' : '2px 8px',
-                borderRadius: '999px',
-                background: 'rgba(249, 115, 22, 0.14)',
-                border: '1px solid rgba(249, 115, 22, 0.35)',
-                color: 'rgb(251, 146, 60)',
-                fontSize: compactNodeView ? '10px' : '11px',
-                fontWeight: 700,
-                lineHeight: 1.2,
-                letterSpacing: '0.02em',
-                whiteSpace: 'nowrap',
-              }}
-              title="OpenClaw agent"
-            >
-              🦞 OpenClaw
-            </span>
-          )}
-          {decider && <DecisionBadge questions={decider.questions.map((q) => q.name)} compact={compactNodeView} />}
-          {scheduleSpec && (
-            <span
-              style={{
-                fontSize: '12px',
-                opacity: 0.8,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '2px',
-              }}
-              title={`Scheduled: ${formatScheduleBadge(scheduleSpec)}`}
-            >
-              ⏰ {formatScheduleBadge(scheduleSpec)}
-            </span>
-          )}
-          {!scheduleSpec && (
-            <span
-              style={{
-                fontSize: '12px',
-                opacity: 0.8,
-              }}
-              title="Event-driven agent (triggered by messages)"
-            >
-              ⚡
-            </span>
-          )}
-        </div>
-        <span
-          style={{
-            width: compactNodeView ? '12px' : '14px',
-            height: compactNodeView ? '12px' : '14px',
-            borderRadius: '50%',
-            backgroundColor: statusStyle.indicatorColor,
-            display: 'inline-block',
-            flexShrink: 0,
-            animation: (status === 'running' && showStatusPulse) ? 'pulse 2s infinite' : 'none',
-          }}
-          title={status}
-        />
+    <div ref={card} className={styles.card} data-status={status} data-selected={selected || undefined}>
+      {handles}
+      <div className={styles.header}>
+        {dot}
+        <span className={styles.name}>{agent.name}</span>
+        {tag && <Tag tag={tag} />}
       </div>
-      {!compactNodeView && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          {/* Per-type input breakdown */}
-          {Object.entries(displayReceivedByType).map(([type, count]) => {
-            const isFlashing = flashingKeys.has(type);
-            return (
-              <div
-                key={`in-${type}`}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 'var(--spacing-2)',
-                  padding: '6px 10px',
-                  background: isFlashing ? 'var(--color-info-bg)' : 'rgba(59, 130, 246, 0.08)',
-                  borderLeft: '3px solid var(--color-info)',
-                  borderRadius: 'var(--radius-md)',
-                  transition: 'var(--transition-all)',
-                  boxShadow: isFlashing ? 'var(--shadow-glow-primary)' : 'var(--shadow-xs)',
-                }}
-              >
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  width: '20px',
-                  height: '20px',
-                  borderRadius: 'var(--radius-sm)',
-                  background: 'var(--color-info-bg)',
-                  color: 'var(--color-info-light)',
-                  fontSize: '12px',
-                  fontWeight: 700,
-                }}>
-                  ↓
-                </div>
-                <div style={{
-                  minWidth: '24px',
-                  height: '24px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: 'var(--radius-full)',
-                  background: isFlashing ? 'var(--color-info)' : 'var(--color-info-bg)',
-                  color: isFlashing ? 'var(--color-text-on-primary)' : 'var(--color-info-light)',
-                  fontSize: '12px',
-                  fontWeight: 700,
-                  padding: '0 var(--spacing-2)',
-                  transition: 'var(--transition-all)',
-                }}>
-                  {count}
-                </div>
-                <div style={{
-                  flex: 1,
-                  fontSize: '11px',
-                  fontFamily: 'var(--font-family-mono)',
-                  color: 'var(--color-text-secondary)',
-                  fontWeight: 500,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}>
-                  {typeLabels[type] ?? type}
-                </div>
-              </div>
-            );
-          })}
-          {/* Per-type output breakdown */}
-          {Object.entries(displaySentByType).map(([type, count]) => {
-            const isFlashing = flashingKeys.has(type);
-            return (
-              <div
-                key={`out-${type}`}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 'var(--spacing-2)',
-                  padding: '6px 10px',
-                  background: isFlashing ? 'var(--color-success-bg)' : 'rgba(16, 185, 129, 0.08)',
-                  borderLeft: '3px solid var(--color-success)',
-                  borderRadius: 'var(--radius-md)',
-                  transition: 'var(--transition-all)',
-                  boxShadow: isFlashing ? 'var(--shadow-glow-success)' : 'var(--shadow-xs)',
-                }}
-              >
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  width: '20px',
-                  height: '20px',
-                  borderRadius: 'var(--radius-sm)',
-                  background: 'var(--color-success-bg)',
-                  color: 'var(--color-success-light)',
-                  fontSize: '12px',
-                  fontWeight: 700,
-                }}>
-                  ↑
-                </div>
-                <div style={{
-                  minWidth: '24px',
-                  height: '24px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: 'var(--radius-full)',
-                  background: isFlashing ? 'var(--color-success)' : 'var(--color-success-bg)',
-                  color: isFlashing ? 'var(--color-text-on-primary)' : 'var(--color-success-light)',
-                  fontSize: '12px',
-                  fontWeight: 700,
-                  padding: '0 var(--spacing-2)',
-                  transition: 'var(--transition-all)',
-                }}>
-                  {count}
-                </div>
-                <div style={{
-                  flex: 1,
-                  fontSize: '11px',
-                  fontFamily: 'var(--font-family-mono)',
-                  color: 'var(--color-text-secondary)',
-                  fontWeight: 500,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}>
-                  {type}
-                </div>
-              </div>
-            );
-          })}
-          {/* Decision agent: options and how often each was chosen */}
-          {decider && <DeciderOptions decider={decider} />}
-          {aggregator && <CoverageSummary aggregator={aggregator} />}
-          {/* Fallback to totals if no per-type data yet */}
-          {!decider && Object.keys(displayReceivedByType).length === 0 && Object.keys(displaySentByType).length === 0 && (
-            <div style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', opacity: 0.6 }}>
-              <span>↓ {recvCount} in</span>
-              <span style={{ marginLeft: 'var(--spacing-2)' }}>↑ {sentCount} out</span>
-            </div>
-          )}
-          {/* News ticker for streaming tokens */}
-          {streamingTokens.length > 0 && (
-            <div style={{
-              padding: '4px 8px',
-              background: 'rgba(250, 204, 21, 0.08)',
-              borderLeft: '2px solid var(--color-warning)',
-              borderRadius: 'var(--radius-sm)',
-              overflow: 'hidden',
-              minWidth: 0,
-              display: 'flex',
-              justifyContent: 'center',
-            }}>
-              <div style={{
-                width: '200px',
-                fontSize: '10px',
-                fontFamily: 'var(--font-family-mono)',
-                color: 'var(--color-warning-light)',
-                fontWeight: 500,
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}>
-                {streamingTokens.join('')}
-              </div>
-            </div>
-          )}
-          {/* Phase 1.6: Scheduled Agent Display */}
-          {scheduleSpec && (
-            <ScheduledAgentDisplay
-              scheduleSpec={scheduleSpec}
-              timerState={timerState || null}
-              compactNodeView={compactNodeView}
-            />
-          )}
-          {/* Phase 1.4: Logic Operations Display (JoinSpec/BatchSpec waiting states) */}
-          <LogicOperationsDisplay logicOperations={logicOperations} compactNodeView={compactNodeView} />
+      {rows.length > 0 && (
+        <div className={styles.ports}>
+          {/* Two subscriptions can need the same type: the position tells them apart */}
+          {rows.map((row, index) => (
+            <Port key={`${index}:${row.dir}:${row.type}`} row={row} />
+          ))}
         </div>
       )}
-      {compactNodeView && (
-        <div style={{ display: 'flex', gap: 'var(--spacing-4)', fontSize: '11px', color: 'var(--color-text-tertiary)' }}>
-          <span title="Received">↓ {recvCount} <span style={{ fontSize: '10px', opacity: 0.7 }}>in</span></span>
-          <span title="Sent">↑ {sentCount} <span style={{ fontSize: '10px', opacity: 0.7 }}>out</span></span>
-        </div>
-      )}
+      {decider && <DeciderOptions decider={decider} />}
+      {aggregator && <CoverageSummary aggregator={aggregator} />}
+      {sink && <DeliveryLine sink={sink} />}
+      {states}
     </div>
   );
 });

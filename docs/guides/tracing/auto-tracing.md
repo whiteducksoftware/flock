@@ -13,7 +13,6 @@ python your_agent.py
 
 This automatically:
 - ✅ Wraps all public methods with OTEL spans
-- ✅ Configures logging to DEBUG level
 - ✅ Captures trace IDs, correlation IDs, and agent metadata
 - ✅ Creates parent-child span relationships for call hierarchies
 
@@ -300,7 +299,7 @@ All spans within the same execution share the same `trace_id`, making it easy to
 
 ## Console Output
 
-With auto-tracing enabled, you'll see:
+Tracing does not change the log level: Flock's logs show warnings and errors unless `FLOCK_LOG_LEVEL` asks for more. With `FLOCK_LOG_LEVEL=debug`, every traced call also logs that it ran, with its trace ID:
 
 ```
 2025-10-07 15:32:40 | DEBUG | [trace_id: ae40f0061e3f1bcfebe169191d138078] | [tools] | Flock.publish executed successfully

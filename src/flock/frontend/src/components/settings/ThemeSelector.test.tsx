@@ -1,0 +1,136 @@
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { applyBuiltInTheme, applyTheme } from '../../services/themeApplicator';
+import { fetchTheme } from '../../services/themeService';
+import { useSettingsStore } from '../../store/settingsStore';
+import ThemeSelector from './ThemeSelector';
+
+const loading: { finish: (theme: unknown) => void } = { finish: () => {} };
+
+vi.mock('../../services/themeService', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../services/themeService')>()),
+  fetchThemeList: vi.fn(async () => ['dracula', 'nord']),
+  // Loads until the test finishes it
+  fetchTheme: vi.fn(() => new Promise((resolve) => (loading.finish = resolve))),
+}));
+
+const DRACULA = {
+  name: 'dracula',
+  colors: {
+    primary: { background: '#282a36', foreground: '#f8f8f2' },
+    normal: { black: '#000000', red: '#ff5555', green: '#50fa7b', yellow: '#f1fa8c', blue: '#bd93f9', magenta: '#ff79c6', cyan: '#8be9fd', white: '#bbbbbb' },
+    bright: { black: '#555555', red: '#ff5555', green: '#50fa7b', yellow: '#f1fa8c', blue: '#bd93f9', magenta: '#ff79c6', cyan: '#8be9fd', white: '#ffffff' },
+    selection: { background: '#44475a', text: '#ffffff' },
+    cursor: { cursor: '#ffffff', text: '#000000' },
+  },
+};
+
+describe('ThemeSelector', () => {
+  beforeEach(() => {
+    applyBuiltInTheme('graphite');
+    useSettingsStore.getState().setTheme('graphite');
+  });
+
+  it('offers Graphite and Paper first and applies them without a fetch', async () => {
+    render(<ThemeSelector />);
+    await waitFor(() => expect(screen.getByText('Built-in Themes')).toBeTruthy());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Paper' }));
+
+    expect(document.documentElement.dataset.theme).toBe('paper');
+    await waitFor(() => expect(useSettingsStore.getState().appearance.theme).toBe('paper'));
+  });
+
+  it('finds a built-in theme by name without claiming nothing matched', async () => {
+    render(<ThemeSelector />);
+    await waitFor(() => expect(screen.getByText('Built-in Themes')).toBeTruthy());
+
+    fireEvent.change(screen.getByLabelText('Search Themes'), { target: { value: 'graphite' } });
+
+    expect(screen.getByRole('button', { name: 'Graphite' })).toBeTruthy();
+    expect(screen.queryByText(/No themes found/)).toBeNull();
+  });
+
+  it('keeps a newer choice when an older theme finishes loading', async () => {
+    render(<ThemeSelector />);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'dracula' })).toBeTruthy());
+
+    fireEvent.click(screen.getByRole('button', { name: 'dracula' })); // loading
+    fireEvent.click(screen.getByRole('button', { name: 'Paper' }));
+    loading.finish({
+      name: 'dracula',
+      colors: {
+        primary: { background: '#282a36', foreground: '#f8f8f2' },
+        normal: { black: '#000000', red: '#ff5555', green: '#50fa7b', yellow: '#f1fa8c', blue: '#bd93f9', magenta: '#ff79c6', cyan: '#8be9fd', white: '#bbbbbb' },
+        bright: { black: '#555555', red: '#ff5555', green: '#50fa7b', yellow: '#f1fa8c', blue: '#bd93f9', magenta: '#ff79c6', cyan: '#8be9fd', white: '#ffffff' },
+        selection: { background: '#44475a', text: '#ffffff' },
+        cursor: { cursor: '#ffffff', text: '#000000' },
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(document.documentElement.dataset.theme).toBe('paper');
+    expect(useSettingsStore.getState().appearance.theme).toBe('paper');
+  });
+
+  it('puts the theme back when the pointer leaves a preview, also one still loading', async () => {
+    render(<ThemeSelector />);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'dracula' })).toBeTruthy());
+    const dracula = screen.getByRole('button', { name: 'dracula' });
+
+    fireEvent.mouseEnter(dracula);
+    loading.finish(DRACULA);
+    await waitFor(() => expect(document.documentElement.style.getPropertyValue('--bg')).not.toBe(''));
+    expect(screen.getByText(/Previewing dracula/)).toBeTruthy();
+
+    fireEvent.mouseLeave(dracula);
+    await waitFor(() => expect(document.documentElement.style.getPropertyValue('--bg')).toBe(''));
+    expect(document.documentElement.dataset.theme).toBe('graphite');
+    expect(screen.queryByText(/Previewing/)).toBeNull();
+
+    // A preview that loads after the pointer left does not apply
+    fireEvent.mouseEnter(dracula);
+    fireEvent.mouseLeave(dracula);
+    loading.finish(DRACULA);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(document.documentElement.style.getPropertyValue('--bg')).toBe('');
+    expect(useSettingsStore.getState().appearance.theme).toBe('graphite');
+  });
+
+  it('puts back the theme it showed before a preview, without loading it again', async () => {
+    // dracula is the chosen theme, applied; the theme API then fails
+    applyTheme(DRACULA);
+    useSettingsStore.getState().setTheme('dracula');
+    const draculaBg = document.documentElement.style.getPropertyValue('--bg');
+    render(<ThemeSelector />);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'nord' })).toBeTruthy());
+    vi.mocked(fetchTheme).mockRejectedValue(new Error('offline'));
+
+    fireEvent.mouseEnter(screen.getByRole('button', { name: 'nord' }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    fireEvent.mouseLeave(screen.getByRole('button', { name: 'nord' }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(document.documentElement.style.getPropertyValue('--bg')).toBe(draculaBg);
+    expect(useSettingsStore.getState().appearance.theme).toBe('dracula');
+    vi.mocked(fetchTheme).mockImplementation(() => new Promise((resolve) => (loading.finish = resolve as (theme: unknown) => void)));
+  });
+
+  it('does not apply a built-in theme on hover', async () => {
+    render(<ThemeSelector />);
+    await waitFor(() => expect(screen.getByText('Built-in Themes')).toBeTruthy());
+
+    fireEvent.mouseEnter(screen.getByRole('button', { name: 'Paper' }));
+
+    expect(document.documentElement.dataset.theme).toBe('graphite');
+  });
+
+  it('shows a theme stored by the old dashboard as Graphite', async () => {
+    useSettingsStore.getState().setTheme('default');
+
+    render(<ThemeSelector />);
+
+    await waitFor(() => expect(screen.getAllByText('Graphite').length).toBeGreaterThan(0));
+    expect(screen.queryByText('Default (Flock)')).toBeNull();
+  });
+});

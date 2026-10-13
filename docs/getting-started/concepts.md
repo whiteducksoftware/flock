@@ -280,7 +280,7 @@ performance_analyzer = flock.agent("perf").consumes(CodeSubmission).publishes(Pe
 ### Flock (Blackboard)
 
 <p align="center">
-  <img alt="Blackboard Architecture" src="../img/flock_ui_blackboard_view.png" width="800">
+  <img alt="Blackboard Architecture" src="../assets/images/flock_ui_blackboard_view.png" width="800">
 </p>
 
 **Key characteristics:**
@@ -630,9 +630,9 @@ await flock.serve(dashboard=True)
 # Opens browser to http://localhost:8344
 ```
 
-**Dual visualization modes:**
-- **Agent View** - See agent communication patterns
-- **Blackboard View** - Track data lineage and transformations
+**Two views:**
+- **Flow** - See agent communication patterns
+- **Blackboard** - Track each run's artifacts, as lanes or as a graph
 
 **Key features:**
 - WebSocket streaming (live updates)

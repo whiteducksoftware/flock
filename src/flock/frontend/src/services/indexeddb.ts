@@ -13,7 +13,6 @@
  * - runs: Agent execution records (key: run_id)
  * - layout_agent_view: Node positions for Agent View (key: node_id)
  * - layout_blackboard_view: Node positions for Blackboard View (key: node_id)
- * - module_instances: Module window positions and state (key: instance_id)
  * - sessions: Session metadata for LRU eviction (key: session_id)
  * - filters: Saved filter presets (key: filter_id)
  *
@@ -100,16 +99,6 @@ interface OutputChunk {
   timestamp: string;
 }
 
-interface ModuleInstanceRecord {
-  instance_id: string; // PRIMARY KEY
-  type: string; // Module type (e.g., 'eventLog')
-  position: { x: number; y: number };
-  size: { width: number; height: number };
-  visible: boolean;
-  created_at: string; // ISO timestamp
-  updated_at: string; // ISO timestamp
-}
-
 interface LayoutRecord {
   node_id: string; // PRIMARY KEY (agent_name or artifact_id)
   x: number;
@@ -150,11 +139,47 @@ export class IndexedDBService {
   db: IDBDatabase | null = null;
   private inMemoryStore: Map<string, Map<string, any>> = new Map();
   private available = false;
+  // The one connection's opening, shared by every initialize() call
+  private opening: Promise<void> | null = null;
+
+  /** Close the connection, for example before the database is deleted. */
+  close(): void {
+    this.db?.close();
+    this.db = null;
+    this.opening = null;
+  }
 
   /**
-   * Initialize database with schema and indexes
+   * Delete the dashboard's database. It resolves once the database is gone
+   * and rejects when the deletion fails; while another tab keeps it open,
+   * `onBlocked` is told and the deletion waits for that tab to close.
    */
-  async initialize(): Promise<void> {
+  async deleteDatabase(onBlocked?: () => void): Promise<void> {
+    // A connection still opening would open after the close below
+    await this.opening?.catch(() => {});
+    this.close();
+    if (typeof indexedDB === 'undefined') return;
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.deleteDatabase(DB_NAME);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error ?? new Error('The database could not be deleted'));
+      request.onblocked = () => onBlocked?.();
+    });
+  }
+
+  /**
+   * Initialize database with schema and indexes. The service keeps one
+   * connection: later and concurrent calls share it.
+   */
+  initialize(): Promise<void> {
+    this.opening ??= this.open().catch((error) => {
+      this.opening = null;
+      throw error;
+    });
+    return this.opening;
+  }
+
+  private async open(): Promise<void> {
     // Check if IndexedDB is available
     if (typeof indexedDB === 'undefined') {
       console.warn('[IndexedDB] IndexedDB not available, using in-memory fallback');
@@ -240,12 +265,6 @@ export class IndexedDBService {
             storeNames.push('sessions');
           }
 
-          // Create module_instances store
-          if (!db.objectStoreNames.contains('module_instances')) {
-            db.createObjectStore('module_instances', { keyPath: 'instance_id' });
-            storeNames.push('module_instances');
-          }
-
           // Create filters store
           if (!db.objectStoreNames.contains('filters')) {
             db.createObjectStore('filters', { keyPath: 'filter_id' });
@@ -268,6 +287,8 @@ export class IndexedDBService {
       });
 
       this.available = true;
+      // Let go when another tab deletes or upgrades the database
+      if (this.db) this.db.onversionchange = () => this.close();
       console.log('[IndexedDB] Database initialized:', DB_NAME, 'version', DB_VERSION);
     } catch (error) {
       console.error('[IndexedDB] Initialization failed, using in-memory fallback:', error);
@@ -286,7 +307,6 @@ export class IndexedDBService {
       'runs',
       'layout_agent_view',
       'layout_blackboard_view',
-      'module_instances',
       'sessions',
       'filters',
     ];
@@ -616,71 +636,6 @@ export class IndexedDBService {
     } catch (error) {
       console.error('[IndexedDB] Failed to get all blackboard view layouts:', error);
       return [];
-    }
-  }
-
-  // ============================================================================
-  // Module Instance Persistence
-  // ============================================================================
-
-  async saveModuleInstance(instance: ModuleInstanceRecord): Promise<void> {
-    if (!this.db) {
-      this.inMemoryStore.get('module_instances')?.set(instance.instance_id, instance);
-      return;
-    }
-
-    try {
-      const tx = this.db.transaction('module_instances', 'readwrite');
-      const store = tx.objectStore('module_instances');
-      await promisifyRequest(store.put(instance));
-    } catch (error) {
-      console.error('[IndexedDB] Failed to save module instance:', error);
-    }
-  }
-
-  async getModuleInstance(instanceId: string): Promise<ModuleInstanceRecord | undefined> {
-    if (!this.db) {
-      return this.inMemoryStore.get('module_instances')?.get(instanceId);
-    }
-
-    try {
-      const tx = this.db.transaction('module_instances', 'readonly');
-      const store = tx.objectStore('module_instances');
-      return await promisifyRequest(store.get(instanceId));
-    } catch (error) {
-      console.error('[IndexedDB] Failed to get module instance:', error);
-      return undefined;
-    }
-  }
-
-  async getAllModuleInstances(): Promise<ModuleInstanceRecord[]> {
-    if (!this.db) {
-      const instances = this.inMemoryStore.get('module_instances');
-      return instances ? Array.from(instances.values()) : [];
-    }
-
-    try {
-      const tx = this.db.transaction('module_instances', 'readonly');
-      const store = tx.objectStore('module_instances');
-      return await promisifyRequest(store.getAll());
-    } catch (error) {
-      console.error('[IndexedDB] Failed to get all module instances:', error);
-      return [];
-    }
-  }
-
-  async deleteModuleInstance(instanceId: string): Promise<void> {
-    if (!this.db) {
-      this.inMemoryStore.get('module_instances')?.delete(instanceId);
-      return;
-    }
-
-    try {
-      const tx = this.db.transaction('module_instances', 'readwrite');
-      const store = tx.objectStore('module_instances');
-      await promisifyRequest(store.delete(instanceId));
-    } catch (error) {
-      console.error('[IndexedDB] Failed to delete module instance:', error);
     }
   }
 

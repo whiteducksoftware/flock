@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ModuleContext } from './ModuleRegistry';
+import { Icon } from '../icons/Icon';
+import { matchesTrace, parseTraceSearch } from './traceSearch';
 import JsonAttributeRenderer from './JsonAttributeRenderer';
 import TracingSettings from '../settings/TracingSettings';
 
@@ -29,7 +30,12 @@ interface SpanNode extends Span {
 }
 
 interface TraceModuleJaegerProps {
-  context: ModuleContext;
+  /** The views this place offers, the first shown first (the timeline dock's tabs split them) */
+  views?: ViewMode[];
+  /** The search, e.g. the correlation ID of a failed run; a new one replaces what was typed */
+  search?: string;
+  /** Called with what is typed, so the search outlives the viewer (the dock's tabs) */
+  onSearchChange?: (search: string) => void;
 }
 
 interface TraceGroup {
@@ -68,22 +74,27 @@ interface DependencyEdge {
   operations: Map<string, OperationMetrics>; // parent.operation -> child.operation
 }
 
-type ViewMode = 'timeline' | 'statistics' | 'metrics' | 'dependencies' | 'configuration' | 'guide';
+export type ViewMode = 'timeline' | 'statistics' | 'metrics' | 'dependencies' | 'configuration' | 'guide';
 
-const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
+const ALL_VIEWS: ViewMode[] = ['timeline', 'statistics', 'metrics', 'dependencies', 'configuration', 'guide'];
+
+const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = ({ search, onSearchChange, views = ALL_VIEWS }) => {
+  // A view button only where there is more than one view to choose
+  const shows = (view: ViewMode) => views.length > 1 && views.includes(view);
   const [traces, setTraces] = useState<Span[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedTraceIds, setSelectedTraceIds] = useState<Set<string>>(new Set());
   const [expandedSpans, setExpandedSpans] = useState<Set<string>>(new Set());
   const [collapsedSpans, setCollapsedSpans] = useState<Set<string>>(new Set());
-  const [searchQuery, setSearchQuery] = useState('');
-  const [viewMode, setViewMode] = useState<ViewMode>('timeline');
+  const [searchQuery, setSearchQuery] = useState(search ?? '');
+  useEffect(() => setSearchQuery(search ?? ''), [search]);
+  const [viewMode, setViewMode] = useState<ViewMode>(views[0] ?? 'timeline');
   const [focusedSpanId, setFocusedSpanId] = useState<string | null>(null);
   const [expandedDeps, setExpandedDeps] = useState<Set<string>>(new Set());
 
   // Sort state for timeline/statistics
-  type SortField = 'date' | 'spans' | 'duration';
+  type SortField = 'date' | 'spans' | 'duration' | 'errors';
   type SortOrder = 'asc' | 'desc';
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc'); // newest first by default
@@ -93,15 +104,11 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
 
   // Service colors - assign consistent colors per service or span type
   const serviceColors = useMemo(() => {
+    // Neutral shades: amber and coral are the design's signals (running, failed), not services
     const colors = [
-      '#3b82f6', // blue
-      '#10b981', // green
-      '#f59e0b', // amber
-      '#ef4444', // red
-      '#8b5cf6', // purple
-      '#ec4899', // pink
-      '#06b6d4', // cyan
-      '#f97316', // orange
+      'var(--text-2)',
+      'var(--text-3)',
+      'color-mix(in srgb, var(--text) 55%, transparent)',
     ];
 
     const colorMap = new Map<string, string>();
@@ -125,12 +132,12 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
     // If all spans have the same service, color by span type instead
     if (services.length === 1) {
       spanTypes.forEach((type, idx) => {
-        const color = colors[idx % colors.length] || '#6366f1';
+        const color = colors[idx % colors.length] || 'var(--text-3)';
         colorMap.set(type, color);
       });
     } else {
       services.forEach((service, idx) => {
-        const color = colors[idx % colors.length] || '#6366f1';
+        const color = colors[idx % colors.length] || 'var(--text-3)';
         colorMap.set(service!, color);
       });
     }
@@ -210,17 +217,10 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
   const filteredTraces = useMemo(() => {
     let result = traceGroups;
 
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(trace =>
-        trace.traceId.toLowerCase().includes(query) ||
-        trace.spans.some(span =>
-          span.name.toLowerCase().includes(query) ||
-          Object.values(span.attributes).some(val =>
-            typeof val === 'string' && val.toLowerCase().includes(query)
-          )
-        )
-      );
+    if (searchQuery.trim()) {
+      // agent:billing_team status:error service:DecisionEngine, and free text
+      const query = parseTraceSearch(searchQuery);
+      result = result.filter((trace) => matchesTrace(trace, query));
     }
 
     // Apply sorting
@@ -236,6 +236,10 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
           break;
         case 'duration':
           comparison = a.duration - b.duration;
+          break;
+        case 'errors':
+          // Failed traces first, newest first among them
+          comparison = Number(a.hasError) - Number(b.hasError) || a.startTime - b.startTime;
           break;
       }
 
@@ -413,10 +417,10 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
     if (serviceColors.useSpanType) {
       // Color by span type if all services are the same
       const spanType = spanName.split('.')[0] || spanName;
-      return serviceColors.colorMap.get(spanType) || '#6366f1';
+      return serviceColors.colorMap.get(spanType) || 'var(--text-3)';
     }
-    if (!serviceName) return '#6366f1';
-    return serviceColors.colorMap.get(serviceName) || '#6366f1';
+    if (!serviceName) return 'var(--text-3)';
+    return serviceColors.colorMap.get(serviceName) || 'var(--text-3)';
   };
 
   const renderStatisticsView = (trace: TraceGroup) => {
@@ -483,8 +487,8 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
                       borderRadius: 'var(--radius-sm)',
                       fontSize: 'var(--font-size-body-xs)',
                       fontWeight: 'var(--font-weight-medium)',
-                      background: span.status.status_code === 'ERROR' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)',
-                      color: span.status.status_code === 'ERROR' ? '#ef4444' : '#10b981',
+                      background: span.status.status_code === 'ERROR' ? 'var(--error-soft)' : 'var(--surface-2)',
+                      color: span.status.status_code === 'ERROR' ? 'var(--error)' : 'var(--text-3)',
                     }}>
                       {span.status.status_code}
                     </span>
@@ -525,7 +529,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
             gridTemplateColumns: '400px 1fr',
             alignItems: 'center',
             background: isExpanded ? 'var(--color-bg-elevated)' : 'transparent',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.03)',
+            borderBottom: '1px solid var(--line)',
           }}
         >
           {/* Left side: Hierarchy */}
@@ -616,13 +620,13 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
                   width: `${displayWidthPercent}%`,
                   height: '100%',
                   background: serviceColor,
-                  border: node.status.status_code === 'ERROR' ? '2px solid #ef4444' : 'none',
+                  border: node.status.status_code === 'ERROR' ? '2px solid var(--error)' : 'none',
                   borderRadius: '2px',
                   display: 'flex',
                   alignItems: 'center',
                   paddingLeft: '4px',
                   fontSize: '10px',
-                  color: 'white',
+                  color: 'var(--bg)',
                   fontWeight: 'var(--font-weight-medium)',
                   cursor: 'pointer',
                   boxSizing: 'border-box',
@@ -667,7 +671,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
 
               <div style={{ color: 'var(--color-text-tertiary)', fontWeight: 'var(--font-weight-medium)' }}>Status:</div>
               <div style={{
-                color: node.status.status_code === 'ERROR' ? '#ef4444' : '#10b981',
+                color: node.status.status_code === 'ERROR' ? 'var(--error)' : 'var(--text-3)',
                 fontWeight: 'var(--font-weight-bold)',
               }}>
                 {node.status.status_code}
@@ -753,7 +757,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
         color: 'var(--color-text-secondary)',
       }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '32px', marginBottom: 'var(--gap-md)', opacity: 0.5 }}>🔎</div>
+          <div style={{ marginBottom: 'var(--gap-md)', opacity: 0.5 }}><Icon name="search" size={28} /></div>
           <div>Loading traces...</div>
         </div>
       </div>
@@ -770,7 +774,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
         color: 'var(--color-error)',
       }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '32px', marginBottom: 'var(--gap-md)' }}>⚠️</div>
+          <div style={{ marginBottom: 'var(--gap-md)' }}><Icon name="error" size={28} /></div>
           <div>{error}</div>
         </div>
       </div>
@@ -794,6 +798,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
       }}>
         {/* Row 1: View mode buttons */}
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {shows('timeline') && (
           <button
             onClick={() => setViewMode('timeline')}
             style={{
@@ -801,14 +806,16 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
               border: '1px solid var(--color-border-subtle)',
               borderRadius: 'var(--radius-md)',
               background: viewMode === 'timeline' ? 'var(--color-primary-500)' : 'var(--color-bg-base)',
-              color: viewMode === 'timeline' ? 'white' : 'var(--color-text-primary)',
+              color: viewMode === 'timeline' ? 'var(--on-invert)' : 'var(--color-text-primary)',
               fontSize: 'var(--font-size-body-sm)',
               cursor: 'pointer',
               fontWeight: 'var(--font-weight-medium)',
             }}
           >
-            📅 Timeline
+            Timeline
           </button>
+          )}
+          {shows('statistics') && (
           <button
             onClick={() => setViewMode('statistics')}
             style={{
@@ -816,14 +823,16 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
               border: '1px solid var(--color-border-subtle)',
               borderRadius: 'var(--radius-md)',
               background: viewMode === 'statistics' ? 'var(--color-primary-500)' : 'var(--color-bg-base)',
-              color: viewMode === 'statistics' ? 'white' : 'var(--color-text-primary)',
+              color: viewMode === 'statistics' ? 'var(--on-invert)' : 'var(--color-text-primary)',
               fontSize: 'var(--font-size-body-sm)',
               cursor: 'pointer',
               fontWeight: 'var(--font-weight-medium)',
             }}
           >
-            📊 Statistics
+            Statistics
           </button>
+          )}
+          {shows('metrics') && (
           <button
             onClick={() => setViewMode('metrics')}
             style={{
@@ -831,14 +840,16 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
               border: '1px solid var(--color-border-subtle)',
               borderRadius: 'var(--radius-md)',
               background: viewMode === 'metrics' ? 'var(--color-primary-500)' : 'var(--color-bg-base)',
-              color: viewMode === 'metrics' ? 'white' : 'var(--color-text-primary)',
+              color: viewMode === 'metrics' ? 'var(--on-invert)' : 'var(--color-text-primary)',
               fontSize: 'var(--font-size-body-sm)',
               cursor: 'pointer',
               fontWeight: 'var(--font-weight-medium)',
             }}
           >
-            🔴 RED Metrics
+            RED metrics
           </button>
+          )}
+          {shows('dependencies') && (
           <button
             onClick={() => setViewMode('dependencies')}
             style={{
@@ -846,14 +857,16 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
               border: '1px solid var(--color-border-subtle)',
               borderRadius: 'var(--radius-md)',
               background: viewMode === 'dependencies' ? 'var(--color-primary-500)' : 'var(--color-bg-base)',
-              color: viewMode === 'dependencies' ? 'white' : 'var(--color-text-primary)',
+              color: viewMode === 'dependencies' ? 'var(--on-invert)' : 'var(--color-text-primary)',
               fontSize: 'var(--font-size-body-sm)',
               cursor: 'pointer',
               fontWeight: 'var(--font-weight-medium)',
             }}
           >
-            🔗 Dependencies
+            Dependencies
           </button>
+          )}
+          {shows('configuration') && (
           <button
             onClick={() => setViewMode('configuration')}
             style={{
@@ -861,14 +874,16 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
               border: '1px solid var(--color-border-subtle)',
               borderRadius: 'var(--radius-md)',
               background: viewMode === 'configuration' ? 'var(--color-primary-500)' : 'var(--color-bg-base)',
-              color: viewMode === 'configuration' ? 'white' : 'var(--color-text-primary)',
+              color: viewMode === 'configuration' ? 'var(--on-invert)' : 'var(--color-text-primary)',
               fontSize: 'var(--font-size-body-sm)',
               cursor: 'pointer',
               fontWeight: 'var(--font-weight-medium)',
             }}
           >
-            ⚙️ Configuration
+            Configuration
           </button>
+          )}
+          {shows('guide') && (
           <button
             onClick={() => setViewMode('guide')}
             style={{
@@ -876,14 +891,15 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
               border: '1px solid var(--color-border-subtle)',
               borderRadius: 'var(--radius-md)',
               background: viewMode === 'guide' ? 'var(--color-primary-500)' : 'var(--color-bg-base)',
-              color: viewMode === 'guide' ? 'white' : 'var(--color-text-primary)',
+              color: viewMode === 'guide' ? 'var(--on-invert)' : 'var(--color-text-primary)',
               fontSize: 'var(--font-size-body-sm)',
               cursor: 'pointer',
               fontWeight: 'var(--font-weight-medium)',
             }}
           >
-            📚 Guide
+            Guide
           </button>
+          )}
 
           {/* Trace count */}
           {(viewMode === 'timeline' || viewMode === 'statistics') && (
@@ -897,12 +913,17 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
           )}
         </div>
 
-        {/* Row 2: Search box */}
+        {/* Row 2: Search box, for the views that list traces */}
+        {(viewMode === 'timeline' || viewMode === 'statistics') && (
         <input
           type="text"
-          placeholder="🔎 Find traces (Jaeger style) - Search by service, operation, trace ID, correlation ID, or error"
+          aria-label="Search traces"
+          placeholder="Search traces: agent:billing_team status:error service:DecisionEngine, an operation, a trace or correlation ID"
           value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            onSearchChange?.(e.target.value);
+          }}
           style={{
             width: '100%',
             padding: 'var(--space-component-sm)',
@@ -913,6 +934,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
             fontSize: 'var(--font-size-body-sm)',
           }}
         />
+        )}
 
         {/* Sort buttons for Timeline and Statistics */}
         {(viewMode === 'timeline' || viewMode === 'statistics') && (
@@ -923,9 +945,9 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
             fontSize: 'var(--font-size-body-xs)',
           }}>
             <span style={{ color: 'var(--color-text-tertiary)', flexShrink: 0 }}>Sort:</span>
-            {(['date', 'spans', 'duration'] as SortField[]).map((field) => {
+            {(['date', 'duration', 'errors', 'spans'] as SortField[]).map((field) => {
               const isActive = sortField === field;
-              const labels = { date: 'Date', spans: 'Spans', duration: 'Duration' };
+              const labels = { date: 'Newest', spans: 'Spans', duration: 'Slowest', errors: 'Errors first' };
 
               return (
                 <button
@@ -937,13 +959,13 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
                     } else {
                       // Switch field, use default order
                       setSortField(field);
-                      setSortOrder(field === 'date' ? 'desc' : 'asc');
+                      setSortOrder(field === 'spans' ? 'asc' : 'desc');
                     }
                   }}
                   style={{
                     padding: '4px 10px',
-                    background: isActive ? 'var(--color-accent)' : 'var(--color-bg-elevated)',
-                    color: isActive ? 'white' : 'var(--color-text-secondary)',
+                    background: isActive ? 'var(--invert)' : 'var(--color-bg-elevated)',
+                    color: isActive ? 'var(--on-invert)' : 'var(--color-text-secondary)',
                     border: isActive ? 'none' : '1px solid var(--color-border-subtle)',
                     borderRadius: 'var(--radius-sm)',
                     fontSize: 'var(--font-size-body-xs)',
@@ -989,7 +1011,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
             ) : (
               <div style={{ display: 'grid', gap: 'var(--gap-md)' }}>
                 {serviceMetrics.map(metrics => {
-                  const serviceColor = serviceColors.colorMap.get(metrics.service) || '#6366f1';
+                  const serviceColor = serviceColors.colorMap.get(metrics.service) || 'var(--text-3)';
                   const errorRate = metrics.totalSpans > 0 ? (metrics.errorSpans / metrics.totalSpans) * 100 : 0;
 
                   return (
@@ -1033,7 +1055,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
                           <div style={{
                             fontSize: 'var(--font-size-body-lg)',
                             fontWeight: 'var(--font-weight-medium)',
-                            color: errorRate > 0 ? '#ef4444' : '#10b981',
+                            color: errorRate > 0 ? 'var(--error)' : 'var(--text-3)',
                           }}>
                             {errorRate.toFixed(1)}%
                           </div>
@@ -1103,8 +1125,8 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
                 {serviceDependencies.map(dep => {
                   const depKey = `${dep.from}->${dep.to}`;
                   const isExpanded = expandedDeps.has(depKey);
-                  const fromColor = serviceColors.colorMap.get(dep.from) || '#6366f1';
-                  const toColor = serviceColors.colorMap.get(dep.to) || '#6366f1';
+                  const fromColor = serviceColors.colorMap.get(dep.from) || 'var(--text-3)';
+                  const toColor = serviceColors.colorMap.get(dep.to) || 'var(--text-3)';
 
                   return (
                     <div
@@ -1145,7 +1167,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
                             padding: '6px 16px',
                             borderRadius: 'var(--radius-md)',
                             background: fromColor,
-                            color: 'white',
+                            color: 'var(--bg)',
                             fontSize: 'var(--font-size-body-sm)',
                             fontWeight: 'var(--font-weight-bold)',
                           }}
@@ -1162,7 +1184,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
                             padding: '6px 16px',
                             borderRadius: 'var(--radius-md)',
                             background: toColor,
-                            color: 'white',
+                            color: 'var(--bg)',
                             fontSize: 'var(--font-size-body-sm)',
                             fontWeight: 'var(--font-weight-bold)',
                           }}
@@ -1222,7 +1244,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
 
                                   <div>
                                     <span style={{ color: 'var(--color-text-tertiary)' }}>Errors: </span>
-                                    <span style={{ color: errorRate > 0 ? '#ef4444' : '#10b981', fontWeight: 'var(--font-weight-medium)' }}>
+                                    <span style={{ color: errorRate > 0 ? 'var(--error)' : 'var(--text-3)', fontWeight: 'var(--font-weight-medium)' }}>
                                       {errorRate.toFixed(1)}%
                                     </span>
                                   </div>
@@ -1276,7 +1298,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
                 color: 'var(--color-text-primary)',
                 marginBottom: 'var(--gap-md)',
               }}>
-                🚀 Quick Start Guide
+                Quick Start Guide
               </h3>
               <div style={{
                 display: 'grid',
@@ -1297,18 +1319,18 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
                 color: 'var(--color-text-primary)',
                 marginBottom: 'var(--gap-sm)',
               }}>
-                📊 View Modes
+                View Modes
               </h4>
               <div style={{
                 display: 'grid',
                 gap: 'var(--gap-sm)',
               }}>
                 {[
-                  { icon: '📅', name: 'Timeline', desc: 'Waterfall view of spans showing execution flow and dependencies' },
-                  { icon: '📈', name: 'Statistics', desc: 'Aggregated metrics including duration, error rates, and call counts' },
-                  { icon: '🔴', name: 'RED Metrics', desc: 'Rate, Errors, Duration metrics for service health monitoring' },
-                  { icon: '🔗', name: 'Dependencies', desc: 'Service-to-service communication patterns and operation drill-down' },
-                  { icon: '⚙️', name: 'Configuration', desc: 'Configure tracing settings, service filters, and operation blacklists' },
+                  { name: 'Timeline', desc: 'Waterfall view of spans showing execution flow and dependencies' },
+                  { name: 'Statistics', desc: 'Aggregated metrics including duration, error rates, and call counts' },
+                  { name: 'RED Metrics', desc: 'Rate, Errors, Duration metrics for service health monitoring' },
+                  { name: 'Dependencies', desc: 'Service-to-service communication patterns and operation drill-down' },
+                  { name: 'Configuration', desc: 'Configure tracing settings, service filters, and operation blacklists' },
                 ].map((mode) => (
                   <div
                     key={mode.name}
@@ -1320,7 +1342,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
                     }}
                   >
                     <div style={{ fontWeight: 'var(--font-weight-medium)', color: 'var(--color-text-primary)', marginBottom: '4px' }}>
-                      {mode.icon} {mode.name}
+                      {mode.name}
                     </div>
                     <div style={{ fontSize: 'var(--font-size-body-xs)', color: 'var(--color-text-tertiary)' }}>
                       {mode.desc}
@@ -1337,7 +1359,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
                 color: 'var(--color-text-primary)',
                 marginBottom: 'var(--gap-sm)',
               }}>
-                🔍 Search Tips
+                Search Tips
               </h4>
               <div style={{
                 padding: 'var(--space-component-sm)',
@@ -1365,7 +1387,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
                 color: 'var(--color-text-primary)',
                 marginBottom: 'var(--gap-sm)',
               }}>
-                ⚡ Best Practices
+                Best Practices
               </h4>
               <div style={{
                 display: 'grid',
@@ -1397,14 +1419,14 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
 
             <div style={{
               padding: 'var(--space-component-sm)',
-              background: 'rgba(59, 130, 246, 0.1)',
-              border: '1px solid #3b82f6',
+              background: 'var(--surface-2)',
+              border: '1px solid var(--line-2)',
               borderRadius: 'var(--radius-md)',
               fontSize: 'var(--font-size-body-xs)',
               color: 'var(--color-text-secondary)',
             }}>
-              <div style={{ fontWeight: 'var(--font-weight-bold)', color: '#3b82f6', marginBottom: '4px' }}>
-                📚 Full Documentation
+              <div style={{ fontWeight: 'var(--font-weight-bold)', color: 'var(--text)', marginBottom: '4px' }}>
+                Full Documentation
               </div>
               For comprehensive tracing guides, see <code style={{ fontFamily: 'var(--font-family-mono)' }}>docs/how_to_use_tracing_effectively.md</code>
             </div>
@@ -1420,7 +1442,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
                 padding: 'var(--space-component-xl)',
                 color: 'var(--color-text-secondary)',
               }}>
-                <div style={{ fontSize: '32px', marginBottom: 'var(--gap-md)', opacity: 0.5 }}>🔎</div>
+                <div style={{ marginBottom: 'var(--gap-md)', opacity: 0.5 }}><Icon name="search" size={28} /></div>
                 <div>No traces found</div>
               </div>
             ) : (
@@ -1431,7 +1453,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
                 marginBottom: 'var(--space-component-lg)',
                 background: 'var(--color-bg-elevated)',
                 borderRadius: 'var(--radius-lg)',
-                border: `1px solid ${trace.hasError ? '#ef4444' : 'var(--color-border-subtle)'}`,
+                border: `1px solid ${trace.hasError ? 'var(--error)' : 'var(--color-border-subtle)'}`,
                 overflow: 'hidden',
               }}
             >
@@ -1449,7 +1471,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
                 }}
                 style={{
                   padding: 'var(--space-component-md)',
-                  background: trace.hasError ? 'rgba(239, 68, 68, 0.1)' : 'var(--color-bg-surface)',
+                  background: trace.hasError ? 'var(--error-soft)' : 'var(--color-bg-surface)',
                   cursor: 'pointer',
                   display: 'flex',
                   flexDirection: 'column',
@@ -1473,7 +1495,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
                     gap: '6px',
                     fontSize: 'var(--font-size-body-sm)',
                     fontWeight: 'var(--font-weight-medium)',
-                    color: trace.hasError ? '#ef4444' : '#10b981',
+                    color: trace.hasError ? 'var(--error)' : 'var(--text-3)',
                   }}>
                     <span>{trace.hasError ? '✗' : '✓'}</span>
                     <span>{trace.hasError ? 'ERROR' : 'OK'}</span>
@@ -1496,7 +1518,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
                     flexWrap: 'wrap',
                   }}>
                     {Array.from(trace.services).map(service => {
-                      const serviceColor = serviceColors.colorMap.get(service) || '#6366f1';
+                      const serviceColor = serviceColors.colorMap.get(service) || 'var(--text-3)';
                       return (
                         <div
                           key={service}
@@ -1504,7 +1526,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
                             padding: '4px 12px',
                             borderRadius: 'var(--radius-sm)',
                             background: serviceColor,
-                            color: 'white',
+                            color: 'var(--bg)',
                             fontSize: 'var(--font-size-body-xs)',
                             fontWeight: 'var(--font-weight-medium)',
                             whiteSpace: 'nowrap',

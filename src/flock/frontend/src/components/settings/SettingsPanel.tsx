@@ -1,130 +1,112 @@
 /**
- * Settings Panel
- *
- * Main settings container with tabbed interface for:
- * - Graph Settings (edge customization)
- * - Appearance Settings (theme, colors)
- * - Advanced Settings (debug, performance)
+ * The settings sheet (docs/internal/design-system/README.md, Where everything
+ * went): Graph, Appearance and Advanced as tabs, on the right of the board.
+ * Ctrl+, and the header's settings button open it, Esc closes it.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
+import { resetToDefaultTheme } from '../../services/themeApplicator';
 import { useSettingsStore } from '../../store/settingsStore';
-import GraphSettings from './GraphSettings';
-import AppearanceSettings from './AppearanceSettings';
-import AdvancedSettings from './AdvancedSettings';
 import BuildInfo from '../common/BuildInfo';
-import './SettingsPanel.css';
+import { nextTab } from '../graph/tabKeys';
+import { Icon } from '../icons/Icon';
+import AdvancedSettings from './AdvancedSettings';
+import AppearanceSettings from './AppearanceSettings';
+import GraphSettings from './GraphSettings';
+import styles from './SettingsPanel.module.css';
+import './settingsFields.css';
 
-type TabName = 'graph' | 'appearance' | 'advanced';
+const TABS = [
+  { key: 'graph', label: 'Graph' },
+  { key: 'appearance', label: 'Appearance' },
+  { key: 'advanced', label: 'Advanced' },
+] as const;
+
+type TabName = (typeof TABS)[number]['key'];
 
 const SettingsPanel: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabName>('graph');
   const setShowSettings = useSettingsStore((state) => state.setShowSettings);
   const resetToDefaults = useSettingsStore((state) => state.resetToDefaults);
+  const ids = useId();
+  const sheet = useRef<HTMLElement>(null);
+  // Whatever had the focus before the sheet opened gets it back
+  const [opener] = useState(() => document.activeElement as HTMLElement | null);
 
-  const handleClose = () => {
-    setShowSettings(false);
-  };
+  // The sheet takes the focus on its open tab
+  useEffect(() => {
+    sheet.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus();
+    return () => opener?.focus?.();
+  }, [opener]);
 
   const handleReset = () => {
     if (confirm('Reset all settings to defaults? This cannot be undone.')) {
       resetToDefaults();
+      resetToDefaultTheme(); // the store's default theme, applied
     }
   };
 
+  const tabId = (key: TabName) => `${ids}-tab-${key}`;
+
   return (
-    <div className="settings-panel">
-      <div className="settings-panel-inner">
-        {/* Header */}
-        <div className="settings-header">
-          <h2 className="settings-title">Settings</h2>
+    <aside ref={sheet} role="dialog" aria-labelledby={`${ids}-title`} className={styles.sheet}>
+      <header className={styles.header}>
+        <h2 id={`${ids}-title`} className={styles.title}>
+          Settings
+        </h2>
+        <button
+          type="button"
+          className="btn icon ghost"
+          aria-label="Close settings"
+          title="Close settings (Esc)"
+          onClick={() => setShowSettings(false)}
+        >
+          <Icon name="close" />
+        </button>
+      </header>
+
+      <div role="tablist" aria-label="Settings" className={styles.tabs}>
+        {TABS.map(({ key, label }) => (
           <button
-            onClick={handleClose}
-            className="settings-close-button"
-            aria-label="Close settings"
-            title="Close settings (Esc)"
+            key={key}
+            id={tabId(key)}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === key}
+            aria-controls={`${ids}-panel`}
+            tabIndex={activeTab === key ? 0 : -1}
+            className={styles.tab}
+            onClick={() => setActiveTab(key)}
+            onKeyDown={(event) => {
+              const next = nextTab(
+                TABS.map((tab) => tab.key),
+                activeTab,
+                event.key,
+              );
+              if (!next) return;
+              event.preventDefault();
+              setActiveTab(next);
+              document.getElementById(tabId(next))?.focus();
+            }}
           >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path
-                d="M15 5L5 15M5 5l10 10"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+            {label}
           </button>
-        </div>
-
-        {/* Tabs */}
-        <div className="settings-tabs">
-          <button
-            onClick={() => setActiveTab('graph')}
-            className={`settings-tab ${activeTab === 'graph' ? 'active' : ''}`}
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <circle cx="4" cy="8" r="2" stroke="currentColor" strokeWidth="1.5" />
-              <circle cx="12" cy="4" r="2" stroke="currentColor" strokeWidth="1.5" />
-              <circle cx="12" cy="12" r="2" stroke="currentColor" strokeWidth="1.5" />
-              <path d="M6 8h4M10 5l2 6" stroke="currentColor" strokeWidth="1.5" />
-            </svg>
-            Graph
-          </button>
-
-          <button
-            onClick={() => setActiveTab('appearance')}
-            className={`settings-tab ${activeTab === 'appearance' ? 'active' : ''}`}
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path
-                d="M8 2v12M2 8h12M4.343 4.343l7.314 7.314M11.657 4.343L4.343 11.657"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-            Appearance
-          </button>
-
-          <button
-            onClick={() => setActiveTab('advanced')}
-            className={`settings-tab ${activeTab === 'advanced' ? 'active' : ''}`}
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path
-                d="M8 10.667a2.667 2.667 0 100-5.334 2.667 2.667 0 000 5.334z"
-                stroke="currentColor"
-                strokeWidth="1.5"
-              />
-              <path
-                d="M13 8a5 5 0 01-5 5m0-10a5 5 0 015 5"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-            Advanced
-          </button>
-        </div>
-
-        {/* Tab Content */}
-        <div className="settings-content">
-          {activeTab === 'graph' && <GraphSettings />}
-          {activeTab === 'appearance' && <AppearanceSettings />}
-          {activeTab === 'advanced' && <AdvancedSettings />}
-        </div>
-
-        {/* Footer Actions */}
-        <div className="settings-footer">
-          <div className="settings-footer-left">
-            <BuildInfo />
-          </div>
-          <button onClick={handleReset} className="settings-reset-button">
-            Reset to Defaults
-          </button>
-        </div>
+        ))}
       </div>
-    </div>
+
+      <div id={`${ids}-panel`} role="tabpanel" aria-labelledby={tabId(activeTab)} className={styles.content}>
+        {activeTab === 'graph' && <GraphSettings />}
+        {activeTab === 'appearance' && <AppearanceSettings />}
+        {activeTab === 'advanced' && <AdvancedSettings />}
+      </div>
+
+      <footer className={styles.footer}>
+        <BuildInfo />
+        <button type="button" className="btn sm" onClick={handleReset}>
+          Reset to defaults
+        </button>
+      </footer>
+    </aside>
   );
 };
 

@@ -152,19 +152,9 @@ def _parse_trace_filters():
 if ENABLE_AUTO_TRACE:
     # Configure trace filters first
     _parse_trace_filters()
-    from flock.logging.logging import configure_logging
     from flock.logging.telemetry import TelemetryConfig
 
-    # Configure logging to DEBUG
-    configure_logging(
-        flock_level="DEBUG",
-        external_level="WARNING",
-        specific_levels={
-            "tools": "DEBUG",
-            "agent": "DEBUG",
-            "flock": "DEBUG",
-        },
-    )
+    # Logging is not tracing: FLOCK_LOG_LEVEL sets the log level (#601)
 
     # Initialize telemetry for OTEL trace context
     # Only enable exporters if explicitly configured via env vars
