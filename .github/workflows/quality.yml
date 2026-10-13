@@ -103,6 +103,11 @@ jobs:
         with:
           node-version: '22'
 
+      # npm 10, which Node 22 ships, crashes resolving this tree without a lockfile
+      # ("Cannot read properties of null (reading 'edgesOut')", at jsdom's optional peer canvas)
+      - name: Set up npm 11
+        run: npm install -g npm@11
+
       - name: Install the newest allowed dependencies
         working-directory: src/flock/frontend
         run: npm install --no-package-lock
