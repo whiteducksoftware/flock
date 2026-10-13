@@ -60,7 +60,7 @@ export async function newPage(browser, width, height, scale = 1, colorScheme = '
  * glides stutter when the stage sampled them at 30 fps. mark(name) notes a
  * moment to cut on.
  * Pages repaint only when something changes, so a still page gives few frames;
- * the stage holds the last frame and dissolves jumps.
+ * the stage holds the last frame.
  */
 export async function record(page, name, { quality = 92 } = {}) {
   const dir = path.join(FRAMES, `${name}-raw`);
@@ -72,8 +72,12 @@ export async function record(page, name, { quality = 92 } = {}) {
   let n = 0;
   let last = 0;
   client.on('Page.screencastFrame', async ({ data, metadata, sessionId }) => {
-    const skew = Date.now() / 1000 - now();  // wall clock minus monotonic, now
-    const t = Math.max(metadata.timestamp - skew, last + 0.001);
+    const received = now();
+    const skew = Date.now() / 1000 - received;  // wall clock minus monotonic, now
+    // CDP may leave the timestamp out; a step between the paint and its delivery
+    // moves `painted` by the step: a frame is not painted after it arrives, nor a second before
+    const painted = Number.isFinite(metadata.timestamp) ? metadata.timestamp - skew : received;
+    const t = Math.max(Math.min(painted, received), received - 1, last + 0.001);
     last = t;
     const file = `f${String(n++).padStart(6, '0')}.jpg`;
     fs.writeFileSync(path.join(dir, file), Buffer.from(data, 'base64'));
