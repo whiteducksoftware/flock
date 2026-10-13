@@ -89,6 +89,28 @@ jobs:
         working-directory: src/flock/frontend
         run: npm run build
 
+  # The build with the newest releases package.json allows, as an install that does not
+  # keep to package-lock.json gets them (the job above builds with the lockfile)
+  frontend-build-latest:
+    name: Frontend Build (latest dependencies)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install the newest allowed dependencies
+        working-directory: src/flock/frontend
+        run: npm install --no-package-lock
+
+      - name: Frontend build check
+        working-directory: src/flock/frontend
+        run: npm run build
+
   # Security scanning
   security-scan:
     name: Security Scan
