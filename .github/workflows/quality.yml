@@ -111,6 +111,30 @@ jobs:
         working-directory: src/flock/frontend
         run: npm run build
 
+  # The build on macOS, whose file system ignores case: modules whose names differ
+  # only in case (PickedUpBy.tsx, pickedUpBy.ts) collide there, not on Linux
+  frontend-build-macos:
+    name: Frontend Build (macOS)
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: src/flock/frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: src/flock/frontend
+        run: npm ci
+
+      - name: Frontend build check
+        working-directory: src/flock/frontend
+        run: npm run build
+
   # Security scanning
   security-scan:
     name: Security Scan
