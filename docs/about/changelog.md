@@ -159,6 +159,7 @@ search:
 ### 🔒 Security
 
 - Patched vulnerable dependencies: anyio, PyJWT, cryptography, urllib3, python-multipart, Starlette, MCP SDK, tornado, gitpython, fsspec, json-repair, mistune, orjson, pymdown-extensions, soupsieve, virtualenv, bleach, idna, multidict, oauthlib, requests, setuptools, pygments, Jupyter and mkdocs-material dev tooling, and the dashboard's dev tooling (Vitest 4, Vite 7.3.7). Removing PyTorch, Transformers and sentence-transformers closes their advisories as well.
+- The Quality Gates workflow limits its `GITHUB_TOKEN` to `contents: read` (#661, code scanning alert 98); its jobs only check out and run checks.
 - How dependency alerts are handled, including LiteLLM advisories that only affect the LiteLLM proxy server, is documented in [CONTRIBUTING.md](https://github.com/whiteducksoftware/flock/blob/main/CONTRIBUTING.md).
 
 ## [0.5.700] - 2026-10-06

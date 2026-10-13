@@ -16,6 +16,10 @@ on:
       - 0.5.0b
       - ui-rework
 
+# Every job only checks out and runs checks
+permissions:
+  contents: read
+
 jobs:
   # Backend quality checks
   backend-quality:
