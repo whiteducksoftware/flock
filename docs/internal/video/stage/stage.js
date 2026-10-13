@@ -109,24 +109,22 @@ async function load(name) {
 }
 const mark = (name, m) => recordings[name].marks[m];
 
-// The frame of `name` shown at absolute time `abs`; a repaint after a pause
-// (an unfold, a jump) dissolves in over 0.3 s instead of cutting
+// The frame of `name` shown at absolute time `abs`: the last one painted by
+// then. No dissolves: the dashboard's own motion is what shows (a dissolve
+// after a pause was cut short by the next frame and read as a jerk)
 function frameAt(name, abs) {
   const { frames } = recordings[name];
   if (abs <= frames[0].t) return { cur: frames[0], prev: null, a: 1 };
   let lo = 0, hi = frames.length - 1;
   while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (frames[mid].t <= abs) lo = mid; else hi = mid - 1; }
-  const cur = frames[lo], prev = frames[lo - 1];
-  if (prev && cur.t - prev.t > 0.12) {
-    const a = clamp((abs - cur.t) / 0.3);
-    if (a < 1) return { cur, prev, a: inOutCubic(a) };
-  }
-  return { cur, prev: null, a: 1 };
+  return { cur: frames[lo], prev: null, a: 1 };
 }
 
 const pending = new Set();
 // A window that shows a recording through a camera: `zoom` over the cover
-// fit, centred on (cx, cy) of the recording (0..1), never past its edges
+// fit, centred on (cx, cy) of the recording (0..1), never past its edges. The
+// camera keeps still while a recording plays: a slow zoom rescales every
+// frame a little and makes the UI shimmer
 function panel(parent, { radius = 16 } = {}) {
   const e = el('div', 'panel', parent);
   e.style.borderRadius = `${radius}px`;
@@ -271,8 +269,7 @@ twoWindowScene('play', 18, {
   aspects: [528 / 880, 1280 / 860],
   clips: [
     { rec: 'snake-game', at: (t) => mark('snake-game', 'start') - 2.4 + t, tall: { cy: 0.3 } },
-    // The Flow is fitted to the board's width before the take: a slight push-in keeps every agent in view
-    { rec: 'snake-board', at: (t) => mark('snake-board', 'start') - 2.4 + t, zoom: (t) => lerp(1, 1.06, inOutCubic(seg(t, 4, 11))), cy: 0.5 },
+    { rec: 'snake-board', at: (t) => mark('snake-board', 'start') - 2.4 + t, cy: 0.5 },
   ],
   chips: [
     { head: 'Decision models', sub: 'calibrated probabilities · azure/decision-1', at: 4.2, out: 8.2, dot: 'blue' },
@@ -294,7 +291,8 @@ twoWindowScene('see', 19, {
   aspects: [1080 / 700, 520 / 860],
   clips: [
     { rec: 'draw-app', at: drawAt('draw-app'), tall: { cx: 0.45 } },
-    { rec: 'draw-board', at: drawAt('draw-board'), zoom: (t) => lerp(1.25, 1.4, seg(t, 3, 19)), cy: 0.46 },
+    // Full height: the guesser grows with every guess, Auto-arrange keeps it in the middle
+    { rec: 'draw-board', at: drawAt('draw-board'), zoom: () => 1, cy: 0.5 },
   ],
   chipSide: 'a',
   chips: [
@@ -324,8 +322,8 @@ scene('dashboard', 8, (root) => {
     head.words(t, 0.1, 7.2);
     const a = outExpo(seg(t, 0.3, 1.1));
     set(before.e, { o: a, y: (1 - a) * 60 * U });
-    before.show('clip-before', mark('clip-before', 'act') + 0.5 + t, lerp(1, 1.05, seg(t, 0, 8)));
-    after.show('clip-after', mark('clip-after', 'act') + t - 2, lerp(1.05, 1, seg(t, 2, 8)));
+    before.show('clip-before', mark('clip-before', 'act') + 0.5 + t);
+    after.show('clip-after', mark('clip-after', 'act') + t - 2);
     const wipe = inOutCubic(seg(t, 3.0, 4.6));     // the new one sweeps in from the right
     after.e.style.clipPath = `inset(0 0 0 ${(1 - wipe) * 100}%)`;
     set(after.e, { o: a });
@@ -341,16 +339,16 @@ scene('dashboard', 8, (root) => {
 // 5 ALSO: one anchor per feature; the camera frames the feature in each recording
 // [recording, verb (last word tinted), code, line, camera x, camera y, zoom]
 const ANCHORS = [
-  ['clip-escalate', 'ESCALATE', 'escalate=["openai/gpt-6-luna"]', 'not sure? the next model answers', 0.53, 0.52, 1.45],
-  ['clip-vote', 'VOTE', 'models=[…], vote="majority"', 'three models, one decision', 0.53, 0.56, 1.45],
-  ['clip-shadow', 'SHADOW', 'shadow="openai/gpt-6-luna"', 'try a model without routing on it', 0.53, 0.5, 1.45],
+  ['clip-escalate', 'ESCALATE', 'escalate=["openai/gpt-6-luna"]', 'not sure? the next model answers', 0.58, 0.52, 1.45],
+  ['clip-vote', 'VOTE', 'models=[…], vote="majority"', 'three models, one decision', 0.58, 0.56, 1.45],
+  ['clip-shadow', 'SHADOW', 'shadow="openai/gpt-6-luna"', 'try a model without routing on it', 0.58, 0.5, 1.45],
   ['clip-explain', 'EXPLAIN ITSELF', '.explains(model=…)', 'an LLM writes why', 0.58, 0.42, 1.3],
-  ['clip-tournament', 'RUN TOURNAMENTS', 'Tournament(group_size=20, keep=3)', 'hundreds of options, in rounds', 0.27, 0.45, 1.3],
+  ['clip-tournament', 'RUN TOURNAMENTS', 'Tournament(group_size=20, keep=3)', 'hundreds of options, in rounds', 0.25, 0.42, 1.4],
   ['clip-checklist', 'TICK CHECKLISTS', 'Checklist: one yes/no per item', 'with tokens and cost per run', 0.6, 0.48, 1.35],
-  ['clip-coverage', 'ROLL UP COVERAGE', '.aggregates(by="organisation")', 'checklists across documents', 0.71, 0.45, 1.25],
+  ['clip-coverage', 'ROLL UP COVERAGE', '.aggregates(by="organisation")', 'checklists across documents', 0.69, 0.48, 1.08],
   ['clip-review', 'ASK A HUMAN', 'flock.review(decision_id, choice=…)', 'unsure decisions wait in a queue', 0.63, 0.55, 1.35],
-  ['clip-lanes', 'SHOW EVERY RUN', 'the Blackboard as run lanes', 'live, one lane per correlation', 0.33, 0.45, 1.25],
-  ['clip-focus', 'FOCUS', 'double-click any agent', 'lineage, live output, runs, traces', 0.42, 0.42, 1.2],
+  ['clip-lanes', 'SHOW EVERY RUN', 'the Blackboard as run lanes', 'live, one lane per correlation', 0.3, 0.45, 1.1],
+  ['clip-focus', 'FOCUS', 'double-click any agent', 'lineage, live output, runs, traces', 0.36, 0.45, 1.0],
   ['clip-palette', 'FIND ANYTHING', 'Ctrl / ⌘ + K', 'agents, types, runs and commands', 0.5, 0.22, 1.3],
   ['clip-theme', 'CHANGE ITS LOOK', 'Graphite · Paper · terminal themes', 'and every shortcut in one dialog', 0.6, 0.5, 1.3],
 ];
@@ -392,7 +390,7 @@ scene('also', LEAD + ANCHORS.length * PER, (root, dur) => {
       const enter = outExpo(seg(lt, -0.4, 0.5));
       set(it.p.e, { o: seg(lt, -0.4, 0.0), x: (1 - enter) * 120 * U, s: lerp(1.03, 1, enter) });
       it.p.e.style.zIndex = 1 + i;
-      it.p.show(it.rec, mark(it.rec, 'act') - 0.4 + lt, it.zoom * lerp(0.94, 1.04, seg(lt, 0, PER + 0.5)), it.cx, it.cy);
+      it.p.show(it.rec, mark(it.rec, 'act') - 0.4 + lt, it.zoom, it.cx, it.cy);
       // The text block: kicker, verb, chip, centred in the column (below the window when not wide)
       const vs = it.v.size(), cs = it.c.size();
       const block = 40 * U + vs.h + 26 * U + cs.h;

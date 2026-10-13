@@ -19,6 +19,7 @@ export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  */
 const now = () => (performance.timeOrigin + performance.now()) / 1000;
 
+
 /**
  * Chromium, one browser per device scale: the screencast sends frames at device
  * pixels only when the browser itself runs at the page's scale
@@ -51,10 +52,15 @@ export async function newPage(browser, width, height, scale = 1, colorScheme = '
 
 /**
  * Screencast `page` into FRAMES/<name>-raw: one JPEG per repaint and index.json
- * with each frame's time (seconds since the epoch, monotonic: when the frame
- * arrived). mark(name) notes a moment to cut on.
+ * with each frame's time in seconds since the epoch on the monotonic clock.
+ * The time is the compositor's (when the frame was painted: exact, frames of a
+ * glide 16.7 ms apart) moved onto the monotonic clock by the wall clock's skew
+ * against it, measured at each frame (a wall-clock step changes the skew, a
+ * late delivery does not); arrival times jitter by a few ms, which made
+ * glides stutter when the stage sampled them at 30 fps. mark(name) notes a
+ * moment to cut on.
  * Pages repaint only when something changes, so a still page gives few frames;
- * the stage holds the last frame and dissolves jumps.
+ * the stage holds the last frame.
  */
 export async function record(page, name, { quality = 92 } = {}) {
   const dir = path.join(FRAMES, `${name}-raw`);
@@ -64,8 +70,15 @@ export async function record(page, name, { quality = 92 } = {}) {
   const frames = [];
   const marks = [];
   let n = 0;
-  client.on('Page.screencastFrame', async ({ data, sessionId }) => {
-    const t = now();
+  let last = 0;
+  client.on('Page.screencastFrame', async ({ data, metadata, sessionId }) => {
+    const received = now();
+    const skew = Date.now() / 1000 - received;  // wall clock minus monotonic, now
+    // CDP may leave the timestamp out; a step between the paint and its delivery
+    // moves `painted` by the step: a frame is not painted after it arrives, nor a second before
+    const painted = Number.isFinite(metadata.timestamp) ? metadata.timestamp - skew : received;
+    const t = Math.max(Math.min(painted, received), received - 1, last + 0.001);
+    last = t;
     const file = `f${String(n++).padStart(6, '0')}.jpg`;
     fs.writeFileSync(path.join(dir, file), Buffer.from(data, 'base64'));
     frames.push({ file, t });

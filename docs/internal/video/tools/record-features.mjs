@@ -23,8 +23,8 @@ async function clip(name, prepare, act, { seconds = 6, ready = 'text=Live' } = {
   await sleep(1200);
   const rec = await record(page, `clip-${name}`);
   await sleep(900);
-  rec.mark('act');  // the stage cuts each clip from this moment
-  await act(page, ctx);
+  rec.mark('act');  // the stage cuts each clip from this moment (an act may mark it again, later)
+  await act(page, ctx, rec);
   await sleep(seconds * 1000);
   console.log(name, 'frames', await rec.stop());
   await page.context().close();
@@ -34,7 +34,7 @@ async function clip(name, prepare, act, { seconds = 6, ready = 'text=Live' } = {
 // that just started may publish one only after a few minutes: wait for it
 const laneOf = (port, test, label = null) => async (page) => {
   let candidates = [];
-  for (const until = Date.now() + 240_000; !candidates.length && Date.now() < until; ) {
+  for (const until = performance.now() + 240_000; !candidates.length && performance.now() < until; ) {
     candidates = decisionsOf(await snapshot(port)).filter(test).reverse();
     if (!candidates.length) await sleep(5000);
   }
@@ -69,11 +69,22 @@ await clip('escalate', laneOf(PORTS.escalate, (d) => d.tier === 1 && d.choice !=
 await clip('vote', laneOf(PORTS.vote, (d) => d.choice !== 'UNSURE' && d.votes?.length >= 3), unfold(/^vote$/i));
 await clip('shadow', laneOf(PORTS.shadow, (d) => d.shadow && !d.shadow.error && d.shadow.choice !== d.choice), unfold(/^shadow$/i));
 await clip('explain', laneOf(PORTS.explain, (d) => d.explanation), unfold(/^explanation$/i));
-await clip('tournament', laneOf(PORTS.tournament, (d) => d.rounds?.length, 'by tournament'), async (page, ctx) => {
-  await unfold()(page, ctx);
-  await sleep(1500);
+// The bracket is open before the take; the take traces options through it (hover)
+await clip('tournament', async (page) => {
+  const ctx = await laneOf(PORTS.tournament, (d) => d.rounds?.length, 'by tournament')(page);
+  await ctx.card.click();
+  await sleep(1000);
   await ctx.lane.locator('article[class*="unfolded"]').first().getByRole('button', { name: /bracket/i }).first().click();
-}, { seconds: 7 });
+  await sleep(1200);
+  return ctx;
+}, async (page) => {
+  // The winner's path from its first round to the final, then another finalist's
+  const option = (filter) => page.locator(`[data-testid="bracket-option"][data-column="0"]${filter}`).first();
+  await option('[data-winner="true"]').hover();
+  await sleep(1600);
+  await option('[data-survivor="true"][data-winner="false"]').hover();
+  await sleep(1200);
+}, { seconds: 2 });
 await clip('checklist', async (page) => { await lastHour(page); await fit(page); }, async (page) => {
   await page.locator('.react-flow__node[data-id="audit"]').click();  // unfold: answers, runs, tokens
 });
@@ -88,8 +99,18 @@ await clip('review', async (page) => { await lastHour(page); await fit(page); },
 // The dashboard (the triage demo)
 // Long: the board moves as runs arrive; the stage takes the calmest seconds (check_motion.py --calm)
 await clip('lanes', async () => {}, async (page) => { await blackboard(page); }, { seconds: 16 });
-await clip('focus', async (page) => { await fit(page); }, async (page) => {
-  await page.locator('.react-flow__node[data-id="triage"]').dblclick();
+// An agent that writes (an LLM): the focus view shows its live output
+const WRITERS = ['tech_support', 'billing_team', 'shipping_team', 'supervisor'];
+// Chosen in the take, not before: a reply streams for a second or two
+await clip('focus', async (page) => { await fit(page); }, async (page, _ctx, rec) => {
+  let node = page.locator(`.react-flow__node[data-id="${WRITERS[0]}"]`);
+  for (const until = performance.now() + 30_000; performance.now() < until; await sleep(100)) {  // monotonic: the wall clock steps on WSL
+    const running = WRITERS.map((name) => page.locator(`.react-flow__node[data-id="${name}"]`));
+    const found = await Promise.all(running.map((each) => each.locator('[data-status="running"]').count()));
+    if (found.some(Boolean)) { node = running[found.findIndex(Boolean)]; break; }
+  }
+  rec.mark('act');
+  await node.dblclick();
 });
 await clip('palette', async (page) => { await fit(page); }, async (page) => {
   await page.keyboard.press('Control+k');

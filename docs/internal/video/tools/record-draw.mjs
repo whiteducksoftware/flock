@@ -24,8 +24,9 @@ async function drawable(done = []) {
 }
 
 // Warm-up, not recorded: every agent and the guesser's thumbnails are on the
-// board, then the Flow is fitted once and keeps still (no auto-arrange), so
-// the card only grows during the take instead of jumping and zooming
+// board, then the Flow is fitted once. Auto-arrange stays on: a card that
+// grows lays the board out again, centred and gliding (#655), so the guesser
+// grows up and down instead of out of the view
 {
   const prompt = await drawable();
   const box = await app.locator('#canvas').boundingBox();
@@ -34,7 +35,7 @@ async function drawable(done = []) {
   await board.locator('[aria-label="Fit to screen"]').click();
   await sleep(1200);
   const arrange = board.locator('button[role=switch]:has-text("Auto-arrange")');
-  if ((await arrange.getAttribute('aria-checked')) === 'true') await arrange.click();
+  if ((await arrange.getAttribute('aria-checked')) !== 'true') await arrange.click();
   await app.locator('#new').click();
   await sleep(1500);
 }
