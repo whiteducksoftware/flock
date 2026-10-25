@@ -5,6 +5,7 @@ import sys
 import threading
 import time
 import weakref
+from collections.abc import Mapping
 
 from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
@@ -26,6 +27,55 @@ from flock.logging.telemetry_exporter.file_exporter import (
 from flock.logging.telemetry_exporter.sqlite_exporter import (
     SqliteTelemetryExporter,
 )
+
+
+OTLP_DEFAULT_ENDPOINT = "http://localhost:4317"
+
+
+def otlp_from_env(environ: Mapping[str, str] | None = None) -> tuple[bool, str, str]:
+    """OTLP export as the standard OpenTelemetry variables ask for it.
+
+    Returns ``(enabled, protocol, endpoint)`` with protocol ``"grpc"`` or ``"http"``.
+    Export is on when ``OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`` or ``OTEL_EXPORTER_OTLP_ENDPOINT``
+    is set. The protocol comes from ``OTEL_EXPORTER_OTLP_TRACES_PROTOCOL``, then
+    ``OTEL_EXPORTER_OTLP_PROTOCOL``: ``grpc`` (the default) or ``http/protobuf``. The traces
+    endpoint is used as given; over HTTP the base endpoint gets ``/v1/traces``, as the
+    OpenTelemetry spec says. The exporters read their headers themselves
+    (``OTEL_EXPORTER_OTLP_TRACES_HEADERS``, ``OTEL_EXPORTER_OTLP_HEADERS``).
+    """
+    env = os.environ if environ is None else environ
+    traces_endpoint = env.get("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT", "").strip()
+    base_endpoint = env.get("OTEL_EXPORTER_OTLP_ENDPOINT", "").strip()
+    requested = (
+        env.get("OTEL_EXPORTER_OTLP_TRACES_PROTOCOL", "").strip()
+        or env.get("OTEL_EXPORTER_OTLP_PROTOCOL", "").strip()
+        or "grpc"
+    ).lower()
+
+    if requested == "grpc":
+        protocol = "grpc"
+    elif requested in {"http/protobuf", "http"}:
+        protocol = "http"
+    elif requested == "http/json":
+        print(
+            "Warning: OTLP http/json is not supported by the Python exporter; "
+            "using http/protobuf"
+        )
+        protocol = "http"
+    else:
+        print(
+            f"Warning: Invalid OTLP protocol: {requested} "
+            "(use grpc or http/protobuf); using grpc"
+        )
+        protocol = "grpc"
+
+    if traces_endpoint:
+        endpoint = traces_endpoint
+    elif base_endpoint and protocol == "http":
+        endpoint = base_endpoint.rstrip("/") + "/v1/traces"
+    else:
+        endpoint = base_endpoint or OTLP_DEFAULT_ENDPOINT
+    return bool(traces_endpoint or base_endpoint), protocol, endpoint
 
 
 class TelemetryConfig:

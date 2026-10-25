@@ -8,7 +8,7 @@ import pytest
 from opentelemetry import trace
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, SimpleSpanProcessor
 
-from flock.logging.telemetry import TelemetryConfig
+from flock.logging.telemetry import TelemetryConfig, otlp_from_env
 
 
 @pytest.fixture(autouse=True)
@@ -951,3 +951,103 @@ class TestFlushTraces:
             assert flush_traces() is True
         finally:
             provider.shutdown()
+
+
+class TestOtlpFromEnv:
+    """OTLP export settings from the standard OpenTelemetry variables (#679)."""
+
+    def test_nothing_set_disables_export(self):
+        assert otlp_from_env({}) == (False, "grpc", "http://localhost:4317")
+
+    def test_base_endpoint_alone_keeps_grpc(self):
+        env = {"OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4317"}
+        assert otlp_from_env(env) == (True, "grpc", "http://collector:4317")
+
+    def test_http_appends_traces_path_to_base_endpoint(self):
+        env = {
+            "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:3000/api/public/otel/",
+            "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+        }
+        assert otlp_from_env(env) == (
+            True,
+            "http",
+            "http://localhost:3000/api/public/otel/v1/traces",
+        )
+
+    def test_traces_endpoint_is_used_as_given(self):
+        env = {
+            "OTEL_EXPORTER_OTLP_ENDPOINT": "http://ignored:4318",
+            "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://localhost:5173/custom",
+            "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+        }
+        assert otlp_from_env(env) == (True, "http", "http://localhost:5173/custom")
+
+    def test_traces_endpoint_alone_enables_export(self):
+        env = {"OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://collector:4317"}
+        assert otlp_from_env(env) == (True, "grpc", "http://collector:4317")
+
+    def test_traces_protocol_wins_over_general_protocol(self):
+        env = {
+            "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4318",
+            "OTEL_EXPORTER_OTLP_PROTOCOL": "grpc",
+            "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "http/protobuf",
+        }
+        assert otlp_from_env(env) == (True, "http", "http://collector:4318/v1/traces")
+
+    def test_empty_values_count_as_unset(self):
+        env = {
+            "OTEL_EXPORTER_OTLP_ENDPOINT": "",
+            "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": " ",
+            "OTEL_EXPORTER_OTLP_PROTOCOL": "HTTP/Protobuf",
+        }
+        assert otlp_from_env(env) == (False, "http", "http://localhost:4317")
+
+    def test_http_json_falls_back_to_protobuf_with_warning(self, capsys):
+        env = {
+            "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4318",
+            "OTEL_EXPORTER_OTLP_PROTOCOL": "http/json",
+        }
+        assert otlp_from_env(env) == (True, "http", "http://collector:4318/v1/traces")
+        assert "http/json is not supported" in capsys.readouterr().out
+
+    def test_unknown_protocol_falls_back_to_grpc_with_warning(self, capsys):
+        env = {
+            "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4317",
+            "OTEL_EXPORTER_OTLP_PROTOCOL": "carrier-pigeon",
+        }
+        assert otlp_from_env(env) == (True, "grpc", "http://collector:4317")
+        assert "Invalid OTLP protocol: carrier-pigeon" in capsys.readouterr().out
+
+    def test_reads_os_environ_by_default(self):
+        env = {
+            "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4318",
+            "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+        }
+        with patch.dict(os.environ, env, clear=True):
+            assert otlp_from_env() == (True, "http", "http://collector:4318/v1/traces")
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_http_protocol_builds_the_http_exporter_with_the_endpoint(self, mocker):
+        exporter = mocker.patch(
+            "opentelemetry.exporter.otlp.proto.http.trace_exporter.OTLPSpanExporter"
+        )
+        grpc_exporter = mocker.patch(
+            "opentelemetry.exporter.otlp.proto.grpc.trace_exporter.OTLPSpanExporter"
+        )
+        mocker.patch("flock.logging.telemetry.trace.set_tracer_provider")
+        config = TelemetryConfig(
+            service_name="test-otlp-http",
+            enable_file=False,
+            enable_sql=False,
+            enable_duckdb=False,
+            enable_otlp=True,
+            otlp_protocol="http",
+            otlp_endpoint="http://localhost:5173/api/v1/private/otel/v1/traces",
+        )
+
+        config.setup_tracing()
+
+        exporter.assert_called_once_with(
+            endpoint="http://localhost:5173/api/v1/private/otel/v1/traces"
+        )
+        grpc_exporter.assert_not_called()

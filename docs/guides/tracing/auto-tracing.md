@@ -42,14 +42,32 @@ Traces are stored in a DuckDB database, which provides:
 - ✅ SQL analytics for debugging and monitoring
 - ✅ Efficient columnar storage
 
-### Export to Grafana/Jaeger (OTLP)
+### Export over OTLP (gRPC or HTTP)
 
 ```bash
-# Send traces to OTLP endpoint (Grafana, Jaeger, etc.)
+# Send traces to an OTLP endpoint over gRPC (Grafana, Jaeger, etc.)
 export FLOCK_AUTO_TRACE=true
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
 python your_agent.py
 ```
+
+Some tools take OTLP over HTTP only, among them Langfuse, Opik and MLflow. Choose HTTP with the
+protocol variable; Flock appends `/v1/traces` to the base endpoint, as the OpenTelemetry spec says:
+
+```bash
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+export OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Basic%20<base64 credentials>"   # if the tool needs it
+python your_agent.py
+```
+
+| Variable | Meaning |
+|---|---|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Base endpoint; setting it switches OTLP export on |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | Full traces endpoint, used as given (wins over the base endpoint, also switches export on) |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | `grpc` (default) or `http/protobuf`; `http/json` falls back to `http/protobuf` with a warning |
+| `OTEL_EXPORTER_OTLP_TRACES_PROTOCOL` | The same for traces only (wins over the general one) |
+| `OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_EXPORTER_OTLP_TRACES_HEADERS` | Headers as `key=value` pairs, comma-separated and URL-encoded, for example authentication |
 
 ### Disable Auto-Tracing
 

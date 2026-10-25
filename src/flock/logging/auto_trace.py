@@ -174,7 +174,10 @@ if ENABLE_AUTO_TRACE:
         "yes",
         "on",
     }
-    enable_otlp_export = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT") is not None
+    from flock.logging.telemetry import otlp_from_env
+
+    # OTEL_EXPORTER_OTLP_(TRACES_)ENDPOINT, _PROTOCOL and _HEADERS, as in the OTel spec (#679)
+    enable_otlp_export, otlp_protocol, otlp_endpoint = otlp_from_env()
 
     # Parse TTL (Time To Live) for trace cleanup
     trace_ttl_days = None
@@ -192,7 +195,8 @@ if ENABLE_AUTO_TRACE:
         enable_sql=False,
         enable_duckdb=enable_file_export,  # Use DuckDB when file export is enabled
         enable_otlp=enable_otlp_export,
-        otlp_endpoint=os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317"),
+        otlp_protocol=otlp_protocol,
+        otlp_endpoint=otlp_endpoint,
         local_logging_dir=".flock",
         duckdb_name="traces.duckdb",
         duckdb_ttl_days=trace_ttl_days,
