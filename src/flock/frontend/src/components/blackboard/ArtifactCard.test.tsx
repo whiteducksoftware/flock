@@ -153,4 +153,43 @@ describe('ArtifactCard', () => {
     expect(within(screen.getByRole('region', { name: '◆ Board' })).getByRole('button', { expanded: false })).toBeInTheDocument();
     act(() => useUIStore.getState().foldArtifact());
   });
+
+  it('keeps the decision a person unfolded open when later answers make it a bundle', () => {
+    const answer = (id: string, question: string): LaneCard => ({
+      id,
+      type: `Decision[app.${question}]`,
+      producedBy: 'facets_a',
+      timestamp: 1000,
+      state: 'done',
+      data: {
+        decision: {
+          question,
+          kind: 'choice',
+          choice: 'text',
+          bestGuess: 'text',
+          probabilities: { grid: 0.1, text: 0.9 },
+          confidence: 0.9,
+          threshold: 0.7,
+          model: 'm',
+          latencyMs: 1,
+          options: ['grid', 'text'],
+        },
+      },
+    });
+    act(() => useUIStore.getState().unfoldArtifact('c1'));
+    const bundle: LaneCard = {
+      id: 'bundle:c1',
+      type: null,
+      producedBy: 'facets_a',
+      timestamp: 1000,
+      state: 'done',
+      data: {},
+      decisions: [answer('c1', 'Action'), answer('c2', 'Time')],
+    };
+    render(<ArtifactCard card={bundle} />);
+
+    expect(within(screen.getByRole('region', { name: '◆ Action' })).getByRole('button', { expanded: true })).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: '◆ Time' })).getByRole('button', { expanded: false })).toBeInTheDocument();
+    act(() => useUIStore.getState().foldArtifact());
+  });
 });

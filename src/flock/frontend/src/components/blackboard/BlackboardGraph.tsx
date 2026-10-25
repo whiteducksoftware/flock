@@ -33,7 +33,7 @@ import { useDockViewport } from '../graph/useDockViewport';
 import MiniMap from '../graph/MiniMap';
 import ArtifactCard from './ArtifactCard';
 import { cardIds } from './lanes';
-import { type ArtifactNode, graphOf, newEdgeTargets, packRuns, placeFresh, placementOf } from './graph';
+import { type ArtifactNode, graphOf, grownBundles, newEdgeTargets, packRuns, placeFresh, placementOf } from './graph';
 import styles from './Blackboard.module.css';
 
 /** A card's size before it is measured (a folded card is 236 px wide) */
@@ -209,11 +209,13 @@ const Canvas: React.FC = () => {
     setNodes((previous) => {
       const before = new Map(previous.map((node) => [node.id, node]));
       const fresh = new Set<string>();
+      // A bundle that gained decisions grew: measured again and placed like a new card (#668)
+      const grown = grownBundles(previous, graph.nodes);
       const next = graph.nodes.map((node) => {
         const kept = before.get(node.id);
-        if (kept) return { ...kept, data: node.data };
+        if (kept && !grown.has(node.id)) return { ...kept, data: node.data };
         fresh.add(node.id);
-        return node;
+        return kept ? { ...kept, data: node.data, measured: undefined } : node;
       });
       const firstLoad = previous.length === 0;
       if (knownEdges.current && !firstLoad) {

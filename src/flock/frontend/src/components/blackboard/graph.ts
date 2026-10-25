@@ -8,7 +8,7 @@ import { type Edge, MarkerType, type Node, type XYPosition } from '@xyflow/react
 import { applyHierarchicalLayout } from '../../services/layout';
 import type { AutoLayoutMode } from '../../store/uiStore';
 import type { DecisionInfo } from '../graph/DecisionDisplay';
-import { type LaneCard, type RunningRun, awaitsReview, bundleDecisions } from './lanes';
+import { type LaneCard, type RunningRun, awaitsReview, bundleDecisions, executionsOf } from './lanes';
 
 export type ArtifactNodeData = { card: LaneCard };
 export type ArtifactNode = Node<ArtifactNodeData, 'artifact'>;
@@ -70,6 +70,7 @@ export function graphOf(
   for (const edge of edges) inputs.set(edge.target, [...(inputs.get(edge.target) ?? []), edge.source]);
   const runs = new Map<string, ArtifactNode[]>();
   for (const node of cards) runs.set(runOf(node), [...(runs.get(runOf(node)) ?? []), node]);
+  const execution = executionsOf(edges);
   const bundleOf = new Map<string, string>();
   const shown: ArtifactNode[] = [];
   for (const members of runs.values()) {
@@ -77,6 +78,7 @@ export function graphOf(
     for (const card of bundleDecisions(
       members.map((node) => node.data.card),
       (id) => inputs.get(id) ?? [],
+      execution,
     )) {
       if (!card.decisions) {
         shown.push(byCard.get(card.id)!);
@@ -337,6 +339,16 @@ export function placementOf({
   fresh: Set<string>;
 }): 'all' | Set<string> {
   return autoArrange || firstLoad ? 'all' : fresh;
+}
+
+/** Bundles whose decisions changed since the last snapshot: they are measured and placed again, as new cards are. */
+export function grownBundles(previous: ArtifactNode[], next: ArtifactNode[]): Set<string> {
+  const before = new Map(previous.map((node) => [node.id, node.data.card.decisions?.length ?? 0]));
+  return new Set(
+    next
+      .filter((node) => node.data.card.decisions && before.has(node.id) && before.get(node.id) !== node.data.card.decisions.length)
+      .map((node) => node.id),
+  );
 }
 
 /** The cards that new edges between cards on the board reach (an edge drawn once its run finished). */

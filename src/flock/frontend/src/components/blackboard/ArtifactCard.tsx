@@ -272,9 +272,12 @@ const BundleFace: React.FC<{ card: LaneCard }> = ({ card }) => {
   const unfolded = useUIStore((state) => state.unfoldedArtifactId !== null && cardIds(card).includes(state.unfoldedArtifactId));
   const unsure = decisions.filter((decision) => decisionOf(decision)?.choice === 'UNSURE').length;
   // Unfolded, a decision opens on a click; one that waits for a review is open unless closed, also when a
-  // later snapshot brings it
+  // later snapshot brings it, and so is the one a person had unfolded
   const [toggled, setToggled] = React.useState<ReadonlyMap<string, boolean>>(new Map());
-  const isOpen = (decision: LaneCard) => toggled.get(decision.id) ?? awaitsReview(decisionOf(decision));
+  // The decision a person unfolded before the bundle formed stays open in it
+  const selected = useUIStore((state) => state.unfoldedArtifactId);
+  const isOpen = (decision: LaneCard) =>
+    toggled.get(decision.id) ?? (awaitsReview(decisionOf(decision)) || decision.id === selected);
   const label = `◆ ${card.producedBy} · ${decisions.length} questions${unsure ? ` · ${unsure} unsure` : ''}`;
   const classes = [styles.card, styles.bundle, unfolded && styles.unfolded, unsure > 0 && styles.unsureCard].filter(Boolean).join(' ');
   const head = (
