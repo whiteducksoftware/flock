@@ -119,4 +119,16 @@ describe('OverviewTab', () => {
     expect(screen.queryByTestId('decider-columns')).not.toBeInTheDocument();
     expect(screen.getByText('Theme')).toBeInTheDocument();
   });
+
+  it('keeps every option of a decider with many questions when unfolded', () => {
+    const questions = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map((name) => ({
+      name,
+      kind: 'choice' as const,
+      options: ['a', 'b'],
+      counts: { a: 1, b: 0 },
+    }));
+    render(<OverviewTab runs={[]} states={null} decider={{ ...decider, questions }} />);
+    expect(screen.queryByTestId('compact-question')).not.toBeInTheDocument();
+    expect(screen.getAllByText('a')).toHaveLength(8);
+  });
 });

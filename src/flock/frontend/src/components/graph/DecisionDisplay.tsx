@@ -445,17 +445,95 @@ export const QUESTIONS_PER_COLUMN = 3;
  * even as possible: 4 → 2 + 2, 5 → 3 + 2, 6 → 3 + 3, 7 → 3 + 2 + 2. Up to three questions stay one column.
  */
 export function questionColumns<T>(questions: T[]): T[][] {
-  const count = Math.max(1, Math.ceil(questions.length / QUESTIONS_PER_COLUMN));
-  const base = Math.floor(questions.length / count);
-  const extra = questions.length % count;
+  return splitEven(questions, Math.ceil(questions.length / QUESTIONS_PER_COLUMN));
+}
+
+/** `count` columns of the items in order, the first ones one longer where they do not divide evenly. */
+function splitEven<T>(items: T[], count: number): T[][] {
+  count = Math.max(1, count);
+  const base = Math.floor(items.length / count);
+  const extra = items.length % count;
   const columns: T[][] = [];
   let start = 0;
   for (let index = 0; index < count; index += 1) {
     const size = base + (index < extra ? 1 : 0);
-    columns.push(questions.slice(start, start + size));
+    columns.push(items.slice(start, start + size));
     start += size;
   }
   return columns;
+}
+
+/** Up to this many questions a decider's card shows every option; more become one compact row each. */
+export const MAX_DETAILED_QUESTIONS = 6;
+/** Compact rows per column; more questions go into a second column. */
+export const COMPACT_ROWS_PER_COLUMN = 12;
+
+/**
+ * How a decider's card lays out its questions: one to three as a list, four to six in columns of at most
+ * three, seven or more as compact rows (in columns of at most twelve).
+ */
+export function deciderLayout<T>(questions: T[]): { compact: boolean; columns: T[][] } {
+  if (questions.length > MAX_DETAILED_QUESTIONS) {
+    return { compact: true, columns: splitEven(questions, Math.ceil(questions.length / COMPACT_ROWS_PER_COLUMN)) };
+  }
+  return { compact: false, columns: questionColumns(questions) };
+}
+
+/** Strength of a decided answer's segment by its rank, the most frequent first. */
+const RANK_SHADE = [1, 0.78, 0.6, 0.47, 0.37, 0.3];
+
+/**
+ * One question in one row (deciders with many questions): a stacked bar of the answers by frequency,
+ * the unsure share hatched at the end, then the most frequent answer and its count. The tooltip has
+ * the whole distribution.
+ */
+function CompactQuestion({ question }: { question: DeciderQuestion }) {
+  const unsure = question.counts[UNSURE] ?? 0;
+  const answers: [string, number, string | undefined][] =
+    question.kind === 'checklist'
+      ? [
+          ['passed', question.counts.passed ?? 0, styles.shareSure],
+          ['failed', question.counts.failed ?? 0, styles.shareFailed],
+        ]
+      : question.kind === 'yesno'
+        ? [
+            ['yes', question.counts.yes ?? 0, styles.shareSure],
+            ['no', question.counts.no ?? 0, styles.shareNo],
+          ]
+        : question.options.map((option): [string, number, string | undefined] => [option, question.counts[option] ?? 0, styles.shareSure]);
+  const decided = answers.filter(([, count]) => count > 0).sort((a, b) => b[1] - a[1]);
+  const total = decided.reduce((sum, [, count]) => sum + count, 0) + unsure;
+  const top = decided[0];
+  const distribution = [...decided.map(([option, count]) => `${option} ${count}`), ...(unsure ? [`${UNSURE} ${unsure}`] : [])];
+  const ranked = question.kind === 'choice' || question.kind === 'scale';
+  return (
+    <div
+      className={styles.compactRow}
+      data-testid="compact-question"
+      title={[question.instructions, distribution.join(' · ') || 'no decisions yet'].filter(Boolean).join('\n')}
+    >
+      <span className={cx('mono', styles.questionName)}>
+        <span className={styles.diamond}>◆</span> {question.name}
+      </span>
+      <span className={cx(styles.split, styles.compactBar)}>
+        {decided.map(([option, count, className], index) => (
+          <span
+            key={option}
+            data-option={option}
+            className={className}
+            style={{
+              width: `${(count / total) * 100}%`,
+              opacity: ranked ? RANK_SHADE[Math.min(index, RANK_SHADE.length - 1)] : undefined,
+            }}
+          />
+        ))}
+        {unsure > 0 && <span data-option={UNSURE} className="hatch" style={{ width: `${(unsure / total) * 100}%` }} />}
+      </span>
+      <span className={cx('mono', styles.compactTop, !top && unsure > 0 && styles.quiet)}>
+        {top ? `${top[0]} ${top[1]}` : unsure > 0 ? `${UNSURE} ${unsure}` : '—'}
+      </span>
+    </div>
+  );
 }
 
 function DeciderQuestionCounts({ question, titled }: { question: DeciderQuestion; titled: boolean }) {
@@ -484,18 +562,29 @@ function DeciderQuestionCounts({ question, titled }: { question: DeciderQuestion
 }
 
 /**
- * Questions of a decision agent with how often each answer was given. `columns` lays more than three
- * questions out side by side (the card on the board); without it they stay in one column (unfolded).
+ * Questions of a decision agent with how often each answer was given. `columns` applies the card's layout
+ * (deciderLayout: columns from four questions, compact rows from seven); without it every question shows
+ * all its options in one column (unfolded).
  */
 export const DeciderOptions = memo(({ decider, columns = false }: { decider: DeciderInfo; columns?: boolean }) => {
   const titled = decider.questions.length > 1;
   const shadow = decider.shadow;
-  const split = columns ? questionColumns(decider.questions) : [decider.questions];
+  const layout = columns ? deciderLayout(decider.questions) : { compact: false, columns: [decider.questions] };
   return (
     <div className={styles.decider}>
-      {split.length > 1 ? (
+      {layout.compact ? (
+        <div className={styles.questionColumns} data-testid="decider-compact">
+          {layout.columns.map((column, index) => (
+            <div key={index} className={cx(styles.questionColumn, styles.compactColumn)}>
+              {column.map((question) => (
+                <CompactQuestion key={question.name} question={question} />
+              ))}
+            </div>
+          ))}
+        </div>
+      ) : layout.columns.length > 1 ? (
         <div className={styles.questionColumns} data-testid="decider-columns">
-          {split.map((column, index) => (
+          {layout.columns.map((column, index) => (
             <div key={index} className={styles.questionColumn}>
               {column.map((question) => (
                 <DeciderQuestionCounts key={question.name} question={question} titled={titled} />

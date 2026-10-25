@@ -13,14 +13,17 @@ import {
   CardTag,
   formatAgo,
   formatClock,
+  FoldedPorts,
+  foldPorts,
   formatSpan,
+  isFolded,
   joinWait,
   portRows,
   PortRow,
   tagOf,
 } from './card/cardModel';
 import { cardSizes } from './cardSizes';
-import { AggregatorInfo, CoverageSummary, DeciderInfo, DeciderOptions, questionColumns } from './DecisionDisplay';
+import { AggregatorInfo, CoverageSummary, DeciderInfo, DeciderOptions, deciderLayout } from './DecisionDisplay';
 import { lastText, type SinkInfo } from '../sinks/deliveries';
 import { count } from './unfold/format';
 import { MOVE_MS, prefersLessMotion } from './animatePositions';
@@ -85,6 +88,19 @@ const Port: React.FC<{ row: PortRow }> = ({ row }) => (
       {row.times > 1 && <span className={styles.times}> ×{row.times}</span>}
     </span>
     <Count value={row.count} />
+  </div>
+);
+
+/** The rows of one direction a card leaves out: `+N more` with their summed count, the types in the tooltip. */
+const FoldedRow: React.FC<{ fold: FoldedPorts }> = ({ fold }) => (
+  <div
+    className={styles.port}
+    data-testid="ports-folded"
+    title={fold.rows.map((row) => `${row.decision ? '◆ ' : ''}${row.label} ${row.count}`).join('\n')}
+  >
+    <span className={styles.dir}>{fold.dir}</span>
+    <span className={`mono ${styles.type} ${styles.foldedType}`}>+{fold.rows.length} more</span>
+    <Count value={fold.count} />
   </div>
 );
 
@@ -370,15 +386,19 @@ const AgentNode = memo(({ id, data, selected }: NodeProps) => {
     );
   }
 
-  const columns = decider ? questionColumns(decider.questions).length : 1;
+  // More than eight ports fold into `+N more` rows; the unfolded node shows them all
+  const ports = foldPorts(rows);
+  // Columns from four questions, compact rows (always a full 300 px column) from seven
+  const layout = decider ? deciderLayout(decider.questions) : null;
+  const columns = layout && (layout.compact || layout.columns.length > 1) ? layout.columns.length : 0;
   return (
     <div
       ref={card}
       className={styles.card}
       data-status={status}
       data-selected={selected || undefined}
-      data-columns={columns > 1 ? columns : undefined}
-      style={columns > 1 ? ({ '--columns': columns } as CSSProperties) : undefined}
+      data-columns={columns || undefined}
+      style={columns ? ({ '--columns': columns } as CSSProperties) : undefined}
     >
       {handles}
       <div className={styles.header}>
@@ -386,12 +406,16 @@ const AgentNode = memo(({ id, data, selected }: NodeProps) => {
         <span className={styles.name}>{agent.name}</span>
         {tag && <Tag tag={tag} />}
       </div>
-      {rows.length > 0 && (
+      {ports.length > 0 && (
         <div className={styles.ports}>
           {/* Two subscriptions can need the same type: the position tells them apart */}
-          {rows.map((row, index) => (
-            <Port key={`${index}:${row.dir}:${row.type}`} row={row} />
-          ))}
+          {ports.map((entry, index) =>
+            isFolded(entry) ? (
+              <FoldedRow key={`${entry.dir}:more`} fold={entry} />
+            ) : (
+              <Port key={`${index}:${entry.dir}:${entry.type}`} row={entry} />
+            )
+          )}
         </div>
       )}
       {decider && <DeciderOptions decider={decider} columns />}

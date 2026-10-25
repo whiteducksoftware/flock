@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { questionColumns } from './DecisionDisplay';
+import { deciderLayout, questionColumns } from './DecisionDisplay';
 
 const sizes = (count: number) => questionColumns(Array.from({ length: count }, (_, i) => i)).map((c) => c.length);
 
@@ -23,5 +23,17 @@ describe('questionColumns', () => {
       ['a', 'b', 'c'],
       ['d', 'e'],
     ]);
+  });
+
+  it('should switch to compact rows from seven questions, in columns of at most twelve', () => {
+    const layout = (count: number) => {
+      const { compact, columns } = deciderLayout(Array.from({ length: count }, (_, i) => i));
+      return { compact, sizes: columns.map((c) => c.length) };
+    };
+    expect(layout(3)).toEqual({ compact: false, sizes: [3] });
+    expect(layout(6)).toEqual({ compact: false, sizes: [3, 3] });
+    expect(layout(7)).toEqual({ compact: true, sizes: [7] });
+    expect(layout(12)).toEqual({ compact: true, sizes: [12] });
+    expect(layout(13)).toEqual({ compact: true, sizes: [7, 6] });
   });
 });
