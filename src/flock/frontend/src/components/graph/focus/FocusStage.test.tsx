@@ -236,6 +236,8 @@ describe('FocusStage', () => {
     expect(within(decisions).queryByText('passed')).toBeNull();
     // Its 300 items at their full height, without a scrolling box of their own
     expect(within(decisions).getByRole('group', { name: 'Controls items' }).className).not.toContain('nowheel');
+    // Its input first, then its decisions, as the lineage reads
+    expect(screen.getByText('Input').compareDocumentPosition(decisions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // No empty stream, and the output is not shown twice
     expect(screen.queryByRole('region', { name: 'Live output' })).toBeNull();
     expect(screen.queryByText('No output yet')).toBeNull();
