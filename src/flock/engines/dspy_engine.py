@@ -485,7 +485,12 @@ class DSPyEngine(EngineComponent):
 
         # track_usage: the prediction carries the tokens of every LM call
         # (also streamed ones; DSPy then asks for the usage in the stream)
-        with dspy_mod.context(lm=lm, adapter=adapter_to_use, track_usage=True):
+        with dspy_mod.context(
+            lm=lm,
+            adapter=adapter_to_use,
+            track_usage=True,
+            callbacks=self._lm_callbacks(dspy_mod, agent.name),
+        ):
             program = self._choose_program(dspy_mod, signature, combined_tools)
 
             # Detect if there's already an active Rich Live context
@@ -736,6 +741,24 @@ class DSPyEngine(EngineComponent):
             return model_from_payload(schema, data).model_dump()
         except Exception:
             return data
+
+    @staticmethod
+    def _lm_callbacks(dspy_mod, agent_name: str) -> list[Any]:
+        """DSPy's callbacks, plus a GenAI span per LM call while auto-tracing is on (#680)."""
+        from flock.logging import auto_trace
+
+        from flock.logging.genai_spans import GenAISpans
+
+        settings = getattr(dspy_mod, "settings", None)
+        inherited = (
+            settings.get("callbacks", None) if settings is not None else None
+        ) or []
+        # An agent invoked from another agent's tool runs inside the outer
+        # engine's context: drop the outer agent's span callback, keep the user's
+        callbacks = [c for c in inherited if not isinstance(c, GenAISpans)]
+        if auto_trace.ENABLE_AUTO_TRACE:
+            callbacks.append(GenAISpans(agent_name))
+        return callbacks
 
     def _choose_program(self, dspy_mod, signature, tools: Iterable[Any]):
         tools_list = list(tools or [])

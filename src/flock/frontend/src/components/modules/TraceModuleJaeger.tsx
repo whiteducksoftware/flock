@@ -645,7 +645,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
             fontSize: 'var(--font-size-body-xs)',
             fontFamily: 'var(--font-family-mono)',
           }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '6px', color: 'var(--color-text-secondary)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'fit-content(40%) 1fr', gap: '6px', color: 'var(--color-text-secondary)' }}>
               <div style={{ color: 'var(--color-text-tertiary)', fontWeight: 'var(--font-weight-medium)' }}>Service:</div>
               <div>{serviceName}</div>
 
@@ -687,7 +687,7 @@ const TraceModuleJaeger: React.FC<TraceModuleJaegerProps> = () => {
                   </div>
                   {Object.entries(node.attributes).map(([key, value]) => (
                     <React.Fragment key={key}>
-                      <div style={{ color: 'var(--color-text-tertiary)', alignSelf: 'start' }}>{key}:</div>
+                      <div style={{ color: 'var(--color-text-tertiary)', alignSelf: 'start', overflowWrap: 'anywhere' }}>{key}:</div>
                       <div>
                         <JsonAttributeRenderer value={value} />
                       </div>
