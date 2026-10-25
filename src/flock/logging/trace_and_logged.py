@@ -3,6 +3,7 @@
 import functools
 import inspect
 import json
+from typing import Any
 
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode
@@ -95,6 +96,55 @@ def capped(value: str) -> str:
             break
         preview = preview[: len(preview) - max(1, excess // 6)]
     return marker(preview)
+
+
+def run_attributes(correlation_id: object) -> dict[str, str]:
+    """A run's correlation as the attributes observability tools group traces by
+    (#681): Langfuse sessions read ``session.id``, Opik threads
+    ``gen_ai.conversation.id``."""
+    value = str(correlation_id)
+    return {"session.id": value, "gen_ai.conversation.id": value}
+
+
+def _context_run(func: Any, args: tuple, kwargs: dict[str, Any]) -> Any:
+    """The run a call's context names: the argument bound to ``ctx``, or a Flock
+    ``Context`` under another name. A payload names no run, even with
+    ``correlation_id`` and ``task_id`` fields of its own (#681)."""
+    from flock.utils.runtime import (
+        Context,
+    )  # at call time: runtime imports Flock's core
+
+    try:
+        bound = dict(inspect.signature(func).bind_partial(*args, **kwargs).arguments)
+    except (TypeError, ValueError):
+        bound = dict(kwargs)
+    candidates = [bound.get("ctx")]
+    candidates += [value for value in bound.values() if isinstance(value, Context)]
+    for value in candidates:
+        run = getattr(value, "correlation_id", None)
+        if run:
+            return run
+    return None
+
+
+def _result_correlation(result: Any) -> str | None:
+    """The one correlation of what a call returned: an artifact's, or the one
+    that several artifacts share."""
+    items = result if isinstance(result, list | tuple) else [result]
+    found = {str(c) for item in items if (c := getattr(item, "correlation_id", None))}
+    return found.pop() if len(found) == 1 else None
+
+
+def _record_run(span: Any, attributes: dict[str, Any], result: Any) -> None:
+    """Put the run on a span whose context did not name it, from its result
+    (``Flock.publish`` creates the correlation). The result's run also replaces
+    a ``correlation_id`` read from a payload field of the same name."""
+    if "session.id" in attributes:
+        return
+    correlation = _result_correlation(result)
+    if correlation:
+        span.set_attribute("correlation_id", correlation)
+        span.set_attributes(run_attributes(correlation))
 
 
 def _serialize_value(value, max_depth=10, current_depth=0):
@@ -234,6 +284,10 @@ def _extract_span_attributes(func, args, kwargs):
                 attributes["task_id"] = str(arg.task_id)
             break
 
+    run = _context_run(func, args, kwargs)
+    if run:
+        attributes.update(run_attributes(run))
+
     # Add function metadata
     attributes["function"] = func.__name__
     attributes["module"] = func.__module__
@@ -322,6 +376,7 @@ def traced_and_logged(func):
                             except TypeError:
                                 pass
 
+                    _record_run(span, attributes, result)
                     span.set_status(Status(StatusCode.OK))
                     logger.debug(f"{span_name} executed successfully")
                     return result
@@ -374,6 +429,7 @@ def traced_and_logged(func):
                         except TypeError:
                             pass
 
+                _record_run(span, attributes, result)
                 span.set_status(Status(StatusCode.OK))
                 logger.debug(f"{span_name} executed successfully")
                 return result

@@ -23,7 +23,11 @@ from dspy.utils.callback import BaseCallback
 from opentelemetry import trace
 from opentelemetry.trace import SpanKind, Status, StatusCode
 
-from flock.logging.trace_and_logged import _trace_filter_config, capped
+from flock.logging.trace_and_logged import (
+    _trace_filter_config,
+    capped,
+    run_attributes,
+)
 
 
 tracer = trace.get_tracer(__name__)
@@ -176,8 +180,12 @@ def _history_entry(lm: Any, outputs: Any) -> dict[str, Any] | None:
 class GenAISpans(BaseCallback):
     """DSPy callback: one ``LM.chat`` span per LM call, for one agent."""
 
-    def __init__(self, agent_name: str | None = None) -> None:
+    def __init__(
+        self, agent_name: str | None = None, correlation_id: object = None
+    ) -> None:
         self.agent_name = agent_name
+        # The agent run's correlation, so model calls join its session (#681)
+        self.correlation_id = correlation_id
         self._calls: dict[str, tuple[Any, Any]] = {}
 
     def on_lm_start(self, call_id: str, instance: Any, inputs: dict[str, Any]) -> None:
@@ -195,6 +203,9 @@ class GenAISpans(BaseCallback):
         }
         if self.agent_name:
             attributes["gen_ai.agent.name"] = self.agent_name
+        if self.correlation_id:
+            attributes["correlation_id"] = str(self.correlation_id)
+            attributes.update(run_attributes(self.correlation_id))
         for key, attribute in (
             ("temperature", "gen_ai.request.temperature"),
             ("max_tokens", "gen_ai.request.max_tokens"),
