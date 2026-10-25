@@ -50,7 +50,7 @@ pair as HTTP basic auth:
 ```bash
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:3000/api/public/otel   # your Langfuse host
 export OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
-export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Basic%20$(printf '%s' 'pk-lf-...:sk-lf-...' | base64 -w0)"
+export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Basic%20$(printf '%s' 'pk-lf-...:sk-lf-...' | base64 | tr -d '\n')"
 ```
 
 What you see:
