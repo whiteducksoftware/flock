@@ -10,7 +10,7 @@
 - [Real-World Debugging Scenarios](#real-world-debugging-scenarios)
 - [Advanced Techniques](#advanced-techniques)
 - [Production Best Practices](#production-best-practices)
-- [What Makes Flock's Tracing Unique](#what-makes-flocks-tracing-unique)
+- [Local Tracing and Export](#local-tracing-and-export)
 
 ---
 
@@ -839,109 +839,54 @@ COPY (
 
 ---
 
-## What Makes Flock's Tracing Unique
+## Local Tracing and Export
 
-After extensive research into LangGraph, CrewAI, AutoGen, and other agent frameworks, here's what **only Flock provides**:
+Flock records traces two ways, and they read the same spans:
 
-### 1. ✨ Zero External Dependencies
+| | Local tracing | Export over OTLP |
+|---|---|---|
+| Switched on by | `FLOCK_TRACE_FILE=true` | `OTEL_EXPORTER_OTLP_ENDPOINT` |
+| Where | `.flock/traces.duckdb` and the dashboard's trace viewer | Any OpenTelemetry backend, for example Langfuse, Opik, Arize Phoenix, Jaeger or MLflow ([backends](backends.md)) |
+| Needs | Nothing beyond Flock; works offline | A running backend |
+| Shows best | Blackboard behaviour: which artifact triggered which agent, operation-level dependencies, RED metrics, SQL on the trace file | Model calls (`LM.chat`), sessions or threads per run, and the backend's own features |
+| Retention | `FLOCK_TRACE_TTL_DAYS` | The backend's |
 
-**Flock**:
-- ✅ Built-in DuckDB storage
-- ✅ Built-in web UI
-- ✅ No external services required
-- ✅ Works offline
+The trace level and the filters (`FLOCK_TRACE_LEVEL`, `FLOCK_TRACE_SERVICES`, `FLOCK_TRACE_IGNORE`)
+apply to both: a filtered operation creates no span at all.
 
-**Other frameworks**:
-- ❌ LangGraph: Requires LangSmith ($) or Langfuse
-- ❌ CrewAI: Requires AgentOps, Arize Phoenix, or Datadog
-- ❌ AutoGen: Requires AgentOps or custom OpenTelemetry setup
+### What the Local Trace Viewer Is Built For
 
-**Why this matters**: You can debug agents on a plane, in secure environments, or without cloud dependencies.
+1. **Blackboard-native observability.** Blackboard systems have emergent behaviour: agents
+   subscribe to artifacts instead of following a predefined graph. The viewer shows which artifact
+   triggered which agent, so you discover what happened rather than verify what you planned.
 
-### 2. ✨ Operation-Level Dependency Drill-Down
+2. **Operation-level dependency drill-down.** The Dependencies view shows the method calls between
+   services, not only which services talk:
+   ```
+   Agent → DSPyEngine (click to expand)
+     ├─ Agent.execute → DSPyEngine.evaluate (1,234 calls, 5.2% errors)
+     └─ Agent.refine_output → DSPyEngine.evaluate (45 calls, 0% errors)
+   ```
 
-**Flock**:
-```
-Agent → DSPyEngine (click to expand)
-  ├─ Agent.execute → DSPyEngine.evaluate (1,234 calls, 5.2% errors)
-  └─ Agent.refine_output → DSPyEngine.evaluate (45 calls, 0% errors)
-```
+3. **P95 and P99 latency.** In multi-agent systems tail latencies compound:
+   ```
+   Agent1 (P99: 10s) → Agent2 (P99: 10s) → Agent3 (P99: 10s)
+   Worst case: 30s for the user (vs 15s at P95)
+   ```
 
-**Other frameworks**:
-- ❌ LangGraph: Service-level dependencies only
-- ❌ CrewAI: No dependency visualization in open-source
-- ❌ AutoGen: Community solutions show message flow, not operations
+4. **Retention in one setting.** `FLOCK_TRACE_TTL_DAYS` deletes old traces automatically.
 
-**Why this matters**: See **exact method calls** between agents, not just which services talk. Critical for understanding "which operation is slow?"
+5. **Filtering in code.** Filtered operations cost close to nothing, because no span is created:
+   ```bash
+   FLOCK_TRACE_SERVICES=["agent"]              # Whitelist
+   FLOCK_TRACE_IGNORE=["Agent.health_check"]  # Blacklist
+   ```
 
-### 3. ✨ Blackboard-Native Observability
+6. **SQL on the trace file.** Trusted operators can query the DuckDB file directly for custom
+   analysis.
 
-**Flock**:
-- ✅ Traces emergent agent interactions
-- ✅ Shows which artifact triggered which agent
-- ✅ Captures subscription-based execution
-- ✅ No predefined graph required
-
-**Other frameworks**:
-- ❌ LangGraph: Traces follow graph edges (predefined)
-- ❌ CrewAI: Traces follow crew hierarchy (predefined)
-- ❌ AutoGen: Traces follow conversation flow (predefined)
-
-**Why this matters**: Blackboard systems have **emergent behavior**. You need to discover what happened, not verify what you planned.
-
-### 4. ✨ P99 Latency Tracking
-
-**Flock**: Shows P95 **and** P99 durations
-
-**Other frameworks**:
-- ❌ Most show only P95 or P90
-- ❌ Helicone, Langfuse track P95 max
-
-**Why this matters**:
-- P95 = "95% of requests are fast"
-- P99 = "1% of requests are terrible"
-
-In multi-agent systems, P99 latencies **compound**:
-```
-Agent1 (P99: 10s) → Agent2 (P99: 10s) → Agent3 (P99: 10s)
-Worst case: 30s for user (vs 15s at P95)
-```
-
-### 5. ✨ Built-in TTL Management
-
-**Flock**: Automatic trace cleanup with `FLOCK_TRACE_TTL_DAYS`
-
-**Other frameworks**:
-- ❌ LangSmith: Manual deletion or retention policies ($)
-- ❌ Langfuse: Manual database maintenance
-- ❌ AgentOps: Retention based on plan ($)
-
-**Why this matters**: Production databases don't grow unbounded. Set it once, forget it.
-
-### 6. ✨ Filtering at Code Level
-
-**Flock**:
-```bash
-FLOCK_TRACE_SERVICES=["agent"]  # Whitelist
-FLOCK_TRACE_IGNORE=["Agent.health_check"]  # Blacklist
-```
-
-**Other frameworks**:
-- ❌ Filter in UI only (still capture overhead)
-- ❌ Sample-based filtering (lose critical traces)
-
-**Why this matters**: Filtered operations have **near-zero overhead** because span creation is skipped entirely.
-
-### 7. ✨ SQL-Based Analytics
-
-**Flock**: Local DuckDB access for custom queries by trusted operators
-
-**Other frameworks**:
-- ❌ LangSmith: API only (rate limited)
-- ❌ AgentOps: Dashboard only
-- ❌ Langfuse: PostgreSQL access (complex)
-
-**Why this matters**: Unlimited custom analysis without API quotas.
+Use both: local tracing while you develop and in the dashboard, and an export to the tool your
+team works with for model calls, sessions and evaluations.
 
 ### What We Don't Have (Yet)
 

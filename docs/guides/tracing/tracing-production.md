@@ -652,53 +652,24 @@ Ideas, not scheduled; planned work is in the [roadmap](../../about/roadmap.md).
 
 ---
 
-## Comparison to Competing Frameworks
+## Local Tracing and Export
 
-### Flock Advantages ✨
+Flock's local tracing (DuckDB and the trace viewer) and its OTLP export read the same spans. The
+viewer is built for blackboard behaviour: emergent agent interactions, operation-level
+dependencies, P95 and P99 latency, retention with `FLOCK_TRACE_TTL_DAYS` and SQL on the trace
+file. The export sends every span, a GenAI span per model call and the run's session to any
+OpenTelemetry backend; [Tracing backends](backends.md) has the settings for Langfuse, Opik,
+Arize Phoenix, Jaeger and MLflow. See also
+[Local Tracing and Export](how_to_use_tracing_effectively.md#local-tracing-and-export).
 
-1. **Zero External Dependencies**
-   - LangGraph: Requires LangSmith ($) or Langfuse
-   - CrewAI: Requires AgentOps, Arize Phoenix, or Datadog
-   - AutoGen: Requires AgentOps or custom OTEL setup
-   - **Flock:** Built-in DuckDB + Web UI
+### Not Built In
 
-2. **Operation-Level Dependency Drill-Down**
-   - Others: Service-level dependencies only
-   - **Flock:** Shows exact method calls (e.g., `Agent.execute → DSPyEngine.evaluate`)
+1. **Alerts.** Flock does not raise alerts on SLO violations; use the backend you export to.
+2. **Multi-environment comparison.** One trace database, no environment tag.
+3. **Time-travel debugging.** No checkpoints to restart a run from.
 
-3. **Blackboard-Native Observability**
-   - Others: Designed for graph-based workflows
-   - **Flock:** Traces emergent agent interactions
-
-4. **P99 Latency Tracking**
-   - Others: P95 max
-   - **Flock:** P95 and P99 for tail latency analysis
-
-5. **Built-in TTL Management**
-   - Others: Manual deletion or paid retention policies
-   - **Flock:** Automatic cleanup with `FLOCK_TRACE_TTL_DAYS`
-
-6. **SQL-Based Analytics**
-   - Others: API-only (rate limited)
-   - **Flock:** Direct local DuckDB access for custom queries by trusted operators
-
-### Missing Features (Compared to Competitors)
-
-1. **Cost Tracking**
-   - Langfuse, Helicone, LiteLLM: Token usage + API costs per operation
-   - **Flock:** Not yet implemented
-
-2. **Time-Travel Debugging**
-   - LangGraph: Checkpoint and restart from any point
-   - **Flock:** Not yet implemented
-
-3. **Alerts/Notifications**
-   - Datadog, New Relic: SLO violations trigger alerts
-   - **Flock:** No alerting
-
-4. **Multi-Environment Comparison**
-   - Standard in observability platforms
-   - **Flock:** Single database, no env tagging
+Token usage and cost are recorded per agent run (`flock.usage.*`, shown in the dashboard) and per
+model call on the exported `LM.chat` spans.
 
 ---
 
