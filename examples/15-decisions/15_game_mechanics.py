@@ -17,7 +17,8 @@ unsure, per question how often each pair of models and all three gave the
 same firm answer, and the groups of ideas that share every mechanic answer:
 the same game, and where the themes differ, the same game in a new costume.
 Here an idea's answer is the option at least two models found most probable,
-firm or not.
+firm or not. With a single model (the others skipped), it is that model's most
+probable option, and the report says so.
 
 Before the run every decision model gets one warm-up request. Models whose
 keys are missing or whose server does not answer are skipped.
@@ -216,7 +217,8 @@ def firm(payload: dict | None) -> str | None:
 
 
 def majority(results, agents, idea_id: str, question: str) -> str | None:
-    """The answer most models found most probable (firm or not), if at least two agree."""
+    """The answer most models found most probable (firm or not), if at least two agree.
+    With a single model there is nothing to agree on: its most probable answer counts."""
     votes = Counter(
         p["best_guess"]
         for agent in agents
@@ -251,6 +253,10 @@ def report(results, models: list[str], ideas: list[GameIdea]) -> None:
         )
     console.print(per_model)
 
+    if len(agents) < 2:
+        console.print(
+            "[dim]One model answered: no agreement between models to compare.[/dim]"
+        )
     pairs = list(itertools.combinations(agents, 2))
     agreement = Table(title="Same firm answer (ideas where both or all were firm)")
     agreement.add_column("Question")
@@ -273,7 +279,8 @@ def report(results, models: list[str], ideas: list[GameIdea]) -> None:
             same = sum(len(set(g)) == 1 for g in both)
             row.append(f"{same}/{len(both)}")
         agreement.add_row(name, *row)
-    console.print(agreement)
+    if pairs:
+        console.print(agreement)
 
     games: dict[tuple, list[tuple[GameIdea, str]]] = {}
     for idea in ideas:
@@ -297,9 +304,15 @@ def report(results, models: list[str], ideas: list[GameIdea]) -> None:
                 "✓" if len({theme for _, theme in members}) > 1 else "",
             )
     console.print(same)
+    basis = (
+        "on which at least two models agreed on every question"
+        if len(agents) > 1
+        else f"with an answer to every question from {label[agents[0]]} alone"
+        if agents
+        else "(no model answered)"
+    )
     console.print(
-        f"{len(games)} distinct mechanics among {sum(map(len, games.values()))} ideas "
-        f"on which at least two models agreed on every question"
+        f"{len(games)} distinct mechanics among {sum(map(len, games.values()))} ideas {basis}"
     )
 
 
