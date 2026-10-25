@@ -15,7 +15,7 @@
   line-height: 1.45;
 }
 
-/* A decider with more than three questions: one 300 px column per three questions (questionColumns) */
+/* A decider with four or more questions: one 300 px column per column of questions (deciderLayout) */
 .card[data-columns] {
   width: calc(var(--columns) * 300px);
   max-width: none;

@@ -345,6 +345,72 @@ describe('AgentNode', () => {
     expect(screen.queryByTestId('decider-columns')).not.toBeInTheDocument();
   });
 
+  it('should show seven or more questions as one compact row each', () => {
+    const names = ['Action', 'Board', 'Hidden', 'Time', 'Goal', 'Theme', 'Audience', 'Length'];
+    const questions = names.map((name) =>
+      name === 'Hidden'
+        ? { name, kind: 'yesno' as const, options: ['yes', 'no'], counts: { yes: 18, no: 33, UNSURE: 9 } }
+        : { name, kind: 'choice' as const, options: ['place', 'move', 'connect'], counts: { place: 5, move: 15, connect: 6, UNSURE: 8 } }
+    );
+    const data: AgentNodeData = {
+      name: 'facets',
+      status: 'idle',
+      subscriptions: ['GameIdea'],
+      sentCount: 8,
+      recvCount: 1,
+      decision: { model: 'azure/decision-1', threshold: 0.6, questions },
+    };
+    const { container } = render(
+      <ReactFlowProvider>
+        <AgentNode {...createNodeProps(data)} />
+      </ReactFlowProvider>
+    );
+    const card = container.querySelector('[data-status]') as HTMLElement;
+    expect(card).toHaveAttribute('data-columns', '1');
+    const rows = screen.getAllByTestId('compact-question');
+    expect(rows).toHaveLength(8);
+    // Answers by frequency, unsure last; the most frequent answer and its count after the bar
+    const action = rows[0]!;
+    expect([...action.querySelectorAll('[data-option]')].map((s) => s.getAttribute('data-option'))).toEqual([
+      'move',
+      'connect',
+      'place',
+      'UNSURE',
+    ]);
+    expect(action).toHaveTextContent('move 15');
+    expect(action).toHaveAttribute('title', 'move 15 · connect 6 · place 5 · UNSURE 8');
+    expect(rows[2]).toHaveTextContent('no 33');
+    // No option lanes on the card; model and threshold below
+    expect(screen.queryByText('place', { selector: 'span' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('decider-compact').nextElementSibling).toHaveTextContent('azure/decision-1 · threshold 0.60');
+  });
+
+  it('should name the unsure count when a compact question has no decided answer', () => {
+    const questions = ['A', 'B', 'C', 'D', 'E', 'F', 'G'].map((name) => ({
+      name,
+      kind: 'choice' as const,
+      options: ['x', 'y'],
+      counts: name === 'A' ? { UNSURE: 3 } : {},
+    }));
+    const data: AgentNodeData = {
+      name: 'facets',
+      status: 'idle',
+      subscriptions: ['GameIdea'],
+      sentCount: 0,
+      recvCount: 0,
+      decision: { model: 'm', threshold: 0.6, questions },
+    };
+    render(
+      <ReactFlowProvider>
+        <AgentNode {...createNodeProps(data)} />
+      </ReactFlowProvider>
+    );
+    const rows = screen.getAllByTestId('compact-question');
+    expect(rows[0]).toHaveTextContent('UNSURE 3');
+    expect(rows[1]).toHaveTextContent('—');
+    expect(rows[1]).toHaveAttribute('title', 'no decisions yet');
+  });
+
   it('should compact deciders with many options and show the tournament', () => {
     const options = Array.from({ length: 60 }, (_, i) => `c_${String(i).padStart(2, '0')}`);
     const counts: Record<string, number> = Object.fromEntries(options.map((o) => [o, 0]));
