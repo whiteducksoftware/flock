@@ -309,12 +309,37 @@ Flock.publish (trace_id: ae40f0061e3f1bcfebe169191d138078)
     ├── Agent.on_pre_evaluate
     ├── Agent.evaluate
     │   └── DSPyEngine.evaluate
+    │       └── LM.chat                     (one per model call)
     ├── Agent.on_post_evaluate
     ├── Agent.on_post_publish
     └── Agent.on_terminate
 ```
 
 All spans within the same execution share the same `trace_id`, making it easy to trace a complete request flow.
+
+### Model calls: GenAI spans
+
+Every model call of the DSPy engine gets a span of its own, `LM.chat`, in the
+[OpenTelemetry GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/).
+Observability tools such as Langfuse, Opik and Phoenix show these spans as model calls with their
+model and tokens; Flock's own totals per run stay on `Agent.execute` as `flock.usage.tokens` and
+`flock.usage.cost_usd`.
+
+| Attribute | Description | Example |
+|-----------|-------------|---------|
+| `gen_ai.operation.name` | Always `chat` | `chat` |
+| `gen_ai.provider.name` | Provider, from the LiteLLM model name | `azure.ai.openai`, `openai`, `anthropic` |
+| `gen_ai.request.model` | Model as configured | `azure/gpt-4.1` |
+| `gen_ai.response.model` | Model that answered | `gpt-4.1-2025-04-14` |
+| `gen_ai.agent.name` | The Flock agent that made the call | `writer` |
+| `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens` | Tokens of this call, streamed calls included | `566`, `162` |
+| `gen_ai.request.temperature`, `gen_ai.request.max_tokens`, `gen_ai.request.top_p` | Request parameters, when set | `0.2`, `32000` |
+| `gen_ai.response.id`, `gen_ai.response.finish_reasons` | Response ID and finish reasons | `chatcmpl-...`, `["stop"]` |
+
+Message content stays off the spans unless you ask for it, as the conventions recommend:
+`OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true` adds `gen_ai.input.messages` and
+`gen_ai.output.messages`, each within `FLOCK_TRACE_MAX_ATTRIBUTE_BYTES`. To leave the spans out,
+add `LM.chat` to `FLOCK_TRACE_IGNORE`; with `FLOCK_TRACE_SERVICES`, add `lm` to keep them.
 
 ## Console Output
 
