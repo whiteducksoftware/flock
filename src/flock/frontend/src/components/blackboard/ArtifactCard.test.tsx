@@ -1,6 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { useUIStore } from '../../store/uiStore';
+
+// An unfolded card reads its artifact by ID; offline here, its other details come from the board's data
+vi.mock('../../services/api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../services/api')>()),
+  fetchArtifact: vi.fn(async () => {
+    throw new Error('offline');
+  }),
+}));
 import ArtifactCard from './ArtifactCard';
 import type { LaneCard } from './lanes';
 
@@ -87,12 +95,62 @@ describe('ArtifactCard', () => {
     expect(within(action).queryByText('azure/decision-1', { exact: false })).toBeNull();
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
-    expect(within(action).getByText(/azure\/decision-1/)).toBeInTheDocument();
     expect(within(action).queryByRole('button', { name: /Review as/ })).toBeNull();
+    // An open question shows what its own card would: model, consumers, run, ID, payload
+    expect(within(action).getByText('consumed by')).toBeInTheDocument();
+    expect(within(action).getByText('a1')).toBeInTheDocument();
+    expect(within(action).getByText('Payload')).toBeInTheDocument();
 
     // Unfolding one of its decisions (from elsewhere) opens the bundle too
     act(() => useUIStore.getState().unfoldArtifact('a2'));
     expect(screen.getByRole('article', { name: '◆ facets_a · 2 questions · 1 unsure' })).toBeInTheDocument();
+    act(() => useUIStore.getState().foldArtifact());
+  });
+
+  it('opens a question that waits for a review also when a later snapshot brings it, unless closed', () => {
+    const answer = (id: string, question: string, choice: string): LaneCard => ({
+      id,
+      type: `Decision[app.${question}]`,
+      producedBy: 'facets_a',
+      timestamp: 1000,
+      state: 'done',
+      data: {
+        decision: {
+          question,
+          kind: 'choice',
+          choice,
+          bestGuess: choice === 'UNSURE' ? 'grid' : choice,
+          probabilities: { grid: 0.4, text: 0.6 },
+          confidence: 0.6,
+          threshold: 0.7,
+          model: 'm',
+          latencyMs: 1,
+          options: ['grid', 'text'],
+        },
+      },
+    });
+    const bundle = (decisions: LaneCard[]): LaneCard => ({
+      id: 'bundle:b1',
+      type: null,
+      producedBy: 'facets_a',
+      timestamp: 1000,
+      state: 'done',
+      data: {},
+      decisions,
+    });
+    act(() => useUIStore.getState().unfoldArtifact('bundle:b1'));
+    const { rerender } = render(<ArtifactCard card={bundle([answer('b1', 'Action', 'text'), answer('b2', 'Time', 'text')])} />);
+    expect(screen.queryAllByRole('button', { expanded: true })).toHaveLength(0);
+
+    rerender(<ArtifactCard card={bundle([answer('b1', 'Action', 'text'), answer('b2', 'Time', 'text'), answer('b3', 'Board', 'UNSURE')])} />);
+    const board = screen.getByRole('region', { name: '◆ Board' });
+    expect(within(board).getByRole('button', { expanded: true })).toBeInTheDocument();
+    expect(within(board).getByRole('button', { name: 'Review as grid' })).toBeInTheDocument();
+
+    // Closed by a person, it stays closed
+    fireEvent.click(within(board).getByRole('button', { expanded: true }));
+    rerender(<ArtifactCard card={bundle([answer('b1', 'Action', 'text'), answer('b2', 'Time', 'text'), answer('b3', 'Board', 'UNSURE')])} />);
+    expect(within(screen.getByRole('region', { name: '◆ Board' })).getByRole('button', { expanded: false })).toBeInTheDocument();
     act(() => useUIStore.getState().foldArtifact());
   });
 });

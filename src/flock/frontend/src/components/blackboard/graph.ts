@@ -88,23 +88,29 @@ export function graphOf(
   }
   const at = (id: string) => bundleOf.get(id) ?? id;
 
-  const seen = new Set<string>();
+  const seen = new Map<string, Edge>();
   const arrows: Edge[] = [];
   for (const edge of edges) {
     const source = byId.get(edge.source);
     const [from, to] = [at(edge.source), at(edge.target)];
-    if (!source || !byId.has(edge.target) || seen.has(`${from}->${to}`) || from === to) continue;
-    seen.add(`${from}->${to}`);
-    // As in the lanes: what follows an unsure answer has a dashed arrow
+    if (!source || !byId.has(edge.target) || from === to) continue;
+    // As in the lanes: what follows an unsure answer has a dashed arrow, also when a bundle's arrows merge
     const unsure = (source.data as ArtifactData).decision?.choice === 'UNSURE';
-    arrows.push({
+    const merged = seen.get(`${from}->${to}`);
+    if (merged) {
+      if (unsure) merged.style = { ...merged.style, strokeDasharray: '5 4' };
+      continue;
+    }
+    const arrow: Edge = {
       id: from === edge.source && to === edge.target ? edge.id : `${from}__${to}`,
       source: from,
       target: to,
       type: 'smoothstep',
       style: { stroke: 'var(--line-2)', strokeWidth: 1.5, ...(unsure && { strokeDasharray: '5 4' }) },
       markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--line-2)', width: 14, height: 14 },
-    });
+    };
+    seen.set(`${from}->${to}`, arrow);
+    arrows.push(arrow);
   }
   for (const node of artifacts) {
     const data = node.data as ArtifactData;

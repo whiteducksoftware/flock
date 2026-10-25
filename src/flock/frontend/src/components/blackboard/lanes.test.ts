@@ -409,4 +409,29 @@ describe('decision bundles (#668)', () => {
     const [only] = lanesOf(nodes, edges, []);
     expect(only!.columns.map((column) => column.unsureIn)).toEqual([false, false, true]);
   });
+
+  it('groups by the subject a decision names, also when a filter hides the subject and its edges', () => {
+    const about = (id: string, question: string, ts: number, subjects?: string[]) =>
+      artifact(id, 'c-9', `Decision[app.${question}]`, 'facets_a', ts, {
+        ...decision('move', 0.8, { question }),
+        payload: subjects ? { subject_ids: subjects } : {},
+      });
+    // The ideas are filtered out, so are their edges; the decisions still name their subjects
+    const nodes = [
+      about('a1', 'Action', 1100, ['i1']),
+      about('a2', 'Board', 1101, ['i1']),
+      about('a3', 'Action', 1102, ['i2']),
+      about('a4', 'Board', 1103, ['i2']),
+      about('a5', 'Action', 1104),
+      about('a6', 'Board', 1105),
+    ];
+    const [only] = lanesOf(nodes, [], []);
+    // A decision about an unknown subject keeps its own card
+    expect(only!.columns.flatMap((column) => column.cards).map((card) => card.decisions?.map((each) => each.id) ?? card.id)).toEqual([
+      ['a1', 'a2'],
+      ['a3', 'a4'],
+      'a5',
+      'a6',
+    ]);
+  });
 });

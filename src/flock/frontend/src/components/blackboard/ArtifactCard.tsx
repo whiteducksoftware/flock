@@ -8,7 +8,7 @@ import React from 'react';
 import { useUIStore } from '../../store/uiStore';
 import { shortTypeName } from '../../utils/typeName';
 import ImageThumbnails from '../common/ImageThumbnails';
-import { DecisionBars, type DecisionInfo } from '../graph/DecisionDisplay';
+import type { DecisionInfo } from '../graph/DecisionDisplay';
 import { Icon } from '../icons/Icon';
 import JsonAttributeRenderer from '../modules/JsonAttributeRenderer';
 import { clockTime, shortId } from '../graph/unfold/format';
@@ -264,17 +264,17 @@ const BundleRow: React.FC<{ card: LaneCard }> = ({ card }) => {
 
 /**
  * A decider's decisions about one artifact as one card (#668): a row per question with the answer, its
- * probability and the unsure state; unfolded, a row opens its decision's bars and review, and the decisions
- * that wait for a review are open.
+ * probability and the unsure state; unfolded, a row opens everything its decision's card would show (bars,
+ * review, model, consumers, payload), and the decisions that wait for a review are open.
  */
 const BundleFace: React.FC<{ card: LaneCard }> = ({ card }) => {
   const decisions = card.decisions ?? [];
   const unfolded = useUIStore((state) => state.unfoldedArtifactId !== null && cardIds(card).includes(state.unfoldedArtifactId));
   const unsure = decisions.filter((decision) => decisionOf(decision)?.choice === 'UNSURE').length;
-  // Unfolded, a decision opens on a click; the ones that wait for a review open by themselves
-  const [open, setOpen] = React.useState(
-    () => new Set(decisions.filter((decision) => awaitsReview(decisionOf(decision))).map((decision) => decision.id)),
-  );
+  // Unfolded, a decision opens on a click; one that waits for a review is open unless closed, also when a
+  // later snapshot brings it
+  const [toggled, setToggled] = React.useState<ReadonlyMap<string, boolean>>(new Map());
+  const isOpen = (decision: LaneCard) => toggled.get(decision.id) ?? awaitsReview(decisionOf(decision));
   const label = `◆ ${card.producedBy} · ${decisions.length} questions${unsure ? ` · ${unsure} unsure` : ''}`;
   const classes = [styles.card, styles.bundle, unfolded && styles.unfolded, unsure > 0 && styles.unsureCard].filter(Boolean).join(' ');
   const head = (
@@ -299,20 +299,13 @@ const BundleFace: React.FC<{ card: LaneCard }> = ({ card }) => {
             <button
               type="button"
               className={styles.bundleToggle}
-              aria-expanded={open.has(decision.id)}
-              onClick={() =>
-                setOpen((current) => {
-                  const next = new Set(current);
-                  if (!next.delete(decision.id)) next.add(decision.id);
-                  return next;
-                })
-              }
+              aria-expanded={isOpen(decision)}
+              onClick={() => setToggled((current) => new Map(current).set(decision.id, !isOpen(decision)))}
             >
               <BundleRow card={decision} />
             </button>
-            {open.has(decision.id) && decisionOf(decision) && (
-              <DecisionBars decision={decisionOf(decision)!} artifactId={decision.id} header={false} />
-            )}
+            {/* Everything an unfolded card shows: the bars and review, model, consumers, visibility, run, ID, payload */}
+            {isOpen(decision) && <Unfolded card={decision} />}
           </section>
         ))}
       </article>

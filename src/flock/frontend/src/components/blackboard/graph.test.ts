@@ -87,6 +87,25 @@ describe('graphOf', () => {
     ]);
   });
 
+  it('dashes a merged arrow when one of the answers behind it is unsure, whatever the order of the edges', () => {
+    const nodes = [
+      artifact('i-1'),
+      artifact('d-1', { artifactType: 'Decision[app.Action]', producedBy: 'facets', decision: { choice: 'move' } }),
+      artifact('d-2', { artifactType: 'Decision[app.Board]', producedBy: 'facets', decision: { choice: 'UNSURE' } }),
+      artifact('r-1'),
+    ];
+    const into = [edge('i-1', 'd-1'), edge('i-1', 'd-2')];
+    for (const out of [
+      [edge('d-1', 'r-1'), edge('d-2', 'r-1')],
+      [edge('d-2', 'r-1'), edge('d-1', 'r-1')],
+    ]) {
+      const { edges } = graphOf(nodes, [...into, ...out], false);
+      const after = edges.filter((each) => each.target === 'r-1');
+      expect(after).toHaveLength(1);
+      expect(after[0]!.style?.strokeDasharray).toBe('5 4');
+    }
+  });
+
   it('narrows to the runs that need a review', () => {
     const { nodes, edges } = graphOf(
       [

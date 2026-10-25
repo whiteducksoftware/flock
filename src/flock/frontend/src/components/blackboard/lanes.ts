@@ -107,14 +107,17 @@ export const cardIds = (card: LaneCard): string[] => [card.id, ...(card.decision
 
 /**
  * The decisions one decider made about one artifact become one card (#668): published by the same agent
- * from the same inputs, in the order they came. A decider with a single question keeps its own card, and
- * so does anything that is not a published decision (streams, placeholders, other artifacts).
+ * about the same subject, in the order they came. The subject is the decision's `subject_ids`, which a
+ * filter cannot hide, else the inputs its edges show; a decision about an unknown subject keeps its own
+ * card, as do a decider with a single question and anything that is not a published decision.
  */
 export function bundleDecisions(cards: LaneCard[], inputsOf: (id: string) => string[]): LaneCard[] {
-  const keyOf = (card: LaneCard): string | null =>
-    card.state === 'done' && (card.data as { decision?: DecisionInfo }).decision
-      ? `${card.producedBy}|${[...inputsOf(card.id)].sort().join(',')}`
-      : null;
+  const keyOf = (card: LaneCard): string | null => {
+    const data = card.data as { decision?: DecisionInfo; payload?: { subject_ids?: string[] } };
+    if (card.state !== 'done' || !data.decision) return null;
+    const subjects = data.payload?.subject_ids?.length ? data.payload.subject_ids : inputsOf(card.id);
+    return subjects.length > 0 ? `${card.producedBy}|${[...subjects].sort().join(',')}` : null;
+  };
   const groups = new Map<string, LaneCard[]>();
   for (const card of cards) {
     const key = keyOf(card);
