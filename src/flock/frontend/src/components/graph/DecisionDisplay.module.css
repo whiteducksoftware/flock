@@ -445,6 +445,13 @@
   border-radius: 3px;
 }
 
+/* More than 200 items: about 13 rows, the rest scrolls */
+.cellsScroll {
+  max-height: 232px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
 .cellYes {
   background: var(--sure);
 }

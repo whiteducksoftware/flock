@@ -229,6 +229,33 @@ describe('ArtifactBody', () => {
     expect(screen.getByRole('group', { name: 'Controls items' })).toBeInTheDocument();
   });
 
+  it('should let a checklist of more than 200 items scroll inside the card', () => {
+    const items = Array.from({ length: 250 }, (_, i) => `C${i}`);
+    const checklist = (count: number) =>
+      decisionNode({
+        question: 'Controls',
+        kind: 'checklist',
+        choice: 'failed',
+        bestGuess: 'failed',
+        probabilities: {},
+        items: items.slice(0, count),
+        results: Object.fromEntries(items.slice(0, count).map((item) => [item, 'no'])),
+        refusedItems: [],
+        confidence: null,
+        threshold: 0.8,
+        model: 'm',
+        latencyMs: null,
+        score: null,
+        refused: false,
+      });
+    const { unmount } = render(<ArtifactBody id="msg-1" data={checklist(250)} />);
+    // nowheel: the canvas does not zoom while the grid scrolls
+    expect(screen.getByRole('group', { name: 'Controls items' }).className).toContain('nowheel');
+    unmount();
+    render(<ArtifactBody id="msg-1" data={checklist(200)} />);
+    expect(screen.getByRole('group', { name: 'Controls items' }).className).not.toContain('nowheel');
+  });
+
   it('should show tournament rounds above the final probabilities', () => {
     render(
       <ArtifactBody id="msg-1" data={decisionNode({

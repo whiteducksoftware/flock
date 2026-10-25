@@ -363,6 +363,41 @@ ScaleCounts.displayName = 'ScaleCounts';
 
 /** Checklist: outcomes, a strip with every item's answers across artifacts,
  * and the items answered "no" most often. */
+/** At most this many cells in a checklist's item strip (about 4 px each in a 272 px column). */
+export const MAX_STRIP_CELLS = 68;
+
+interface StripCell {
+  label: string;
+  title: string;
+  yes: number;
+  no: number;
+  unsure: number;
+}
+
+/**
+ * The cells of a checklist's item strip: one per item, or with more items than MAX_STRIP_CELLS
+ * consecutive items sharing a cell, with their answers summed and the range in the tooltip.
+ */
+export function stripCells(question: Pick<DeciderQuestion, 'options' | 'itemStats' | 'descriptions'>): StripCell[] {
+  const stats = question.itemStats ?? [];
+  const items = question.options.map((item, index) => {
+    const [yes = 0, no = 0, unsure = 0] = stats[index] ?? [];
+    return { item, yes, no, unsure };
+  });
+  if (items.length <= MAX_STRIP_CELLS) {
+    return items.map(({ item, yes, no, unsure }) => {
+      const description = question.descriptions?.[item];
+      return { label: item, yes, no, unsure, title: `${item}: ${yes} yes · ${no} no · ${unsure} unsure${description ? ` — ${description}` : ''}` };
+    });
+  }
+  return splitEven(items, MAX_STRIP_CELLS).map((bin) => {
+    const sum = (key: 'yes' | 'no' | 'unsure') => bin.reduce((total, entry) => total + entry[key], 0);
+    const label = `${bin[0]!.item}–${bin[bin.length - 1]!.item}`;
+    const [yes, no, unsure] = [sum('yes'), sum('no'), sum('unsure')];
+    return { label, yes, no, unsure, title: `${label} (${bin.length} items): ${yes} yes · ${no} no · ${unsure} unsure` };
+  });
+}
+
 const ChecklistCounts = memo(({ question }: { question: DeciderQuestion }) => {
   const outcomes: [string, string | undefined, string | undefined][] = [
     ['passed', styles.shareSure, styles.sureInk],
@@ -398,19 +433,12 @@ const ChecklistCounts = memo(({ question }: { question: DeciderQuestion }) => {
         ))}
       </div>
       <div className={styles.strip} title="Answers per item across all decisions: yes (blue), unsure (hatched), no (empty)">
-        {question.options.map((item, index) => {
-          const [yes = 0, no = 0, unsure = 0] = stats[index] ?? [];
-          const n = Math.max(1, yes + no + unsure);
-          const description = question.descriptions?.[item];
+        {stripCells(question).map((cell) => {
+          const n = Math.max(1, cell.yes + cell.no + cell.unsure);
           return (
-            <span
-              key={item}
-              data-testid="checklist-item-stat"
-              title={`${item}: ${yes} yes · ${no} no · ${unsure} unsure${description ? ` — ${description}` : ''}`}
-              className={styles.stripItem}
-            >
-              <span className={styles.shareSure} style={{ height: `${(yes / n) * 100}%` }} />
-              <span className="hatch" style={{ height: `${(unsure / n) * 100}%` }} />
+            <span key={cell.label} data-testid="checklist-item-stat" title={cell.title} className={styles.stripItem}>
+              <span className={styles.shareSure} style={{ height: `${(cell.yes / n) * 100}%` }} />
+              <span className="hatch" style={{ height: `${(cell.unsure / n) * 100}%` }} />
             </span>
           );
         })}
@@ -1082,6 +1110,9 @@ const TournamentRounds = memo(
 TournamentRounds.displayName = 'TournamentRounds';
 
 /** Checklist: one cell per item, in item order, and a legend with counts. */
+/** Above this many items a checklist's grid of cells scrolls inside a fixed height. */
+export const MAX_GRID_ITEMS = 200;
+
 const ChecklistGrid = memo(({ decision }: { decision: DecisionInfo }) => {
   const results = decision.results ?? {};
   const items = decision.items ?? Object.keys(results);
@@ -1089,7 +1120,12 @@ const ChecklistGrid = memo(({ decision }: { decision: DecisionInfo }) => {
   const count = (result: string) => items.filter((item) => !refused.has(item) && (results[item] ?? UNSURE) === result).length;
   return (
     <>
-      <div role="group" aria-label={`${decision.question} items`} className={styles.cells}>
+      <div
+        role="group"
+        aria-label={`${decision.question} items`}
+        // A large catalog scrolls inside the card (nowheel: the canvas does not zoom while it scrolls)
+        className={cx(styles.cells, items.length > MAX_GRID_ITEMS && `${styles.cellsScroll} nowheel`)}
+      >
         {items.map((item) => {
           const result = results[item] ?? UNSURE;
           const p = decision.probabilities[item];
