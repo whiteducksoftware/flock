@@ -437,34 +437,77 @@ const ChecklistCounts = memo(({ question }: { question: DeciderQuestion }) => {
 });
 ChecklistCounts.displayName = 'ChecklistCounts';
 
-/** Questions of a decision agent with how often each answer was given. */
-export const DeciderOptions = memo(({ decider }: { decider: DeciderInfo }) => {
+/** At most this many questions sit one below the other on a decider's card; more go into columns. */
+export const QUESTIONS_PER_COLUMN = 3;
+
+/**
+ * Splits a decider's questions into columns of at most QUESTIONS_PER_COLUMN, in question order and as
+ * even as possible: 4 → 2 + 2, 5 → 3 + 2, 6 → 3 + 3, 7 → 3 + 2 + 2. Up to three questions stay one column.
+ */
+export function questionColumns<T>(questions: T[]): T[][] {
+  const count = Math.max(1, Math.ceil(questions.length / QUESTIONS_PER_COLUMN));
+  const base = Math.floor(questions.length / count);
+  const extra = questions.length % count;
+  const columns: T[][] = [];
+  let start = 0;
+  for (let index = 0; index < count; index += 1) {
+    const size = base + (index < extra ? 1 : 0);
+    columns.push(questions.slice(start, start + size));
+    start += size;
+  }
+  return columns;
+}
+
+function DeciderQuestionCounts({ question, titled }: { question: DeciderQuestion; titled: boolean }) {
+  return (
+    <div className={styles.question} title={question.instructions}>
+      {titled && <Head question={question.name} kind={KIND_LABEL[question.kind] ?? KIND_LABEL.choice} />}
+      {question.kind === 'checklist' ? (
+        <ChecklistCounts question={question} />
+      ) : question.kind === 'yesno' ? (
+        <YesNoCounts question={question} />
+      ) : question.kind === 'scale' ? (
+        <ScaleCounts question={question} />
+      ) : (
+        <ChoiceCounts question={question} />
+      )}
+      {question.refused ? (
+        <span className={styles.counts}>
+          <span>
+            <span aria-hidden className={cx(styles.swatchSmall, styles.refusedMark)} />
+            {question.refused} refused
+          </span>
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Questions of a decision agent with how often each answer was given. `columns` lays more than three
+ * questions out side by side (the card on the board); without it they stay in one column (unfolded).
+ */
+export const DeciderOptions = memo(({ decider, columns = false }: { decider: DeciderInfo; columns?: boolean }) => {
   const titled = decider.questions.length > 1;
   const shadow = decider.shadow;
+  const split = columns ? questionColumns(decider.questions) : [decider.questions];
   return (
     <div className={styles.decider}>
-      {decider.questions.map((question) => (
-        <div key={question.name} className={styles.question} title={question.instructions}>
-          {titled && <Head question={question.name} kind={KIND_LABEL[question.kind] ?? KIND_LABEL.choice} />}
-          {question.kind === 'checklist' ? (
-            <ChecklistCounts question={question} />
-          ) : question.kind === 'yesno' ? (
-            <YesNoCounts question={question} />
-          ) : question.kind === 'scale' ? (
-            <ScaleCounts question={question} />
-          ) : (
-            <ChoiceCounts question={question} />
-          )}
-          {question.refused ? (
-            <span className={styles.counts}>
-              <span>
-                <span aria-hidden className={cx(styles.swatchSmall, styles.refusedMark)} />
-                {question.refused} refused
-              </span>
-            </span>
-          ) : null}
+      {split.length > 1 ? (
+        <div className={styles.questionColumns} data-testid="decider-columns">
+          {split.map((column, index) => (
+            <div key={index} className={styles.questionColumn}>
+              {column.map((question) => (
+                <DeciderQuestionCounts key={question.name} question={question} titled={titled} />
+              ))}
+            </div>
+          ))}
         </div>
-      ))}
+      ) : (
+        decider.questions.map((question) => (
+          <DeciderQuestionCounts key={question.name} question={question} titled={titled} />
+        ))
+      )}
       <div className={styles.deciderFoot}>
         <div className={styles.foot}>
           {decider.ensemble

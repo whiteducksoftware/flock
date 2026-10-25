@@ -3,7 +3,7 @@
  * (docs/internal/design-system/README.md, Nodes: four levels).
  */
 
-import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { memo, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { Handle, NodeProps, Position, useStore } from '@xyflow/react';
 import { useUIStore } from '../../store/uiStore';
 import { Icon } from '../icons/Icon';
@@ -20,7 +20,7 @@ import {
   tagOf,
 } from './card/cardModel';
 import { cardSizes } from './cardSizes';
-import { AggregatorInfo, CoverageSummary, DeciderInfo, DeciderOptions } from './DecisionDisplay';
+import { AggregatorInfo, CoverageSummary, DeciderInfo, DeciderOptions, questionColumns } from './DecisionDisplay';
 import { lastText, type SinkInfo } from '../sinks/deliveries';
 import { count } from './unfold/format';
 import { MOVE_MS, prefersLessMotion } from './animatePositions';
@@ -370,8 +370,16 @@ const AgentNode = memo(({ id, data, selected }: NodeProps) => {
     );
   }
 
+  const columns = decider ? questionColumns(decider.questions).length : 1;
   return (
-    <div ref={card} className={styles.card} data-status={status} data-selected={selected || undefined}>
+    <div
+      ref={card}
+      className={styles.card}
+      data-status={status}
+      data-selected={selected || undefined}
+      data-columns={columns > 1 ? columns : undefined}
+      style={columns > 1 ? ({ '--columns': columns } as CSSProperties) : undefined}
+    >
       {handles}
       <div className={styles.header}>
         {dot}
@@ -386,7 +394,7 @@ const AgentNode = memo(({ id, data, selected }: NodeProps) => {
           ))}
         </div>
       )}
-      {decider && <DeciderOptions decider={decider} />}
+      {decider && <DeciderOptions decider={decider} columns />}
       {aggregator && <CoverageSummary aggregator={aggregator} />}
       {sink && <DeliveryLine sink={sink} />}
       {states}
