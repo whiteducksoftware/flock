@@ -680,6 +680,38 @@
   border-left: 1px solid var(--line);
 }
 
+/* Seven or more questions: one row each (CompactQuestion) */
+.compactColumn {
+  gap: 6px;
+}
+
+.compactRow {
+  display: grid;
+  grid-template-columns: minmax(0, 88px) minmax(0, 1fr) minmax(0, max-content);
+  align-items: center;
+  gap: 8px;
+  min-height: 18px;
+}
+
+.compactBar {
+  height: 10px;
+  border-radius: 3px;
+}
+
+.compactBar > span + span {
+  box-shadow: inset 1px 0 0 var(--surface);
+}
+
+.compactTop {
+  max-width: 84px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-2);
+}
+
 .questionName {
   min-width: 0;
   overflow: hidden;

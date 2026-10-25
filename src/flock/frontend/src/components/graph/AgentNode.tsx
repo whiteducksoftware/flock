@@ -20,7 +20,7 @@ import {
   tagOf,
 } from './card/cardModel';
 import { cardSizes } from './cardSizes';
-import { AggregatorInfo, CoverageSummary, DeciderInfo, DeciderOptions, questionColumns } from './DecisionDisplay';
+import { AggregatorInfo, CoverageSummary, DeciderInfo, DeciderOptions, deciderLayout } from './DecisionDisplay';
 import { lastText, type SinkInfo } from '../sinks/deliveries';
 import { count } from './unfold/format';
 import { MOVE_MS, prefersLessMotion } from './animatePositions';
@@ -370,15 +370,17 @@ const AgentNode = memo(({ id, data, selected }: NodeProps) => {
     );
   }
 
-  const columns = decider ? questionColumns(decider.questions).length : 1;
+  // Columns from four questions, compact rows (always a full 300 px column) from seven
+  const layout = decider ? deciderLayout(decider.questions) : null;
+  const columns = layout && (layout.compact || layout.columns.length > 1) ? layout.columns.length : 0;
   return (
     <div
       ref={card}
       className={styles.card}
       data-status={status}
       data-selected={selected || undefined}
-      data-columns={columns > 1 ? columns : undefined}
-      style={columns > 1 ? ({ '--columns': columns } as CSSProperties) : undefined}
+      data-columns={columns || undefined}
+      style={columns ? ({ '--columns': columns } as CSSProperties) : undefined}
     >
       {handles}
       <div className={styles.header}>
