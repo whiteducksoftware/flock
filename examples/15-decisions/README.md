@@ -439,3 +439,46 @@ calibrated                        0.80    0.90     213
 ```
 
 Recall counts an unsure answer about a shown control as a miss. With 12 labelled documents per control, precision rises a little but stays far from 0.95 on the held-out half, more answers stay unsure and recall drops; more labels give steadier thresholds.
+
+## 15_game_mechanics.py
+
+Takes 60 puzzle game ideas apart into closed facets: what the player does, what the puzzle is played on, whether information is hidden, how time works, what solves a level, and the theme. Three decision models answer all six questions about every idea, one request per idea and model. The report compares the models question by question and groups the ideas that share every mechanic answer: the same game, and where the themes differ, the same game in a new costume.
+
+**Key Concepts:**
+- `.decides(Action, Board, Hidden, Time, Goal, Theme, model=...)`: six questions in one request, one `Decision` per question
+- `Choice` for one of several options, `YesNo` for a yes/no question
+- The same questions on one decider per model, with `correlation_id` per idea to match the answers
+- Decisions as data: `FACETS_OUT` writes every answer to JSON, `GAME_IDEAS` points the example at other ideas
+
+**Run:**
+```bash
+# AZURE_API_BASE and AZURE_API_KEY, JEV_API_KEY, OPENAI_API_KEY; models without keys are skipped
+uv run examples/15-decisions/15_game_mechanics.py
+```
+
+**What You'll See (2026-10-25, all three models, threshold 0.6):**
+```
+Model               Ideas  Request p50 ms  Unsure
+azure/decision-1       60             224     16%
+jev/jev-latest         60             176     22%
+openai/gpt-6-luna      60             269     17%
+
+Same firm answer   decision-1·jev  decision-1·luna  jev·luna    all
+Action                      37/39            35/41     35/39  30/35
+Board                       38/44            38/46     44/49  34/42
+Hidden                      31/35            27/44     24/36  19/30
+Time                        46/48            48/51     50/50  46/48
+Goal                        29/37            33/42     27/33  24/32
+Theme                       33/44            21/29     34/34  21/29
+
+Same game: ideas with the same answer to every mechanic question
+move · grid · no · turns · pattern    Mutual Erasure (work), Fault Lines (abstract), Sole Exchange (history)   new costume
+move · grid · no · rewind · reach     Unstep (science), Echo Chamber (abstract)                                new costume
+transform · grid · no · turns · reach Room to Spare (abstract) ×3
+...
+43 distinct mechanics among 52 ideas on which at least two models agreed on every question
+```
+
+The models agree most on how time works and least on hidden information and the theme, the two questions whose answer depends most on reading. An unsure answer is common: a pitch often fits two options, such as placing probes to work out a hidden map (`place` or `deduce`). The six ideas called *Echo Cartographer* are six different pitches with the same title, and they do not all land in one group: some play on a grid and some in open space.
+
+Data: `data/game_ideas.json`, 60 puzzle game ideas (title and pitch) that two LLMs proposed in an ideation experiment, some of them more than once.
