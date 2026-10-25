@@ -61,6 +61,12 @@
   overflow-wrap: anywhere;
 }
 
+/* A decision stretched taller than it is (a row of cards of one height in focus mode)
+   keeps its footer at the bottom, so the footers of a row line up */
+.decision > .foot {
+  margin-top: auto;
+}
+
 .note {
   margin: 0;
   font-size: 12px;
@@ -443,6 +449,13 @@
   width: 14px;
   height: 14px;
   border-radius: 3px;
+}
+
+/* More than 200 items: about 13 rows, the rest scrolls */
+.cellsScroll {
+  max-height: 232px;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .cellYes {
