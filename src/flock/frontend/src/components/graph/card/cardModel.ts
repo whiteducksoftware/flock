@@ -171,6 +171,44 @@ export function portRows(data: AgentData): PortRow[] {
   return rows;
 }
 
+/** At most this many port rows on a card, `+N more` rows included. */
+export const MAX_PORT_ROWS = 8;
+
+/** The rows of one direction a card leaves out, shown as one `+N more` row. */
+export interface FoldedPorts {
+  dir: 'in' | 'out';
+  rows: PortRow[];
+  count: number;
+}
+
+/**
+ * The port rows a card shows, in order: all of them up to MAX_PORT_ROWS, else the first rows of each
+ * direction (inputs: IN, AND and JOIN; outputs: OUT) within an even share of the rows, a side's unused
+ * share going to the other, and per direction with more rows than its share one `+N more` entry after
+ * its shown rows.
+ */
+export function foldPorts(rows: PortRow[]): (PortRow | FoldedPorts)[] {
+  if (rows.length <= MAX_PORT_ROWS) return rows;
+  const inputs = rows.filter((r) => r.dir !== 'out');
+  const outputs = rows.filter((r) => r.dir === 'out');
+  const half = MAX_PORT_ROWS / 2;
+  const outShare = Math.min(outputs.length, Math.max(half, MAX_PORT_ROWS - inputs.length));
+  const inShare = Math.min(inputs.length, MAX_PORT_ROWS - outShare);
+  const entries: (PortRow | FoldedPorts)[] = [];
+  for (const [dir, side, share] of [['in', inputs, inShare], ['out', outputs, outShare]] as const) {
+    if (side.length <= share) {
+      entries.push(...side);
+      continue;
+    }
+    const rest = side.slice(share - 1);
+    entries.push(...side.slice(0, share - 1), { dir, rows: rest, count: rest.reduce((sum, r) => sum + r.count, 0) });
+  }
+  return entries;
+}
+
+/** A `+N more` entry of foldPorts, as opposed to a port row. */
+export const isFolded = (entry: PortRow | FoldedPorts): entry is FoldedPorts => 'rows' in entry;
+
 /** `16 h 34 m`, `3 m 10 s`, `45 s` */
 export function formatSpan(seconds: number): string {
   const s = Math.max(0, Math.round(seconds));

@@ -3,6 +3,7 @@ import {
   batchWait,
   formatAgo,
   formatClock,
+  foldPorts,
   formatSpan,
   joinWait,
   portRows,
@@ -216,5 +217,36 @@ describe('waits', () => {
   it('has nothing to show when nothing waits', () => {
     expect(joinWait([], age)).toBeNull();
     expect(batchWait([{ subscription_index: 0, subscription_types: [], waiting_state: { is_waiting: false } }], age)).toBeNull();
+  });
+});
+
+describe('foldPorts', () => {
+  const port = (dir: PortRow['dir'], type: string, count = 1): PortRow => ({
+    dir,
+    type,
+    label: type,
+    decision: false,
+    count,
+    times: 1,
+  });
+  const ports = (inputs: number, outputs: number) => [
+    ...Array.from({ length: inputs }, (_, i) => port(i === 1 ? 'and' : 'in', `In${i}`)),
+    ...Array.from({ length: outputs }, (_, i) => port('out', `Out${i}`, 2)),
+  ];
+  const shape = (rows: PortRow[]) =>
+    foldPorts(rows).map((e) => ('rows' in e ? `${e.dir} +${e.rows.length} (${e.count})` : e.type));
+
+  it('should keep up to eight rows', () => {
+    expect(shape(ports(5, 3))).toEqual(['In0', 'In1', 'In2', 'In3', 'In4', 'Out0', 'Out1', 'Out2']);
+  });
+
+  it('should fold each direction beyond its share into one row after its shown rows, counts summed', () => {
+    expect(shape(ports(12, 8))).toEqual(['In0', 'In1', 'In2', 'in +9 (9)', 'Out0', 'Out1', 'Out2', 'out +5 (10)']);
+  });
+
+  it("should give one side's unused share to the other", () => {
+    expect(shape(ports(2, 10))).toEqual(['In0', 'In1', 'Out0', 'Out1', 'Out2', 'Out3', 'Out4', 'out +5 (10)']);
+    expect(shape(ports(10, 2))).toEqual(['In0', 'In1', 'In2', 'In3', 'In4', 'in +5 (5)', 'Out0', 'Out1']);
+    expect(shape(ports(9, 0))).toEqual(['In0', 'In1', 'In2', 'In3', 'In4', 'In5', 'In6', 'in +2 (2)']);
   });
 });

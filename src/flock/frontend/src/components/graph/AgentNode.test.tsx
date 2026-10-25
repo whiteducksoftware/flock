@@ -87,6 +87,34 @@ describe('AgentNode', () => {
     expect(screen.getByText('Tagline')).toBeInTheDocument();
   });
 
+  it('should fold more than eight ports into +N more rows and keep them in the tooltip', () => {
+    const inputs = ['Invoice', 'Receipt', 'Contract', 'Ticket', 'Email', 'Chat', 'Order', 'Refund', 'Complaint', 'Review', 'Survey', 'Report'];
+    const outputs = ['Summary', 'Reply', 'Escalation', 'Task', 'Note', 'Alert', 'Label', 'Score'];
+    const data: AgentNodeData = {
+      name: 'router',
+      status: 'idle',
+      subscriptions: inputs,
+      outputTypes: outputs,
+      receivedByType: { Ticket: 3, Email: 4 },
+      sentByType: { Task: 2 },
+    };
+    const { container } = render(
+      <ReactFlowProvider>
+        <AgentNode {...createNodeProps(data)} />
+      </ReactFlowProvider>
+    );
+    const card = container.querySelector('[data-status]') as HTMLElement;
+    expect(card.querySelectorAll('[class*="port"]').length).toBeLessThanOrEqual(9); // the ports box and 8 rows
+    const folded = screen.getAllByTestId('ports-folded');
+    expect(folded.map((row) => row.textContent)).toEqual(['in+9 more7', 'out+5 more2']);
+    expect(folded[0]).toHaveAttribute('title', expect.stringContaining('Ticket 3\nEmail 4'));
+    // Each direction's +N more follows its own shown rows
+    expect(folded[0]!.previousElementSibling).toHaveTextContent('Contract');
+    expect(folded[0]!.nextElementSibling).toHaveTextContent('Summary');
+    expect(screen.getByText('Invoice')).toBeInTheDocument();
+    expect(screen.queryByText('Report')).not.toBeInTheDocument();
+  });
+
   it('should show each port with its count', () => {
     const data: AgentNodeData = {
       name: 'test-agent',
