@@ -30,7 +30,9 @@ a filtered operation creates no span at all.
 
 ## What each tool shows
 
-Model calls are the `LM.chat` spans.
+Model calls are the `LM.chat` spans. Flock exports each call's tokens, not a cost: the Cost column
+is the tool's own estimate from its price list. Flock's own cost is per agent run
+(`flock.usage.cost_usd`, see [auto-tracing](auto-tracing.md#model-calls-genai-spans)).
 
 | Tool | Model calls | Tokens | Cost | A run grouped as | Checked with |
 |---|---|---|---|---|---|

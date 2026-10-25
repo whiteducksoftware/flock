@@ -668,8 +668,11 @@ Arize Phoenix, Jaeger and MLflow. See also
 2. **Multi-environment comparison.** One trace database, no environment tag.
 3. **Time-travel debugging.** No checkpoints to restart a run from.
 
-Token usage and cost are recorded per agent run (`flock.usage.*`, shown in the dashboard) and per
-model call on the exported `LM.chat` spans.
+Token usage and cost are recorded per agent run: `flock.usage.tokens` and `flock.usage.cost_usd`
+on `Agent.execute`, shown in the dashboard and priced with `Flock(model_prices=...)` first and
+LiteLLM's price table second. The exported `LM.chat` spans carry each model call's tokens, not a
+cost; a backend that knows the model's price, such as Langfuse or Opik, estimates the call's cost
+itself.
 
 ---
 
