@@ -334,3 +334,45 @@ async def test_an_agent_run_records_a_span_for_its_model_call(spans, monkeypatch
     (span,) = [s for s in spans.get_finished_spans() if s.name == "LM.chat"]
     assert span.attributes["gen_ai.agent.name"] == "writer"
     assert span.attributes["gen_ai.usage.input_tokens"] == 12
+
+
+def test_responses_api_tool_calls_keep_their_call_id_name_and_arguments():
+    flat = {
+        "id": "fc-1",
+        "call_id": "call-9",
+        "name": "lookup",
+        "arguments": '{"q": "a"}',
+    }
+
+    assert output_messages([{"text": None, "tool_calls": [flat]}]) == [
+        {
+            "role": "assistant",
+            "parts": [
+                {
+                    "type": "tool_call",
+                    "id": "call-9",
+                    "name": "lookup",
+                    "arguments": '{"q": "a"}',
+                }
+            ],
+        }
+    ]
+
+
+def test_an_agent_invoked_inside_another_records_its_calls_once(spans, monkeypatch):
+    from flock.engines.dspy_engine import DSPyEngine
+    from flock.logging import auto_trace
+
+    monkeypatch.setattr(auto_trace, "ENABLE_AUTO_TRACE", True)
+    mine = object()
+    with dspy.context(callbacks=[*DSPyEngine._lm_callbacks(dspy, "outer"), mine]):
+        FakeLM()(messages=MESSAGES)
+        inner = DSPyEngine._lm_callbacks(dspy, "inner")
+        with dspy.context(callbacks=inner):
+            FakeLM()(messages=MESSAGES)
+
+    assert next(c for c in inner if isinstance(c, GenAISpans)).agent_name == "inner"
+    assert sum(isinstance(c, GenAISpans) for c in inner) == 1
+    assert mine in inner
+    agents = [s.attributes["gen_ai.agent.name"] for s in spans.get_finished_spans()]
+    assert agents == ["outer", "inner"]

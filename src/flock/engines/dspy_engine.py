@@ -747,13 +747,16 @@ class DSPyEngine(EngineComponent):
         """DSPy's callbacks, plus a GenAI span per LM call while auto-tracing is on (#680)."""
         from flock.logging import auto_trace
 
-        settings = getattr(dspy_mod, "settings", None)
-        callbacks = list(
-            (settings.get("callbacks", None) if settings is not None else None) or []
-        )
-        if auto_trace.ENABLE_AUTO_TRACE:
-            from flock.logging.genai_spans import GenAISpans
+        from flock.logging.genai_spans import GenAISpans
 
+        settings = getattr(dspy_mod, "settings", None)
+        inherited = (
+            settings.get("callbacks", None) if settings is not None else None
+        ) or []
+        # An agent invoked from another agent's tool runs inside the outer
+        # engine's context: drop the outer agent's span callback, keep the user's
+        callbacks = [c for c in inherited if not isinstance(c, GenAISpans)]
+        if auto_trace.ENABLE_AUTO_TRACE:
             callbacks.append(GenAISpans(agent_name))
         return callbacks
 

@@ -102,12 +102,15 @@ def _parts(content: Any) -> list[dict[str, Any]]:
 
 
 def _tool_call(call: Any) -> dict[str, Any]:
+    """A tool call as a ``tool_call`` part: Chat Completions nest the name and
+    arguments under ``function``, the Responses API puts them on the call with
+    its ``call_id``."""
     function = _field(call, "function")
     return {
         "type": "tool_call",
-        "id": _field(call, "id"),
-        "name": _field(function, "name"),
-        "arguments": _field(function, "arguments"),
+        "id": _field(call, "call_id") or _field(call, "id"),
+        "name": _field(function, "name") or _field(call, "name"),
+        "arguments": _field(function, "arguments") or _field(call, "arguments"),
     }
 
 
