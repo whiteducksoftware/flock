@@ -1,7 +1,7 @@
 import React from 'react';
 import { useGraphStore } from '../../../store/graphStore';
 import ImageThumbnails from '../../common/ImageThumbnails';
-import { DecisionBars, type DecisionInfo } from '../DecisionDisplay';
+import { DecisionBars, type DeciderInfo, type DeciderQuestion, type DecisionInfo } from '../DecisionDisplay';
 import type { AgentRun } from '../unfold/agentRuns';
 import { count, duration, shortId } from '../unfold/format';
 import { TypeLabel } from '../unfold/HistoryTab';
@@ -38,11 +38,17 @@ const fieldsOf = (payload: unknown, limit = 6): [string, string][] =>
 
 const DECISION = /^(?:.*\.)?Decision\[(.+)\]$/;
 
-/** A decision artifact's payload as the dashboard's decision view (`decision_view` in flock/decisions/graph.py). */
-export function decisionOf(message: Message): DecisionInfo | null {
+/**
+ * A decision artifact's payload as the dashboard's decision view (`decision_view` in flock/decisions/graph.py).
+ * A payload holds only the answers it got, so a scale's levels and a checklist's items in order come from the
+ * decider's question (`questions`); a scale whose levels are unknown stays its payload.
+ */
+export function decisionOf(message: Message, questions: DeciderQuestion[] = []): DecisionInfo | null {
   if (!DECISION.test(message.type) || !message.payload || typeof message.payload !== 'object') return null;
   const p = message.payload as Record<string, unknown>;
   const kind = (p.kind as DecisionInfo['kind']) ?? 'choice';
+  const question = questions.find((each) => each.name === p.question);
+  if (kind === 'scale' && !question) return null;
   const results = (p.results as Record<string, string> | undefined) ?? {};
   return {
     question: String(p.question ?? ''),
@@ -58,11 +64,13 @@ export function decisionOf(message: Message): DecisionInfo | null {
     refused: Boolean(p.refused),
     ...(kind === 'checklist'
       ? {
-          items: Object.keys(results),
+          items: question?.options ?? Object.keys(results),
           results,
           refusedItems: (p.refused_items as string[] | undefined) ?? [],
         }
-      : {}),
+      : kind === 'scale'
+        ? { levels: question!.options }
+        : {}),
   };
 }
 
@@ -71,8 +79,10 @@ export const MessageCard: React.FC<{
   message: Message | undefined;
   status?: React.ReactNode;
   empty?: string;
-}> = ({ title, message, status, empty = 'None yet' }) => {
-  const decision = message ? decisionOf(message) : null;
+  /** The questions of the decider that published the message, for a decision's levels and items */
+  questions?: DeciderQuestion[];
+}> = ({ title, message, status, empty = 'None yet', questions }) => {
+  const decision = message ? decisionOf(message, questions) : null;
   return (
     <div className={styles.card}>
       <div className={styles.cardHead}>
@@ -125,6 +135,10 @@ interface FocusLiveProps {
 const FocusLive: React.FC<FocusLiveProps> = ({ agent, running, messages, runs, tokens, onRuns }) => {
   // While it runs, the running run's inputs; the history has them only once the run has published
   const run = useRunInput(agent);
+  // The agent's own questions when it decides: its output's scale levels and checklist items
+  const questions = useGraphStore(
+    (state) => (state.nodes.find((node) => node.id === agent)?.data as { decision?: DeciderInfo } | undefined)?.decision?.questions,
+  );
   // That run's output (the agent's ticker mixes overlapping runs); the ticker when no run is known
   const tail = useGraphStore((state) => (run.runId ? (state.runTails.get(run.runId) ?? '') : tokens.join('')));
   const inputs = running ? (run.inputs ?? []) : messages?.filter((message) => message.direction === 'consumed').slice(0, 1) ?? [];
@@ -163,7 +177,7 @@ const FocusLive: React.FC<FocusLiveProps> = ({ agent, running, messages, runs, t
             )}
           </div>
         ) : (
-          <MessageCard title="Output" message={output} />
+          <MessageCard title="Output" message={output} questions={questions} />
         )}
         <div className={styles.card}>
           <span className={styles.label}>Earlier runs</span>

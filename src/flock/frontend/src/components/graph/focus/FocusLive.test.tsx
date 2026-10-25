@@ -47,4 +47,21 @@ describe('FocusLive', () => {
     expect(screen.getByText('no 500')).toBeInTheDocument();
     expect(screen.queryByText(/"C0001":0\.97/)).not.toBeInTheDocument();
   });
+
+  it("takes a scale's levels from the decider's question, and keeps a scale without them as its payload", () => {
+    // A review of a three-level scale carries only the chosen level
+    const review: Message = {
+      ...checklist,
+      type: 'flock.decisions.Decision[__main__.Risk]',
+      payload: { question: 'Risk', kind: 'scale', choice: 'high', best_guess: 'high', probabilities: { high: 1.0 }, score: 2, model: 'review' },
+    };
+    const risk = { name: 'Risk', kind: 'scale' as const, options: ['low', 'medium', 'high'], counts: {} };
+    expect(decisionOf(review, [risk])).toMatchObject({ kind: 'scale', levels: ['low', 'medium', 'high'], score: 2 });
+    expect(decisionOf(review)).toBeNull();
+  });
+
+  it("orders a checklist's items as the decider's question does", () => {
+    const controls = { name: 'Controls', kind: 'checklist' as const, options: [...items].reverse(), counts: {} };
+    expect(decisionOf(checklist, [controls])!.items![0]).toBe('C0999');
+  });
 });
