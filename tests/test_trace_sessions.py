@@ -36,6 +36,14 @@ class SessionNote(BaseModel):
     text: str
 
 
+@flock_type
+class SessionChart(BaseModel):
+    """A payload with a correlation_id field of its own."""
+
+    correlation_id: str
+    text: str
+
+
 class Ctx:
     def __init__(self, correlation_id: str) -> None:
         self.correlation_id = correlation_id
@@ -127,3 +135,25 @@ def test_model_call_spans_join_their_run(monkeypatch):
 
     (span,) = exporter.get_finished_spans()
     assert run_of(span) == ("run-3", "run-3", "run-3")
+
+
+async def test_publish_names_the_published_run_not_a_payload_field(spans):
+    flock = Flock(no_output=True)
+    publish = traced_and_logged(inspect.unwrap(Flock.publish))
+
+    artifact = await publish(
+        flock,
+        SessionChart(correlation_id="patient-123", text="hi"),
+        correlation_id="run-1",
+    )
+
+    (span,) = [s for s in spans.get_finished_spans() if s.name == "Flock.publish"]
+    assert str(artifact.correlation_id) == "run-1"
+    assert run_of(span) == ("run-1", "run-1", "run-1")
+
+
+def test_a_payload_field_alone_names_no_run(spans):
+    traced_and_logged(Worker.work)(Worker(), Run("patient-123"))
+
+    (span,) = spans.get_finished_spans()
+    assert "session.id" not in span.attributes

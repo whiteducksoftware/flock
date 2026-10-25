@@ -115,9 +115,10 @@ def _result_correlation(result: Any) -> str | None:
 
 
 def _record_run(span: Any, attributes: dict[str, Any], result: Any) -> None:
-    """Put the run on a span that learns its correlation only from its result
-    (``Flock.publish`` creates it)."""
-    if "correlation_id" in attributes:
+    """Put the run on a span whose context did not name it, from its result
+    (``Flock.publish`` creates the correlation). The result's run also replaces
+    a ``correlation_id`` read from a payload field of the same name."""
+    if "session.id" in attributes:
         return
     correlation = _result_correlation(result)
     if correlation:
@@ -245,11 +246,14 @@ def _extract_span_attributes(func, args, kwargs):
         if hasattr(obj, "description"):
             attributes["agent.description"] = str(obj.description)[:200]  # Truncate
 
-    # Extract context attributes (correlation_id, task_id)
+    # Extract context attributes (correlation_id, task_id). Only a context
+    # names the run (#681): a payload may have a correlation_id field of its own
+    run = None
     for arg_name, arg_value in kwargs.items():
         if arg_name == "ctx" and hasattr(arg_value, "correlation_id"):
             if arg_value.correlation_id:
                 attributes["correlation_id"] = str(arg_value.correlation_id)
+                run = arg_value.correlation_id
             if hasattr(arg_value, "task_id"):
                 attributes["task_id"] = str(arg_value.task_id)
 
@@ -260,10 +264,11 @@ def _extract_span_attributes(func, args, kwargs):
                 attributes["correlation_id"] = str(arg.correlation_id)
             if hasattr(arg, "task_id"):
                 attributes["task_id"] = str(arg.task_id)
+                run = run or arg.correlation_id
             break
 
-    if "correlation_id" in attributes:
-        attributes.update(run_attributes(attributes["correlation_id"]))
+    if run:
+        attributes.update(run_attributes(run))
 
     # Add function metadata
     attributes["function"] = func.__name__
