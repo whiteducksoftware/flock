@@ -135,31 +135,21 @@ export function latestDecisions(messages: Message[], questions: DeciderQuestion[
   });
 }
 
-/** A decider streams nothing: its last answers take the stream's place, a checklist across the whole width. */
-export const FocusDecisions: React.FC<{ running: boolean; messages: Message[] | null; questions: DeciderQuestion[] }> = ({
-  running,
-  messages,
-  questions,
-}) => {
+/**
+ * A decider streams nothing: its last answers take the stream's place, a checklist across the whole width.
+ * Its first cards line up with the side column's; whether it runs, the stage's head says.
+ */
+export const FocusDecisions: React.FC<{ messages: Message[] | null; questions: DeciderQuestion[] }> = ({ messages, questions }) => {
   if (messages === null) return <div className={styles.empty}>Loading decisions…</div>;
   const latest = latestDecisions(messages, questions);
+  if (latest.length === 0) return <div className={styles.empty}>No decisions yet</div>;
   return (
-    <div className={styles.decisions}>
-      <div className={styles.cardHead}>
-        <span className={styles.label}>Last decisions</span>
-        {running && <span className={`${styles.quiet} ${styles.end}`}>deciding</span>}
-      </div>
-      {latest.length === 0 ? (
-        <div className={styles.empty}>No decisions yet</div>
-      ) : (
-        <div className={styles.decisionGrid}>
-          {latest.map(({ message, decision }) => (
-            <div key={message.id} className={styles.card} data-kind={decision.kind}>
-              <DecisionBars decision={decision} scroll={false} />
-            </div>
-          ))}
+    <div className={styles.decisionGrid}>
+      {latest.map(({ message, decision }) => (
+        <div key={message.id} className={styles.card} data-kind={decision.kind}>
+          <DecisionBars decision={decision} scroll={false} />
         </div>
-      )}
+      ))}
     </div>
   );
 };
@@ -197,7 +187,7 @@ const FocusLive: React.FC<FocusLiveProps> = ({ agent, running, messages, runs, t
     <div className={styles.live}>
       {decides ? (
         <section aria-label="Decisions">
-          <FocusDecisions running={running} messages={messages} questions={questions!} />
+          <FocusDecisions messages={messages} questions={questions!} />
         </section>
       ) : (
         <section aria-label="Live output">
