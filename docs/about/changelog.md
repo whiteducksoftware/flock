@@ -124,6 +124,7 @@ search:
 
 ### 🔒 Security
 
+- **113 Dependabot alerts on `main` closed** (backend 0.5.802, frontend 0.1.36, #676). Pillow 13.0.0 fixes 41 advisories, six of them critical (among them a JPEG decoder buffer overflow reachable through dashboard image uploads); `fastembed` goes to 0.9.1 for it, because 0.9.0 requires `pillow<13`. MCP SDK 1.30.0, and in the lockfile certifi 2026.10.23, aiohttp 3.14.5, filelock 4.2.4, OpenTelemetry 1.45.1, and for development GitPython 3.2.1, nbconvert 7.17.2 and virtualenv 21.14.13; vitest 4.1.12 for the frontend tests. Pillow 13's breaking changes do not reach Flock: `Image.from_pil` converts every picture to RGB or RGBA before it saves it.
 - Patched vulnerable dependencies: anyio, PyJWT, cryptography, urllib3, python-multipart, Starlette, MCP SDK, tornado, gitpython, fsspec, json-repair, mistune, orjson, pymdown-extensions, soupsieve, virtualenv, bleach, idna, multidict, oauthlib, requests, setuptools, pygments, Jupyter and mkdocs-material dev tooling, and the dashboard's dev tooling (Vitest 4, Vite 7.3.7). Removing PyTorch, Transformers and sentence-transformers closes their advisories as well.
 - How dependency alerts are handled, including LiteLLM advisories that only affect the LiteLLM proxy server, is documented in [CONTRIBUTING.md](https://github.com/whiteducksoftware/flock/blob/main/CONTRIBUTING.md).
 
