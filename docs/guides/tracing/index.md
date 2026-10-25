@@ -295,13 +295,9 @@ export OTEL_EXPORTER_OTLP_PROTOCOL=grpc
 python your_agent.py
 ```
 
-**Supported backends:**
-- Grafana Cloud
-- Jaeger
-- Datadog APM
-- New Relic
-- Honeycomb
-- Any OTLP-compatible service
+**Supported backends:** any OTLP-compatible service, over gRPC (the default) or HTTP
+(`OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf`). [Tracing backends](backends.md) has the settings
+for Langfuse, Opik, Arize Phoenix, Jaeger and MLflow, and what each shows of a Flock run.
 
 **[Full production setup →](tracing-production.md)**
 

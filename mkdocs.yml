@@ -259,6 +259,7 @@ nav:
       - Unified Tracing: guides/tracing/unified-tracing.md
       - Using Tracing Effectively: guides/tracing/how_to_use_tracing_effectively.md
       - Production Tracing: guides/tracing/tracing-production.md
+      - Tracing Backends: guides/tracing/backends.md
       - Trace Module Reference: guides/tracing/trace-module.md
 
   - 📖 Reference:
