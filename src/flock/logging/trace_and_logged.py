@@ -106,6 +106,27 @@ def run_attributes(correlation_id: object) -> dict[str, str]:
     return {"session.id": value, "gen_ai.conversation.id": value}
 
 
+def _context_run(func: Any, args: tuple, kwargs: dict[str, Any]) -> Any:
+    """The run a call's context names: the argument bound to ``ctx``, or a Flock
+    ``Context`` under another name. A payload names no run, even with
+    ``correlation_id`` and ``task_id`` fields of its own (#681)."""
+    from flock.utils.runtime import (
+        Context,
+    )  # at call time: runtime imports Flock's core
+
+    try:
+        bound = dict(inspect.signature(func).bind_partial(*args, **kwargs).arguments)
+    except (TypeError, ValueError):
+        bound = dict(kwargs)
+    candidates = [bound.get("ctx")]
+    candidates += [value for value in bound.values() if isinstance(value, Context)]
+    for value in candidates:
+        run = getattr(value, "correlation_id", None)
+        if run:
+            return run
+    return None
+
+
 def _result_correlation(result: Any) -> str | None:
     """The one correlation of what a call returned: an artifact's, or the one
     that several artifacts share."""
@@ -246,14 +267,11 @@ def _extract_span_attributes(func, args, kwargs):
         if hasattr(obj, "description"):
             attributes["agent.description"] = str(obj.description)[:200]  # Truncate
 
-    # Extract context attributes (correlation_id, task_id). Only a context
-    # names the run (#681): a payload may have a correlation_id field of its own
-    run = None
+    # Extract context attributes (correlation_id, task_id)
     for arg_name, arg_value in kwargs.items():
         if arg_name == "ctx" and hasattr(arg_value, "correlation_id"):
             if arg_value.correlation_id:
                 attributes["correlation_id"] = str(arg_value.correlation_id)
-                run = arg_value.correlation_id
             if hasattr(arg_value, "task_id"):
                 attributes["task_id"] = str(arg_value.task_id)
 
@@ -264,9 +282,9 @@ def _extract_span_attributes(func, args, kwargs):
                 attributes["correlation_id"] = str(arg.correlation_id)
             if hasattr(arg, "task_id"):
                 attributes["task_id"] = str(arg.task_id)
-                run = run or arg.correlation_id
             break
 
+    run = _context_run(func, args, kwargs)
     if run:
         attributes.update(run_attributes(run))
 

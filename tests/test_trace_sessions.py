@@ -64,6 +64,9 @@ class Worker:
     async def awork(self, ctx=None, result=None):
         return result
 
+    def handle(self, item):
+        return None
+
 
 def run_of(span) -> tuple:
     return tuple(
@@ -153,7 +156,43 @@ async def test_publish_names_the_published_run_not_a_payload_field(spans):
 
 
 def test_a_payload_field_alone_names_no_run(spans):
-    traced_and_logged(Worker.work)(Worker(), Run("patient-123"))
+    traced_and_logged(Worker.handle)(Worker(), Run("patient-123"))
 
     (span,) = spans.get_finished_spans()
     assert "session.id" not in span.attributes
+
+
+@flock_type
+class SessionTask(BaseModel):
+    """A payload that looks like a context: correlation_id and task_id fields."""
+
+    correlation_id: str
+    task_id: str
+
+
+async def test_a_payload_that_looks_like_a_context_names_no_run(spans):
+    flock = Flock(no_output=True)
+    publish = traced_and_logged(inspect.unwrap(Flock.publish))
+
+    await publish(
+        flock,
+        SessionTask(correlation_id="payload-run", task_id="payload-task"),
+        correlation_id="actual-run",
+    )
+
+    (span,) = [s for s in spans.get_finished_spans() if s.name == "Flock.publish"]
+    assert run_of(span) == ("actual-run", "actual-run", "actual-run")
+
+
+def test_a_context_under_another_name_names_the_run(spans):
+    from flock.utils.runtime import Context
+
+    class Hooks:
+        def on_event(self, agent, context):
+            return None
+
+    context = Context(correlation_id="run-4", task_id="task-4")
+    traced_and_logged(Hooks.on_event)(Hooks(), None, context)
+
+    (span,) = spans.get_finished_spans()
+    assert span.attributes["session.id"] == "run-4"
