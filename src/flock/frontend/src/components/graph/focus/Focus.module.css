@@ -298,6 +298,23 @@ button.entry:focus-visible {
   align-items: start;
 }
 
+/* A decider: its input and earlier runs, an arrow, its decisions */
+.decides {
+  display: grid;
+  grid-template-columns: 300px 20px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+/* The lineage's chevron, on the line of the input's head */
+.flowArrow {
+  padding-top: 10px;
+  text-align: center;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--text-3);
+}
+
 /* A decider's last decisions in place of the stream: small ones side by side in rows of one height,
    a checklist across; the side column's gap */
 .decisionGrid {
@@ -327,7 +344,12 @@ button.entry:focus-visible {
   }
 
   .live,
+  .decides,
   .contract {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .flowArrow {
+    display: none;
   }
 }

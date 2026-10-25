@@ -166,7 +166,7 @@ interface FocusLiveProps {
 
 /**
  * The stream on the left; on the right what the agent works on, its output so far and earlier runs.
- * A decider shows its last decisions on the left, which are its output.
+ * A decider reads from left to right: its input, an arrow, its last decisions (its output).
  */
 const FocusLive: React.FC<FocusLiveProps> = ({ agent, running, messages, runs, tokens, onRuns }) => {
   // While it runs, the running run's inputs; the history has them only once the run has published
@@ -183,31 +183,67 @@ const FocusLive: React.FC<FocusLiveProps> = ({ agent, running, messages, runs, t
 
   const decides = (questions?.length ?? 0) > 0;
 
-  return (
-    <div className={styles.live}>
-      {decides ? (
+  const inputCards = (
+    <>
+      {inputs.length === 0 ? (
+        <MessageCard
+          title="Input"
+          message={undefined}
+          empty={!running ? 'None yet' : run.inputs === undefined ? 'Loading…' : 'Not known for this run'}
+        />
+      ) : (
+        inputs.map((input, index) => (
+          <MessageCard key={input.id} title={inputs.length > 1 ? `Input ${index + 1}` : 'Input'} message={input} />
+        ))
+      )}
+      {running && run.more > 0 && <span className={styles.faint}>and {run.more} more consumed</span>}
+    </>
+  );
+  const earlierRuns = (
+    <div className={styles.card}>
+      <span className={styles.label}>Earlier runs</span>
+      {earlier.length === 0 ? (
+        <span className={styles.faint}>None yet</span>
+      ) : (
+        earlier.map((run) => (
+          <button key={run.runId} type="button" className={styles.run} onClick={onRuns}>
+            <span className="mono">{shortId(run.runId)}</span>
+            <span className={`mono num ${styles.quiet}`}>
+              {run.status === 'error' ? (run.errorType ?? 'failed') : run.durationMs === null ? '—' : duration(run.durationMs)}
+              {run.tokens !== null && ` · ${count(run.tokens)} tok`}
+            </span>
+          </button>
+        ))
+      )}
+    </div>
+  );
+
+  if (decides) {
+    // What it read, then what it decided, as the lineage above reads; its earlier runs under its input
+    return (
+      <div className={styles.decides}>
+        <aside className={styles.aside}>
+          {inputCards}
+          {earlierRuns}
+        </aside>
+        <span className={styles.flowArrow} aria-hidden="true">
+          ›
+        </span>
         <section aria-label="Decisions">
           <FocusDecisions messages={messages} questions={questions!} />
         </section>
-      ) : (
-        <section aria-label="Live output">
-          <LiveTab agent={agent} running={running} />
-        </section>
-      )}
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.live}>
+      <section aria-label="Live output">
+        <LiveTab agent={agent} running={running} />
+      </section>
       <aside className={styles.aside}>
-        {inputs.length === 0 ? (
-          <MessageCard
-            title="Input"
-            message={undefined}
-            empty={!running ? 'None yet' : run.inputs === undefined ? 'Loading…' : 'Not known for this run'}
-          />
-        ) : (
-          inputs.map((input, index) => (
-            <MessageCard key={input.id} title={inputs.length > 1 ? `Input ${index + 1}` : 'Input'} message={input} />
-          ))
-        )}
-        {running && run.more > 0 && <span className={styles.faint}>and {run.more} more consumed</span>}
-        {decides ? null : running ? (
+        {inputCards}
+        {running ? (
           // This run's output only; an earlier run's is not this one's
           <div className={styles.card}>
             <div className={styles.cardHead}>
@@ -223,22 +259,7 @@ const FocusLive: React.FC<FocusLiveProps> = ({ agent, running, messages, runs, t
         ) : (
           <MessageCard title="Output" message={output} questions={questions} />
         )}
-        <div className={styles.card}>
-          <span className={styles.label}>Earlier runs</span>
-          {earlier.length === 0 ? (
-            <span className={styles.faint}>None yet</span>
-          ) : (
-            earlier.map((run) => (
-              <button key={run.runId} type="button" className={styles.run} onClick={onRuns}>
-                <span className="mono">{shortId(run.runId)}</span>
-                <span className={`mono num ${styles.quiet}`}>
-                  {run.status === 'error' ? (run.errorType ?? 'failed') : run.durationMs === null ? '—' : duration(run.durationMs)}
-                  {run.tokens !== null && ` · ${count(run.tokens)} tok`}
-                </span>
-              </button>
-            ))
-          )}
-        </div>
+        {earlierRuns}
       </aside>
     </div>
   );
