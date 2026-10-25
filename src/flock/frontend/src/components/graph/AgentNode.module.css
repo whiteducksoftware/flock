@@ -15,6 +15,12 @@
   line-height: 1.45;
 }
 
+/* A decider with more than three questions: one 300 px column per three questions (questionColumns) */
+.card[data-columns] {
+  width: calc(var(--columns) * 300px);
+  max-width: none;
+}
+
 .card[data-status='running'],
 .chip[data-status='running'] {
   border-color: color-mix(in srgb, var(--signal) 55%, transparent);

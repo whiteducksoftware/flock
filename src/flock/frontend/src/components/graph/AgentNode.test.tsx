@@ -304,6 +304,47 @@ describe('AgentNode', () => {
     expect(gaps.map((g) => g.dataset.item)).toEqual(['backup', 'review', 'mfa']);
   });
 
+  it('should lay out more than three questions in columns and widen the card', () => {
+    const question = (name: string) => ({ name, kind: 'choice' as const, options: ['a', 'b'], counts: { a: 1, b: 0 } });
+    const decider = (count: number): AgentNodeData => ({
+      name: 'facets',
+      status: 'idle',
+      subscriptions: ['GameIdea'],
+      sentCount: 6,
+      recvCount: 1,
+      decision: {
+        model: 'azure/decision-1',
+        threshold: 0.6,
+        questions: ['Action', 'Board', 'Hidden', 'Time', 'Goal', 'Theme'].slice(0, count).map(question),
+      },
+    });
+
+    const { container, unmount } = render(
+      <ReactFlowProvider>
+        <AgentNode {...createNodeProps(decider(6))} />
+      </ReactFlowProvider>
+    );
+    const card = container.querySelector('[data-status]') as HTMLElement;
+    expect(card).toHaveAttribute('data-columns', '2');
+    expect(card.style.getPropertyValue('--columns')).toBe('2');
+    const columns = screen.getByTestId('decider-columns').children;
+    expect([...columns].map((column) => column.textContent)).toEqual([
+      expect.stringMatching(/^◆ Action.*◆ Board.*◆ Hidden/),
+      expect.stringMatching(/^◆ Time.*◆ Goal.*◆ Theme/),
+    ]);
+    // The model and threshold stay below the columns, across the card
+    expect(screen.getByTestId('decider-columns').nextElementSibling).toHaveTextContent('azure/decision-1 · threshold 0.60');
+    unmount();
+
+    const three = render(
+      <ReactFlowProvider>
+        <AgentNode {...createNodeProps(decider(3))} />
+      </ReactFlowProvider>
+    );
+    expect(three.container.querySelector('[data-status]')).not.toHaveAttribute('data-columns');
+    expect(screen.queryByTestId('decider-columns')).not.toBeInTheDocument();
+  });
+
   it('should compact deciders with many options and show the tournament', () => {
     const options = Array.from({ length: 60 }, (_, i) => `c_${String(i).padStart(2, '0')}`);
     const counts: Record<string, number> = Object.fromEntries(options.map((o) => [o, 0]));

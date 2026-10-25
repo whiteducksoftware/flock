@@ -107,4 +107,16 @@ describe('OverviewTab', () => {
     expect(within(deliveries).getByText('Failed').nextSibling!.textContent).toBe('1');
     expect(deliveries.textContent).toContain('HTTP 503: down');
   });
+
+  it('keeps the questions of a decider in one column when unfolded', () => {
+    const questions = ['Action', 'Board', 'Hidden', 'Time', 'Goal', 'Theme'].map((name) => ({
+      name,
+      kind: 'choice' as const,
+      options: ['a', 'b'],
+      counts: { a: 1, b: 0 },
+    }));
+    render(<OverviewTab runs={[]} states={null} decider={{ ...decider, questions }} />);
+    expect(screen.queryByTestId('decider-columns')).not.toBeInTheDocument();
+    expect(screen.getByText('Theme')).toBeInTheDocument();
+  });
 });

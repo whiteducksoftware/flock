@@ -660,6 +660,26 @@
   border-top: 1px solid var(--line);
 }
 
+/* More than three questions: columns of at most three, side by side (AgentNode widens the card) */
+.questionColumns {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  column-gap: 20px;
+}
+
+.questionColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.questionColumn + .questionColumn {
+  padding-left: 20px;
+  border-left: 1px solid var(--line);
+}
+
 .questionName {
   min-width: 0;
   overflow: hidden;
