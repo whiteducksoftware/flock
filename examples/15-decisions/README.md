@@ -474,11 +474,11 @@ Theme                       33/44            21/29     34/34  21/29
 Same game: ideas with the same answer to every mechanic question
 move · grid · no · turns · pattern    Mutual Erasure (work), Fault Lines (abstract), Sole Exchange (history)   new costume
 move · grid · no · rewind · reach     Unstep (science), Echo Chamber (abstract)                                new costume
-transform · grid · no · turns · reach Room to Spare (abstract) ×3
+transform · grid · no · turns · reach Room to Spare (everyday), Room to Spare (abstract) ×2          new costume
 ...
-43 distinct mechanics among 52 ideas on which at least two models agreed on every question
+44 distinct mechanics among 54 ideas on which at least two models agreed on every mechanic question
 ```
 
-The models agree most on how time works and least on hidden information and the theme, the two questions whose answer depends most on reading. An unsure answer is common: a pitch often fits two options, such as placing probes to work out a hidden map (`place` or `deduce`). The six ideas called *Echo Cartographer* are six different pitches with the same title, and they do not all land in one group: some play on a grid and some in open space.
+The models agree most on how time works and least on hidden information and the theme, the two questions whose answer depends most on reading. An unsure answer is common: a pitch often fits two options, such as placing probes to work out a hidden map (`place` or `deduce`). The six ideas called *Echo Cartographer* are six different pitches with the same title, and they do not all land in one group: some play on a grid and some in open space. The theme is the loosest answer: the models put one of three *Room to Spare* pitches in everyday life and two in abstract shapes, so that group counts as a new costume. An idea whose theme has no majority stays in its group, shown with `?`.
 
 Data: `data/game_ideas.json`, 60 puzzle game ideas (title and pitch) that two LLMs proposed in an ideation experiment, some of them more than once.

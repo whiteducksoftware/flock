@@ -282,13 +282,14 @@ def report(results, models: list[str], ideas: list[GameIdea]) -> None:
     if pairs:
         console.print(agreement)
 
-    games: dict[tuple, list[tuple[GameIdea, str]]] = {}
+    # Grouped by the mechanic alone; a theme the models do not agree on shows as "?"
+    games: dict[tuple, list[tuple[GameIdea, str | None]]] = {}
     for idea in ideas:
         mechanic = tuple(
             majority(results, agents, idea.idea_id, q.__name__) for q in MECHANIC
         )
         theme = majority(results, agents, idea.idea_id, Theme.__name__)
-        if all(mechanic) and theme:
+        if all(mechanic):
             games.setdefault(mechanic, []).append((idea, theme))
     same = Table(
         title="Same game: ideas with the same answer to every mechanic question"
@@ -300,14 +301,14 @@ def report(results, models: list[str], ideas: list[GameIdea]) -> None:
         if len(members) > 1:
             same.add_row(
                 " · ".join(mechanic),
-                "\n".join(f"{idea.title} ({theme})" for idea, theme in members),
-                "✓" if len({theme for _, theme in members}) > 1 else "",
+                "\n".join(f"{idea.title} ({theme or '?'})" for idea, theme in members),
+                "✓" if len({theme for _, theme in members if theme}) > 1 else "",
             )
     console.print(same)
     basis = (
-        "on which at least two models agreed on every question"
+        "on which at least two models agreed on every mechanic question"
         if len(agents) > 1
-        else f"with an answer to every question from {label[agents[0]]} alone"
+        else f"with an answer to every mechanic question from {label[agents[0]]} alone"
         if agents
         else "(no model answered)"
     )
