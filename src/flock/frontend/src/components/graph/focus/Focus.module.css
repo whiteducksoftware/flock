@@ -298,6 +298,24 @@ button.entry:focus-visible {
   align-items: start;
 }
 
+/* A decider's last decisions in place of the stream: small ones side by side, a checklist across */
+.decisions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.decisionGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.decisionGrid > [data-kind='checklist'] {
+  grid-column: 1 / -1;
+}
+
 .empty {
   padding: 24px 0;
   color: var(--text-3);

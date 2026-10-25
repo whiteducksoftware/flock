@@ -121,6 +121,49 @@ export const MessageCard: React.FC<{
   );
 };
 
+/** The newest answer to each of the decider's questions, in the order of its questions. */
+export function latestDecisions(messages: Message[], questions: DeciderQuestion[]): { message: Message; decision: DecisionInfo }[] {
+  const newest = new Map<string, Message>();
+  for (const message of messages) {
+    const question = (message.payload as { question?: unknown } | null)?.question;
+    if (message.direction === 'published' && typeof question === 'string' && !newest.has(question)) newest.set(question, message);
+  }
+  return questions.flatMap((question) => {
+    const message = newest.get(question.name);
+    const decision = message ? decisionOf(message, questions) : null;
+    return message && decision ? [{ message, decision }] : [];
+  });
+}
+
+/** A decider streams nothing: its last answers take the stream's place, a checklist across the whole width. */
+export const FocusDecisions: React.FC<{ running: boolean; messages: Message[] | null; questions: DeciderQuestion[] }> = ({
+  running,
+  messages,
+  questions,
+}) => {
+  if (messages === null) return <div className={styles.empty}>Loading decisions…</div>;
+  const latest = latestDecisions(messages, questions);
+  return (
+    <div className={styles.decisions}>
+      <div className={styles.cardHead}>
+        <span className={styles.label}>Last decisions</span>
+        {running && <span className={`${styles.quiet} ${styles.end}`}>deciding</span>}
+      </div>
+      {latest.length === 0 ? (
+        <div className={styles.empty}>No decisions yet</div>
+      ) : (
+        <div className={styles.decisionGrid}>
+          {latest.map(({ message, decision }) => (
+            <div key={message.id} className={styles.card} data-kind={decision.kind}>
+              <DecisionBars decision={decision} scroll={false} />
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 interface FocusLiveProps {
   agent: string;
   running: boolean;
@@ -131,7 +174,10 @@ interface FocusLiveProps {
   onRuns: () => void;
 }
 
-/** The stream on the left; on the right what the agent works on, its output so far and earlier runs. */
+/**
+ * The stream on the left; on the right what the agent works on, its output so far and earlier runs.
+ * A decider shows its last decisions on the left, which are its output.
+ */
 const FocusLive: React.FC<FocusLiveProps> = ({ agent, running, messages, runs, tokens, onRuns }) => {
   // While it runs, the running run's inputs; the history has them only once the run has published
   const run = useRunInput(agent);
@@ -145,11 +191,19 @@ const FocusLive: React.FC<FocusLiveProps> = ({ agent, running, messages, runs, t
   const output = messages?.find((message) => message.direction === 'published');
   const earlier = (runs ?? []).filter((run) => run.status !== 'active').slice(0, 3);
 
+  const decides = (questions?.length ?? 0) > 0;
+
   return (
     <div className={styles.live}>
-      <section aria-label="Live output">
-        <LiveTab agent={agent} running={running} />
-      </section>
+      {decides ? (
+        <section aria-label="Decisions">
+          <FocusDecisions running={running} messages={messages} questions={questions!} />
+        </section>
+      ) : (
+        <section aria-label="Live output">
+          <LiveTab agent={agent} running={running} />
+        </section>
+      )}
       <aside className={styles.aside}>
         {inputs.length === 0 ? (
           <MessageCard
@@ -163,7 +217,7 @@ const FocusLive: React.FC<FocusLiveProps> = ({ agent, running, messages, runs, t
           ))
         )}
         {running && run.more > 0 && <span className={styles.faint}>and {run.more} more consumed</span>}
-        {running ? (
+        {decides ? null : running ? (
           // This run's output only; an earlier run's is not this one's
           <div className={styles.card}>
             <div className={styles.cardHead}>
