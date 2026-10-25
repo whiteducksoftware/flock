@@ -179,8 +179,14 @@ async def ready_models() -> list[str]:
     return ready
 
 
-def build_flock(models: list[str]) -> Flock:
-    flock = Flock(decision_rate_limit="100/min", no_output=True)
+def build_flock(models: list[str], ideas: int) -> Flock:
+    # The circuit breaker stops an agent after max_agent_iterations runs (1000 by default);
+    # every decider runs once per idea, so a larger GAME_IDEAS file needs a higher limit.
+    flock = Flock(
+        decision_rate_limit="100/min",
+        no_output=True,
+        max_agent_iterations=max(1000, ideas),
+    )
     for model in models:
         (
             flock.agent(agent_name(model))
@@ -252,6 +258,11 @@ def report(results, models: list[str], ideas: list[GameIdea]) -> None:
             f"{unsure / max(1, len(decisions)):.0%}",
         )
     console.print(per_model)
+    for agent in agents:
+        if len(results[agent]) < len(ideas):
+            console.print(
+                f"[yellow]{label[agent]} answered {len(results[agent])} of {len(ideas)} ideas[/yellow]"
+            )
 
     if len(agents) < 2:
         console.print(
@@ -346,7 +357,7 @@ def write_facets(results, models: list[str], ideas: list[GameIdea]) -> None:
 async def main_cli() -> None:
     ideas = load_ideas()
     models = await ready_models()
-    flock = build_flock(models)
+    flock = build_flock(models, len(ideas))
     console.print(
         f"\n🧩 {len(ideas)} game ideas, {len(QUESTIONS)} questions, "
         f"models: {', '.join(models)} (threshold {THRESHOLD})\n"
@@ -361,11 +372,12 @@ async def main_cli() -> None:
 
 
 async def main_dashboard() -> None:
-    flock = build_flock(await ready_models())
+    ideas = load_ideas()
+    flock = build_flock(await ready_models(), len(ideas))
 
     async def feed():
         await asyncio.sleep(5)
-        for idea in load_ideas():
+        for idea in ideas:
             await flock.publish(idea, correlation_id=idea.idea_id)
             await asyncio.sleep(2)
 
