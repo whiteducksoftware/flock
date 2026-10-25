@@ -15,7 +15,7 @@ import { clockTime, shortId } from '../graph/unfold/format';
 import type { ImageSummary } from '../../utils/imageFields';
 import { outcomeText, receiptOf } from '../sinks/deliveries';
 import ArtifactBody from './ArtifactBody';
-import type { LaneCard } from './lanes';
+import { awaitsReview, cardIds, type LaneCard } from './lanes';
 import { useArtifact } from './useArtifact';
 import styles from './Blackboard.module.css';
 
@@ -216,6 +216,128 @@ const Unfolded: React.FC<{ card: LaneCard }> = ({ card }) => {
   );
 };
 
+const decisionOf = (card: LaneCard) => (card.data as { decision?: DecisionInfo }).decision;
+/** `Action` for a decision of type `Decision[app.Action]` */
+const questionOf = (card: LaneCard) => labelOf(card.type).replace(/^◆\s*/, '');
+
+/**
+ * One question of a bundle in one line that never wraps: the question, the answer (unsure: the best guess,
+ * quiet, with a hatched bar; the header counts the unsure ones), its bar and probability. A checklist or a
+ * refusal keeps its own line.
+ */
+const BundleRow: React.FC<{ card: LaneCard }> = ({ card }) => {
+  const decision = decisionOf(card);
+  const question = questionOf(card);
+  if (!decision || decision.kind === 'checklist' || decision.refused) {
+    return (
+      <div className={styles.bundleRow} data-testid="bundle-row">
+        <span className={`mono ${styles.clip}`} title={question}>
+          {question}
+        </span>
+        {decision && <DecisionLine decision={decision} />}
+      </div>
+    );
+  }
+  const unsure = decision.choice === 'UNSURE';
+  const shown = unsure ? decision.bestGuess : decision.choice;
+  const probability = shown ? (decision.probabilities[shown] ?? null) : null;
+  const text = probability === null ? '' : probability.toFixed(2);
+  return (
+    <div
+      className={`${styles.bundleRow} ${styles.bundleAnswer}`}
+      data-testid="bundle-row"
+      data-unsure={unsure || undefined}
+      title={unsure ? `${question}: UNSURE, best guess ${shown ?? '—'} ${text}` : `${question}: ${shown} ${text}`}
+    >
+      <span className={`mono ${styles.clip}`}>{question}</span>
+      <span className={`mono ${styles.clip} ${unsure ? styles.faint : styles.sure}`}>{shown ?? 'UNSURE'}</span>
+      <span className={styles.track}>
+        <span
+          className={`${styles.fill} ${unsure ? `hatch ${styles.fillUnsure}` : ''}`}
+          style={{ width: `${Math.round((probability ?? 0) * 100)}%` }}
+        />
+      </span>
+      <span className="mono num">{text}</span>
+    </div>
+  );
+};
+
+/**
+ * A decider's decisions about one artifact as one card (#668): a row per question with the answer, its
+ * probability and the unsure state; unfolded, a row opens everything its decision's card would show (bars,
+ * review, model, consumers, payload), and the decisions that wait for a review are open.
+ */
+const BundleFace: React.FC<{ card: LaneCard }> = ({ card }) => {
+  const decisions = card.decisions ?? [];
+  const unfolded = useUIStore((state) => state.unfoldedArtifactId !== null && cardIds(card).includes(state.unfoldedArtifactId));
+  const unsure = decisions.filter((decision) => decisionOf(decision)?.choice === 'UNSURE').length;
+  // Unfolded, a decision opens on a click; one that waits for a review is open unless closed, also when a
+  // later snapshot brings it, and so is the one a person had unfolded
+  const [toggled, setToggled] = React.useState<ReadonlyMap<string, boolean>>(new Map());
+  // The decision a person unfolded before the bundle formed stays open in it
+  const selected = useUIStore((state) => state.unfoldedArtifactId);
+  const isOpen = (decision: LaneCard) =>
+    toggled.get(decision.id) ?? (awaitsReview(decisionOf(decision)) || decision.id === selected);
+  const label = `◆ ${card.producedBy} · ${decisions.length} questions${unsure ? ` · ${unsure} unsure` : ''}`;
+  const classes = [styles.card, styles.bundle, unfolded && styles.unfolded, unsure > 0 && styles.unsureCard].filter(Boolean).join(' ');
+  const head = (
+    <div className={styles.cardHead}>
+      <span className={`mono ${styles.clip}`}>◆ {card.producedBy}</span>
+      <span className={`${styles.by} ${styles.clip}`}>
+        {decisions.length} questions{unsure > 0 && ` · ${unsure} unsure`}
+      </span>
+    </div>
+  );
+  if (unfolded) {
+    return (
+      <article className={classes} aria-label={label}>
+        <div className={styles.unfoldedHead}>
+          {head}
+          <button type="button" className="btn icon ghost sm" aria-label="Fold" onClick={() => useUIStore.getState().foldArtifact()}>
+            <Icon name="fold" size={14} />
+          </button>
+        </div>
+        {decisions.map((decision) => (
+          <section key={decision.id} className={styles.bundleDecision} aria-label={labelOf(decision.type)}>
+            <button
+              type="button"
+              className={styles.bundleToggle}
+              aria-expanded={isOpen(decision)}
+              onClick={() => setToggled((current) => new Map(current).set(decision.id, !isOpen(decision)))}
+            >
+              <BundleRow card={decision} />
+            </button>
+            {/* Everything an unfolded card shows: the bars and review, model, consumers, visibility, run, ID, payload */}
+            {isOpen(decision) && <Unfolded card={decision} />}
+          </section>
+        ))}
+      </article>
+    );
+  }
+  return (
+    <div
+      className={classes}
+      role="button"
+      tabIndex={0}
+      aria-expanded={false}
+      aria-label={label}
+      onClick={() => useUIStore.getState().unfoldArtifact(card.id)}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget || (event.key !== 'Enter' && event.key !== ' ')) return;
+        event.preventDefault();
+        useUIStore.getState().unfoldArtifact(card.id);
+      }}
+    >
+      {head}
+      <div className={styles.bundleRows}>
+        {decisions.map((decision) => (
+          <BundleRow key={decision.id} card={decision} />
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const CardFace: React.FC<{ card: LaneCard }> = ({ card }) => {
   const unfolded = useUIStore((state) => state.unfoldedArtifactId === card.id);
   const decision = (card.data as { decision?: DecisionInfo }).decision;
@@ -297,7 +419,7 @@ const CardFace: React.FC<{ card: LaneCard }> = ({ card }) => {
  */
 const ArtifactCard: React.FC<{ card: LaneCard }> = ({ card }) => (
   <div className={styles.cardSlot} data-glide={card.id}>
-    <CardFace card={card} />
+    {card.decisions ? <BundleFace card={card} /> : <CardFace card={card} />}
   </div>
 );
 

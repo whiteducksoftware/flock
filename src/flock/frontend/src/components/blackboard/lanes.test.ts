@@ -362,3 +362,76 @@ describe('lane status', () => {
     expect(status.text).toBe('done in 300 ms · 3 artifacts · 1 delivery failed');
   });
 });
+
+describe('decision bundles (#668)', () => {
+  const idea = (id: string, ts: number) => artifact(id, 'c-9', 'app.GameIdea', 'external', ts, { payload: { title: `Idea ${id}` } });
+  const facet = (id: string, question: string, agent: string, ts: number, choice = 'move', extra: Record<string, unknown> = {}) =>
+    artifact(id, 'c-9', `Decision[app.${question}]`, agent, ts, decision(choice, 0.8, { question, ...extra }));
+
+  it("shows the decisions one decider made about one artifact as one card, other deciders' apart", () => {
+    const nodes = [
+      idea('i1', 1000),
+      facet('a1', 'Action', 'facets_a', 1100),
+      facet('a2', 'Board', 'facets_a', 1101, 'UNSURE', { bestGuess: 'grid' }),
+      facet('b1', 'Action', 'facets_b', 1102),
+      facet('b2', 'Board', 'facets_b', 1103),
+      facet('u1', 'Urgent', 'urgency', 1104, 'no'),
+    ];
+    const edges = ['a1', 'a2', 'b1', 'b2', 'u1'].map((id) => made('i1', id, 'x'));
+    const [only] = lanesOf(nodes, edges, []);
+    expect(only!.columns[1]!.cards.map((card) => [card.id, card.decisions?.map((each) => each.id)])).toEqual([
+      ['bundle:a1', ['a1', 'a2']],
+      ['bundle:b1', ['b1', 'b2']],
+      ['u1', undefined],
+    ]);
+    // The lane still counts and reviews every decision
+    expect(only).toMatchObject({ count: 6, needsReview: true });
+  });
+
+  it('keeps the decisions about different artifacts in different bundles', () => {
+    const nodes = [idea('i1', 1000), idea('i2', 1001), ...['1', '2', '3', '4'].map((n, k) => facet(`a${n}`, k % 2 ? 'Board' : 'Action', 'facets_a', 1100 + k))];
+    const edges = [made('i1', 'a1', 'x'), made('i1', 'a2', 'x'), made('i2', 'a3', 'x'), made('i2', 'a4', 'x')];
+    const [only] = lanesOf(nodes, edges, []);
+    expect(only!.columns[1]!.cards.map((card) => card.decisions?.map((each) => each.id))).toEqual([
+      ['a1', 'a2'],
+      ['a3', 'a4'],
+    ]);
+  });
+
+  it('dashes the arrow after a column of unsure answers also when they are bundled', () => {
+    const nodes = [
+      idea('i1', 1000),
+      facet('a1', 'Action', 'facets_a', 1100, 'UNSURE'),
+      facet('a2', 'Board', 'facets_a', 1101, 'UNSURE'),
+      artifact('r1', 'c-9', 'app.Reply', 'supervisor', 1200),
+    ];
+    const edges = [made('i1', 'a1', 'x'), made('i1', 'a2', 'x'), made('a1', 'r1', 'supervisor'), made('a2', 'r1', 'supervisor')];
+    const [only] = lanesOf(nodes, edges, []);
+    expect(only!.columns.map((column) => column.unsureIn)).toEqual([false, false, true]);
+  });
+
+  it('groups by the subject a decision names, also when a filter hides the subject and its edges', () => {
+    const about = (id: string, question: string, ts: number, subjects?: string[]) =>
+      artifact(id, 'c-9', `Decision[app.${question}]`, 'facets_a', ts, {
+        ...decision('move', 0.8, { question }),
+        payload: subjects ? { subject_ids: subjects } : {},
+      });
+    // The ideas are filtered out, so are their edges; the decisions still name their subjects
+    const nodes = [
+      about('a1', 'Action', 1100, ['i1']),
+      about('a2', 'Board', 1101, ['i1']),
+      about('a3', 'Action', 1102, ['i2']),
+      about('a4', 'Board', 1103, ['i2']),
+      about('a5', 'Action', 1104),
+      about('a6', 'Board', 1105),
+    ];
+    const [only] = lanesOf(nodes, [], []);
+    // A decision about an unknown subject keeps its own card
+    expect(only!.columns.flatMap((column) => column.cards).map((card) => card.decisions?.map((each) => each.id) ?? card.id)).toEqual([
+      ['a1', 'a2'],
+      ['a3', 'a4'],
+      'a5',
+      'a6',
+    ]);
+  });
+});

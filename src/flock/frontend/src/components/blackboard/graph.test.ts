@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Edge, Node } from '@xyflow/react';
-import { graphOf, newEdgeTargets, packRuns, placeFresh, placementOf } from './graph';
+import { graphOf, grownBundles, newEdgeTargets, packRuns, placeFresh, placementOf } from './graph';
 
 const artifact = (id: string, data: Record<string, unknown> = {}): Node => ({
   id,
@@ -61,6 +61,71 @@ describe('graphOf', () => {
     );
 
     expect(edges.map((each) => Boolean(each.style?.strokeDasharray))).toEqual([true, false]);
+  });
+
+  it("makes one card of a decider's decisions about one artifact, its arrows to and from that card (#668)", () => {
+    const { nodes, edges } = graphOf(
+      [
+        artifact('i-1'),
+        artifact('d-1', { artifactType: 'Decision[app.Action]', producedBy: 'facets', decision: { choice: 'move' } }),
+        artifact('d-2', { artifactType: 'Decision[app.Board]', producedBy: 'facets', decision: { choice: 'UNSURE' } }),
+        artifact('r-1'),
+      ],
+      [edge('i-1', 'd-1'), edge('i-1', 'd-2'), edge('d-2', 'r-1')],
+      false,
+    );
+
+    expect(nodes.map((node) => [node.id, node.data.card.decisions?.map((each) => each.id)])).toEqual([
+      ['i-1', undefined],
+      ['bundle:d-1', ['d-1', 'd-2']],
+      ['r-1', undefined],
+    ]);
+    // One arrow into the bundle; the arrow after its unsure answer stays dashed
+    expect(edges.map((each) => [each.source, each.target, Boolean(each.style?.strokeDasharray)])).toEqual([
+      ['i-1', 'bundle:d-1', false],
+      ['bundle:d-1', 'r-1', true],
+    ]);
+  });
+
+  it('dashes a merged arrow when one of the answers behind it is unsure, whatever the order of the edges', () => {
+    const nodes = [
+      artifact('i-1'),
+      artifact('d-1', { artifactType: 'Decision[app.Action]', producedBy: 'facets', decision: { choice: 'move' } }),
+      artifact('d-2', { artifactType: 'Decision[app.Board]', producedBy: 'facets', decision: { choice: 'UNSURE' } }),
+      artifact('r-1'),
+    ];
+    const into = [edge('i-1', 'd-1'), edge('i-1', 'd-2')];
+    for (const out of [
+      [edge('d-1', 'r-1'), edge('d-2', 'r-1')],
+      [edge('d-2', 'r-1'), edge('d-1', 'r-1')],
+    ]) {
+      const { edges } = graphOf(nodes, [...into, ...out], false);
+      const after = edges.filter((each) => each.target === 'r-1');
+      expect(after).toHaveLength(1);
+      expect(after[0]!.style?.strokeDasharray).toBe('5 4');
+    }
+  });
+
+  it('keeps two executions of one decider on one artifact apart (#668)', () => {
+    const decision = (id: string, question: string) =>
+      artifact(id, {
+        artifactType: `Decision[app.${question}]`,
+        producedBy: 'facets',
+        decision: { choice: 'move' },
+        payload: { subject_ids: ['i-1'] },
+      });
+    const ran = (source: string, target: string, runId: string): Edge => ({ ...edge(source, target), data: { runId } });
+    const { nodes } = graphOf(
+      [artifact('i-1'), decision('d-1', 'Action'), decision('d-2', 'Board'), decision('d-3', 'Action'), decision('d-4', 'Board')],
+      [ran('i-1', 'd-1', 'run-1'), ran('i-1', 'd-2', 'run-1'), ran('i-1', 'd-3', 'run-2'), ran('i-1', 'd-4', 'run-2')],
+      false,
+    );
+
+    expect(nodes.map((node) => [node.id, node.data.card.decisions?.map((each) => each.id)])).toEqual([
+      ['i-1', undefined],
+      ['bundle:d-1', ['d-1', 'd-2']],
+      ['bundle:d-3', ['d-3', 'd-4']],
+    ]);
   });
 
   it('narrows to the runs that need a review', () => {
@@ -282,6 +347,23 @@ describe('placementOf', () => {
     expect(placementOf({ autoArrange: false, firstLoad: true, fresh })).toBe('all');
     expect(placementOf({ autoArrange: false, firstLoad: false, fresh })).toBe(fresh);
     expect(placementOf({ autoArrange: true, firstLoad: false, fresh })).toBe('all');
+  });
+});
+
+describe('grownBundles', () => {
+  it('names the bundles that gained decisions since the last snapshot (#668)', () => {
+    const decision = (id: string, question: string) =>
+      artifact(id, { artifactType: `Decision[app.${question}]`, producedBy: 'facets', decision: { choice: 'move' } });
+    const into = (target: string) => edge('i-1', target);
+    const before = graphOf([artifact('i-1'), decision('d-1', 'Action'), decision('d-2', 'Board')], [into('d-1'), into('d-2')], false);
+    const after = graphOf(
+      [artifact('i-1'), decision('d-1', 'Action'), decision('d-2', 'Board'), decision('d-3', 'Time')],
+      [into('d-1'), into('d-2'), into('d-3')],
+      false,
+    );
+
+    expect(grownBundles(before.nodes, after.nodes)).toEqual(new Set(['bundle:d-1']));
+    expect(grownBundles(after.nodes, after.nodes).size).toBe(0);
   });
 });
 

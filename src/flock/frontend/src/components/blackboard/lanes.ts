@@ -34,6 +34,8 @@ export interface LaneCard {
   data: Record<string, unknown>;
   /** Pending: its agent works on it and has shown nothing yet */
   state: 'done' | 'streaming' | 'pending';
+  /** A bundle: the decisions one decider made about one artifact, shown as one card (#668) */
+  decisions?: LaneCard[];
 }
 
 export interface LaneColumn {
@@ -97,6 +99,70 @@ export const awaitsReview = (decision: DecisionInfo | undefined): boolean =>
 
 const isUnsure = (decision: DecisionInfo | undefined) => decision?.choice === 'UNSURE';
 
+/** The ID of the bundle a decision belongs to, from its first decision. */
+export const bundleId = (first: string) => `bundle:${first}`;
+
+/** The run (execution) that made an artifact, as the edges into it name it. */
+export function executionsOf(edges: Edge[]): (id: string) => string | undefined {
+  const runs = new Map<string, string>();
+  for (const edge of edges) {
+    const run = (edge.data as { runId?: string | null } | undefined)?.runId;
+    if (run) runs.set(edge.target, run);
+  }
+  return (id) => runs.get(id);
+}
+
+/** The card's own ID and, for a bundle, the IDs of its decisions: what unfolding any of them opens. */
+export const cardIds = (card: LaneCard): string[] => [card.id, ...(card.decisions ?? []).map((decision) => decision.id)];
+
+/**
+ * The decisions one decider made about one artifact become one card (#668): published by the same agent
+ * in the same execution about the same subject, in the order they came. The subject is the decision's
+ * `subject_ids`, which a filter cannot hide, else the inputs its edges show; the execution is the run its
+ * edges name (`executionOf`), so an agent that runs twice on one ticket shows two cards. A decision about
+ * an unknown subject keeps its own card, as do a decider with a single question and anything that is not
+ * a published decision.
+ */
+export function bundleDecisions(
+  cards: LaneCard[],
+  inputsOf: (id: string) => string[],
+  executionOf: (id: string) => string | undefined = () => undefined,
+): LaneCard[] {
+  const keyOf = (card: LaneCard): string | null => {
+    const data = card.data as { decision?: DecisionInfo; payload?: { subject_ids?: string[] }; runId?: string | null };
+    if (card.state !== 'done' || !data.decision) return null;
+    const subjects = data.payload?.subject_ids?.length ? data.payload.subject_ids : inputsOf(card.id);
+    const execution = data.runId ?? executionOf(card.id) ?? '';
+    return subjects.length > 0 ? `${card.producedBy}|${execution}|${[...subjects].sort().join(',')}` : null;
+  };
+  const groups = new Map<string, LaneCard[]>();
+  for (const card of cards) {
+    const key = keyOf(card);
+    if (key !== null) groups.set(key, [...(groups.get(key) ?? []), card]);
+  }
+  const shown: LaneCard[] = [];
+  const bundled = new Set<string>();
+  for (const card of cards) {
+    const key = keyOf(card);
+    const group = key === null ? undefined : groups.get(key);
+    if (!group || group.length < 2) {
+      shown.push(card);
+    } else if (!bundled.has(key!)) {
+      bundled.add(key!);
+      shown.push({
+        id: bundleId(group[0]!.id),
+        type: null,
+        producedBy: card.producedBy,
+        timestamp: Math.min(...group.map((decision) => decision.timestamp)),
+        data: { correlationId: (group[0]!.data as { correlationId?: string | null }).correlationId ?? null },
+        state: 'done',
+        decisions: group,
+      });
+    }
+  }
+  return shown;
+}
+
 /** Column depth of every artifact: one after the deepest artifact it came from. */
 function depthsOf(nodes: Node[], edges: Edge[]): Map<string, number> {
   const inputs = new Map<string, string[]>();
@@ -153,6 +219,7 @@ export function lanesOf(nodes: Node[], edges: Edge[], running: RunningRun[]): La
   const artifacts = nodes.filter((node) => node.type === 'message');
   const byId = new Map(artifacts.map((node) => [node.id, node]));
   const depths = depthsOf(artifacts, edges);
+  const execution = executionsOf(edges);
   const inputs = new Map<string, string[]>();
   for (const edge of edges) inputs.set(edge.target, [...(inputs.get(edge.target) ?? []), edge.source]);
 
@@ -293,10 +360,15 @@ export function lanesOf(nodes: Node[], edges: Edge[], running: RunningRun[]): La
           const from = inputs.get(card.id) ?? [];
           return from.length > 0 && from.every((source) => isUnsure(byId.get(source) && dataOf(byId.get(source)!).decision));
         });
-      return { cards, unsureIn, activeIn: level > 0 && cards.some((card) => card.state !== 'done') };
+      return {
+        cards: bundleDecisions(cards, (card) => inputs.get(card) ?? [], execution),
+        unsureIn,
+        activeIn: level > 0 && cards.some((card) => card.state !== 'done'),
+      };
     });
 
-    const cards = columns.flatMap((column) => column.cards);
+    // Every artifact, a bundle's decisions one by one: what the status counts
+    const cards = columns.flatMap((column) => column.cards).flatMap((card) => card.decisions ?? [card]);
     const unsure = recorded.filter((node) => awaitsReview(dataOf(node).decision));
     const answeredBy = [
       ...new Set(
