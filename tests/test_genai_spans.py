@@ -15,7 +15,12 @@ from pydantic import BaseModel
 
 from flock.core import Flock
 from flock.logging import genai_spans
-from flock.logging.genai_spans import GenAISpans, provider_name
+from flock.logging.genai_spans import (
+    GenAISpans,
+    input_messages,
+    output_messages,
+    provider_name,
+)
 from flock.logging.trace_and_logged import _trace_filter_config
 from flock.registry import flock_type
 
@@ -118,8 +123,107 @@ def test_message_content_only_on_request(spans, monkeypatch):
 
     without, with_content = spans.get_finished_spans()
     assert "gen_ai.input.messages" not in without.attributes
-    assert json.loads(with_content.attributes["gen_ai.input.messages"]) == MESSAGES
-    assert json.loads(with_content.attributes["gen_ai.output.messages"]) == ["hello"]
+    assert json.loads(with_content.attributes["gen_ai.input.messages"]) == [
+        {"role": "user", "parts": [{"type": "text", "content": "Say hello"}]}
+    ]
+    assert json.loads(with_content.attributes["gen_ai.output.messages"]) == [
+        {
+            "role": "assistant",
+            "parts": [{"type": "text", "content": "hello"}],
+            "finish_reason": "stop",
+        }
+    ]
+
+
+def test_messages_follow_the_conventions_schema():
+    messages = [
+        {"role": "system", "content": "Be brief."},
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "What is on it?"},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "https://example.com/a.png"},
+                },
+            ],
+        },
+        {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {
+                    "id": "call-1",
+                    "function": {"name": "lookup", "arguments": '{"q": "a"}'},
+                }
+            ],
+        },
+        {"role": "tool", "tool_call_id": "call-1", "content": "a cat"},
+    ]
+
+    assert input_messages(messages) == [
+        {"role": "system", "parts": [{"type": "text", "content": "Be brief."}]},
+        {
+            "role": "user",
+            "parts": [
+                {"type": "text", "content": "What is on it?"},
+                {
+                    "type": "uri",
+                    "modality": "image",
+                    "uri": "https://example.com/a.png",
+                },
+            ],
+        },
+        {
+            "role": "assistant",
+            "parts": [
+                {
+                    "type": "tool_call",
+                    "id": "call-1",
+                    "name": "lookup",
+                    "arguments": '{"q": "a"}',
+                }
+            ],
+        },
+        {
+            "role": "tool",
+            "parts": [
+                {"type": "tool_call_response", "id": "call-1", "response": "a cat"}
+            ],
+        },
+    ]
+    assert input_messages(None, "Say hi") == [
+        {"role": "user", "parts": [{"type": "text", "content": "Say hi"}]}
+    ]
+    outputs = [{"text": "Done.", "reasoning_content": "Short."}]
+    assert output_messages(outputs) == [
+        {
+            "role": "assistant",
+            "parts": [
+                {"type": "reasoning", "content": "Short."},
+                {"type": "text", "content": "Done."},
+            ],
+        }
+    ]
+
+
+def test_responses_api_usage_is_read_too(spans):
+    lm = type(
+        "ResponsesLM", (), {"model": "openai/gpt-x", "kwargs": {}, "history": []}
+    )()
+    outputs = [{"text": "hi"}]
+    callback = GenAISpans("writer")
+
+    callback.on_lm_start("call-1", lm, {"messages": MESSAGES})
+    lm.history.append({
+        "outputs": outputs,
+        "usage": {"input_tokens": 9, "output_tokens": 4},
+    })
+    callback.on_lm_end("call-1", outputs)
+
+    (span,) = spans.get_finished_spans()
+    assert span.attributes["gen_ai.usage.input_tokens"] == 9
+    assert span.attributes["gen_ai.usage.output_tokens"] == 4
 
 
 def test_message_content_is_capped(spans, monkeypatch, trace_filter):

@@ -73,6 +73,95 @@ def _json(value: Any) -> str:
     return capped(json.dumps(value, default=str, ensure_ascii=False))
 
 
+def _field(value: Any, name: str) -> Any:
+    """A field of a dict or an object (LiteLLM's tool calls come as either)."""
+    if isinstance(value, dict):
+        return value.get(name)
+    return getattr(value, name, None)
+
+
+def _part(part: Any) -> dict[str, Any]:
+    """One piece of message content as a part of the conventions' message schema."""
+    if not isinstance(part, dict):
+        return {"type": "text", "content": "" if part is None else str(part)}
+    kind = part.get("type")
+    if kind in {"text", "input_text", "output_text"}:
+        return {"type": "text", "content": part.get("text", "")}
+    if kind in {"image_url", "input_image"}:
+        url = part.get("image_url")
+        return {"type": "uri", "modality": "image", "uri": _field(url, "url") or url}
+    return {"type": kind or "unknown", **{k: v for k, v in part.items() if k != "type"}}
+
+
+def _parts(content: Any) -> list[dict[str, Any]]:
+    if content is None:
+        return []
+    return (
+        [_part(p) for p in content] if isinstance(content, list) else [_part(content)]
+    )
+
+
+def _tool_call(call: Any) -> dict[str, Any]:
+    function = _field(call, "function")
+    return {
+        "type": "tool_call",
+        "id": _field(call, "id"),
+        "name": _field(function, "name"),
+        "arguments": _field(function, "arguments"),
+    }
+
+
+def input_messages(messages: Any, prompt: Any = None) -> list[dict[str, Any]]:
+    """A request as the conventions' input messages: a role and parts each."""
+    if not messages:
+        return [{"role": "user", "parts": _parts(prompt)}]
+    result = []
+    for message in messages:
+        role = message.get("role", "user")
+        if role == "tool":
+            parts = [
+                {
+                    "type": "tool_call_response",
+                    "id": message.get("tool_call_id"),
+                    "response": message.get("content"),
+                }
+            ]
+        else:
+            parts = _parts(message.get("content")) + [
+                _tool_call(call) for call in message.get("tool_calls") or []
+            ]
+        result.append({"role": role, "parts": parts})
+    return result
+
+
+def output_messages(outputs: Any, response: Any = None) -> list[dict[str, Any]]:
+    """DSPy's outputs as the conventions' output messages; ``finish_reason`` when
+    the response names one for that choice."""
+    reasons = [
+        getattr(choice, "finish_reason", None)
+        for choice in getattr(response, "choices", None) or []
+    ]
+    result = []
+    for index, output in enumerate(outputs or []):
+        if isinstance(output, dict):
+            parts = []
+            if output.get("reasoning_content"):
+                parts.append({
+                    "type": "reasoning",
+                    "content": output["reasoning_content"],
+                })
+            if output.get("text") is not None:
+                parts.append({"type": "text", "content": output["text"]})
+            parts += [_tool_call(call) for call in output.get("tool_calls") or []]
+        else:
+            parts = _parts(output)
+        message: dict[str, Any] = {"role": "assistant", "parts": parts}
+        if index < len(reasons) and reasons[index]:
+            message["finish_reason"] = str(reasons[index])
+        result.append(message)
+    return result
+
+
 def _history_entry(lm: Any, outputs: Any) -> dict[str, Any] | None:
     """The LM history entry of this call: DSPy stores the outputs it returns in it."""
     for entry in reversed(getattr(lm, "history", None) or []):
@@ -113,9 +202,7 @@ class GenAISpans(BaseCallback):
                 attributes[attribute] = request[key]
         span = tracer.start_span(OPERATION, kind=SpanKind.CLIENT, attributes=attributes)
         if capture_content():
-            messages = inputs.get("messages") or [
-                {"role": "user", "content": inputs.get("prompt")}
-            ]
+            messages = input_messages(inputs.get("messages"), inputs.get("prompt"))
             span.set_attribute("gen_ai.input.messages", _json(messages))
         self._calls[call_id] = (span, instance)
 
@@ -136,7 +223,9 @@ class GenAISpans(BaseCallback):
             if entry is not None:
                 self._record_response(span, entry)
             if capture_content():
-                span.set_attribute("gen_ai.output.messages", _json(outputs))
+                response = entry.get("response") if entry is not None else None
+                messages = output_messages(outputs, response)
+                span.set_attribute("gen_ai.output.messages", _json(messages))
         finally:
             span.end()
 
@@ -145,12 +234,16 @@ class GenAISpans(BaseCallback):
         usage = entry.get("usage") or {}
         if entry.get("response_model"):
             span.set_attribute("gen_ai.response.model", str(entry["response_model"]))
-        for key, attribute in (
-            ("prompt_tokens", "gen_ai.usage.input_tokens"),
-            ("completion_tokens", "gen_ai.usage.output_tokens"),
+        # Chat Completions report prompt/completion tokens, the Responses API input/output
+        for keys, attribute in (
+            (("prompt_tokens", "input_tokens"), "gen_ai.usage.input_tokens"),
+            (("completion_tokens", "output_tokens"), "gen_ai.usage.output_tokens"),
         ):
-            if isinstance(usage.get(key), int):
-                span.set_attribute(attribute, usage[key])
+            value = next(
+                (usage[k] for k in keys if isinstance(usage.get(k), int)), None
+            )
+            if value is not None:
+                span.set_attribute(attribute, value)
         response = entry.get("response")
         response_id = getattr(response, "id", None)
         if response_id:

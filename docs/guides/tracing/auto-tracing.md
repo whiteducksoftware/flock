@@ -338,7 +338,8 @@ model and tokens; Flock's own totals per run stay on `Agent.execute` as `flock.u
 
 Message content stays off the spans unless you ask for it, as the conventions recommend:
 `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true` adds `gen_ai.input.messages` and
-`gen_ai.output.messages`, each within `FLOCK_TRACE_MAX_ATTRIBUTE_BYTES`. To leave the spans out,
+`gen_ai.output.messages` in the conventions' message schema (a role and typed parts, with each
+output's finish reason), each within `FLOCK_TRACE_MAX_ATTRIBUTE_BYTES`. To leave the spans out,
 add `LM.chat` to `FLOCK_TRACE_IGNORE`; with `FLOCK_TRACE_SERVICES`, add `lm` to keep them.
 
 ## Console Output
