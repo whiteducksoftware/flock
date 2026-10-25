@@ -291,6 +291,7 @@ Every traced method automatically captures:
 | `agent.name` | Agent identifier (if applicable) | `movie`, `tagline` |
 | `agent.description` | Agent description | `Generate movie ideas` |
 | `correlation_id` | Request correlation ID | `12d0fcda-e7f7-4c96-ae8e-14ae4eca1518` |
+| `session.id`, `gen_ai.conversation.id` | The run's correlation ID again, under the names observability tools group by: Langfuse sessions read `session.id`, Opik threads `gen_ai.conversation.id` | `12d0fcda-e7f7-4c96-ae8e-14ae4eca1518` |
 | `task_id` | Task identifier | `task_abc123` |
 | `input.<parameter>` | Each argument as JSON, within `FLOCK_TRACE_MAX_ATTRIBUTE_BYTES` | `{"artifact": "app.Reply", "id": "...", "produced_by": "support", "payload": {...}}` |
 | `output.value` | The return value as JSON, within `FLOCK_TRACE_MAX_ATTRIBUTE_BYTES` | `[{"artifact": "app.Reply", ...}]` |
@@ -341,6 +342,8 @@ Message content stays off the spans unless you ask for it, as the conventions re
 `gen_ai.output.messages` in the conventions' message schema (a role and typed parts, with each
 output's finish reason), each within `FLOCK_TRACE_MAX_ATTRIBUTE_BYTES`. To leave the spans out,
 add `LM.chat` to `FLOCK_TRACE_IGNORE`; with `FLOCK_TRACE_SERVICES`, add `lm` to keep them.
+
+Model-call spans carry their agent run's `correlation_id`, `session.id` and `gen_ai.conversation.id` too, so a session or thread in those tools adds up the run's tokens. `Flock.publish` takes the run from the artifact it publishes, since it creates the correlation itself. `Flock.run_until_idle` covers every run at once and carries none.
 
 ## Console Output
 

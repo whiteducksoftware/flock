@@ -489,7 +489,9 @@ class DSPyEngine(EngineComponent):
             lm=lm,
             adapter=adapter_to_use,
             track_usage=True,
-            callbacks=self._lm_callbacks(dspy_mod, agent.name),
+            callbacks=self._lm_callbacks(
+                dspy_mod, agent.name, getattr(ctx, "correlation_id", None)
+            ),
         ):
             program = self._choose_program(dspy_mod, signature, combined_tools)
 
@@ -743,7 +745,9 @@ class DSPyEngine(EngineComponent):
             return data
 
     @staticmethod
-    def _lm_callbacks(dspy_mod, agent_name: str) -> list[Any]:
+    def _lm_callbacks(
+        dspy_mod, agent_name: str, correlation_id: Any = None
+    ) -> list[Any]:
         """DSPy's callbacks, plus a GenAI span per LM call while auto-tracing is on (#680)."""
         from flock.logging import auto_trace
 
@@ -757,7 +761,7 @@ class DSPyEngine(EngineComponent):
         # engine's context: drop the outer agent's span callback, keep the user's
         callbacks = [c for c in inherited if not isinstance(c, GenAISpans)]
         if auto_trace.ENABLE_AUTO_TRACE:
-            callbacks.append(GenAISpans(agent_name))
+            callbacks.append(GenAISpans(agent_name, correlation_id))
         return callbacks
 
     def _choose_program(self, dspy_mod, signature, tools: Iterable[Any]):
