@@ -363,6 +363,41 @@ ScaleCounts.displayName = 'ScaleCounts';
 
 /** Checklist: outcomes, a strip with every item's answers across artifacts,
  * and the items answered "no" most often. */
+/** At most this many cells in a checklist's item strip (about 4 px each in a 272 px column). */
+export const MAX_STRIP_CELLS = 68;
+
+interface StripCell {
+  label: string;
+  title: string;
+  yes: number;
+  no: number;
+  unsure: number;
+}
+
+/**
+ * The cells of a checklist's item strip: one per item, or with more items than MAX_STRIP_CELLS
+ * consecutive items sharing a cell, with their answers summed and the range in the tooltip.
+ */
+export function stripCells(question: Pick<DeciderQuestion, 'options' | 'itemStats' | 'descriptions'>): StripCell[] {
+  const stats = question.itemStats ?? [];
+  const items = question.options.map((item, index) => {
+    const [yes = 0, no = 0, unsure = 0] = stats[index] ?? [];
+    return { item, yes, no, unsure };
+  });
+  if (items.length <= MAX_STRIP_CELLS) {
+    return items.map(({ item, yes, no, unsure }) => {
+      const description = question.descriptions?.[item];
+      return { label: item, yes, no, unsure, title: `${item}: ${yes} yes · ${no} no · ${unsure} unsure${description ? ` — ${description}` : ''}` };
+    });
+  }
+  return splitEven(items, MAX_STRIP_CELLS).map((bin) => {
+    const sum = (key: 'yes' | 'no' | 'unsure') => bin.reduce((total, entry) => total + entry[key], 0);
+    const label = `${bin[0]!.item}–${bin[bin.length - 1]!.item}`;
+    const [yes, no, unsure] = [sum('yes'), sum('no'), sum('unsure')];
+    return { label, yes, no, unsure, title: `${label} (${bin.length} items): ${yes} yes · ${no} no · ${unsure} unsure` };
+  });
+}
+
 const ChecklistCounts = memo(({ question }: { question: DeciderQuestion }) => {
   const outcomes: [string, string | undefined, string | undefined][] = [
     ['passed', styles.shareSure, styles.sureInk],
@@ -398,19 +433,12 @@ const ChecklistCounts = memo(({ question }: { question: DeciderQuestion }) => {
         ))}
       </div>
       <div className={styles.strip} title="Answers per item across all decisions: yes (blue), unsure (hatched), no (empty)">
-        {question.options.map((item, index) => {
-          const [yes = 0, no = 0, unsure = 0] = stats[index] ?? [];
-          const n = Math.max(1, yes + no + unsure);
-          const description = question.descriptions?.[item];
+        {stripCells(question).map((cell) => {
+          const n = Math.max(1, cell.yes + cell.no + cell.unsure);
           return (
-            <span
-              key={item}
-              data-testid="checklist-item-stat"
-              title={`${item}: ${yes} yes · ${no} no · ${unsure} unsure${description ? ` — ${description}` : ''}`}
-              className={styles.stripItem}
-            >
-              <span className={styles.shareSure} style={{ height: `${(yes / n) * 100}%` }} />
-              <span className="hatch" style={{ height: `${(unsure / n) * 100}%` }} />
+            <span key={cell.label} data-testid="checklist-item-stat" title={cell.title} className={styles.stripItem}>
+              <span className={styles.shareSure} style={{ height: `${(cell.yes / n) * 100}%` }} />
+              <span className="hatch" style={{ height: `${(cell.unsure / n) * 100}%` }} />
             </span>
           );
         })}
@@ -445,17 +473,95 @@ export const QUESTIONS_PER_COLUMN = 3;
  * even as possible: 4 → 2 + 2, 5 → 3 + 2, 6 → 3 + 3, 7 → 3 + 2 + 2. Up to three questions stay one column.
  */
 export function questionColumns<T>(questions: T[]): T[][] {
-  const count = Math.max(1, Math.ceil(questions.length / QUESTIONS_PER_COLUMN));
-  const base = Math.floor(questions.length / count);
-  const extra = questions.length % count;
+  return splitEven(questions, Math.ceil(questions.length / QUESTIONS_PER_COLUMN));
+}
+
+/** `count` columns of the items in order, the first ones one longer where they do not divide evenly. */
+function splitEven<T>(items: T[], count: number): T[][] {
+  count = Math.max(1, count);
+  const base = Math.floor(items.length / count);
+  const extra = items.length % count;
   const columns: T[][] = [];
   let start = 0;
   for (let index = 0; index < count; index += 1) {
     const size = base + (index < extra ? 1 : 0);
-    columns.push(questions.slice(start, start + size));
+    columns.push(items.slice(start, start + size));
     start += size;
   }
   return columns;
+}
+
+/** Up to this many questions a decider's card shows every option; more become one compact row each. */
+export const MAX_DETAILED_QUESTIONS = 6;
+/** Compact rows per column; more questions go into a second column. */
+export const COMPACT_ROWS_PER_COLUMN = 12;
+
+/**
+ * How a decider's card lays out its questions: one to three as a list, four to six in columns of at most
+ * three, seven or more as compact rows (in columns of at most twelve).
+ */
+export function deciderLayout<T>(questions: T[]): { compact: boolean; columns: T[][] } {
+  if (questions.length > MAX_DETAILED_QUESTIONS) {
+    return { compact: true, columns: splitEven(questions, Math.ceil(questions.length / COMPACT_ROWS_PER_COLUMN)) };
+  }
+  return { compact: false, columns: questionColumns(questions) };
+}
+
+/** Strength of a decided answer's segment by its rank, the most frequent first. */
+const RANK_SHADE = [1, 0.78, 0.6, 0.47, 0.37, 0.3];
+
+/**
+ * One question in one row (deciders with many questions): a stacked bar of the answers by frequency,
+ * the unsure share hatched at the end, then the most frequent answer and its count. The tooltip has
+ * the whole distribution.
+ */
+function CompactQuestion({ question }: { question: DeciderQuestion }) {
+  const unsure = question.counts[UNSURE] ?? 0;
+  const answers: [string, number, string | undefined][] =
+    question.kind === 'checklist'
+      ? [
+          ['passed', question.counts.passed ?? 0, styles.shareSure],
+          ['failed', question.counts.failed ?? 0, styles.shareFailed],
+        ]
+      : question.kind === 'yesno'
+        ? [
+            ['yes', question.counts.yes ?? 0, styles.shareSure],
+            ['no', question.counts.no ?? 0, styles.shareNo],
+          ]
+        : question.options.map((option): [string, number, string | undefined] => [option, question.counts[option] ?? 0, styles.shareSure]);
+  const decided = answers.filter(([, count]) => count > 0).sort((a, b) => b[1] - a[1]);
+  const total = decided.reduce((sum, [, count]) => sum + count, 0) + unsure;
+  const top = decided[0];
+  const distribution = [...decided.map(([option, count]) => `${option} ${count}`), ...(unsure ? [`${UNSURE} ${unsure}`] : [])];
+  const ranked = question.kind === 'choice' || question.kind === 'scale';
+  return (
+    <div
+      className={styles.compactRow}
+      data-testid="compact-question"
+      title={[question.instructions, distribution.join(' · ') || 'no decisions yet'].filter(Boolean).join('\n')}
+    >
+      <span className={cx('mono', styles.questionName)}>
+        <span className={styles.diamond}>◆</span> {question.name}
+      </span>
+      <span className={cx(styles.split, styles.compactBar)}>
+        {decided.map(([option, count, className], index) => (
+          <span
+            key={option}
+            data-option={option}
+            className={className}
+            style={{
+              width: `${(count / total) * 100}%`,
+              opacity: ranked ? RANK_SHADE[Math.min(index, RANK_SHADE.length - 1)] : undefined,
+            }}
+          />
+        ))}
+        {unsure > 0 && <span data-option={UNSURE} className="hatch" style={{ width: `${(unsure / total) * 100}%` }} />}
+      </span>
+      <span className={cx('mono', styles.compactTop, !top && unsure > 0 && styles.quiet)}>
+        {top ? `${top[0]} ${top[1]}` : unsure > 0 ? `${UNSURE} ${unsure}` : '—'}
+      </span>
+    </div>
+  );
 }
 
 function DeciderQuestionCounts({ question, titled }: { question: DeciderQuestion; titled: boolean }) {
@@ -484,18 +590,29 @@ function DeciderQuestionCounts({ question, titled }: { question: DeciderQuestion
 }
 
 /**
- * Questions of a decision agent with how often each answer was given. `columns` lays more than three
- * questions out side by side (the card on the board); without it they stay in one column (unfolded).
+ * Questions of a decision agent with how often each answer was given. `columns` applies the card's layout
+ * (deciderLayout: columns from four questions, compact rows from seven); without it every question shows
+ * all its options in one column (unfolded).
  */
 export const DeciderOptions = memo(({ decider, columns = false }: { decider: DeciderInfo; columns?: boolean }) => {
   const titled = decider.questions.length > 1;
   const shadow = decider.shadow;
-  const split = columns ? questionColumns(decider.questions) : [decider.questions];
+  const layout = columns ? deciderLayout(decider.questions) : { compact: false, columns: [decider.questions] };
   return (
     <div className={styles.decider}>
-      {split.length > 1 ? (
+      {layout.compact ? (
+        <div className={styles.questionColumns} data-testid="decider-compact">
+          {layout.columns.map((column, index) => (
+            <div key={index} className={cx(styles.questionColumn, styles.compactColumn)}>
+              {column.map((question) => (
+                <CompactQuestion key={question.name} question={question} />
+              ))}
+            </div>
+          ))}
+        </div>
+      ) : layout.columns.length > 1 ? (
         <div className={styles.questionColumns} data-testid="decider-columns">
-          {split.map((column, index) => (
+          {layout.columns.map((column, index) => (
             <div key={index} className={styles.questionColumn}>
               {column.map((question) => (
                 <DeciderQuestionCounts key={question.name} question={question} titled={titled} />
@@ -993,6 +1110,9 @@ const TournamentRounds = memo(
 TournamentRounds.displayName = 'TournamentRounds';
 
 /** Checklist: one cell per item, in item order, and a legend with counts. */
+/** Above this many items a checklist's grid of cells scrolls inside a fixed height. */
+export const MAX_GRID_ITEMS = 200;
+
 const ChecklistGrid = memo(({ decision }: { decision: DecisionInfo }) => {
   const results = decision.results ?? {};
   const items = decision.items ?? Object.keys(results);
@@ -1000,7 +1120,12 @@ const ChecklistGrid = memo(({ decision }: { decision: DecisionInfo }) => {
   const count = (result: string) => items.filter((item) => !refused.has(item) && (results[item] ?? UNSURE) === result).length;
   return (
     <>
-      <div role="group" aria-label={`${decision.question} items`} className={styles.cells}>
+      <div
+        role="group"
+        aria-label={`${decision.question} items`}
+        // A large catalog scrolls inside the card (nowheel: the canvas does not zoom while it scrolls)
+        className={cx(styles.cells, items.length > MAX_GRID_ITEMS && `${styles.cellsScroll} nowheel`)}
+      >
         {items.map((item) => {
           const result = results[item] ?? UNSURE;
           const p = decision.probabilities[item];

@@ -1,6 +1,7 @@
 import React from 'react';
 import { useGraphStore } from '../../../store/graphStore';
 import ImageThumbnails from '../../common/ImageThumbnails';
+import { DecisionBars, type DecisionInfo } from '../DecisionDisplay';
 import type { AgentRun } from '../unfold/agentRuns';
 import { count, duration, shortId } from '../unfold/format';
 import { TypeLabel } from '../unfold/HistoryTab';
@@ -9,47 +10,106 @@ import type { Message } from '../unfold/messageHistory';
 import styles from './Focus.module.css';
 import { useRunInput } from './runInput';
 
+/** Entries of a list or map shown before `… N more`. */
+const PREVIEW_ENTRIES = 8;
+
+/** A field's value as text; a long list or map stops after a few entries (a checklist has hundreds). */
+export function preview(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value) && value.length > PREVIEW_ENTRIES) {
+    return `${JSON.stringify(value.slice(0, PREVIEW_ENTRIES)).slice(0, -1)}, … ${value.length - PREVIEW_ENTRIES} more]`;
+  }
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const entries = Object.entries(value);
+    if (entries.length > PREVIEW_ENTRIES) {
+      return `${JSON.stringify(Object.fromEntries(entries.slice(0, PREVIEW_ENTRIES))).slice(0, -1)}, … ${entries.length - PREVIEW_ENTRIES} more}`;
+    }
+  }
+  return JSON.stringify(value);
+}
+
 /** The first fields of a payload, as text. */
 const fieldsOf = (payload: unknown, limit = 6): [string, string][] =>
   payload && typeof payload === 'object'
     ? Object.entries(payload as Record<string, unknown>)
         .slice(0, limit)
-        .map(([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)])
+        .map(([key, value]) => [key, preview(value)])
     : [];
 
-const MessageCard: React.FC<{ title: string; message: Message | undefined; status?: React.ReactNode; empty?: string }> = ({
-  title,
-  message,
-  status,
-  empty = 'None yet',
-}) => (
-  <div className={styles.card}>
-    <div className={styles.cardHead}>
-      <span className={styles.label}>{title}</span>
-      {message && (
-        <span className="mono">
-          <TypeLabel type={message.type} />
-        </span>
-      )}
-      {status ?? (message && <span className={`mono ${styles.faint} ${styles.end}`}>{shortId(message.correlationId, 4)}</span>)}
-    </div>
-    {message ? (
-      <>
-        <div className={styles.kv}>
-          {fieldsOf(message.payload).map(([key, value]) => (
-            <React.Fragment key={key}>
-              <span className="mono">{key}</span>
-              <span>{value}</span>
-            </React.Fragment>
+const DECISION = /^(?:.*\.)?Decision\[(.+)\]$/;
+
+/** A decision artifact's payload as the dashboard's decision view (`decision_view` in flock/decisions/graph.py). */
+export function decisionOf(message: Message): DecisionInfo | null {
+  if (!DECISION.test(message.type) || !message.payload || typeof message.payload !== 'object') return null;
+  const p = message.payload as Record<string, unknown>;
+  const kind = (p.kind as DecisionInfo['kind']) ?? 'choice';
+  const results = (p.results as Record<string, string> | undefined) ?? {};
+  return {
+    question: String(p.question ?? ''),
+    kind,
+    choice: String(p.choice ?? ''),
+    bestGuess: (p.best_guess as string | null | undefined) ?? null,
+    probabilities: (p.probabilities as Record<string, number> | undefined) ?? {},
+    confidence: (p.confidence as number | null | undefined) ?? null,
+    threshold: (p.threshold as number | null | undefined) ?? null,
+    model: String(p.model ?? ''),
+    latencyMs: (p.latency_ms as number | null | undefined) ?? null,
+    score: (p.score as number | null | undefined) ?? null,
+    refused: Boolean(p.refused),
+    ...(kind === 'checklist'
+      ? {
+          items: Object.keys(results),
+          results,
+          refusedItems: (p.refused_items as string[] | undefined) ?? [],
+        }
+      : {}),
+  };
+}
+
+export const MessageCard: React.FC<{
+  title: string;
+  message: Message | undefined;
+  status?: React.ReactNode;
+  empty?: string;
+}> = ({ title, message, status, empty = 'None yet' }) => {
+  const decision = message ? decisionOf(message) : null;
+  return (
+    <div className={styles.card}>
+      <div className={styles.cardHead}>
+        <span className={styles.label}>{title}</span>
+        {message && (
+          <span className="mono">
+            <TypeLabel type={message.type} />
+          </span>
+        )}
+        {status ??
+          (message && (
+            <span className={`mono ${styles.faint} ${styles.end}`}>{shortId(message.correlationId, 4)}</span>
           ))}
-        </div>
-        {message.images && message.images.length > 0 && <ImageThumbnails artifactId={message.id} images={message.images} />}
-      </>
-    ) : (
-      <span className={styles.faint}>{empty}</span>
-    )}
-  </div>
-);
+      </div>
+      {decision ? (
+        // A decision reads as on the Blackboard, not as its payload (a checklist's are hundreds of probabilities)
+        <DecisionBars decision={decision} header={false} />
+      ) : message ? (
+        <>
+          <div className={styles.kv}>
+            {fieldsOf(message.payload).map(([key, value]) => (
+              <React.Fragment key={key}>
+                <span className="mono">{key}</span>
+                <span>{value}</span>
+              </React.Fragment>
+            ))}
+          </div>
+          {message.images && message.images.length > 0 && (
+            <ImageThumbnails artifactId={message.id} images={message.images} />
+          )}
+        </>
+      ) : (
+        <span className={styles.faint}>{empty}</span>
+      )}
+    </div>
+  );
+};
 
 interface FocusLiveProps {
   agent: string;
