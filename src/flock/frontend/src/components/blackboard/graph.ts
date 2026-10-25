@@ -8,7 +8,7 @@ import { type Edge, MarkerType, type Node, type XYPosition } from '@xyflow/react
 import { applyHierarchicalLayout } from '../../services/layout';
 import type { AutoLayoutMode } from '../../store/uiStore';
 import type { DecisionInfo } from '../graph/DecisionDisplay';
-import { type LaneCard, type RunningRun, awaitsReview } from './lanes';
+import { type LaneCard, type RunningRun, awaitsReview, bundleDecisions } from './lanes';
 
 export type ArtifactNodeData = { card: LaneCard };
 export type ArtifactNode = Node<ArtifactNodeData, 'artifact'>;
@@ -65,18 +65,42 @@ export function graphOf(
     };
   });
 
+  // A decider's decisions about one artifact are one card, as in the lanes (#668); its arrows go to and from that card
+  const inputs = new Map<string, string[]>();
+  for (const edge of edges) inputs.set(edge.target, [...(inputs.get(edge.target) ?? []), edge.source]);
+  const runs = new Map<string, ArtifactNode[]>();
+  for (const node of cards) runs.set(runOf(node), [...(runs.get(runOf(node)) ?? []), node]);
+  const bundleOf = new Map<string, string>();
+  const shown: ArtifactNode[] = [];
+  for (const members of runs.values()) {
+    const byCard = new Map(members.map((node) => [node.id, node]));
+    for (const card of bundleDecisions(
+      members.map((node) => node.data.card),
+      (id) => inputs.get(id) ?? [],
+    )) {
+      if (!card.decisions) {
+        shown.push(byCard.get(card.id)!);
+        continue;
+      }
+      for (const decision of card.decisions) bundleOf.set(decision.id, card.id);
+      shown.push({ id: card.id, type: 'artifact', position: byCard.get(card.decisions[0]!.id)!.position, data: { card } });
+    }
+  }
+  const at = (id: string) => bundleOf.get(id) ?? id;
+
   const seen = new Set<string>();
   const arrows: Edge[] = [];
   for (const edge of edges) {
     const source = byId.get(edge.source);
-    if (!source || !byId.has(edge.target) || seen.has(edge.id)) continue;
-    seen.add(edge.id);
+    const [from, to] = [at(edge.source), at(edge.target)];
+    if (!source || !byId.has(edge.target) || seen.has(`${from}->${to}`) || from === to) continue;
+    seen.add(`${from}->${to}`);
     // As in the lanes: what follows an unsure answer has a dashed arrow
     const unsure = (source.data as ArtifactData).decision?.choice === 'UNSURE';
     arrows.push({
-      id: edge.id,
-      source: edge.source,
-      target: edge.target,
+      id: from === edge.source && to === edge.target ? edge.id : `${from}__${to}`,
+      source: from,
+      target: to,
       type: 'smoothstep',
       style: { stroke: 'var(--line-2)', strokeWidth: 1.5, ...(unsure && { strokeDasharray: '5 4' }) },
       markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--line-2)', width: 14, height: 14 },
@@ -86,7 +110,7 @@ export function graphOf(
     const data = node.data as ArtifactData;
     if (!data.isStreaming || !data.runId) continue;
     const run = running.find((each) => each.runId === data.runId);
-    for (const source of run?.artifacts.filter((id) => byId.has(id)) ?? []) {
+    for (const source of [...new Set(run?.artifacts.filter((id) => byId.has(id)).map(at) ?? [])]) {
       arrows.push({
         id: `${source}__${node.id}__flight`,
         source,
@@ -98,7 +122,7 @@ export function graphOf(
       });
     }
   }
-  return { nodes: cards, edges: arrows };
+  return { nodes: shown, edges: arrows };
 }
 
 type Size = { width: number; height: number };

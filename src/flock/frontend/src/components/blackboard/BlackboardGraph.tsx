@@ -32,6 +32,7 @@ import { registerCanvas } from '../graph/canvasCommands';
 import { useDockViewport } from '../graph/useDockViewport';
 import MiniMap from '../graph/MiniMap';
 import ArtifactCard from './ArtifactCard';
+import { cardIds } from './lanes';
 import { type ArtifactNode, graphOf, newEdgeTargets, packRuns, placeFresh, placementOf } from './graph';
 import styles from './Blackboard.module.css';
 
@@ -86,7 +87,7 @@ function layoutOf(
 
 /** An artifact card on the canvas; a drag does not unfold it. */
 const ArtifactGraphNode: React.FC<NodeProps<ArtifactNode>> = ({ data, sourcePosition, targetPosition }) => {
-  const unfolded = useUIStore((state) => state.unfoldedArtifactId === data.card.id);
+  const unfolded = useUIStore((state) => state.unfoldedArtifactId !== null && cardIds(data.card).includes(state.unfoldedArtifactId));
   const down = useRef<{ x: number; y: number } | null>(null);
   return (
     // An unfolded card scrolls and selects its text instead of moving the board

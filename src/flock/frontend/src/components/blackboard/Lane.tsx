@@ -6,6 +6,7 @@ import { clockTime, shortId } from '../graph/unfold/format';
 import { useUIStore } from '../../store/uiStore';
 import { Icon } from '../icons/Icon';
 import ArtifactCard from './ArtifactCard';
+import { cardIds } from './lanes';
 import type { Lane as LaneModel, LaneColumn } from './lanes';
 import styles from './Blackboard.module.css';
 
@@ -37,7 +38,9 @@ const Lane: React.FC<{ lane: LaneModel; entering?: boolean }> = ({ lane, enterin
   const [opening, setOpening] = useState(() => entering && !prefersLessMotion());
   // A lane with an unfolded card keeps its top, as the mockup does (#652)
   const unfolded = useUIStore(
-    (state) => state.unfoldedArtifactId !== null && lane.columns.some((column) => column.cards.some((card) => card.id === state.unfoldedArtifactId)),
+    (state) =>
+      state.unfoldedArtifactId !== null &&
+      lane.columns.some((column) => column.cards.some((card) => cardIds(card).includes(state.unfoldedArtifactId!))),
   );
   return (
     <div

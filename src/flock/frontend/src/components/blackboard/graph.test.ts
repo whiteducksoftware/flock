@@ -63,6 +63,30 @@ describe('graphOf', () => {
     expect(edges.map((each) => Boolean(each.style?.strokeDasharray))).toEqual([true, false]);
   });
 
+  it("makes one card of a decider's decisions about one artifact, its arrows to and from that card (#668)", () => {
+    const { nodes, edges } = graphOf(
+      [
+        artifact('i-1'),
+        artifact('d-1', { artifactType: 'Decision[app.Action]', producedBy: 'facets', decision: { choice: 'move' } }),
+        artifact('d-2', { artifactType: 'Decision[app.Board]', producedBy: 'facets', decision: { choice: 'UNSURE' } }),
+        artifact('r-1'),
+      ],
+      [edge('i-1', 'd-1'), edge('i-1', 'd-2'), edge('d-2', 'r-1')],
+      false,
+    );
+
+    expect(nodes.map((node) => [node.id, node.data.card.decisions?.map((each) => each.id)])).toEqual([
+      ['i-1', undefined],
+      ['bundle:d-1', ['d-1', 'd-2']],
+      ['r-1', undefined],
+    ]);
+    // One arrow into the bundle; the arrow after its unsure answer stays dashed
+    expect(edges.map((each) => [each.source, each.target, Boolean(each.style?.strokeDasharray)])).toEqual([
+      ['i-1', 'bundle:d-1', false],
+      ['bundle:d-1', 'r-1', true],
+    ]);
+  });
+
   it('narrows to the runs that need a review', () => {
     const { nodes, edges } = graphOf(
       [

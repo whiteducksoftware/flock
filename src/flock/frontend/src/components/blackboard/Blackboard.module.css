@@ -252,6 +252,53 @@
   border-style: dashed;
 }
 
+/* A decider's decisions about one artifact (#668): a row per question */
+.bundle:not(.unfolded) {
+  width: 300px;
+}
+
+.bundleRows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bundleRow {
+  display: grid;
+  grid-template-columns: minmax(0, 72px) minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+
+/* question · answer · bar · probability, on one line */
+.bundleAnswer {
+  grid-template-columns: minmax(0, 72px) minmax(0, 84px) minmax(24px, 1fr) 30px;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.bundleDecision {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+/* An unfolded bundle's row: a button that opens its decision */
+.bundleToggle {
+  all: unset;
+  display: block;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.bundleToggle:focus-visible {
+  outline: 2px solid var(--sure);
+  outline-offset: 2px;
+}
+
 /* A sink's failed delivery */
 .failedCard {
   border-color: var(--error);
