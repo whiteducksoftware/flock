@@ -41,11 +41,12 @@ const nodes = [
 ];
 const edges = [flow('external', 'triage', 'app.SupportTicket'), flow('triage', 'billing_team', 'Decision[app.Route]', 'billing')];
 
-const serve = () =>
+const serve = (more: Record<string, unknown> = {}) =>
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string) => {
       const routes: Record<string, unknown> = {
+        ...more,
         '/api/agents/billing_team/runs': {
           runs: [
             { run_id: '7c1e04aa', start_time: new Date(Date.now() - 2100).toISOString(), status: 'active', metrics: {} },
@@ -195,6 +196,50 @@ describe('FocusStage', () => {
     });
     render(<FocusStage onOpenTrace={() => {}} />);
     expect(await screen.findByText('Refund not received')).toBeTruthy();
+  });
+
+  it("shows a decider's last decisions where the stream would be, a large checklist at its full height (#669)", async () => {
+    const items = Array.from({ length: 300 }, (_, i) => `C${i}`);
+    const decided = (id: string, question: string, kind: string, choice: string, at: string, more: Record<string, unknown> = {}) => ({
+      id,
+      type: `flock.decisions.Decision[app.${question}]`,
+      direction: 'published',
+      payload: { question, kind, choice, best_guess: choice, probabilities: { [choice]: 0.9 }, model: 'fake/checklist', ...more },
+      timestamp: at,
+      correlation_id: 'doc1',
+    });
+    serve({
+      '/api/agents/audit/runs': { runs: [] },
+      '/api/artifacts/history/audit': {
+        messages: [
+          decided('d-3', 'Controls', 'checklist', 'failed', '2026-10-25T17:31:00Z', {
+            results: Object.fromEntries(items.map((item) => [item, 'no'])),
+          }),
+          decided('d-2', 'Risk', 'choice', 'high', '2026-10-25T17:31:00Z'),
+          // An earlier run's answer to the same question
+          decided('d-1', 'Controls', 'checklist', 'passed', '2026-10-25T17:20:00Z', { results: { C0: 'yes' } }),
+        ],
+      },
+    });
+    const questions = [
+      { name: 'Risk', kind: 'choice', options: ['low', 'high'], counts: {} },
+      { name: 'Controls', kind: 'checklist', options: items, counts: {} },
+    ];
+    useGraphStore.setState({ nodes: [...nodes, agent('audit', { decision: { model: 'fake/checklist', threshold: 0.8, questions } })] });
+    useUIStore.setState({ focusedNodeId: 'audit' });
+    render(<FocusStage onOpenTrace={() => {}} />);
+
+    const decisions = await screen.findByRole('region', { name: 'Decisions' });
+    // The newest answer to each question, in the order of the questions
+    await within(decisions).findByText('failed');
+    expect(decisions.textContent!.indexOf('Risk')).toBeLessThan(decisions.textContent!.indexOf('Controls'));
+    expect(within(decisions).queryByText('passed')).toBeNull();
+    // Its 300 items at their full height, without a scrolling box of their own
+    expect(within(decisions).getByRole('group', { name: 'Controls items' }).className).not.toContain('nowheel');
+    // No empty stream, and the output is not shown twice
+    expect(screen.queryByRole('region', { name: 'Live output' })).toBeNull();
+    expect(screen.queryByText('No output yet')).toBeNull();
+    expect(screen.queryByText('Output')).toBeNull();
   });
 
   it('says how long ago an idle agent\'s last run ended', async () => {

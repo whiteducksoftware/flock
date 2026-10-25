@@ -1113,7 +1113,7 @@ TournamentRounds.displayName = 'TournamentRounds';
 /** Above this many items a checklist's grid of cells scrolls inside a fixed height. */
 export const MAX_GRID_ITEMS = 200;
 
-const ChecklistGrid = memo(({ decision }: { decision: DecisionInfo }) => {
+const ChecklistGrid = memo(({ decision, scroll = true }: { decision: DecisionInfo; scroll?: boolean }) => {
   const results = decision.results ?? {};
   const items = decision.items ?? Object.keys(results);
   const refused = new Set(decision.refusedItems ?? []);
@@ -1124,7 +1124,7 @@ const ChecklistGrid = memo(({ decision }: { decision: DecisionInfo }) => {
         role="group"
         aria-label={`${decision.question} items`}
         // A large catalog scrolls inside the card (nowheel: the canvas does not zoom while it scrolls)
-        className={cx(styles.cells, items.length > MAX_GRID_ITEMS && `${styles.cellsScroll} nowheel`)}
+        className={cx(styles.cells, scroll && items.length > MAX_GRID_ITEMS && `${styles.cellsScroll} nowheel`)}
       >
         {items.map((item) => {
           const result = results[item] ?? UNSURE;
@@ -1341,9 +1341,20 @@ function ItemThresholds({ thresholds }: { thresholds: Record<string, number> }) 
 }
 
 /** One decision: header, answer, its drawing by question kind, model and
- * threshold, then escalation, votes, shadow, explanation and review. */
+ * threshold, then escalation, votes, shadow, explanation and review.
+ * `scroll={false}` gives a large checklist its full height (focus mode has room for it). */
 export const DecisionBars = memo(
-  ({ decision, artifactId, header = true }: { decision: DecisionInfo; artifactId?: string; header?: boolean }) => {
+  ({
+    decision,
+    artifactId,
+    header = true,
+    scroll = true,
+  }: {
+    decision: DecisionInfo;
+    artifactId?: string;
+    header?: boolean;
+    scroll?: boolean;
+  }) => {
   const [bracketOpen, setBracketOpen] = useState(false);
   const kind = decision.kind ?? 'choice';
   const rounds = decision.rounds ?? [];
@@ -1357,7 +1368,7 @@ export const DecisionBars = memo(
       {header && <Head question={decision.question} kind={KIND_LABEL[kind] ?? KIND_LABEL.choice} />}
       <Answer decision={decision} />
       {kind === 'checklist' ? (
-        <ChecklistGrid decision={decision} />
+        <ChecklistGrid decision={decision} scroll={scroll} />
       ) : decision.refused ? (
         <p className={styles.note}>The model declined to answer; the decision routes to UNSURE.</p>
       ) : kind === 'yesno' ? (
