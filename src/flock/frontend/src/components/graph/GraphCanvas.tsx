@@ -278,13 +278,13 @@ const GraphCanvas: React.FC = () => {
           });
           break;
         case 'circular':
-          result = applyCircularLayout(nodes, edges, { center: viewportCenter });
+          result = applyCircularLayout(nodes, edges, { center: viewportCenter, dimensionsByNodeId });
           break;
         case 'grid':
-          result = applyGridLayout(nodes, edges, { center: viewportCenter });
+          result = applyGridLayout(nodes, edges, { center: viewportCenter, dimensionsByNodeId });
           break;
         case 'random':
-          result = applyRandomLayout(nodes, edges, { center: viewportCenter });
+          result = applyRandomLayout(nodes, edges, { center: viewportCenter, dimensionsByNodeId });
           break;
         default:
           result = applyHierarchicalLayout(nodes, edges, {
