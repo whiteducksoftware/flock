@@ -101,6 +101,11 @@
   white-space: nowrap;
 }
 
+/* `+N more`: the ports a card leaves out (foldPorts) */
+.foldedType {
+  color: var(--text-3);
+}
+
 .times {
   color: var(--text-3);
 }
