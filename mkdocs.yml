@@ -235,6 +235,7 @@ nav:
       - Images: guides/images.md
       - Visibility Controls: guides/visibility.md
       - Webhook Notifications: guides/webhooks.md
+      - Sinks: guides/sinks.md
     - Advanced:
       - Workflow Control: guides/workflow-control.md
       - Context Providers: guides/context-providers.md

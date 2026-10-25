@@ -1,0 +1,26 @@
+.minimap {
+  width: 160px;
+  height: 104px;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.minimap :global(.react-flow__minimap-mask) {
+  fill: color-mix(in srgb, var(--bg) 62%, transparent);
+}
+
+.node {
+  fill: var(--text-3);
+  opacity: 0.55;
+}
+
+.running {
+  fill: var(--signal);
+}
+
+.failed {
+  fill: var(--error);
+}

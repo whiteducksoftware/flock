@@ -1,7 +1,8 @@
+import { shortTypeName } from '../../utils/typeName';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchArtifactSummary, fetchArtifacts, type ArtifactListItem, type ArtifactQueryOptions } from '../../services/api';
 import { useFilterStore } from '../../store/filterStore';
-import type { ModuleContext } from './ModuleRegistry';
+import { boundOf } from '../../types/filters';
 import JsonAttributeRenderer from './JsonAttributeRenderer';
 import ImageThumbnails from '../common/ImageThumbnails';
 import styles from './HistoricalArtifactsModule.module.css';
@@ -12,9 +13,6 @@ const MIN_VISIBLE_ITEMS = 8;
 
 type TimeRangeSelection = ReturnType<typeof useFilterStore.getState>['timeRange'];
 
-type HistoricalArtifactsModuleProps = {
-  context: ModuleContext;
-};
 
 // "The last N minutes" bounds the start only: artifacts stamped after the
 // browser's clock reading (another clock, a publish racing the request) still show
@@ -29,18 +27,19 @@ const resolveTimeRangeToIso = (range: TimeRangeSelection): { from?: string; to?:
   if (range.preset === 'last1hour') {
     return { from: new Date(now - 60 * 60 * 1000).toISOString() };
   }
-  if (range.preset === 'custom' && range.start && range.end) {
+  if (range.preset === 'custom') {
+    // Each bound on its own: a range brushed up to now has a start only
+    const start = boundOf(range.start);
+    const end = boundOf(range.end);
     return {
-      from: new Date(range.start).toISOString(),
-      to: new Date(range.end).toISOString(),
+      ...(start !== undefined && { from: new Date(start).toISOString() }),
+      ...(end !== undefined && { to: new Date(end).toISOString() }),
     };
   }
   return {};
 };
 
-const HistoricalArtifactsModule: React.FC<HistoricalArtifactsModuleProps> = ({ context }) => {
-  // Context reserved for future extensions (module lifecycle expects prop)
-  void context;
+const HistoricalArtifactsModule: React.FC = () => {
   const correlationId = useFilterStore((state) => state.correlationId);
   const timeRange = useFilterStore((state) => state.timeRange);
   const selectedArtifactTypes = useFilterStore((state) => state.selectedArtifactTypes);
@@ -52,8 +51,11 @@ const HistoricalArtifactsModule: React.FC<HistoricalArtifactsModuleProps> = ({ c
   const summary = useFilterStore((state) => state.summary);
 
   const [artifacts, setArtifacts] = useState<ArtifactListItem[]>([]);
-  const [nextOffset, setNextOffset] = useState(0);
   const [total, setTotal] = useState(0);
+  // The store keeps artifacts oldest first, so the newest page is its last. This is
+  // the offset of the oldest artifact loaded; new artifacts go to the end, so it holds.
+  const olderThan = useRef(0);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedArtifactId, setSelectedArtifactId] = useState<string | null>(null);
@@ -67,17 +69,20 @@ const HistoricalArtifactsModule: React.FC<HistoricalArtifactsModuleProps> = ({ c
     [artifacts, selectedArtifactId]
   );
 
-  const hasMore = total > nextOffset;
-
   useEffect(() => {
     if (selectedArtifactId && !artifacts.some((artifact) => artifact.id === selectedArtifactId)) {
       setSelectedArtifactId(null);
     }
   }, [artifacts, selectedArtifactId]);
 
+  // The time bounds of the first page: "the last 10 minutes" moves on, and
+  // older pages' offsets hold only for the bounds they were counted in
+  const bounds = useRef<{ from?: string; to?: string }>({});
+
   const buildQueryOptions = useCallback(
-    (offset: number): ArtifactQueryOptions => {
-      const range = resolveTimeRangeToIso(timeRange);
+    (offset: number, fresh = false): ArtifactQueryOptions => {
+      if (fresh) bounds.current = resolveTimeRangeToIso(timeRange);
+      const range = bounds.current;
       return {
         types: selectedArtifactTypes,
         producers: selectedProducers,
@@ -128,12 +133,28 @@ const HistoricalArtifactsModule: React.FC<HistoricalArtifactsModuleProps> = ({ c
     async (reset: boolean) => {
       setLoading(true);
       try {
-        const offset = reset ? 0 : nextOffset;
-        const queryOptions = buildQueryOptions(offset);
-        const response = await fetchArtifacts(queryOptions);
+        let offset = 0;
+        let queryOptions = buildQueryOptions(0, reset);
+        let response;
+        if (reset) {
+          // The first page says how many there are; the newest are the last ones
+          response = await fetchArtifacts(queryOptions);
+          if (response.pagination.total > PAGE_SIZE) {
+            offset = response.pagination.total - PAGE_SIZE;
+            queryOptions = buildQueryOptions(offset);
+            response = await fetchArtifacts(queryOptions);
+          }
+        } else {
+          offset = Math.max(0, olderThan.current - PAGE_SIZE);
+          queryOptions = { ...buildQueryOptions(offset), limit: olderThan.current - offset };
+          response = await fetchArtifacts(queryOptions);
+        }
 
-        setArtifacts((prev) => (reset ? response.items : [...prev, ...response.items]));
-        setNextOffset(offset + response.pagination.limit);
+        // Newest first
+        const page = [...response.items].reverse();
+        setArtifacts((prev) => (reset ? page : [...prev, ...page]));
+        olderThan.current = offset;
+        setHasMore(offset > 0);
         setTotal(response.pagination.total);
         setError(null);
 
@@ -157,7 +178,7 @@ const HistoricalArtifactsModule: React.FC<HistoricalArtifactsModuleProps> = ({ c
         setLoading(false);
       }
     },
-    [buildQueryOptions, mergeCorrelationMetadata, nextOffset, setSummary]
+    [buildQueryOptions, mergeCorrelationMetadata, setSummary]
   );
 
   useEffect(() => {
@@ -180,12 +201,12 @@ const HistoricalArtifactsModule: React.FC<HistoricalArtifactsModuleProps> = ({ c
     [artifacts]
   );
 
-  const handleLoadMore = () => {
+  const handleLoadMore = useCallback(() => {
     if (!loading && hasMore) {
       lastAutoLoadIndex.current = -1;
       loadArtifacts(false);
     }
-  };
+  }, [hasMore, loadArtifacts, loading]);
   const listHeight = useMemo(() => Math.max(MIN_VISIBLE_ITEMS, Math.min(rows.length || MIN_VISIBLE_ITEMS, 12)) * ITEM_HEIGHT, [rows.length]);
 
   useEffect(() => {
@@ -196,8 +217,11 @@ const HistoricalArtifactsModule: React.FC<HistoricalArtifactsModuleProps> = ({ c
 
     const handleScroll = () => {
       const totalItems = rows.length;
+      // The same range is the same state: a new object would render again, and run this again
+      const show = (start: number, end: number) =>
+        setVirtualRange((range) => (range.start === start && range.end === end ? range : { start, end }));
       if (totalItems === 0) {
-        setVirtualRange({ start: 0, end: MIN_VISIBLE_ITEMS });
+        show(0, MIN_VISIBLE_ITEMS);
         return;
       }
 
@@ -205,7 +229,7 @@ const HistoricalArtifactsModule: React.FC<HistoricalArtifactsModuleProps> = ({ c
       const viewportHeight = container.clientHeight;
       const startIndex = Math.max(0, Math.floor(scrollTop / ITEM_HEIGHT) - 5);
       const endIndex = Math.min(totalItems, Math.ceil((scrollTop + viewportHeight) / ITEM_HEIGHT) + 5);
-      setVirtualRange({ start: startIndex, end: endIndex });
+      show(startIndex, endIndex);
 
       if (hasMore && !loading && endIndex >= totalItems - 5 && lastAutoLoadIndex.current !== endIndex) {
         lastAutoLoadIndex.current = endIndex;
@@ -352,7 +376,7 @@ const HistoricalArtifactsModule: React.FC<HistoricalArtifactsModuleProps> = ({ c
                         }}
                       >
                         <span>{row.timestamp}</span>
-                        <span>{row.type}</span>
+                        <span title={row.type}>{shortTypeName(row.type)}</span>
                         <span>{row.producedBy}</span>
                         <span>{row.correlationId}</span>
                         <span>{row.tags}</span>

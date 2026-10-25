@@ -357,10 +357,9 @@ flock = Flock("openai/gpt-4.1", context_provider=provider)
 
 ```python
 from flock import get_logger, configure_logging
-import logging
 
-# Configure logging level
-configure_logging(level=logging.DEBUG)
+# Flock's logs show warnings by default (FLOCK_LOG_LEVEL); ask for more
+configure_logging(flock_level="DEBUG", external_level="WARNING")
 
 # Get a logger for your module
 logger = get_logger(__name__)

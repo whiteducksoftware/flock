@@ -1,33 +1,68 @@
 import { useEffect } from 'react';
+import { useGraphStore } from '../store/graphStore';
 import { useUIStore } from '../store/uiStore';
 import { useSettingsStore } from '../store/settingsStore';
 
 interface KeyboardShortcutConfig {
   onToggleMode?: () => void;
-  onFocusFilter?: () => void;
   onCloseWindows?: () => void;
   onToggleHelp?: () => void;
-  onToggleAgentDetails?: () => void;
 }
+
+/**
+ * The node Space, Enter and Ctrl+Shift+D act on: the focused agent, else the
+ * selected one, else the unfolded one; always an agent on the Flow's board
+ * (the Blackboard has none, and an agent unfolded there before may be gone).
+ */
+const unfoldTarget = (): string | null => {
+  if (useUIStore.getState().mode !== 'agent') return null;
+  const { nodes } = useGraphStore.getState();
+  const isAgent = (id: string | null | undefined) => nodes.some((node) => node.id === id && node.type === 'agent');
+  const focused = document.activeElement?.closest('.react-flow__node[data-id]')?.getAttribute('data-id');
+  if (isAgent(focused)) return focused!;
+  const selected = nodes.find((node) => node.selected && node.type === 'agent');
+  if (selected) return selected.id;
+  const unfolded = useUIStore.getState().unfoldedNodeId;
+  return isAgent(unfolded) ? unfolded : null;
+};
+
+/** Focus where Space means something else: typing, pressing a button, a tab, a dialog. */
+const SPACE_TAKEN =
+  'input, textarea, select, button, a[href], [contenteditable="true"], [role="button"], [role="tab"], [role="dialog"]';
 
 /**
  * Custom hook for managing global keyboard shortcuts
  *
  * Shortcuts:
- * - Ctrl+M (or Cmd+M): Toggle between Agent View and Blackboard View
- * - Ctrl+F (or Cmd+F): Focus the filter input
+ * - Ctrl+K (or Cmd+K): Open or close the palette (search and commands); Ctrl+F is the browser's find
+ * - Ctrl+M (or Cmd+M): Toggle between the Flow and Blackboard views
  * - Ctrl+, (or Cmd+,): Toggle Settings Panel
  * - Ctrl+Shift+F: Toggle Filters Panel
- * - Ctrl+Shift+P: Toggle Publish Panel
- * - Ctrl+Shift+D: Toggle Agent Details
+ * - Ctrl+Shift+P: Open or close the publish composer
+ * - Space, Ctrl+Shift+D: Unfold or fold the selected node
+ * - Enter: Put the focused node (else the selected one) in focus
  * - Ctrl+/ (or Cmd+/): Toggle Keyboard Shortcuts Help
- * - Esc: Close all panels and detail windows
+ * - Esc: Close a panel, else leave focus mode, else collapse the timeline dock, else fold the unfolded node, else close the artifact windows
  */
 export const useKeyboardShortcuts = (config: KeyboardShortcutConfig = {}) => {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       // Check for modifier key (Ctrl on Windows/Linux, Cmd on Mac)
       const modifier = event.ctrlKey || event.metaKey;
+
+      // Ctrl+K or Cmd+K: Open or close the palette (not over another modal dialog)
+      if (modifier && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'k') {
+        const { paletteOpen, openPalette, closePalette } = useUIStore.getState();
+        if (!paletteOpen && document.querySelector('[aria-modal="true"]')) return;
+        event.preventDefault();
+        if (paletteOpen) closePalette();
+        else openPalette();
+        return;
+      }
+
+      // A modal dialog has the keyboard: only Esc reaches the board's shortcuts
+      // (it closes the dialog), nothing behind the dialog opens or takes the focus
+      if (event.key !== 'Escape' && document.querySelector('[aria-modal="true"]')) return;
 
       // Ctrl+, or Cmd+,: Toggle Settings Panel
       if (modifier && event.key === ',') {
@@ -45,7 +80,7 @@ export const useKeyboardShortcuts = (config: KeyboardShortcutConfig = {}) => {
         return;
       }
 
-      // Ctrl+Shift+P: Toggle Publish/Controls Panel
+      // Ctrl+Shift+P: Open or close the publish composer
       if (modifier && event.shiftKey && event.key === 'P') {
         event.preventDefault();
         const showControls = useSettingsStore.getState().ui.showControls;
@@ -53,12 +88,32 @@ export const useKeyboardShortcuts = (config: KeyboardShortcutConfig = {}) => {
         return;
       }
 
-      // Ctrl+Shift+D: Toggle Agent Details
+      // Ctrl+Shift+D: Unfold or fold the selected node (not behind a node in focus)
       if (modifier && event.shiftKey && event.key === 'D') {
         event.preventDefault();
-        if (config.onToggleAgentDetails) {
-          config.onToggleAgentDetails();
-        }
+        if (useUIStore.getState().focusedNodeId) return;
+        const target = unfoldTarget();
+        if (target) useUIStore.getState().toggleUnfold(target);
+        return;
+      }
+
+      // Space: Unfold or fold the selected node, unless the focus has a use for it
+      if (event.key === ' ' && !modifier && !event.altKey) {
+        if (document.activeElement?.closest(SPACE_TAKEN) || useUIStore.getState().focusedNodeId) return;
+        const target = unfoldTarget();
+        if (!target) return;
+        event.preventDefault();
+        useUIStore.getState().toggleUnfold(target);
+        return;
+      }
+
+      // Enter: put the focused node (else the selected one) in focus, unless the focus has a use for it
+      if (event.key === 'Enter' && !modifier && !event.altKey && !event.shiftKey) {
+        if (document.activeElement?.closest(SPACE_TAKEN) || useUIStore.getState().focusedNodeId) return;
+        const target = unfoldTarget();
+        if (!target) return;
+        event.preventDefault();
+        useUIStore.getState().focus(target);
         return;
       }
 
@@ -84,38 +139,16 @@ export const useKeyboardShortcuts = (config: KeyboardShortcutConfig = {}) => {
         return;
       }
 
-      // Ctrl+F or Cmd+F: Focus filter (only if not in an input already)
-      if (modifier && event.key === 'f') {
-        const activeElement = document.activeElement;
-        const isInInput = activeElement?.tagName === 'INPUT' ||
-                         activeElement?.tagName === 'TEXTAREA';
-
-        if (!isInInput) {
-          event.preventDefault();
-          if (config.onFocusFilter) {
-            config.onFocusFilter();
-          } else {
-            // Default behavior: focus correlation ID filter
-            const filterInput = document.querySelector<HTMLInputElement>(
-              'input[placeholder*="correlation"], input[placeholder*="Correlation"]'
-            );
-            if (filterInput) {
-              filterInput.focus();
-              filterInput.select();
-            }
-          }
-        }
-        return;
-      }
-
-      // Esc: Close windows/dialogs/panels
+      // Esc: Close windows/dialogs/panels, unless a dialog already handled it
       if (event.key === 'Escape') {
+        if (event.defaultPrevented) return;
         if (config.onCloseWindows) {
           config.onCloseWindows();
         } else {
-          // Priority: Close panels first, then detail windows
+          // Priority: panels, then focus mode, the timeline dock, what the view unfolded
+          // (an agent on the Flow, an artifact card on the Blackboard)
           const { showSettings, showFilters, showControls } = useSettingsStore.getState().ui;
-          const detailWindows = useUIStore.getState().detailWindows;
+          const { mode, unfoldedNodeId, unfoldedArtifactId, focusedNodeId, dockOpen } = useUIStore.getState();
 
           if (showSettings) {
             event.preventDefault();
@@ -126,11 +159,18 @@ export const useKeyboardShortcuts = (config: KeyboardShortcutConfig = {}) => {
           } else if (showFilters) {
             event.preventDefault();
             useSettingsStore.getState().setShowFilters(false);
-          } else if (detailWindows.size > 0) {
+          } else if (focusedNodeId) {
             event.preventDefault();
-            // Close all detail windows
-            detailWindows.clear();
-            useUIStore.setState({ detailWindows: new Map() });
+            useUIStore.getState().unfocus();
+          } else if (dockOpen) {
+            event.preventDefault();
+            useUIStore.getState().closeDock();
+          } else if (mode === 'blackboard' && unfoldedArtifactId) {
+            event.preventDefault();
+            useUIStore.getState().foldArtifact();
+          } else if (mode === 'agent' && unfoldedNodeId) {
+            event.preventDefault();
+            useUIStore.getState().fold();
           }
         }
         return;

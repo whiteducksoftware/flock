@@ -1,0 +1,355 @@
+/* Focus mode: a node on a full stage over the dimmed board
+   (docs/internal/design-system/mockups/Focus.dc.html) */
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+}
+
+.scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--scrim);
+  backdrop-filter: blur(3px);
+}
+
+.stage {
+  position: absolute;
+  inset: 24px 32px;
+  max-width: 1376px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px 16px 0 20px;
+}
+
+.back {
+  padding: 0 10px 0 6px;
+}
+
+.divider {
+  width: 1px;
+  height: 22px;
+  background: var(--line-2);
+}
+
+.name {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+/* The card's tag sits right after the name here */
+.tagSlot {
+  display: inline-flex;
+}
+
+.tagSlot > * {
+  margin-left: 0;
+}
+
+.model {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.activity {
+  margin-left: auto;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.activity[data-status='running'] {
+  color: var(--signal-ink);
+}
+
+.activity[data-status='error'] {
+  color: var(--error-ink);
+}
+
+.description {
+  margin: 6px 0 0;
+  padding: 0 20px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.lineage {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 20px 0;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--board);
+  border: 1px solid var(--line);
+}
+
+.arrow {
+  color: var(--text-3);
+  display: inline-flex;
+}
+
+.entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 9px;
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+button.entry {
+  cursor: pointer;
+}
+
+button.entry:hover {
+  border-color: var(--text-3);
+}
+
+button.entry:focus-visible {
+  outline: 2px solid var(--sure);
+  outline-offset: 2px;
+}
+
+.entry[aria-current='true'] {
+  border-color: var(--text-2);
+  font-weight: 600;
+}
+
+.entryType {
+  color: var(--text-2);
+}
+
+.diamond {
+  color: var(--sure-ink);
+}
+
+.none {
+  color: var(--text-3);
+}
+
+.tabs {
+  display: flex;
+  gap: 22px;
+  margin-top: 12px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tab {
+  height: 40px;
+  padding: 0 2px;
+  margin-bottom: -1px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--text-3);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--text);
+}
+
+.tab[aria-selected='true'] {
+  color: var(--text);
+  border-bottom-color: var(--text);
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--sure);
+  outline-offset: 2px;
+}
+
+.count {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.body {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 18px 20px 20px;
+}
+
+/* Live: the stream left, what it works on right */
+.live {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 20px;
+  min-height: 100%;
+}
+
+.aside {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.cardHead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+/* What sits at the right end of a card's head */
+.end {
+  margin-left: auto;
+}
+
+.label {
+  font-size: 10.5px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  font-weight: 500;
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: minmax(72px, max-content) minmax(0, 1fr);
+  gap: 6px 12px;
+  font-size: 12.5px;
+}
+
+.kv > :nth-child(odd) {
+  color: var(--text-2);
+}
+
+.kv > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.quiet {
+  color: var(--text-2);
+}
+
+.faint {
+  color: var(--text-3);
+}
+
+.run {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.run:hover {
+  color: var(--text);
+}
+
+.contract {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+/* A decider: its input and earlier runs, an arrow, its decisions */
+.decides {
+  display: grid;
+  grid-template-columns: 300px 20px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+/* The lineage's chevron, on the line of the input's head */
+.flowArrow {
+  padding-top: 10px;
+  text-align: center;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--text-3);
+}
+
+/* A decider's last decisions in place of the stream: small ones side by side in rows of one height,
+   a checklist across; the side column's gap */
+.decisionGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+  align-content: start;
+}
+
+.decisionGrid > [data-kind='checklist'] {
+  grid-column: 1 / -1;
+}
+
+.decisionGrid > .card > * {
+  flex: 1;
+}
+
+.empty {
+  padding: 24px 0;
+  color: var(--text-3);
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .stage {
+    inset: 12px;
+  }
+
+  .live,
+  .decides,
+  .contract {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .flowArrow {
+    display: none;
+  }
+}

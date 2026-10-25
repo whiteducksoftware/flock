@@ -185,6 +185,66 @@ class TestDashboardLauncher:
         # Should catch error and continue
         launcher._ensure_npm_dependencies()
 
+    @patch("subprocess.run")
+    def test_build_failure_prints_stdout_and_stderr(self, mock_run, launcher, capsys):
+        """A failed build shows tsc's errors, which go to stdout."""
+        mock_run.side_effect = subprocess.CalledProcessError(
+            2,
+            "npm run build",
+            output="src/a.ts(1,14): error TS2322: Type 'string' is not assignable",
+            stderr="npm warn something",
+        )
+
+        launcher._build_production()
+
+        out = capsys.readouterr().out
+        assert "Production build failed (exit code 2)" in out
+        assert "error TS2322" in out
+        assert "npm warn something" in out
+
+    @patch("webbrowser.open")
+    @patch("time.sleep")
+    @patch("subprocess.run")
+    def test_start_raises_when_build_failed_and_nothing_built(
+        self, mock_run, mock_sleep, mock_browser, mock_frontend_dir, tmp_path
+    ):
+        """With no build to serve, start() stops before opening the browser."""
+        launcher = DashboardLauncher(
+            frontend_dir=mock_frontend_dir, static_dir=tmp_path / "static"
+        )
+        launcher.dev_mode = False
+        mock_run.side_effect = [
+            Mock(),  # npm install
+            subprocess.CalledProcessError(2, "npm run build", output="", stderr=""),
+        ]
+
+        with pytest.raises(RuntimeError, match="Dashboard build failed"):
+            launcher.start()
+
+        mock_browser.assert_not_called()
+
+    @patch("webbrowser.open")
+    @patch("time.sleep")
+    @patch("subprocess.run")
+    def test_start_serves_earlier_build_when_build_failed(
+        self, mock_run, mock_sleep, mock_browser, mock_frontend_dir, tmp_path
+    ):
+        """An earlier build is still served when the new one fails."""
+        static_dir = tmp_path / "static"
+        static_dir.mkdir()
+        launcher = DashboardLauncher(
+            frontend_dir=mock_frontend_dir, static_dir=static_dir
+        )
+        launcher.dev_mode = False
+        mock_run.side_effect = [
+            Mock(),  # npm install
+            subprocess.CalledProcessError(2, "npm run build", output="", stderr=""),
+        ]
+
+        launcher.start()
+
+        mock_browser.assert_called_once()
+
     def test_frontend_dir_exists(self):
         """Test FRONTEND_DIR points to actual frontend directory."""
         from flock.api.launcher import FRONTEND_DIR

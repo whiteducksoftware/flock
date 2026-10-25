@@ -11,6 +11,7 @@ Key points:
 """
 
 import logging
+import os
 import sys
 from typing import Literal
 
@@ -581,6 +582,23 @@ def get_logger(name: str = "flock") -> FlockLogger:
     return _LOGGER_CACHE[name]
 
 
+DEFAULT_LOG_LEVEL = "WARNING"
+
+
+def _log_level_from_env() -> str:
+    """FLOCK_LOG_LEVEL: the level of Flock's loggers, WARNING by default
+    (DEBUG, INFO, WARNING, ERROR, CRITICAL, SUCCESS or NO_LOGS)."""
+    value = os.getenv("FLOCK_LOG_LEVEL", "").strip().upper()
+    if value in LOG_LEVELS:
+        return value
+    if value:
+        print(
+            f"Warning: Invalid FLOCK_LOG_LEVEL value: {value} "
+            f"(use {', '.join(LOG_LEVELS)})"
+        )
+    return DEFAULT_LOG_LEVEL
+
+
 def get_module_loggers() -> list[FlockLogger]:
     """Return a cached FlockLogger instance for the given module name."""
     return [_LOGGER_CACHE[kvp] for kvp in _LOGGER_CACHE if kvp.startswith("module.")]
@@ -605,3 +623,8 @@ def truncate_for_logging(obj, max_item_length=100, max_items=10):
             ]
         return [truncate_for_logging(item) for item in obj]
     return obj
+
+
+# Flock's loggers show warnings and errors unless FLOCK_LOG_LEVEL or
+# configure_logging() asks for more; tracing leaves them alone (#601)
+configure_logging(flock_level=_log_level_from_env(), external_level="WARNING")

@@ -1,170 +1,140 @@
 /**
- * Flock Dashboard Design System
- * Generated from frontend/docs/DESIGN_SYSTEM.md
- * Version: 1.0.0
+ * Flock dashboard variables.
+ *
+ * The colors, fonts and depth come from the "Unfold" tokens (tokens.css,
+ * docs/internal/design-system/). The --color-* names below are legacy aliases
+ * onto those tokens: components that are not rebuilt yet keep working and
+ * follow the theme. Each item of the rework (#557) moves its components to the
+ * tokens; the aliases go away with the last one.
  */
 
 :root {
   /* ========================================
-     COLORS - Foundation
+     LEGACY COLOR ALIASES (onto the tokens)
      ======================================== */
 
-  /* Background Layers */
-  --color-bg-base: #0a0a0b;
-  --color-bg-elevated: #121214;
-  --color-bg-surface: #1a1a1e;
-  --color-bg-overlay: #232329;
-  --color-bg-float: #2a2a32;
+  /* Background layers */
+  --color-bg-base: var(--bg);
+  --color-bg-elevated: var(--surface);
+  --color-bg-surface: var(--surface-2);
+  --color-bg-overlay: var(--surface-3);
+  --color-bg-float: var(--surface-3);
 
-  /* Primary Brand Colors */
-  --color-primary-50: #eef2ff;
-  --color-primary-100: #e0e7ff;
-  --color-primary-200: #c7d2fe;
-  --color-primary-300: #a5b4fc;
-  --color-primary-400: #818cf8;
-  --color-primary-500: #6366f1;
-  --color-primary-600: #4f46e5;
-  --color-primary-700: #4338ca;
-  --color-primary-800: #3730a3;
-  --color-primary-900: #312e81;
+  /* Former brand scales: neutral now; color only ever means something. The
+     fill steps (400-700) are the primary pair, --invert with --on-invert text. */
+  --color-primary-50: var(--surface-3);
+  --color-primary-100: var(--surface-3);
+  --color-primary-200: var(--line-2);
+  --color-primary-300: var(--text-3);
+  --color-primary-400: var(--invert);
+  --color-primary-500: var(--invert);
+  --color-primary-600: var(--invert);
+  --color-primary-700: var(--invert);
+  --color-primary-800: var(--surface-3);
+  --color-primary-900: var(--surface-2);
+  --color-secondary-50: var(--surface-3);
+  --color-secondary-100: var(--surface-3);
+  --color-secondary-200: var(--line-2);
+  --color-secondary-300: var(--text-3);
+  --color-secondary-400: var(--invert);
+  --color-secondary-500: var(--invert);
+  --color-secondary-600: var(--invert);
+  --color-secondary-700: var(--invert);
+  --color-secondary-800: var(--surface-3);
+  --color-secondary-900: var(--surface-2);
+  --color-tertiary-50: var(--surface-3);
+  --color-tertiary-100: var(--surface-3);
+  --color-tertiary-200: var(--line-2);
+  --color-tertiary-300: var(--text-3);
+  --color-tertiary-400: var(--invert);
+  --color-tertiary-500: var(--invert);
+  --color-tertiary-600: var(--invert);
+  --color-tertiary-700: var(--invert);
+  --color-tertiary-800: var(--surface-3);
+  --color-tertiary-900: var(--surface-2);
 
-  /* Secondary/Accent Colors */
-  --color-secondary-50: #fdf4ff;
-  --color-secondary-100: #fae8ff;
-  --color-secondary-200: #f5d0fe;
-  --color-secondary-300: #f0abfc;
-  --color-secondary-400: #e879f9;
-  --color-secondary-500: #d946ef;
-  --color-secondary-600: #c026d3;
-  --color-secondary-700: #a21caf;
-  --color-secondary-800: #86198f;
-  --color-secondary-900: #701a75;
+  /* Status: the four signals (amber now, blue decided, coral failed) */
+  --color-success-light: var(--sure-ink);
+  --color-success: var(--sure);
+  --color-success-dark: var(--sure);
+  --color-success-bg: var(--sure-soft);
+  --color-success-border: color-mix(in srgb, var(--sure) 40%, transparent);
+  --color-warning-light: var(--signal-ink);
+  --color-warning: var(--signal);
+  --color-warning-dark: var(--signal);
+  --color-warning-bg: var(--signal-soft);
+  --color-warning-border: color-mix(in srgb, var(--signal) 40%, transparent);
+  --color-error-light: var(--error-ink);
+  --color-error: var(--error);
+  --color-error-dark: var(--error);
+  --color-error-bg: var(--error-soft);
+  --color-error-border: color-mix(in srgb, var(--error) 40%, transparent);
+  --color-info-light: var(--text-2);
+  --color-info: var(--invert); /* a fill under --color-text-on-primary */
+  --color-info-dark: var(--text-3);
+  --color-info-bg: var(--surface-3);
+  --color-info-border: var(--line-2);
+  --color-active-light: var(--signal-ink);
+  --color-active: var(--signal);
+  --color-active-dark: var(--signal);
+  --color-active-bg: var(--signal-soft);
+  --color-active-border: color-mix(in srgb, var(--signal) 40%, transparent);
+  --color-idle-light: var(--text-2);
+  --color-idle: var(--text-3);
+  --color-idle-dark: var(--text-3);
+  --color-idle-bg: var(--surface-3);
+  --color-idle-border: var(--line-2);
 
-  /* Tertiary/Utility Colors */
-  --color-tertiary-50: #ecfeff;
-  --color-tertiary-100: #cffafe;
-  --color-tertiary-200: #a5f3fc;
-  --color-tertiary-300: #67e8f9;
-  --color-tertiary-400: #22d3ee;
-  --color-tertiary-500: #06b6d4;
-  --color-tertiary-600: #0891b2;
-  --color-tertiary-700: #0e7490;
-  --color-tertiary-800: #155e75;
-  --color-tertiary-900: #164e63;
+  /* Text */
+  --color-text-primary: var(--text);
+  --color-text-secondary: var(--text-2);
+  --color-text-tertiary: var(--text-3);
+  --color-text-muted: var(--text-3);
+  --color-text-disabled: color-mix(in srgb, var(--text-3) 60%, transparent);
+  --color-text-on-primary: var(--on-invert);
+  --color-text-on-dark: var(--on-invert);
 
-  /* ========================================
-     COLORS - Semantic
-     ======================================== */
+  /* Borders */
+  --color-border-subtle: var(--line);
+  --color-border-default: var(--line-2);
+  --color-border-strong: var(--line-2);
+  --color-border-focus: var(--sure);
+  --color-border-error: var(--error);
+  --color-divider: var(--line);
 
-  /* Success */
-  --color-success-light: #6ee7b7;
-  --color-success: #10b981;
-  --color-success-dark: #047857;
-  --color-success-bg: rgba(16, 185, 129, 0.1);
-  --color-success-border: rgba(16, 185, 129, 0.3);
+  /* Graph */
+  --color-node-agent-bg: var(--surface);
+  --color-node-agent-border: var(--line-2);
+  --color-node-agent-border-selected: var(--sure);
+  --color-node-agent-text: var(--text);
+  --color-node-agent-badge: var(--surface-2);
+  --color-node-agent-badge-text: var(--text-3);
+  --color-node-message-bg: var(--surface);
+  --color-node-message-border: var(--line-2);
+  --color-node-message-border-selected: var(--sure);
+  --color-node-message-text: var(--text);
+  --color-node-message-metadata: var(--text-3);
+  --color-edge-default: var(--line-2);
+  --color-edge-active: var(--signal);
+  --color-edge-message: var(--line-2);
+  --color-edge-error: var(--error);
+  --color-edge-label-bg: var(--surface);
+  --color-edge-label-text: var(--text-2);
 
-  /* Warning */
-  --color-warning-light: #fbbf24;
-  --color-warning: #f59e0b;
-  --color-warning-dark: #d97706;
-  --color-warning-bg: rgba(245, 158, 11, 0.1);
-  --color-warning-border: rgba(245, 158, 11, 0.3);
-
-  /* Error */
-  --color-error-light: #f87171;
-  --color-error: #ef4444;
-  --color-error-dark: #dc2626;
-  --color-error-bg: rgba(239, 68, 68, 0.1);
-  --color-error-border: rgba(239, 68, 68, 0.3);
-
-  /* Info */
-  --color-info-light: #60a5fa;
-  --color-info: #3b82f6;
-  --color-info-dark: #2563eb;
-  --color-info-bg: rgba(59, 130, 246, 0.1);
-  --color-info-border: rgba(59, 130, 246, 0.3);
-
-  /* Running/Active */
-  --color-active-light: #818cf8;
-  --color-active: #6366f1;
-  --color-active-dark: #4f46e5;
-  --color-active-bg: rgba(99, 102, 241, 0.1);
-  --color-active-border: rgba(99, 102, 241, 0.3);
-
-  /* Idle/Neutral */
-  --color-idle-light: #94a3b8;
-  --color-idle: #64748b;
-  --color-idle-dark: #475569;
-  --color-idle-bg: rgba(100, 116, 139, 0.1);
-  --color-idle-border: rgba(100, 116, 139, 0.3);
-
-  /* ========================================
-     COLORS - Text
-     ======================================== */
-
-  --color-text-primary: #f8fafc;
-  --color-text-secondary: #cbd5e1;
-  --color-text-tertiary: #94a3b8;
-  --color-text-muted: #64748b;
-  --color-text-disabled: #475569;
-  --color-text-on-primary: #ffffff;
-  --color-text-on-dark: #0f172a;
-
-  /* ========================================
-     COLORS - Borders & Dividers
-     ======================================== */
-
-  --color-border-subtle: #1e293b;
-  --color-border-default: #334155;
-  --color-border-strong: #475569;
-  --color-border-focus: #6366f1;
-  --color-border-error: #ef4444;
-  --color-divider: rgba(148, 163, 184, 0.1);
-
-  /* ========================================
-     COLORS - Graph Specific
-     ======================================== */
-
-  /* Agent Nodes */
-  --color-node-agent-bg: #1e293b;
-  --color-node-agent-border: #3b82f6;
-  --color-node-agent-border-selected: #6366f1;
-  --color-node-agent-text: #f8fafc;
-  --color-node-agent-badge: #334155;
-  --color-node-agent-badge-text: #94a3b8;
-
-  /* Message Nodes */
-  --color-node-message-bg: #422006;
-  --color-node-message-border: #f59e0b;
-  --color-node-message-border-selected: #d946ef;
-  --color-node-message-text: #fef3c7;
-  --color-node-message-metadata: #a16207;
-
-  /* Edges */
-  --color-edge-default: #475569;
-  --color-edge-active: #6366f1;
-  --color-edge-message: #f59e0b;
-  --color-edge-error: #ef4444;
-  --color-edge-label-bg: rgba(26, 26, 30, 0.95);
-  --color-edge-label-text: #cbd5e1;
-
-  /* ========================================
-     COLORS - Overlay & Glassmorphism
-     ======================================== */
-
-  --color-glass-bg: rgba(26, 26, 30, 0.8);
-  --color-glass-border: rgba(148, 163, 184, 0.1);
-  --color-overlay-backdrop: rgba(10, 10, 11, 0.7);
-  --color-modal-backdrop: rgba(10, 10, 11, 0.85);
+  /* Overlays */
+  --color-glass-bg: var(--surface);
+  --color-glass-border: var(--line);
+  --color-overlay-backdrop: var(--scrim);
+  --color-modal-backdrop: var(--scrim);
 
   /* ========================================
      TYPOGRAPHY
      ======================================== */
 
   /* Font Families */
-  --font-family-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
-  --font-family-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Monaco', 'Courier New', monospace;
-  --font-family-display: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-family-sans: var(--font-sans);
+  --font-family-mono: var(--font-mono);
+  --font-family-display: var(--font-sans);
 
   /* Font Sizes - Display */
   --font-size-display-2xl: 72px;
@@ -263,24 +233,21 @@
      SHADOWS & ELEVATION
      ======================================== */
 
-  /* Shadow Scale */
-  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
-  --shadow-sm: 0 2px 4px -1px rgba(0, 0, 0, 0.5), 0 1px 2px -1px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.6), 0 2px 4px -1px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.7), 0 4px 6px -2px rgba(0, 0, 0, 0.5);
-  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.8), 0 10px 10px -5px rgba(0, 0, 0, 0.6);
-  --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.9);
-
-  /* Glow Effects */
-  --shadow-glow-primary: 0 0 0 3px rgba(99, 102, 241, 0.3);
-  --shadow-glow-secondary: 0 0 0 3px rgba(217, 70, 239, 0.3);
-  --shadow-glow-success: 0 0 0 3px rgba(16, 185, 129, 0.3);
-  --shadow-glow-error: 0 0 0 3px rgba(239, 68, 68, 0.3);
-  --shadow-glow-warning: 0 0 0 3px rgba(245, 158, 11, 0.3);
-
-  /* Inner Shadows */
-  --shadow-inner: inset 0 2px 4px 0 rgba(0, 0, 0, 0.5);
-  --shadow-inner-lg: inset 0 4px 8px 0 rgba(0, 0, 0, 0.6);
+  /* Shadow scale: one depth per theme (tokens), no glows */
+  --shadow-xs: none;
+  --shadow-sm: var(--shadow);
+  --shadow-md: var(--shadow);
+  --shadow-lg: var(--shadow);
+  --shadow-xl: var(--shadow-stage);
+  --shadow-2xl: var(--shadow-stage);
+  /* Legacy focus glows: the design's focus ring, until each control uses :focus-visible */
+  --shadow-glow-primary: 0 0 0 2px var(--sure);
+  --shadow-glow-secondary: 0 0 0 2px var(--sure);
+  --shadow-glow-success: 0 0 0 2px var(--sure);
+  --shadow-glow-error: 0 0 0 2px var(--error);
+  --shadow-glow-warning: 0 0 0 2px var(--signal);
+  --shadow-inner: none;
+  --shadow-inner-lg: none;
 
   /* ========================================
      BORDERS & RADIUS
@@ -317,7 +284,7 @@
 
   /* Duration */
   --duration-instant: 0ms;
-  --duration-fast: 100ms;
+  /* --duration-fast (120 ms) comes from the tokens */
   --duration-normal: 200ms;
   --duration-slow: 300ms;
   --duration-slower: 400ms;
@@ -465,8 +432,8 @@ button {
 }
 
 .react-flow__controls-button:hover {
-  background: var(--color-primary-500) !important;
-  color: white !important;
+  background: var(--surface-3) !important;
+  color: var(--text) !important;
 }
 
 .react-flow__controls-button svg {

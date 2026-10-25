@@ -73,6 +73,8 @@ class AgentOutput:
     group_description: str | None = None  # Group description override
     # Keep the visibility the engine set (decisions inherit their subject's)
     inherit_visibility: bool = False
+    # The engine may leave it out (a sink publishes one of its receipts)
+    optional: bool = False
 
     def __post_init__(self):
         """Validate field constraints and normalize fan-out."""
@@ -1381,6 +1383,9 @@ class AgentBuilder:
         | list[tuple[Callable, str]]
         | None = None,
         description: str | None = None,
+        post: str | None = None,
+        put: str | None = None,
+        patch: str | None = None,
     ) -> PublishBuilder:
         """Declare which artifact types this agent produces.
 
@@ -1391,6 +1396,9 @@ class AgentBuilder:
             where: Filter predicate for output artifacts
             validate: Validation predicate(s) - callable or list of (callable, error_msg) tuples
             description: Group-level description override
+            post, put, patch: A sink target (``"myapp:/billing"``): every
+                artifact of these types this agent publishes is also delivered
+                there, by a sink named ``<agent>-<type>-<method>``
 
         Returns:
             PublishBuilder for conditional publishing configuration
@@ -1483,6 +1491,20 @@ class AgentBuilder:
 
         # Phase 5B: Use BuilderValidator for validation
         BuilderValidator.validate_self_trigger_risk(self._agent)
+
+        # Sinks for the published types, shown as nodes of their own
+        for method, target in (("post", post), ("put", put), ("patch", patch)):
+            if target is None:
+                continue
+            for model in dict.fromkeys(types):
+                sink = (
+                    self._orchestrator.sink(
+                        f"{self._agent.name}-{model.__name__.lower()}-{method}"
+                    )
+                    .consumes(model, from_agents=[self._agent.name])
+                    ._reads_like(self._agent, resolved_visibility)
+                )
+                getattr(sink, method)(target)
 
         return PublishBuilder(self, outputs)
 

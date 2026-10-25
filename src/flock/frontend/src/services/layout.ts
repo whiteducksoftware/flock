@@ -415,7 +415,7 @@ export function applyCircularLayout(
   let maxWidth = 0;
   let maxHeight = 0;
   nodes.forEach((node) => {
-    const { width, height } = getNodeDimensions(node);
+    const { width, height } = getNodeDimensions(node, options);
     maxWidth = Math.max(maxWidth, width);
     maxHeight = Math.max(maxHeight, height);
   });
@@ -430,7 +430,7 @@ export function applyCircularLayout(
 
   const layoutedNodes = nodes.map((node, index) => {
     const angle = (2 * Math.PI * index) / nodes.length;
-    const { width, height } = getNodeDimensions(node);
+    const { width, height } = getNodeDimensions(node, options);
 
     return {
       ...node,
@@ -473,7 +473,7 @@ export function applyGridLayout(
   let maxWidth = 0;
   let maxHeight = 0;
   nodes.forEach((node) => {
-    const { width, height } = getNodeDimensions(node);
+    const { width, height } = getNodeDimensions(node, options);
     maxWidth = Math.max(maxWidth, width);
     maxHeight = Math.max(maxHeight, height);
   });
@@ -491,7 +491,7 @@ export function applyGridLayout(
   const layoutedNodes = nodes.map((node, index) => {
     const col = index % cols;
     const row = Math.floor(index / cols);
-    const { width, height } = getNodeDimensions(node);
+    const { width, height } = getNodeDimensions(node, options);
 
     return {
       ...node,
@@ -527,7 +527,7 @@ export function applyRandomLayout(
   let maxWidth = 0;
   let maxHeight = 0;
   nodes.forEach((node) => {
-    const { width, height } = getNodeDimensions(node);
+    const { width, height } = getNodeDimensions(node, options);
     maxWidth = Math.max(maxWidth, width);
     maxHeight = Math.max(maxHeight, height);
   });
@@ -544,7 +544,7 @@ export function applyRandomLayout(
   const maxAttempts = 100;
 
   nodes.forEach((node) => {
-    const { width, height } = getNodeDimensions(node);
+    const { width, height } = getNodeDimensions(node, options);
     let placed = false;
     let attempts = 0;
 
@@ -554,7 +554,7 @@ export function applyRandomLayout(
 
       // Check if this position collides with existing nodes
       const collides = layoutedNodes.some((existingNode) => {
-        const exDims = getNodeDimensions(existingNode);
+        const exDims = getNodeDimensions(existingNode, options);
         const dx = Math.abs(x - existingNode.position.x);
         const dy = Math.abs(y - existingNode.position.y);
         return dx < (width + exDims.width) / 2 + minSpacing &&

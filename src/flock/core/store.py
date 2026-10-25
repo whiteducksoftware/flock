@@ -12,11 +12,11 @@ import asyncio
 import json
 from asyncio import Lock
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Collection, Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 from uuid import UUID
 
 import aiosqlite
@@ -28,6 +28,10 @@ from flock.registry import type_registry
 from flock.utils.time_utils import as_utc
 from flock.utils.type_resolution import TypeResolutionHelper
 from flock.utils.visibility_utils import deserialize_visibility
+
+
+if TYPE_CHECKING:
+    from flock.storage.flow import FlowCounts
 
 
 T = TypeVar("T")
@@ -203,11 +207,32 @@ class BlackboardStore:
         """Return aggregate artifact statistics for the given filters."""
         raise NotImplementedError
 
+    async def flow_counts(
+        self,
+        filters: FilterConfig | None = None,
+        running: Mapping[str, Collection[str]] | None = None,
+    ) -> FlowCounts:
+        """What flowed where in the filter range: artifacts per producer and
+        type, consumptions per producer, consumer and type, decision tallies,
+        unsure decisions, reviews and coverage groups (the dashboard's Agent
+        View, #640). ``running`` maps artifact IDs to consumers that may not
+        be recorded yet (runs record what they consumed when they end); each
+        consumer of an artifact counts once, recorded or not, in the same
+        read. Counts in one pass over the range; stores that can count in
+        their query language override it."""
+        from flock.storage.flow import count_flow
+
+        envelopes, _ = await self.fetch_graph_artifacts(
+            filters or FilterConfig(), limit=0
+        )
+        return count_flow(envelopes, running)
+
     async def artifact_histogram(
         self, filters: FilterConfig, *, buckets: int
     ) -> tuple[list[int], list[int]]:
-        """Artifacts and workflow errors per time bucket, from ``filters.start``
-        to ``filters.end`` in ``buckets`` equal steps."""
+        """Artifacts and errors (workflow errors, failed deliveries) per time
+        bucket, from ``filters.start`` to ``filters.end`` in ``buckets`` equal
+        steps."""
         from flock.storage.histogram import bucket_artifacts
 
         _check_histogram_range(filters, buckets)
@@ -312,6 +337,29 @@ class InMemoryBlackboardStore(BlackboardStore):
         async with self._lock:
             for record in records:
                 self._consumptions_by_artifact[record.artifact_id].append(record)
+
+    async def flow_counts(
+        self,
+        filters: FilterConfig | None = None,
+        running: Mapping[str, Collection[str]] | None = None,
+    ) -> FlowCounts:
+        """What flowed where in the filter range, in one pass: counting needs
+        no order."""
+        from flock.storage.flow import FlowCounts
+        from flock.storage.in_memory.artifact_filter import ArtifactFilter
+
+        async with self._lock:
+            artifacts = list(self._by_id.values())
+        artifact_filter = ArtifactFilter(filters or FilterConfig())
+        flow = FlowCounts()
+        for artifact in artifacts:
+            if artifact_filter.matches(artifact):
+                records = self._consumptions_by_artifact.get(artifact.id, ())
+                consumers = {record.consumer for record in records}
+                if running:
+                    consumers.update(running.get(str(artifact.id), ()))
+                flow.add(artifact, consumers)
+        return flow
 
     async def query_artifacts(
         self,
@@ -427,6 +475,7 @@ class SQLiteBlackboardStore(BlackboardStore):
         # Initialize helper subsystems
         from flock.storage.sqlite.agent_history_queries import AgentHistoryQueries
         from flock.storage.sqlite.consumption_loader import SQLiteConsumptionLoader
+        from flock.storage.sqlite.flow_queries import SQLiteFlowQueries
         from flock.storage.sqlite.query_builder import SQLiteQueryBuilder
         from flock.storage.sqlite.query_params_builder import QueryParamsBuilder
         from flock.storage.sqlite.schema_manager import SQLiteSchemaManager
@@ -436,6 +485,7 @@ class SQLiteBlackboardStore(BlackboardStore):
         self._query_builder = SQLiteQueryBuilder()
         self._consumption_loader = SQLiteConsumptionLoader()
         self._summary_queries = SQLiteSummaryQueries()
+        self._flow_queries = SQLiteFlowQueries()
         self._query_params_builder = QueryParamsBuilder()
         self._agent_history_queries = AgentHistoryQueries()
 
@@ -448,6 +498,7 @@ class SQLiteBlackboardStore(BlackboardStore):
             payload_json = json.dumps(to_jsonable_python(artifact.payload))
             visibility_json = json.dumps(artifact.visibility.model_dump(mode="json"))
             tags_json = json.dumps(sorted(artifact.tags))
+            follows_json = json.dumps([str(followed) for followed in artifact.follows])
             created_at = as_utc(artifact.created_at).isoformat()
 
             canonical_type = TypeResolutionHelper.safe_resolve(
@@ -468,6 +519,7 @@ class SQLiteBlackboardStore(BlackboardStore):
                 else None,
                 "partition_key": artifact.partition_key,
                 "created_at": created_at,
+                "follows": follows_json,
             }
 
             async with self._write_lock:
@@ -484,7 +536,8 @@ class SQLiteBlackboardStore(BlackboardStore):
                         tags,
                         correlation_id,
                         partition_key,
-                        created_at
+                        created_at,
+                        follows
                     ) VALUES (
                         :artifact_id,
                         :type,
@@ -496,7 +549,8 @@ class SQLiteBlackboardStore(BlackboardStore):
                         :tags,
                         :correlation_id,
                         :partition_key,
-                        :created_at
+                        :created_at,
+                        :follows
                     )
                     ON CONFLICT(artifact_id) DO UPDATE SET
                         type=excluded.type,
@@ -508,7 +562,8 @@ class SQLiteBlackboardStore(BlackboardStore):
                         tags=excluded.tags,
                         correlation_id=excluded.correlation_id,
                         partition_key=excluded.partition_key,
-                        created_at=excluded.created_at
+                        created_at=excluded.created_at,
+                        follows=excluded.follows
                     """,
                     record,
                 )
@@ -585,7 +640,8 @@ class SQLiteBlackboardStore(BlackboardStore):
                     tags,
                     correlation_id,
                     partition_key,
-                    created_at
+                    created_at,
+                    follows
                 FROM artifacts
                 WHERE artifact_id = ?
                 """,
@@ -613,7 +669,8 @@ class SQLiteBlackboardStore(BlackboardStore):
                     tags,
                     correlation_id,
                     partition_key,
-                    created_at
+                    created_at,
+                    follows
                 FROM artifacts
                 ORDER BY created_at ASC, rowid ASC
                 """
@@ -639,7 +696,8 @@ class SQLiteBlackboardStore(BlackboardStore):
                     tags,
                     correlation_id,
                     partition_key,
-                    created_at
+                    created_at,
+                    follows
                 FROM artifacts
                 WHERE canonical_type = ?
                 ORDER BY created_at ASC, rowid ASC
@@ -716,7 +774,8 @@ class SQLiteBlackboardStore(BlackboardStore):
                 tags,
                 correlation_id,
                 partition_key,
-                created_at
+                created_at,
+                follows
             FROM artifacts
             {where_clause}
             ORDER BY created_at ASC, artifact_id ASC
@@ -754,8 +813,8 @@ class SQLiteBlackboardStore(BlackboardStore):
     async def artifact_histogram(  # type: ignore[override]
         self, filters: FilterConfig, *, buckets: int
     ) -> tuple[list[int], list[int]]:
-        """Artifacts and workflow errors per time bucket, grouped in SQL."""
-        from flock.storage.histogram import EPOCH, MICROSECOND, workflow_error_type
+        """Artifacts and errors per time bucket, grouped in SQL."""
+        from flock.storage.histogram import EPOCH, MICROSECOND, error_types
 
         _check_histogram_range(filters, buckets)
         start = as_utc(filters.start)
@@ -774,7 +833,7 @@ class SQLiteBlackboardStore(BlackboardStore):
                         ELSE 0 END
                   - ?) * ? / ?) AS bucket,
                 COUNT(*) AS artifacts,
-                SUM(CASE WHEN COALESCE(canonical_type, type) = ? THEN 1 ELSE 0 END)
+                SUM(CASE WHEN COALESCE(canonical_type, type) IN (?, ?) THEN 1 ELSE 0 END)
                     AS errors
             FROM artifacts
             {where_clause}
@@ -786,7 +845,7 @@ class SQLiteBlackboardStore(BlackboardStore):
                 (start - EPOCH) // MICROSECOND,
                 buckets,
                 span,
-                workflow_error_type(),
+                *error_types(),
                 *params,
             ),
         )
@@ -841,6 +900,24 @@ class SQLiteBlackboardStore(BlackboardStore):
             "earliest_created_at": earliest,
             "latest_created_at": latest,
         }
+
+    async def flow_counts(  # type: ignore[override]
+        self,
+        filters: FilterConfig | None = None,
+        running: Mapping[str, Collection[str]] | None = None,
+    ) -> FlowCounts:
+        """What flowed where in the filter range, counted in SQL. Writes wait
+        meanwhile, so the counts are of one state of the board (they would
+        queue behind the reads on the connection anyway)."""
+        with tracer.start_as_current_span("sqlite_store.flow_counts"):
+            conn = await self._get_connection()
+            where_clause, params = self._build_filters(
+                filters or FilterConfig(), table_alias="a"
+            )
+            async with self._write_lock:
+                return await self._flow_queries.count(
+                    conn, where_clause, tuple(params), running or {}
+                )
 
     async def agent_history_summary(
         self,
@@ -1039,4 +1116,5 @@ class SQLiteBlackboardStore(BlackboardStore):
             partition_key=row["partition_key"],
             created_at=datetime.fromisoformat(row["created_at"]),
             version=row["version"],
+            follows=[UUID(followed) for followed in json.loads(row["follows"] or "[]")],
         )

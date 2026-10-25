@@ -1,18 +1,19 @@
-import { memo, useState } from 'react';
+import { memo, useState, type ReactNode } from 'react';
 import { reviewDecision } from '../../services/api';
 import { useGraphStore } from '../../store/graphStore';
+import { Icon } from '../icons/Icon';
 import { TournamentBracket } from './TournamentBracket';
+import styles from './DecisionDisplay.module.css';
 
 /**
  * Decision models: displays for decision agents (Agent View) and decision
  * artifacts (Blackboard View). Backend fields: GraphAssembler node data
- * `decision` (see flock.decisions.graph).
+ * `decision` (see flock.decisions.graph). The encodings are the decision kit
+ * of docs/internal/design-system/README.md: blue is a decided answer, the
+ * hatch is unsure, dashed outlines are best guesses and refusals, coral is
+ * failed.
  */
 
-export const DECISION_COLOR = 'rgb(139, 92, 246)';
-export const DECISION_TEXT = 'rgb(167, 139, 250)';
-const DECISION_BG = 'rgba(139, 92, 246, 0.12)';
-const DECISION_BORDER = 'rgba(139, 92, 246, 0.4)';
 const UNSURE = 'UNSURE';
 
 export interface DecisionSample {
@@ -35,6 +36,19 @@ export interface DeciderQuestion {
   samples?: Record<string, DecisionSample[]>;
 }
 
+/** An unsure decision of a decider that no person reviewed yet (the graph snapshot carries them, #610). */
+export interface ReviewItem {
+  id: string;
+  question: string;
+  correlationId: string | null;
+  bestGuess: string | null;
+  probabilities: Record<string, number>;
+  /** The options a person can choose */
+  options: string[] | null;
+  /** A field that names the decided artifact, else its first text */
+  subjectTitle: string | null;
+}
+
 export interface DeciderInfo {
   model: string;
   threshold: number | null;
@@ -45,6 +59,8 @@ export interface DeciderInfo {
   vote?: string; // how the ensemble decides: majority, unanimous or mean
   shadow?: { model: string; compared: number; agree: number }; // shadow model and its agreement
   itemThresholds?: Record<string, number>; // checklist items with their own threshold
+  needsReview?: ReviewItem[]; // its unsure decisions no one reviewed, newest first (at most 20)
+  needsReviewCount?: number; // how many there are
 }
 
 export interface ShadowAnswer {
@@ -121,102 +137,83 @@ export interface DecisionInfo {
   subjectThumb?: string;
 }
 
-// Hover zoom for thumbnails (inline styles cannot express :hover)
-const THUMB_CSS = `
-  .decision-thumb { transition: transform 0.15s ease, box-shadow 0.15s ease; transform-origin: center; }
-  .decision-thumb:hover { transform: scale(3.2); z-index: 1000; position: relative; opacity: 1 !important; box-shadow: 0 0 0 1px rgba(255,255,255,0.6), 0 8px 24px rgba(0,0,0,0.55); }
-`;
+const cx = (...names: (string | false | null | undefined)[]) => names.filter(Boolean).join(' ');
+const pct = (value: number) => `${Math.round(value * 1000) / 10}%`;
+const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`;
 
-/** The latest images that landed in one option, newest first. */
+const KIND_LABEL: Record<QuestionKind, string> = { choice: 'Choice', yesno: 'Yes / No', scale: 'Scale', checklist: 'Checklist' };
+
+type MarkKind = 'sure' | 'unsure' | 'refused' | 'failed';
+
+/** How an answer reads without its color: a check, the hatch, a dashed box or a cross. */
+const Mark = ({ kind }: { kind: MarkKind }) =>
+  kind === 'sure' ? (
+    <Icon name="check" size={14} className={styles.check} />
+  ) : kind === 'failed' ? (
+    <Icon name="close" size={14} className={styles.cross} />
+  ) : (
+    <span aria-hidden className={cx(styles.swatch, kind === 'unsure' ? `hatch ${styles.dashed}` : styles.refusedMark)} />
+  );
+
+/** The arrow between chips: a round, a tier. */
+const Arrow = () => (
+  <svg className={styles.arrow} width="14" height="10" viewBox="0 0 14 10" aria-hidden>
+    <path d="M0 5h10M7 1l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+/** `◆ Question` and the kind on the right. */
+const Head = ({ question, kind }: { question: string; kind: string }) => (
+  <div className={styles.head}>
+    <span className={cx('mono', styles.questionName)}>
+      <span className={styles.diamond}>◆</span> {question}
+    </span>
+    <span className={styles.kind}>{kind}</span>
+  </div>
+);
+
+/** A titled part of a decision card: escalation, vote, shadow, explanation, review. */
+const Section = ({ label, meta, children }: { label: string; meta?: string; children: ReactNode }) => (
+  <div className={styles.section}>
+    <div className={styles.head}>
+      <span className={styles.label}>{label}</span>
+      {meta ? <span className={styles.meta}>{meta}</span> : null}
+    </div>
+    {children}
+  </div>
+);
+
+/** The latest images that landed in one option, newest first; the UNSURE lane is hatched. */
 const ThumbLane = memo(
   ({ option, samples, total }: { option: string; samples: DecisionSample[]; total: number }) => {
-    const unsure = option === UNSURE;
-    const color = unsure ? 'var(--color-warning)' : DECISION_COLOR;
     const hidden = total - samples.length;
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', margin: '2px 0 4px 0' }}>
+      <div className={cx(styles.lane, option === UNSURE && `hatch ${styles.laneUnsure}`)}>
         {samples.map((sample, index) => {
           const label = `${option} · p ${sample.p.toFixed(2)}`;
-          return (
-            <img
-              key={index}
-              className="decision-thumb nodrag"
-              src={sample.thumb}
-              alt={label}
-              title={label}
-              style={{
-                width: '26px',
-                height: '26px',
-                objectFit: 'cover',
-                borderRadius: '5px',
-                border: `1.5px solid ${color}`,
-                opacity: unsure ? 0.8 : 1,
-              }}
-            />
-          );
+          return <img key={index} className={cx(styles.thumb, 'nodrag')} src={sample.thumb} alt={label} title={label} />;
         })}
-        {hidden > 0 && (
-          <span
-            style={{
-              fontSize: '10px',
-              fontWeight: 700,
-              color,
-              padding: '1px 5px',
-              borderRadius: '999px',
-              border: `1px solid ${color}`,
-            }}
-          >
-            +{hidden}
-          </span>
-        )}
+        {hidden > 0 && <span className={styles.lanePill}>+{hidden}</span>}
       </div>
     );
   }
 );
 ThumbLane.displayName = 'ThumbLane';
 
-const KIND_GLYPH: Record<QuestionKind, string> = { choice: '◆', yesno: '✓✗', scale: '▂▄▆', checklist: '☑' };
-const FAILED_COLOR = 'rgba(244, 63, 94, 0.85)';
-const NO_COLOR = 'rgba(148, 163, 184, 0.55)';
-const pct = (value: number) => `${Math.round(value * 1000) / 10}%`;
-
-export const DecisionBadge = memo(({ questions, compact }: { questions: string[]; compact: boolean }) => (
-  <span
-    aria-label="Decision agent"
-    title={`Decision agent: ${questions.join(', ')}`}
-    style={{
-      display: 'inline-flex',
-      alignItems: 'center',
-      padding: compact ? '1px 6px' : '2px 8px',
-      borderRadius: '999px',
-      background: DECISION_BG,
-      border: `1px solid ${DECISION_BORDER}`,
-      color: DECISION_TEXT,
-      fontSize: compact ? '10px' : '11px',
-      fontWeight: 700,
-      lineHeight: 1.2,
-      whiteSpace: 'nowrap',
-    }}
-  >
-    ◆ {questions[0]}{questions.length > 1 ? ` +${questions.length - 1}` : ''}
-  </span>
-));
-DecisionBadge.displayName = 'DecisionBadge';
-
 /** Thumbnail lanes of the options that have decided images. */
 const SampleLanes = memo(({ question }: { question: DeciderQuestion }) => {
   const rows = [...question.options, UNSURE].filter((option) => question.samples?.[option]?.length);
   return (
-    <>
+    <div className={styles.lanes}>
       {rows.map((option) => (
-        <div key={option} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span style={{ width: '48px', fontSize: '10px', fontFamily: 'var(--font-family-mono)', color: 'var(--color-text-tertiary)' }}>
+        <div key={option} className={styles.laneRow}>
+          <span className={styles.laneName} title={option}>
             {option}
           </span>
           <ThumbLane option={option} samples={question.samples?.[option] ?? []} total={question.counts[option] ?? 0} />
         </div>
       ))}
-    </>
+    </div>
   );
 });
 SampleLanes.displayName = 'SampleLanes';
@@ -236,88 +233,64 @@ const ChoiceCounts = memo(({ question }: { question: DeciderQuestion }) => {
     hidden = question.options.length - rows.length;
   }
   if (UNSURE in question.counts) rows.push(UNSURE);
-  const max = Math.max(1, ...rows.map((option) => question.counts[option] ?? 0));
+  const total = Math.max(1, Object.values(question.counts).reduce((sum, count) => sum + count, 0));
   return (
     <>
-      {rows.map((option) => {
-        const count = question.counts[option] ?? 0;
-        const unsure = option === UNSURE;
-        const color = unsure ? 'var(--color-warning)' : DECISION_COLOR;
-        const samples = question.samples?.[option] ?? [];
-        return (
-          <div key={option}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span
-                style={{
-                  width: '84px',
-                  fontSize: '11px',
-                  fontFamily: 'var(--font-family-mono)',
-                  color: unsure ? 'var(--color-warning-light)' : 'var(--color-text-secondary)',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
+      <div className={styles.bars}>
+        {rows.map((option) => {
+          const count = question.counts[option] ?? 0;
+          const unsure = option === UNSURE;
+          const samples = question.samples?.[option] ?? [];
+          return (
+            <div key={option} className={styles.row}>
+              <span className={cx(styles.name, unsure && styles.quiet)} title={option}>
                 {option}
               </span>
-              <span style={{ flex: 1, height: '6px', borderRadius: '3px', background: 'rgba(148, 163, 184, 0.15)' }}>
+              <span className={styles.track}>
                 <span
-                  style={{
-                    display: 'block',
-                    height: '100%',
-                    width: `${(count / max) * 100}%`,
-                    borderRadius: '3px',
-                    background: color,
-                    transition: 'width 0.3s ease',
-                  }}
+                  className={cx(styles.fill, unsure ? `hatch ${styles.fillGuess}` : styles.fillSure)}
+                  style={{ width: `${(count / total) * 100}%` }}
                 />
               </span>
-              <span style={{ minWidth: '22px', textAlign: 'right', fontSize: '11px', fontWeight: 700, color }}>
-                {count}
-              </span>
+              <span className={styles.value}>{count}</span>
+              {samples.length > 0 && (
+                <div className={styles.wide}>
+                  <ThumbLane option={option} samples={samples} total={count} />
+                </div>
+              )}
             </div>
-            {samples.length > 0 && <ThumbLane option={option} samples={samples} total={count} />}
-          </div>
-        );
-      })}
-      {hidden > 0 && (
-        <span style={{ fontSize: '10px', color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-family-mono)' }}>
-          +{hidden} more options
-        </span>
-      )}
+          );
+        })}
+      </div>
+      {hidden > 0 && <span className={styles.more}>+{hidden} more options</span>}
     </>
   );
 });
 ChoiceCounts.displayName = 'ChoiceCounts';
 
-/** Yes/no: one bar split into yes, no and UNSURE shares. */
+/** Yes/no: one bar, yes from the left, the UNSURE share hatched, no from the right. */
 const YesNoCounts = memo(({ question }: { question: DeciderQuestion }) => {
-  const parts: [string, string][] = [
-    ['yes', DECISION_COLOR],
-    ['no', NO_COLOR],
-  ];
-  if (UNSURE in question.counts) parts.push([UNSURE, 'var(--color-warning)']);
+  const parts: [string, string | undefined][] = [['yes', styles.shareSure]];
+  if (UNSURE in question.counts) parts.push([UNSURE, 'hatch']);
+  parts.push(['no', styles.shareNo]);
   const total = parts.reduce((sum, [option]) => sum + (question.counts[option] ?? 0), 0);
   return (
     <>
-      <div style={{ display: 'flex', height: '8px', borderRadius: '4px', overflow: 'hidden', background: 'rgba(148, 163, 184, 0.15)' }}>
-        {parts.map(([option, color]) => (
+      <div className={styles.split}>
+        {parts.map(([option, className]) => (
           <span
             key={option}
             data-testid="yesno-segment"
             data-option={option}
             title={`${option}: ${question.counts[option] ?? 0}`}
-            style={{
-              width: `${total ? ((question.counts[option] ?? 0) / total) * 100 : 0}%`,
-              background: color,
-              transition: 'width 0.3s ease',
-            }}
+            className={className}
+            style={{ width: `${total ? ((question.counts[option] ?? 0) / total) * 100 : 0}%` }}
           />
         ))}
       </div>
-      <div style={{ display: 'flex', gap: '8px', fontSize: '10px', fontWeight: 700, fontFamily: 'var(--font-family-mono)' }}>
-        {parts.map(([option, color]) => (
-          <span key={option} style={{ color: option === 'no' ? 'var(--color-text-secondary)' : color }}>
+      <div className={styles.ends}>
+        {parts.map(([option]) => (
+          <span key={option}>
             {option} {question.counts[option] ?? 0}
           </span>
         ))}
@@ -333,10 +306,11 @@ const ScaleCounts = memo(({ question }: { question: DeciderQuestion }) => {
   const levels = question.options;
   const max = Math.max(1, ...levels.map((level) => question.counts[level] ?? 0));
   const unsure = question.counts[UNSURE] ?? 0;
+  const columns = { gridTemplateColumns: `repeat(${levels.length}, minmax(0, 1fr))` };
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'flex-end', height: '46px' }}>
-        {levels.map((level, index) => {
+      <div className={cx(styles.levels, styles.levelsCompact)} style={columns}>
+        {levels.map((level) => {
           const count = question.counts[level] ?? 0;
           return (
             <div
@@ -345,65 +319,41 @@ const ScaleCounts = memo(({ question }: { question: DeciderQuestion }) => {
               data-option={level}
               data-count={String(count)}
               title={`${level}: ${count}`}
-              style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', padding: '0 2px' }}
+              className={styles.level}
             >
-              <span style={{ fontSize: '9px', fontWeight: 700, color: DECISION_TEXT }}>{count}</span>
-              <span
-                style={{
-                  width: '100%',
-                  height: `${Math.max((count / max) * 32, 2)}px`,
-                  borderRadius: '3px 3px 0 0',
-                  background: DECISION_COLOR,
-                  opacity: 0.35 + (0.65 * (index + 1)) / levels.length,
-                  transition: 'height 0.3s ease',
-                }}
-              />
+              <span className={styles.levelValue}>{count}</span>
+              <span className={cx(styles.levelBar, styles.levelBarSure)} style={{ height: `${Math.max((count / max) * 32, 2)}px` }} />
             </div>
           );
         })}
       </div>
-      <div style={{ position: 'relative', height: '1px', background: 'rgba(148, 163, 184, 0.35)' }}>
+      <div className={styles.markerRow}>
         {question.meanScore !== undefined && (
           <span
             data-testid="scale-mean"
             title={`mean score ${question.meanScore.toFixed(2)}`}
-            style={{
-              position: 'absolute',
-              top: '-1px',
-              left: `${((question.meanScore + 0.5) / levels.length) * 100}%`,
-              transform: 'translateX(-50%)',
-              width: 0,
-              height: 0,
-              borderLeft: '6px solid transparent',
-              borderRight: '6px solid transparent',
-              borderBottom: `8px solid ${DECISION_TEXT}`,
-            }}
+            className={styles.marker}
+            style={{ left: `${((question.meanScore + 0.5) / levels.length) * 100}%` }}
           />
         )}
       </div>
-      <div style={{ display: 'flex', marginTop: '6px' }}>
+      <div className={styles.levelNames} style={columns}>
         {levels.map((level) => (
-          <span
-            key={level}
-            style={{
-              flex: 1,
-              textAlign: 'center',
-              fontSize: '9px',
-              fontFamily: 'var(--font-family-mono)',
-              color: 'var(--color-text-tertiary)',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
+          <span key={level} title={level}>
             {level}
           </span>
         ))}
       </div>
-      {unsure > 0 && (
-        <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-warning)', fontFamily: 'var(--font-family-mono)' }}>
-          UNSURE {unsure}
-        </span>
+      {(unsure > 0 || question.meanScore !== undefined) && (
+        <div className={styles.counts}>
+          {unsure > 0 && (
+            <span>
+              <span aria-hidden className={cx(styles.swatchSmall, 'hatch', styles.dashed)} />
+              UNSURE {unsure}
+            </span>
+          )}
+          {question.meanScore !== undefined && <span className={styles.faint}>mean score {question.meanScore.toFixed(2)}</span>}
+        </div>
       )}
       {question.samples && <SampleLanes question={question} />}
     </>
@@ -413,11 +363,46 @@ ScaleCounts.displayName = 'ScaleCounts';
 
 /** Checklist: outcomes, a strip with every item's answers across artifacts,
  * and the items answered "no" most often. */
+/** At most this many cells in a checklist's item strip (about 4 px each in a 272 px column). */
+export const MAX_STRIP_CELLS = 68;
+
+interface StripCell {
+  label: string;
+  title: string;
+  yes: number;
+  no: number;
+  unsure: number;
+}
+
+/**
+ * The cells of a checklist's item strip: one per item, or with more items than MAX_STRIP_CELLS
+ * consecutive items sharing a cell, with their answers summed and the range in the tooltip.
+ */
+export function stripCells(question: Pick<DeciderQuestion, 'options' | 'itemStats' | 'descriptions'>): StripCell[] {
+  const stats = question.itemStats ?? [];
+  const items = question.options.map((item, index) => {
+    const [yes = 0, no = 0, unsure = 0] = stats[index] ?? [];
+    return { item, yes, no, unsure };
+  });
+  if (items.length <= MAX_STRIP_CELLS) {
+    return items.map(({ item, yes, no, unsure }) => {
+      const description = question.descriptions?.[item];
+      return { label: item, yes, no, unsure, title: `${item}: ${yes} yes · ${no} no · ${unsure} unsure${description ? ` — ${description}` : ''}` };
+    });
+  }
+  return splitEven(items, MAX_STRIP_CELLS).map((bin) => {
+    const sum = (key: 'yes' | 'no' | 'unsure') => bin.reduce((total, entry) => total + entry[key], 0);
+    const label = `${bin[0]!.item}–${bin[bin.length - 1]!.item}`;
+    const [yes, no, unsure] = [sum('yes'), sum('no'), sum('unsure')];
+    return { label, yes, no, unsure, title: `${label} (${bin.length} items): ${yes} yes · ${no} no · ${unsure} unsure` };
+  });
+}
+
 const ChecklistCounts = memo(({ question }: { question: DeciderQuestion }) => {
-  const outcomes: [string, string][] = [
-    ['passed', DECISION_COLOR],
-    ['failed', FAILED_COLOR],
-    [UNSURE, 'var(--color-warning)'],
+  const outcomes: [string, string | undefined, string | undefined][] = [
+    ['passed', styles.shareSure, styles.sureInk],
+    ['failed', styles.shareFailed, styles.errorInk],
+    [UNSURE, 'hatch', undefined],
   ];
   const total = outcomes.reduce((sum, [option]) => sum + (question.counts[option] ?? 0), 0);
   const stats = question.itemStats ?? [];
@@ -428,64 +413,46 @@ const ChecklistCounts = memo(({ question }: { question: DeciderQuestion }) => {
     .slice(0, 3);
   return (
     <>
-      <div style={{ display: 'flex', height: '8px', borderRadius: '4px', overflow: 'hidden', background: 'rgba(148, 163, 184, 0.15)' }}>
-        {outcomes.map(([option, color]) => (
+      <div className={styles.split}>
+        {outcomes.map(([option, className]) => (
           <span
             key={option}
             data-testid="checklist-outcome"
             data-option={option}
             title={`${option}: ${question.counts[option] ?? 0}`}
-            style={{ width: `${total ? ((question.counts[option] ?? 0) / total) * 100 : 0}%`, background: color, transition: 'width 0.3s ease' }}
+            className={className}
+            style={{ width: `${total ? ((question.counts[option] ?? 0) / total) * 100 : 0}%` }}
           />
         ))}
       </div>
-      <div style={{ display: 'flex', gap: '8px', fontSize: '10px', fontWeight: 700, fontFamily: 'var(--font-family-mono)' }}>
-        {outcomes.map(([option, color]) => (
-          <span key={option} style={{ color }}>
+      <div className={styles.ends}>
+        {outcomes.map(([option, , ink]) => (
+          <span key={option} className={ink}>
             {option} {question.counts[option] ?? 0}
           </span>
         ))}
       </div>
-      <div
-        title="Answers per item across all decisions: yes (violet), unsure (amber), no (empty)"
-        style={{ display: 'flex', alignItems: 'flex-end', gap: '1px', height: '22px', marginTop: '2px' }}
-      >
-        {question.options.map((item, index) => {
-          const [yes = 0, no = 0, unsure = 0] = stats[index] ?? [];
-          const n = Math.max(1, yes + no + unsure);
-          const description = question.descriptions?.[item];
+      <div className={styles.strip} title="Answers per item across all decisions: yes (blue), unsure (hatched), no (empty)">
+        {stripCells(question).map((cell) => {
+          const n = Math.max(1, cell.yes + cell.no + cell.unsure);
           return (
-            <span
-              key={item}
-              data-testid="checklist-item-stat"
-              title={`${item}: ${yes} yes · ${no} no · ${unsure} unsure${description ? ` — ${description}` : ''}`}
-              style={{
-                flex: 1,
-                minWidth: 0,
-                height: '100%',
-                display: 'flex',
-                flexDirection: 'column-reverse',
-                background: 'rgba(148, 163, 184, 0.18)',
-                borderRadius: '1px',
-                overflow: 'hidden',
-              }}
-            >
-              <span style={{ height: `${(yes / n) * 100}%`, background: DECISION_COLOR }} />
-              <span style={{ height: `${(unsure / n) * 100}%`, background: 'var(--color-warning)' }} />
+            <span key={cell.label} data-testid="checklist-item-stat" title={cell.title} className={styles.stripItem}>
+              <span className={styles.shareSure} style={{ height: `${(cell.yes / n) * 100}%` }} />
+              <span className="hatch" style={{ height: `${(cell.unsure / n) * 100}%` }} />
             </span>
           );
         })}
       </div>
       {gaps.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px', fontSize: '10px', fontFamily: 'var(--font-family-mono)' }}>
-          <span style={{ color: 'var(--color-text-tertiary)' }}>most often no:</span>
+        <div className={styles.chips}>
+          <span className={styles.more}>most often no</span>
           {gaps.map((gap) => (
             <span
               key={gap.item}
               data-testid="checklist-gap"
               data-item={gap.item}
               title={question.descriptions?.[gap.item]}
-              style={{ padding: '0 5px', borderRadius: '999px', border: `1px solid ${FAILED_COLOR}`, color: 'var(--color-text-secondary)' }}
+              className={cx('mono', styles.chip)}
             >
               {gap.item} {gap.no}
             </span>
@@ -498,212 +465,307 @@ const ChecklistCounts = memo(({ question }: { question: DeciderQuestion }) => {
 });
 ChecklistCounts.displayName = 'ChecklistCounts';
 
-/** Questions of a decision agent with how often each answer was given. */
-export const DeciderOptions = memo(({ decider }: { decider: DeciderInfo }) => {
-  const titled = decider.questions.length > 1;
-  const hasSamples = decider.questions.some((question) => question.samples);
+/** At most this many questions sit one below the other on a decider's card; more go into columns. */
+export const QUESTIONS_PER_COLUMN = 3;
+
+/**
+ * Splits a decider's questions into columns of at most QUESTIONS_PER_COLUMN, in question order and as
+ * even as possible: 4 → 2 + 2, 5 → 3 + 2, 6 → 3 + 3, 7 → 3 + 2 + 2. Up to three questions stay one column.
+ */
+export function questionColumns<T>(questions: T[]): T[][] {
+  return splitEven(questions, Math.ceil(questions.length / QUESTIONS_PER_COLUMN));
+}
+
+/** `count` columns of the items in order, the first ones one longer where they do not divide evenly. */
+function splitEven<T>(items: T[], count: number): T[][] {
+  count = Math.max(1, count);
+  const base = Math.floor(items.length / count);
+  const extra = items.length % count;
+  const columns: T[][] = [];
+  let start = 0;
+  for (let index = 0; index < count; index += 1) {
+    const size = base + (index < extra ? 1 : 0);
+    columns.push(items.slice(start, start + size));
+    start += size;
+  }
+  return columns;
+}
+
+/** Up to this many questions a decider's card shows every option; more become one compact row each. */
+export const MAX_DETAILED_QUESTIONS = 6;
+/** Compact rows per column; more questions go into a second column. */
+export const COMPACT_ROWS_PER_COLUMN = 12;
+
+/**
+ * How a decider's card lays out its questions: one to three as a list, four to six in columns of at most
+ * three, seven or more as compact rows (in columns of at most twelve).
+ */
+export function deciderLayout<T>(questions: T[]): { compact: boolean; columns: T[][] } {
+  if (questions.length > MAX_DETAILED_QUESTIONS) {
+    return { compact: true, columns: splitEven(questions, Math.ceil(questions.length / COMPACT_ROWS_PER_COLUMN)) };
+  }
+  return { compact: false, columns: questionColumns(questions) };
+}
+
+/** Strength of a decided answer's segment by its rank, the most frequent first. */
+const RANK_SHADE = [1, 0.78, 0.6, 0.47, 0.37, 0.3];
+
+/**
+ * One question in one row (deciders with many questions): a stacked bar of the answers by frequency,
+ * the unsure share hatched at the end, then the most frequent answer and its count. The tooltip has
+ * the whole distribution.
+ */
+function CompactQuestion({ question }: { question: DeciderQuestion }) {
+  const unsure = question.counts[UNSURE] ?? 0;
+  const answers: [string, number, string | undefined][] =
+    question.kind === 'checklist'
+      ? [
+          ['passed', question.counts.passed ?? 0, styles.shareSure],
+          ['failed', question.counts.failed ?? 0, styles.shareFailed],
+        ]
+      : question.kind === 'yesno'
+        ? [
+            ['yes', question.counts.yes ?? 0, styles.shareSure],
+            ['no', question.counts.no ?? 0, styles.shareNo],
+          ]
+        : question.options.map((option): [string, number, string | undefined] => [option, question.counts[option] ?? 0, styles.shareSure]);
+  const decided = answers.filter(([, count]) => count > 0).sort((a, b) => b[1] - a[1]);
+  const total = decided.reduce((sum, [, count]) => sum + count, 0) + unsure;
+  const top = decided[0];
+  const distribution = [...decided.map(([option, count]) => `${option} ${count}`), ...(unsure ? [`${UNSURE} ${unsure}`] : [])];
+  const ranked = question.kind === 'choice' || question.kind === 'scale';
   return (
     <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '4px',
-        padding: '6px 10px',
-        background: DECISION_BG,
-        borderLeft: `3px solid ${DECISION_COLOR}`,
-        borderRadius: 'var(--radius-md)',
-      }}
+      className={styles.compactRow}
+      data-testid="compact-question"
+      title={[question.instructions, distribution.join(' · ') || 'no decisions yet'].filter(Boolean).join('\n')}
     >
-      {hasSamples && <style>{THUMB_CSS}</style>}
-      {decider.questions.map((question, index) => (
-        <div
-          key={question.name}
-          title={question.instructions}
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '4px',
-            ...(index > 0 ? { borderTop: `1px dashed ${DECISION_BORDER}`, paddingTop: '6px', marginTop: '2px' } : {}),
-          }}
-        >
-          {titled && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 700, color: DECISION_TEXT }}>
-              <span aria-hidden style={{ fontSize: '10px', letterSpacing: '-1px', opacity: 0.85 }}>{KIND_GLYPH[question.kind] ?? '◆'}</span>
-              <span>{question.name}</span>
+      <span className={cx('mono', styles.questionName)}>
+        <span className={styles.diamond}>◆</span> {question.name}
+      </span>
+      <span className={cx(styles.split, styles.compactBar)}>
+        {decided.map(([option, count, className], index) => (
+          <span
+            key={option}
+            data-option={option}
+            className={className}
+            style={{
+              width: `${(count / total) * 100}%`,
+              opacity: ranked ? RANK_SHADE[Math.min(index, RANK_SHADE.length - 1)] : undefined,
+            }}
+          />
+        ))}
+        {unsure > 0 && <span data-option={UNSURE} className="hatch" style={{ width: `${(unsure / total) * 100}%` }} />}
+      </span>
+      <span className={cx('mono', styles.compactTop, !top && unsure > 0 && styles.quiet)}>
+        {top ? `${top[0]} ${top[1]}` : unsure > 0 ? `${UNSURE} ${unsure}` : '—'}
+      </span>
+    </div>
+  );
+}
+
+function DeciderQuestionCounts({ question, titled }: { question: DeciderQuestion; titled: boolean }) {
+  return (
+    <div className={styles.question} title={question.instructions}>
+      {titled && <Head question={question.name} kind={KIND_LABEL[question.kind] ?? KIND_LABEL.choice} />}
+      {question.kind === 'checklist' ? (
+        <ChecklistCounts question={question} />
+      ) : question.kind === 'yesno' ? (
+        <YesNoCounts question={question} />
+      ) : question.kind === 'scale' ? (
+        <ScaleCounts question={question} />
+      ) : (
+        <ChoiceCounts question={question} />
+      )}
+      {question.refused ? (
+        <span className={styles.counts}>
+          <span>
+            <span aria-hidden className={cx(styles.swatchSmall, styles.refusedMark)} />
+            {question.refused} refused
+          </span>
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Questions of a decision agent with how often each answer was given. `columns` applies the card's layout
+ * (deciderLayout: columns from four questions, compact rows from seven); without it every question shows
+ * all its options in one column (unfolded).
+ */
+export const DeciderOptions = memo(({ decider, columns = false }: { decider: DeciderInfo; columns?: boolean }) => {
+  const titled = decider.questions.length > 1;
+  const shadow = decider.shadow;
+  const layout = columns ? deciderLayout(decider.questions) : { compact: false, columns: [decider.questions] };
+  return (
+    <div className={styles.decider}>
+      {layout.compact ? (
+        <div className={styles.questionColumns} data-testid="decider-compact">
+          {layout.columns.map((column, index) => (
+            <div key={index} className={cx(styles.questionColumn, styles.compactColumn)}>
+              {column.map((question) => (
+                <CompactQuestion key={question.name} question={question} />
+              ))}
             </div>
-          )}
-          {question.kind === 'checklist' ? (
-            <ChecklistCounts question={question} />
-          ) : question.kind === 'yesno' ? (
-            <YesNoCounts question={question} />
-          ) : question.kind === 'scale' ? (
-            <ScaleCounts question={question} />
-          ) : (
-            <ChoiceCounts question={question} />
-          )}
-          {question.refused ? (
-            <span style={{ fontSize: '10px', color: 'var(--color-warning-light)', fontFamily: 'var(--font-family-mono)' }}>
-              {question.refused} refused
-            </span>
-          ) : null}
+          ))}
         </div>
-      ))}
-      <div style={{ fontSize: '10px', color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-family-mono)' }}>
-        {decider.ensemble
-          ? `${decider.vote} of ${decider.ensemble.join(' + ')}`
-          : [decider.model, ...(decider.escalate ?? [])].join(' › ')}
-        {decider.threshold !== null ? ` · threshold ${decider.threshold.toFixed(2)}` : ''}
+      ) : layout.columns.length > 1 ? (
+        <div className={styles.questionColumns} data-testid="decider-columns">
+          {layout.columns.map((column, index) => (
+            <div key={index} className={styles.questionColumn}>
+              {column.map((question) => (
+                <DeciderQuestionCounts key={question.name} question={question} titled={titled} />
+              ))}
+            </div>
+          ))}
+        </div>
+      ) : (
+        decider.questions.map((question) => (
+          <DeciderQuestionCounts key={question.name} question={question} titled={titled} />
+        ))
+      )}
+      <div className={styles.deciderFoot}>
+        <div className={styles.foot}>
+          {decider.ensemble
+            ? `${decider.vote} of ${decider.ensemble.join(' + ')}`
+            : [decider.model, ...(decider.escalate ?? [])].join(' › ')}
+          {decider.threshold !== null ? ` · threshold ${decider.threshold.toFixed(2)}` : ''}
+          {decider.tournament
+            ? ` · tournament: groups of ${decider.tournament.groupSize}, keep ${decider.tournament.keep}`
+            : ''}
+        </div>
         {decider.itemThresholds ? <ItemThresholds thresholds={decider.itemThresholds} /> : null}
-        {decider.shadow ? (
-          <div data-testid="decider-shadow" title="Decisions where the shadow model chose the same as the decider">
-            {`shadow ${decider.shadow.model} · agrees ${decider.shadow.agree}/${decider.shadow.compared}`}
+        {shadow ? (
+          <div
+            data-testid="decider-shadow"
+            className={styles.shadowRow}
+            title="Decisions where the shadow model chose the same as the decider"
+          >
+            <span className={cx(styles.chip, styles.chipDashed)}>
+              {`shadow ${shadow.model} · agrees ${shadow.agree}/${shadow.compared}`}
+            </span>
+            <span className={styles.track}>
+              <span
+                className={cx(styles.fill, styles.fillQuiet)}
+                style={{ width: `${shadow.compared ? (shadow.agree / shadow.compared) * 100 : 0}%` }}
+              />
+            </span>
           </div>
         ) : null}
-        {decider.tournament
-          ? ` · tournament: groups of ${decider.tournament.groupSize}, keep ${decider.tournament.keep}`
-          : ''}
       </div>
     </div>
   );
 });
 DeciderOptions.displayName = 'DeciderOptions';
 
-const STONE = '#a8a29e';
-const AMBER = '#f59e0b';
-const VIOLET_TEXT = '#6d28d9';
-
-/** Choice: probability per option, most probable first, with the threshold marker.
+/** Choice: probability per option, most probable first, with the threshold tick.
  * Large choices show their most probable options. */
 const ChoiceBars = memo(({ decision }: { decision: DecisionInfo }) => {
   const sorted = Object.entries(decision.probabilities).sort((a, b) => b[1] - a[1]);
   const options = sorted.slice(0, MAX_OPTION_ROWS);
   const rest = sorted.slice(MAX_OPTION_ROWS);
   const restMax = rest.length > 0 ? (rest[0]?.[1] ?? 0) : 0;
+  const unsure = decision.choice === UNSURE;
   return (
     <>
-      {options.map(([option, probability]) => {
-        const chosen = option === decision.choice;
-        const bestGuess = option === decision.bestGuess;
-        return (
-          <div
-            key={option}
-            data-testid="decision-option"
-            data-option={option}
-            data-chosen={String(chosen)}
-            data-best-guess={String(bestGuess)}
-            style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-          >
-            <span
-              style={{
-                width: '120px',
-                fontSize: '11px',
-                fontFamily: 'monospace',
-                fontWeight: chosen ? 700 : 500,
-                color: chosen ? VIOLET_TEXT : '#78716c',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
+      <div className={styles.bars}>
+        {options.map(([option, probability]) => {
+          const chosen = option === decision.choice;
+          const bestGuess = option === decision.bestGuess;
+          const guess = unsure && bestGuess;
+          return (
+            <div
+              key={option}
+              data-testid="decision-option"
+              data-option={option}
+              data-chosen={String(chosen)}
+              data-best-guess={String(bestGuess)}
+              className={styles.row}
             >
-              {chosen ? '✔ ' : ''}
-              {option}
-            </span>
-            <span style={{ position: 'relative', flex: 1, height: '10px', borderRadius: '5px', background: '#e7e5e4' }}>
-              <span
-                style={{
-                  display: 'block',
-                  height: '100%',
-                  width: `${Math.max(probability * 100, 1)}%`,
-                  borderRadius: '5px',
-                  background: chosen ? DECISION_COLOR : bestGuess ? AMBER : STONE,
-                }}
-              />
-              {decision.threshold !== null && (
+              <span className={cx(styles.name, chosen ? styles.sureInk : !guess && styles.quiet)} title={option}>
+                {option}
+              </span>
+              <span className={styles.track}>
                 <span
-                  title={`threshold ${decision.threshold.toFixed(2)}`}
-                  style={{
-                    position: 'absolute',
-                    top: '-2px',
-                    bottom: '-2px',
-                    left: `${decision.threshold * 100}%`,
-                    width: '2px',
-                    background: '#44403c',
-                    opacity: 0.6,
-                  }}
+                  className={cx(styles.fill, chosen && styles.fillSure, guess && `hatch ${styles.fillGuess}`)}
+                  style={{ width: `${Math.max(probability * 100, 1)}%` }}
                 />
-              )}
-            </span>
-            <span style={{ width: '36px', textAlign: 'right', fontSize: '11px', fontWeight: 600, color: '#57534e' }}>
-              {Math.round(probability * 100)}%
-            </span>
-          </div>
-        );
-      })}
+                {decision.threshold !== null && (
+                  <span
+                    aria-hidden
+                    title={`threshold ${decision.threshold.toFixed(2)}`}
+                    className={styles.tick}
+                    style={{ left: `${decision.threshold * 100}%` }}
+                  />
+                )}
+              </span>
+              <span className={cx(styles.value, (chosen || guess) && styles.strong)}>{probability.toFixed(2)}</span>
+            </div>
+          );
+        })}
+      </div>
       {rest.length > 0 && (
-        <div style={{ fontSize: '10px', color: STONE, fontFamily: 'monospace' }}>
+        <span className={styles.more}>
           {`+${rest.length} more options, each ${restMax < 0.01 ? 'below 1%' : `at most ${Math.round(restMax * 100)}%`}`}
-        </div>
+        </span>
       )}
     </>
   );
 });
 ChoiceBars.displayName = 'ChoiceBars';
 
-/** Yes/no: one bar, yes from the left and no from the right. Between the two
- * threshold markers neither answer is firm: the UNSURE zone. */
+/** Yes/no: one bar, yes from the left and no from the right. Between 1 − t
+ * and t neither answer is firm: the hatched UNSURE zone. The marker is at p. */
 const YesNoBar = memo(({ decision }: { decision: DecisionInfo }) => {
   const yes = decision.probabilities.yes ?? 0;
-  const color = (option: string) =>
-    option === decision.choice ? DECISION_COLOR : option === decision.bestGuess ? AMBER : '#d6d3d1';
   const threshold = decision.threshold;
   const zone = threshold !== null && threshold > 0.5;
   return (
-    <>
-      <div
-        data-testid="decision-yesno"
-        data-yes={String(yes)}
-        style={{ position: 'relative', display: 'flex', height: '14px', borderRadius: '7px', overflow: 'hidden', background: '#e7e5e4' }}
-      >
-        <span style={{ width: `${yes * 100}%`, background: color('yes') }} />
-        <span style={{ flex: 1, background: color('no') }} />
+    <div className={styles.yesno}>
+      <div data-testid="decision-yesno" data-yes={String(yes)} className={styles.yesnoBar}>
+        {/* The chosen side blue; an unsure answer only tints yes */}
+        <span
+          className={decision.choice === 'yes' ? styles.sideSure : decision.choice === UNSURE ? styles.sideLeaning : styles.side}
+          style={{ width: `${yes * 100}%` }}
+        />
+        <span className={cx(styles.noSide, decision.choice === 'no' ? styles.sideSure : styles.side)} />
         {zone && (
           <span
             data-testid="decision-unsure-zone"
             title={`UNSURE between ${(1 - threshold).toFixed(2)} and ${threshold.toFixed(2)}`}
-            style={{
-              position: 'absolute',
-              top: 0,
-              bottom: 0,
-              left: pct(1 - threshold),
-              width: pct(2 * threshold - 1),
-              borderLeft: '2px solid rgba(68, 64, 60, 0.55)',
-              borderRight: '2px solid rgba(68, 64, 60, 0.55)',
-              background: 'repeating-linear-gradient(135deg, rgba(245, 158, 11, 0.22) 0 4px, transparent 4px 8px)',
-            }}
+            className={cx('hatch', styles.zone)}
+            style={{ left: pct(1 - threshold), width: pct(2 * threshold - 1) }}
           />
         )}
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontFamily: 'monospace', fontWeight: 600 }}>
-        <span style={{ color: decision.choice === 'yes' ? VIOLET_TEXT : '#78716c' }}>{`yes ${Math.round(yes * 100)}%`}</span>
-        <span style={{ color: decision.choice === 'no' ? VIOLET_TEXT : '#78716c' }}>{`no ${Math.round((1 - yes) * 100)}%`}</span>
+      <div className={styles.markerRow}>
+        <span aria-hidden className={styles.marker} style={{ left: pct(yes) }} />
       </div>
-    </>
+      <div className={styles.ends}>
+        <span className={cx(decision.choice === 'yes' && styles.sureInk)}>{`yes ${yes.toFixed(2)}`}</span>
+        {zone && <span className={styles.faint}>{`unsure zone ${(1 - threshold).toFixed(2)} – ${threshold.toFixed(2)}`}</span>}
+        <span className={cx(decision.choice === 'no' && styles.sureInk)}>{`no ${(1 - yes).toFixed(2)}`}</span>
+      </div>
+    </div>
   );
 });
 YesNoBar.displayName = 'YesNoBar';
 
-const SCALE_HEIGHT = 60;
-const CARD_BG = '#fefce8'; // MessageNode background
+/** Height of a scale bar at probability 1. */
+const SCALE_HEIGHT = 46;
 
-/** Scale: probability per level in level order, the threshold as a line and
- * the probability-weighted score on the axis below. */
+/** Scale: probability per level in level order, the threshold as a dashed line
+ * and the probability-weighted score as a marker below. */
 const ScaleBars = memo(({ decision }: { decision: DecisionInfo }) => {
   const levels = decision.levels ?? Object.keys(decision.probabilities);
   const score = decision.score ?? null;
+  const unsure = decision.choice === UNSURE;
+  const columns = { gridTemplateColumns: `repeat(${levels.length}, minmax(0, 1fr))` };
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-      <div style={{ position: 'relative', display: 'flex', alignItems: 'flex-end' }}>
-        {levels.map((level, index) => {
+    <div>
+      <div className={styles.levels} style={columns}>
+        {levels.map((level) => {
           const probability = decision.probabilities[level] ?? 0;
           const chosen = level === decision.choice;
           const bestGuess = level === decision.bestGuess;
@@ -714,83 +776,38 @@ const ScaleBars = memo(({ decision }: { decision: DecisionInfo }) => {
               data-option={level}
               data-chosen={String(chosen)}
               data-best-guess={String(bestGuess)}
-              style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px', padding: '0 3px' }}
+              className={styles.level}
             >
+              <span className={styles.levelValue}>{probability.toFixed(2)}</span>
               <span
-                style={{
-                  position: 'relative',
-                  zIndex: 1,
-                  padding: '0 3px',
-                  borderRadius: '3px',
-                  background: CARD_BG,
-                  fontSize: '10px',
-                  fontWeight: 600,
-                  color: chosen ? VIOLET_TEXT : '#57534e',
-                }}
-              >
-                {Math.round(probability * 100)}%
-              </span>
-              <span
-                style={{
-                  width: '100%',
-                  height: `${Math.max(probability * SCALE_HEIGHT, 2)}px`,
-                  borderRadius: '4px 4px 0 0',
-                  background: chosen ? DECISION_COLOR : bestGuess ? AMBER : STONE,
-                  opacity: chosen || bestGuess ? 1 : 0.45 + (0.4 * (index + 1)) / levels.length,
-                }}
+                className={cx(styles.levelBar, chosen && styles.levelBarSure, unsure && bestGuess && `hatch ${styles.levelBarGuess}`)}
+                style={{ height: `${Math.max(probability * SCALE_HEIGHT, 2)}px` }}
               />
             </div>
           );
         })}
         {decision.threshold !== null && (
           <span
+            aria-hidden
             title={`threshold ${decision.threshold.toFixed(2)}`}
-            style={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              bottom: `${decision.threshold * SCALE_HEIGHT}px`,
-              borderTop: '1px dashed rgba(68, 64, 60, 0.6)',
-            }}
+            className={styles.thresholdLine}
+            style={{ bottom: `${decision.threshold * SCALE_HEIGHT}px` }}
           />
         )}
       </div>
-      <div style={{ position: 'relative', height: '2px', background: '#d6d3d1', borderRadius: '1px' }}>
+      <div className={styles.markerRow}>
         {score !== null && (
           <span
             data-testid="decision-score"
             title={`score ${score.toFixed(2)}`}
-            style={{
-              position: 'absolute',
-              top: '-4px',
-              left: `${((score + 0.5) / levels.length) * 100}%`,
-              transform: 'translateX(-50%)',
-              width: '10px',
-              height: '10px',
-              borderRadius: '50%',
-              background: DECISION_COLOR,
-              border: '2px solid white',
-              boxShadow: '0 0 0 1px rgba(109, 40, 217, 0.5)',
-            }}
+            className={styles.marker}
+            style={{ left: `${((score + 0.5) / levels.length) * 100}%` }}
           />
         )}
       </div>
-      <div style={{ display: 'flex', marginTop: '4px' }}>
+      <div className={styles.levelNames} style={columns}>
         {levels.map((level) => (
-          <span
-            key={level}
-            style={{
-              flex: 1,
-              textAlign: 'center',
-              fontSize: '10px',
-              fontFamily: 'monospace',
-              fontWeight: level === decision.choice ? 700 : 500,
-              color: level === decision.choice ? VIOLET_TEXT : '#78716c',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
+          <span key={level} title={level} className={cx(level === decision.choice && styles.sureInk)}>
             {level}
           </span>
         ))}
@@ -799,9 +816,6 @@ const ScaleBars = memo(({ decision }: { decision: DecisionInfo }) => {
   );
 });
 ScaleBars.displayName = 'ScaleBars';
-
-const NO_CELL = '#d6d3d1';
-const CELL_COLOR: Record<string, string> = { yes: DECISION_COLOR, no: NO_CELL, UNSURE: AMBER };
 
 function attemptLabel(attempt: EscalationAttempt): string {
   if (attempt.results) return `${Object.keys(attempt.results).length} unsure`;
@@ -821,10 +835,10 @@ function voteLabel(vote: EscalationAttempt): string {
 
 type VoteState = 'agrees' | 'differs' | 'unsure';
 
-const VOTE_STYLE: Record<VoteState, { background: string; color: string; title: string }> = {
-  agrees: { background: '#ede9fe', color: VIOLET_TEXT, title: 'Firm vote for the decision' },
-  differs: { background: '#fef3c7', color: '#b45309', title: 'Firm vote that did not carry' },
-  unsure: { background: '#f5f5f4', color: '#57534e', title: 'No vote: below the threshold or refused' },
+const VOTE_STYLE: Record<VoteState, { className: string | undefined; title: string }> = {
+  agrees: { className: styles.chipSure, title: 'Firm vote for the decision' },
+  differs: { className: '', title: 'Firm vote that did not carry' },
+  unsure: { className: `hatch ${styles.chipUnsure}`, title: 'No vote: below the threshold or refused' },
 };
 
 function checklistVoteState(vote: Record<string, string>, results: Record<string, string>): VoteState {
@@ -841,7 +855,7 @@ function voteState(vote: EscalationAttempt, choice: string, threshold: number | 
   return vote.choice === choice ? 'agrees' : 'differs';
 }
 
-/** Ensemble: every model's vote, colored by how it relates to the decision. */
+/** Ensemble: every model's vote (blue agrees, hatched unsure, outlined differs) and the result. */
 const EnsembleVotes = memo(
   ({
     votes,
@@ -853,26 +867,40 @@ const EnsembleVotes = memo(
     choice: string;
     threshold: number | null;
     results?: Record<string, string>;
-  }) => (
-    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px', fontSize: '10px', fontFamily: 'monospace' }}>
-      {votes.map((vote, index) => {
-        // Checklist votes hold one result per item, compared item by item
-        const state = vote.results ? checklistVoteState(vote.results, results ?? {}) : voteState(vote, choice, threshold);
-        const style = VOTE_STYLE[state];
-        return (
-          <span
-            key={index}
-            data-testid="decision-vote"
-            data-vote={state}
-            title={style.title}
-            style={{ padding: '1px 6px', borderRadius: '999px', background: style.background, color: style.color, fontWeight: 600 }}
-          >
-            {`${vote.model} · ${voteLabel(vote)}`}
+  }) => {
+    // Checklist votes hold one result per item, compared item by item
+    const states = votes.map((vote) =>
+      vote.results ? checklistVoteState(vote.results, results ?? {}) : voteState(vote, choice, threshold)
+    );
+    const agree = states.filter((state) => state === 'agrees').length;
+    return (
+      <Section label="Vote" meta={plural(votes.length, 'model')}>
+        <div className={styles.chips}>
+          {votes.map((vote, index) => {
+            const state = states[index] ?? 'unsure';
+            return (
+              <span
+                key={index}
+                data-testid="decision-vote"
+                data-vote={state}
+                title={VOTE_STYLE[state].title}
+                className={cx(styles.chip, VOTE_STYLE[state].className)}
+              >
+                {`${vote.model} · ${voteLabel(vote)}`}
+              </span>
+            );
+          })}
+        </div>
+        <div className={styles.result}>
+          <span className={styles.quiet}>result</span>
+          <span className={cx('mono', choice === UNSURE ? styles.quiet : styles.sureInk)}>
+            {choice === UNSURE ? 'unsure' : `◆ ${choice}`}
           </span>
-        );
-      })}
-    </div>
-  )
+          <span className={styles.faint}>{`${agree} of ${votes.length} agree`}</span>
+        </div>
+      </Section>
+    );
+  }
 );
 EnsembleVotes.displayName = 'EnsembleVotes';
 
@@ -886,21 +914,35 @@ function shadowLabel(shadow: ShadowAnswer): string {
   return shadow.choice === UNSURE ? `UNSURE (${value})` : value;
 }
 
-/** Shadow mode: what the shadow model decided; violet if it would have routed the same. */
+/** Shadow mode: a dashed chip with what the shadow model decided, and whether it would have routed the same. */
 const ShadowRow = memo(({ shadow, choice }: { shadow: ShadowAnswer; choice: string }) => {
   const agrees = !shadow.error && shadow.choice === choice;
-  const style = shadow.error ? VOTE_STYLE.unsure : agrees ? VOTE_STYLE.agrees : VOTE_STYLE.differs;
   return (
-    <div style={{ fontSize: '10px', fontFamily: 'monospace' }}>
-      <span
-        data-testid="decision-shadow"
-        data-agrees={String(agrees)}
-        title={shadow.error ?? (agrees ? 'The shadow model chose the same' : 'The shadow model would have routed differently')}
-        style={{ padding: '1px 6px', borderRadius: '999px', background: style.background, color: style.color, fontWeight: 600, borderStyle: 'dashed', borderWidth: '1px', borderColor: style.color }}
-      >
-        {`shadow ${shadow.model} · ${shadowLabel(shadow)}`}
-      </span>
-    </div>
+    <Section label="Shadow" meta="not routed">
+      <div className={styles.chips}>
+        <span
+          data-testid="decision-shadow"
+          data-agrees={String(agrees)}
+          title={shadow.error ?? (agrees ? 'The shadow model chose the same' : 'The shadow model would have routed differently')}
+          className={cx(styles.chip, styles.chipDashed)}
+        >
+          {`shadow ${shadow.model} · ${shadowLabel(shadow)}`}
+        </span>
+        {shadow.error ? (
+          <span className={cx(styles.flag, styles.errorInk)}>
+            <Mark kind="failed" />
+            failed
+          </span>
+        ) : agrees ? (
+          <span className={cx(styles.flag, styles.sureInk)}>
+            <Mark kind="sure" />
+            agrees
+          </span>
+        ) : (
+          <span className={cx(styles.flag, styles.quiet)}>would route differently</span>
+        )}
+      </div>
+    </Section>
   );
 });
 ShadowRow.displayName = 'ShadowRow';
@@ -912,19 +954,25 @@ export interface ExplanationInfo {
   questions: string[];
 }
 
-const NOTE_STYLE = { fontSize: '11px', color: '#44403c', lineHeight: 1.4 } as const;
+/** "Would settle it: …" */
+const Settle = ({ missing }: { missing: string }) => (
+  <div className={styles.settle}>
+    <span>Would settle it:</span> <span>{missing}</span>
+  </div>
+);
 
 /** An Explanation artifact: the LLM's text instead of JSON. */
 export const ExplanationCard = memo(({ explanation }: { explanation: ExplanationInfo }) => (
-  <div data-testid="explanation-card" style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '10px', maxWidth: '420px' }}>
-    <div style={{ fontSize: '12px', fontWeight: 700, color: VIOLET_TEXT }}>
-      {`💬 Explains ${explanation.questions.join(', ') || 'a decision'}`}
+  <div data-testid="explanation-card" className={styles.decision}>
+    <div className={styles.head}>
+      <span>
+        Explains <span className="mono">{explanation.questions.join(', ') || 'a decision'}</span>
+      </span>
+      <span className={styles.kind}>Explanation</span>
     </div>
-    <div style={NOTE_STYLE}>{explanation.explanation}</div>
-    {explanation.missing ? (
-      <div style={{ ...NOTE_STYLE, color: '#b45309' }}>{`Would settle it: ${explanation.missing}`}</div>
-    ) : null}
-    <div style={{ fontSize: '10px', color: STONE, fontFamily: 'monospace' }}>{explanation.model}</div>
+    <p className={styles.explainText}>{explanation.explanation}</p>
+    {explanation.missing ? <Settle missing={explanation.missing} /> : null}
+    <span className={styles.foot}>{explanation.model}</span>
   </div>
 ));
 ExplanationCard.displayName = 'ExplanationCard';
@@ -932,225 +980,262 @@ ExplanationCard.displayName = 'ExplanationCard';
 /** The latest explanation of a decision, shown on the decision's card. */
 const ExplanationNote = memo(({ explanation }: { explanation: NonNullable<DecisionInfo['explanation']> }) => {
   const [open, setOpen] = useState(false);
-  const text = `💬 ${explanation.by ?? explanation.model}: ${explanation.explanation}`;
   return (
-    <div
-      data-testid="decision-explanation"
-      style={{ ...NOTE_STYLE, maxWidth: '420px', padding: '4px 8px', borderLeft: `3px solid ${DECISION_COLOR}`, background: '#f5f3ff' }}
-    >
-      {open ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <div>{text}</div>
-          {explanation.missing ? <div style={{ color: '#b45309' }}>{`Would settle it: ${explanation.missing}`}</div> : null}
-          <div style={{ fontSize: '10px', color: STONE, fontFamily: 'monospace' }}>{explanation.model}</div>
-        </div>
-      ) : (
-        // Clamped inside the padding, so no part of a fourth line shows
-        <div style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{text}</div>
-      )}
-      <button
-        type="button"
-        className="nodrag nopan"
-        aria-expanded={open}
-        aria-label={open ? 'Show less of the explanation' : 'Show the whole explanation'}
-        onClick={(event) => {
-          event.stopPropagation();
-          setOpen(!open);
-        }}
-        style={{ marginTop: '2px', padding: 0, border: 'none', background: 'none', color: VIOLET_TEXT, fontSize: '10px', fontWeight: 700, cursor: 'pointer' }}
-      >
-        {open ? 'less' : 'more'}
-      </button>
-    </div>
+    <Section label="Explanation" meta={explanation.model}>
+      <div data-testid="decision-explanation" className={styles.explanation}>
+        <p className={cx(styles.explainText, !open && styles.clamp)}>
+          <span className={styles.faint}>{`${explanation.by ?? explanation.model}:`}</span> {explanation.explanation}
+        </p>
+        {open && explanation.missing ? <Settle missing={explanation.missing} /> : null}
+        <button
+          type="button"
+          className={cx('nodrag nopan', styles.toggle)}
+          aria-expanded={open}
+          aria-label={open ? 'Show less of the explanation' : 'Show the whole explanation'}
+          onClick={(event) => {
+            event.stopPropagation();
+            setOpen(!open);
+          }}
+        >
+          {open ? 'less' : 'more'}
+        </button>
+      </div>
+    </Section>
   );
 });
 ExplanationNote.displayName = 'ExplanationNote';
 
-/** Escalation: the lower tiers that were not sure, then the model that answered. */
-const EscalationTrail = memo(({ attempts, model, tier }: { attempts: EscalationAttempt[]; model: string; tier: number }) => (
-  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px', fontSize: '10px', fontFamily: 'monospace' }}>
-    {attempts.map((attempt, index) => (
-      <span key={index} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-        <span
-          data-testid="escalation-attempt"
-          title={
-            attempt.results
-              ? `Tier ${index}: not sure about ${Object.keys(attempt.results).join(', ')}; asked one tier up`
-              : `Tier ${index}: ${attempt.refused ? 'refused' : 'below the threshold'}; asked one tier up`
-          }
-          style={{ padding: '1px 6px', borderRadius: '999px', background: '#fef3c7', color: '#b45309', fontWeight: 600 }}
-        >
-          {`${attempt.model} · ${attemptLabel(attempt)}`}
+/** Escalation: chips per tier, hatched for the tiers that were unsure, blue for the tier that answered. */
+const EscalationTrail = memo(({ decision, attempts, tier }: { decision: DecisionInfo; attempts: EscalationAttempt[]; tier: number }) => {
+  const answered = !decision.refused && decision.choice !== UNSURE;
+  const p = decision.probabilities[decision.choice] ?? decision.confidence;
+  const answer = decision.refused
+    ? 'refused'
+    : !answered
+      ? 'unsure'
+      : decision.kind === 'checklist' || p == null
+        ? decision.choice
+        : `${decision.choice} ${p.toFixed(2)}`;
+  return (
+    <Section label="Escalation" meta={`tier ${tier}`}>
+      <div className={styles.chips}>
+        {attempts.map((attempt, index) => (
+          <span key={index} className={styles.step}>
+            {index > 0 && <Arrow />}
+            <span
+              data-testid="escalation-attempt"
+              title={
+                attempt.results
+                  ? `Tier ${index}: not sure about ${Object.keys(attempt.results).join(', ')}; asked one tier up`
+                  : `Tier ${index}: ${attempt.refused ? 'refused' : 'below the threshold'}; asked one tier up`
+              }
+              className={cx(styles.chip, 'hatch', styles.chipUnsure)}
+            >
+              {`${attempt.model} · ${attemptLabel(attempt)}`}
+            </span>
+          </span>
+        ))}
+        <span className={styles.step}>
+          <Arrow />
+          <span
+            data-testid="escalation-final"
+            className={cx(styles.chip, answered ? styles.chipSure : `hatch ${styles.chipUnsure}`)}
+          >
+            {`${decision.model} · ${answer}`}
+          </span>
         </span>
-        <span style={{ color: STONE }}>›</span>
-      </span>
-    ))}
-    <span
-      data-testid="escalation-final"
-      style={{ padding: '1px 6px', borderRadius: '999px', background: '#ede9fe', color: VIOLET_TEXT, fontWeight: 700 }}
-    >
-      {`${model} · tier ${tier}`}
-    </span>
-  </div>
-));
+      </div>
+      <p className={styles.note}>
+        {`${answered ? 'Answered' : 'Not sure'} at tier ${tier} after ${plural(attempts.length, 'attempt')}.`}
+      </p>
+    </Section>
+  );
+});
 EscalationTrail.displayName = 'EscalationTrail';
 
 /** Tournament: the rounds that narrowed the options down to the final question. */
-const TournamentRounds = memo(({ rounds, onOpen }: { rounds: TournamentRound[]; onOpen?: () => void }) => (
-  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px', fontSize: '10px', fontFamily: 'monospace' }}>
-    {rounds.map((round, index) => (
-      <span key={index} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-        <span
-          data-testid="tournament-round"
-          title={`Round ${index + 1}: the ${round.survivors.length} survivors are the most probable options of each group${
-            round.refused_groups ? `; ${round.refused_groups} group(s) refused, no option fit` : ''
-          }`}
-          style={{ padding: '1px 6px', borderRadius: '999px', background: '#ede9fe', color: VIOLET_TEXT, fontWeight: 600 }}
-        >
-          {`${round.candidates} options · ${round.groups} groups → ${round.survivors.length}`}
-        </span>
-        <span style={{ color: STONE }}>›</span>
-      </span>
-    ))}
-    <span style={{ color: VIOLET_TEXT, fontWeight: 700 }}>final</span>
-    {onOpen && (
-      <button
-        type="button"
-        className="nodrag nopan"
-        aria-label="Open tournament bracket"
-        title="Show the whole bracket"
-        onClick={(event) => {
-          event.stopPropagation();
-          onOpen();
-        }}
-        style={{
-          marginLeft: '4px',
-          padding: '1px 7px',
-          borderRadius: '999px',
-          border: `1px solid ${DECISION_COLOR}`,
-          background: 'white',
-          color: VIOLET_TEXT,
-          fontSize: '10px',
-          fontWeight: 700,
-          cursor: 'pointer',
-        }}
-      >
-        ⤢ bracket
-      </button>
-    )}
-  </div>
-));
+const TournamentRounds = memo(
+  ({ decision, rounds, onOpen }: { decision: DecisionInfo; rounds: TournamentRound[]; onOpen?: () => void }) => {
+    const unsure = decision.choice === UNSURE;
+    const winner = unsure ? decision.bestGuess : decision.choice;
+    const p = winner ? decision.probabilities[winner] : undefined;
+    return (
+      <>
+        <div className={styles.chips}>
+          <span className={styles.chip}>{`${rounds[0]?.candidates ?? 0} options`}</span>
+          {rounds.map((round, index) => (
+            <span key={index} className={styles.step}>
+              <Arrow />
+              <span
+                data-testid="tournament-round"
+                title={`Round ${index + 1}: ${round.candidates} options in ${round.groups} groups; the ${round.survivors.length} survivors are the most probable options of each group${
+                  round.refused_groups ? `; ${round.refused_groups} group(s) refused, no option fit` : ''
+                }`}
+                className={styles.chip}
+              >
+                {`${round.groups} groups → ${round.survivors.length}`}
+              </span>
+            </span>
+          ))}
+          {winner && (
+            <span className={styles.step}>
+              <Arrow />
+              <span
+                title={unsure ? 'The best guess of the final question' : 'The answer of the final question'}
+                className={cx(styles.chip, unsure ? `hatch ${styles.chipUnsure}` : styles.chipSure)}
+              >
+                {p === undefined ? winner : `${winner} · ${p.toFixed(2)}`}
+              </span>
+            </span>
+          )}
+        </div>
+        {onOpen && (
+          <button
+            type="button"
+            className={cx('btn sm nodrag nopan', styles.start)}
+            aria-label="Open tournament bracket"
+            title="Show the whole bracket"
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpen();
+            }}
+          >
+            Open bracket
+          </button>
+        )}
+      </>
+    );
+  }
+);
 TournamentRounds.displayName = 'TournamentRounds';
 
-/** Checklist: one cell per item, in item order. */
-const ChecklistGrid = memo(({ decision }: { decision: DecisionInfo }) => {
+/** Checklist: one cell per item, in item order, and a legend with counts. */
+/** Above this many items a checklist's grid of cells scrolls inside a fixed height. */
+export const MAX_GRID_ITEMS = 200;
+
+const ChecklistGrid = memo(({ decision, scroll = true }: { decision: DecisionInfo; scroll?: boolean }) => {
   const results = decision.results ?? {};
   const items = decision.items ?? Object.keys(results);
   const refused = new Set(decision.refusedItems ?? []);
-  const legend: [string, string][] = [
-    ['yes', DECISION_COLOR],
-    ['no', NO_CELL],
-    ['unsure', AMBER],
-  ];
+  const count = (result: string) => items.filter((item) => !refused.has(item) && (results[item] ?? UNSURE) === result).length;
   return (
     <>
-    <div role="group" aria-label={`${decision.question} items`} style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
-      {items.map((item) => {
-        const result = results[item] ?? UNSURE;
-        const p = decision.probabilities[item];
-        const section = decision.sections?.answeredBy[item];
-        const own = decision.itemThresholds?.[item];
-        const where = `${own !== undefined ? ` · threshold ${own.toFixed(2)}` : ''}${
-          section !== undefined ? ` · section ${section + 1}` : ''
-        }`;
-        const title = refused.has(item)
-          ? `${item} · refused${where}`
-          : `${item} · ${result}${p !== undefined ? ` · p ${p.toFixed(2)}` : ''}${where}`;
-        return (
-          <span
-            key={item}
-            data-testid="checklist-cell"
-            data-result={result}
-            role="img"
-            aria-label={title}
-            title={title}
-            style={{
-              width: '13px',
-              height: '13px',
-              borderRadius: '3px',
-              background: refused.has(item) ? 'transparent' : CELL_COLOR[result] ?? STONE,
-              border: refused.has(item) ? `1.5px dashed ${AMBER}` : '1px solid rgba(0,0,0,0.06)',
-              boxSizing: 'border-box',
-            }}
-          />
-        );
-      })}
-    </div>
-    <div style={{ display: 'flex', gap: '10px', fontSize: '10px', color: '#78716c', fontFamily: 'monospace' }}>
-      {legend.map(([label, color]) => (
-        <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-          <span style={{ width: '9px', height: '9px', borderRadius: '2px', background: color }} />
-          {label}
+      <div
+        role="group"
+        aria-label={`${decision.question} items`}
+        // A large catalog scrolls inside the card (nowheel: the canvas does not zoom while it scrolls)
+        className={cx(styles.cells, scroll && items.length > MAX_GRID_ITEMS && `${styles.cellsScroll} nowheel`)}
+      >
+        {items.map((item) => {
+          const result = results[item] ?? UNSURE;
+          const p = decision.probabilities[item];
+          const section = decision.sections?.answeredBy[item];
+          const own = decision.itemThresholds?.[item];
+          const where = `${own !== undefined ? ` · threshold ${own.toFixed(2)}` : ''}${
+            section !== undefined ? ` · section ${section + 1}` : ''
+          }`;
+          const title = refused.has(item)
+            ? `${item} · refused${where}`
+            : `${item} · ${result}${p !== undefined ? ` · p ${p.toFixed(2)}` : ''}${where}`;
+          return (
+            <span
+              key={item}
+              data-testid="checklist-cell"
+              data-result={result}
+              role="img"
+              aria-label={title}
+              title={title}
+              className={cx(
+                styles.cell,
+                refused.has(item)
+                  ? styles.refusedMark
+                  : result === 'yes'
+                    ? styles.cellYes
+                    : result === 'no'
+                      ? styles.cellNo
+                      : 'hatch'
+              )}
+            />
+          );
+        })}
+      </div>
+      <div className={styles.legend}>
+        <span>
+          <span aria-hidden className={cx(styles.swatchSmall, styles.cellYes)} />
+          yes {count('yes')}
         </span>
-      ))}
-      {refused.size > 0 && (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-          <span style={{ width: '9px', height: '9px', borderRadius: '2px', border: `1.5px dashed ${AMBER}`, boxSizing: 'border-box' }} />
-          refused
+        <span>
+          <span aria-hidden className={cx(styles.swatchSmall, styles.cellNo, styles.legendNo)} />
+          no {count('no')}
         </span>
-      )}
-    </div>
+        <span>
+          <span aria-hidden className={cx(styles.swatchSmall, 'hatch')} />
+          unsure {count(UNSURE)}
+        </span>
+        {refused.size > 0 && (
+          <span>
+            <span aria-hidden className={cx(styles.swatchSmall, styles.refusedMark)} />
+            refused {refused.size}
+          </span>
+        )}
+      </div>
     </>
   );
 });
 ChecklistGrid.displayName = 'ChecklistGrid';
 
-export interface CoverageInfo extends Pick<DecisionInfo, 'question' | 'choice' | 'results' | 'items' | 'probabilities' | 'refusedItems'> {
-  kind: 'checklist';
-  group: string;
-  combine: string;
-  documents: number;
-}
-
-export interface AggregatorInfo {
-  question: string;
-  by: string;
-  combine: string;
-  groups: Record<string, number>; // passed, failed, UNSURE: groups by their latest outcome
-}
-
-/** An aggregating agent: what it combines, by what, and its groups' outcomes. */
-export const CoverageSummary = memo(({ aggregator }: { aggregator: AggregatorInfo }) => (
-  <div
-    data-testid="coverage-summary"
-    style={{ fontSize: '10px', color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-family-mono)', padding: '4px 0' }}
-  >
-    <div>{`◇ ${aggregator.question} by ${aggregator.by} (${aggregator.combine})`}</div>
-    <div>
-      {`${aggregator.groups.passed ?? 0} passed · ${aggregator.groups.failed ?? 0} failed · ${aggregator.groups[UNSURE] ?? 0} unsure`}
-    </div>
-  </div>
-));
-CoverageSummary.displayName = 'CoverageSummary';
-
-/** A coverage: one group's combined checklist, drawn like a checklist decision. */
-export const CoverageCard = memo(({ coverage }: { coverage: CoverageInfo }) => {
-  const values = Object.values(coverage.results ?? {});
-  const count = (result: string) => values.filter((value) => value === result).length;
-  const color = coverage.choice === 'passed' ? VIOLET_TEXT : coverage.choice === 'failed' ? '#be123c' : '#b45309';
+/** The answer under the header: a check and the option, the hatch and UNSURE
+ * with the best guess, a dashed box for a refusal, a cross for a failed checklist. */
+function Answer({ decision }: { decision: DecisionInfo }) {
+  const kind = decision.kind ?? 'choice';
+  const unsure = decision.choice === UNSURE;
+  let mark: MarkKind = 'sure';
+  let ink: string | undefined = styles.sureInk;
+  const details: string[] = [];
+  if (decision.refused) {
+    mark = 'refused';
+    ink = undefined;
+  } else if (unsure) {
+    mark = 'unsure';
+    ink = undefined;
+  }
+  if (kind === 'checklist') {
+    const results = decision.results ?? {};
+    const items = decision.items ?? Object.keys(results);
+    const no = items.filter((item) => results[item] === 'no');
+    if (decision.choice === 'failed') {
+      mark = 'failed';
+      ink = styles.errorInk;
+      if (no.length > 0) details.push(`${plural(no.length, 'required item')} ${no.length === 1 ? 'is' : 'are'} no: ${no.join(', ')}`);
+    } else if (unsure) {
+      const refused = new Set(decision.refusedItems ?? []);
+      const open = items.filter((item) => (results[item] ?? UNSURE) === UNSURE && !refused.has(item)).length;
+      details.push([open > 0 && `${plural(open, 'item')} not sure`, refused.size > 0 && `${refused.size} refused`].filter(Boolean).join(' · '));
+    }
+  } else if (!decision.refused && unsure && decision.bestGuess) {
+    const p = decision.probabilities[decision.bestGuess];
+    details.push(
+      kind === 'yesno'
+        ? `leaning ${decision.bestGuess}`
+        : `best guess ${decision.bestGuess}${p !== undefined ? ` ${p.toFixed(2)}` : ''}`
+    );
+  }
+  if (kind === 'scale' && !decision.refused && decision.score != null) details.push(`score ${decision.score.toFixed(2)}`);
+  const detail = details.filter(Boolean).join(' · ');
   return (
-    <div data-testid="coverage-card" style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '10px' }}>
-      <div style={{ fontSize: '12px', fontWeight: 700, color }}>
-        {`◇ ${coverage.question} coverage of ${coverage.group}: ${coverage.choice} · ${count('yes')} yes · ${count('no')} no · ${count(UNSURE)} unsure`}
-      </div>
-      <ChecklistGrid decision={coverage as unknown as DecisionInfo} />
-      <div style={{ fontSize: '10px', color: STONE, fontFamily: 'monospace' }}>
-        {`${coverage.combine} of ${coverage.documents} document${coverage.documents === 1 ? '' : 's'}`}
-      </div>
+    <div data-testid="decision-answer" className={styles.answer}>
+      <Mark kind={mark} />
+      <span className={cx(styles.answerText, ink)}>{decision.refused ? 'refused' : decision.choice}</span>
+      {/* A space keeps answer and detail apart in the text content */}
+      {detail && ' '}
+      {detail && (
+        <span className={styles.answerDetail} title={detail}>
+          {detail}
+        </span>
+      )}
     </div>
   );
-});
-CoverageCard.displayName = 'CoverageCard';
+}
 
 /** Long documents: how many sections were decided, and which one answered. */
 function SectionsNote({ decision, sections }: { decision: DecisionInfo; sections: NonNullable<DecisionInfo['sections']> }) {
@@ -1165,13 +1250,15 @@ function SectionsNote({ decision, sections }: { decision: DecisionInfo; sections
 
 const MAX_REVIEW_OPTIONS = 6;
 
-/** Review: a person confirms or overrides an unsure decision. */
-const ReviewControl = memo(({ decision, artifactId }: { decision: DecisionInfo; artifactId: string }) => {
+/** Review: a person confirms or overrides an unsure decision; the best guess is preselected. */
+type Reviewable = Pick<DecisionInfo, 'probabilities' | 'options' | 'bestGuess'>;
+
+export const ReviewControl = memo(({ decision, artifactId }: { decision: Reviewable; artifactId: string }) => {
   const [reviewed, setReviewed] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   if (reviewed) {
-    return <ReviewNote text={`✓ reviewed as ${reviewed}`} />;
+    return <ReviewNote choice={reviewed} by={null} />;
   }
   // The most probable options first, the best guess leading (a refusal has no
   // probabilities),
@@ -1194,43 +1281,46 @@ const ReviewControl = memo(({ decision, artifactId }: { decision: DecisionInfo; 
       .finally(() => setBusy(false));
   };
   return (
-    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px', fontSize: '10px' }}>
-      <span style={{ color: '#78716c', fontWeight: 600 }}>Review:</span>
+    <div className={styles.reviewRow}>
+      <span className={cx(styles.note, styles.faint)}>Review as</span>
       {options.map((option) => (
         <button
           key={option}
           type="button"
-          className="nodrag nopan"
+          className={cx('btn sm nodrag nopan', option === decision.bestGuess && styles.pick)}
           aria-label={`Review as ${option}`}
           disabled={busy}
           onClick={(event) => {
             event.stopPropagation();
             review(option);
           }}
-          style={{
-            padding: '1px 7px',
-            borderRadius: '999px',
-            border: `1px solid ${DECISION_COLOR}`,
-            background: option === decision.bestGuess ? '#ede9fe' : 'white',
-            color: VIOLET_TEXT,
-            fontSize: '10px',
-            fontWeight: 700,
-            cursor: busy ? 'wait' : 'pointer',
-          }}
         >
           {option}
         </button>
       ))}
-      {error ? <span style={{ color: '#be123c' }}>{error}</span> : null}
+      {error ? (
+        <span className={cx(styles.flag, styles.errorInk)}>
+          <Mark kind="failed" />
+          {error}
+        </span>
+      ) : null}
     </div>
   );
 });
 ReviewControl.displayName = 'ReviewControl';
 
-function ReviewNote({ text }: { text: string }) {
+/** "after review: ◆ option by reviewer" */
+function ReviewNote({ choice, by }: { choice: string; by: string | null }) {
   return (
-    <div data-testid="decision-review" style={{ fontSize: '11px', color: '#15803d', fontWeight: 700 }}>
-      {text}
+    <div data-testid="decision-review" className={styles.reviewNote}>
+      <Icon name="person" size={14} className={styles.sureInk} />
+      after review: <span className={cx('mono', styles.sureInk)}>{`◆ ${choice}`}</span>
+      {by ? (
+        <>
+          {' by '}
+          <span className="mono">{by}</span>
+        </>
+      ) : null}
     </div>
   );
 }
@@ -1239,8 +1329,8 @@ function ReviewNote({ text }: { text: string }) {
 function ItemThresholds({ thresholds }: { thresholds: Record<string, number> }) {
   const count = Object.keys(thresholds).length;
   return (
-    <details className="nodrag nopan">
-      <summary style={{ cursor: 'pointer' }}>{`${count} item threshold${count === 1 ? '' : 's'}`}</summary>
+    <details className={cx('nodrag nopan', styles.foot)}>
+      <summary>{`${count} item threshold${count === 1 ? '' : 's'}`}</summary>
       <div>
         {Object.entries(thresholds)
           .map(([item, threshold]) => `${item} ${threshold.toFixed(2)}`)
@@ -1250,35 +1340,37 @@ function ItemThresholds({ thresholds }: { thresholds: Record<string, number> }) 
   );
 }
 
-/** One decision: its answer drawn by question kind, with model and threshold. */
-export const DecisionBars = memo(({ decision, artifactId }: { decision: DecisionInfo; artifactId?: string }) => {
+/** One decision: header, answer, its drawing by question kind, model and
+ * threshold, then escalation, votes, shadow, explanation and review.
+ * `scroll={false}` gives a large checklist its full height (focus mode has room for it). */
+export const DecisionBars = memo(
+  ({
+    decision,
+    artifactId,
+    header = true,
+    scroll = true,
+  }: {
+    decision: DecisionInfo;
+    artifactId?: string;
+    header?: boolean;
+    scroll?: boolean;
+  }) => {
   const [bracketOpen, setBracketOpen] = useState(false);
   const kind = decision.kind ?? 'choice';
   const rounds = decision.rounds ?? [];
   const hasBracket = rounds.some((round) => round.group_results && round.group_results.length > 0);
   const unsure = decision.choice === UNSURE;
-  const answer = decision.refused
-    ? 'refused'
-    : unsure && kind !== 'checklist'
-      ? `UNSURE (best guess ${decision.bestGuess})`
-      : decision.choice;
-  let detail = kind === 'scale' && !decision.refused && decision.score != null ? ` · score ${decision.score.toFixed(2)}` : '';
-  if (kind === 'checklist') {
-    const values = Object.values(decision.results ?? {});
-    const count = (result: string) => values.filter((value) => value === result).length;
-    detail = ` · ${count('yes')} yes · ${count('no')} no · ${count(UNSURE)} unsure`;
-  }
-  const amber = unsure || decision.refused;
+  const showReview = !decision.review && unsure && kind !== 'checklist' && !decision.reviewOf && artifactId;
 
-  const bars = (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: 1, minWidth: 0 }}>
-      <div style={{ fontSize: '12px', fontWeight: 700, color: amber ? '#b45309' : kind === 'checklist' && decision.choice === 'failed' ? '#be123c' : VIOLET_TEXT }}>
-        {`◆ ${decision.question}: ${answer}${detail}`}
-      </div>
+  const body = (
+    <div className={styles.decision}>
+      {/* A card that names the question in its own head leaves this one out */}
+      {header && <Head question={decision.question} kind={KIND_LABEL[kind] ?? KIND_LABEL.choice} />}
+      <Answer decision={decision} />
       {kind === 'checklist' ? (
-        <ChecklistGrid decision={decision} />
+        <ChecklistGrid decision={decision} scroll={scroll} />
       ) : decision.refused ? (
-        <div style={{ fontSize: '11px', color: '#78716c' }}>The model declined to answer; the decision routes to UNSURE.</div>
+        <p className={styles.note}>The model declined to answer; the decision routes to UNSURE.</p>
       ) : kind === 'yesno' ? (
         <YesNoBar decision={decision} />
       ) : kind === 'scale' ? (
@@ -1286,7 +1378,7 @@ export const DecisionBars = memo(({ decision, artifactId }: { decision: Decision
       ) : (
         <>
           {rounds.length > 0 && (
-            <TournamentRounds rounds={rounds} onOpen={hasBracket ? () => setBracketOpen(true) : undefined} />
+            <TournamentRounds decision={decision} rounds={rounds} onOpen={hasBracket ? () => setBracketOpen(true) : undefined} />
           )}
           {bracketOpen && (
             <TournamentBracket
@@ -1300,18 +1392,7 @@ export const DecisionBars = memo(({ decision, artifactId }: { decision: Decision
           <ChoiceBars decision={decision} />
         </>
       )}
-      {decision.votes && decision.votes.length > 0 && <EnsembleVotes votes={decision.votes} choice={decision.choice} threshold={decision.threshold} results={decision.results} />}
-      {decision.shadow && <ShadowRow shadow={decision.shadow} choice={decision.choice} />}
-      {decision.explanation && <ExplanationNote explanation={decision.explanation} />}
-      {decision.review ? (
-        <ReviewNote text={`✓ reviewed as ${decision.review.choice}${decision.review.by ? ` by ${decision.review.by}` : ''}`} />
-      ) : unsure && kind !== 'checklist' && !decision.reviewOf && artifactId ? (
-        <ReviewControl decision={decision} artifactId={artifactId} />
-      ) : null}
-      {decision.attempts && decision.attempts.length > 0 && (
-        <EscalationTrail attempts={decision.attempts} model={decision.model} tier={decision.tier ?? decision.attempts.length} />
-      )}
-      <div style={{ fontSize: '10px', color: STONE, fontFamily: 'monospace' }}>
+      <div className={styles.foot}>
         {decision.model}
         {decision.latencyMs !== null ? ` · ${Math.round(decision.latencyMs)} ms` : ''}
         {decision.threshold !== null ? ` · threshold ${decision.threshold.toFixed(2)}` : ''}
@@ -1321,55 +1402,87 @@ export const DecisionBars = memo(({ decision, artifactId }: { decision: Decision
         {decision.sections ? <SectionsNote decision={decision} sections={decision.sections} /> : null}
         {decision.reviewOf ? <span title={decision.reviewOf}>{` · review of ${decision.reviewOf.slice(0, 8)}`}</span> : null}
       </div>
+      {decision.attempts && decision.attempts.length > 0 && (
+        <EscalationTrail decision={decision} attempts={decision.attempts} tier={decision.tier ?? decision.attempts.length} />
+      )}
+      {decision.votes && decision.votes.length > 0 && (
+        <EnsembleVotes votes={decision.votes} choice={decision.choice} threshold={decision.threshold} results={decision.results} />
+      )}
+      {decision.shadow && <ShadowRow shadow={decision.shadow} choice={decision.choice} />}
+      {decision.explanation && <ExplanationNote explanation={decision.explanation} />}
+      {decision.review ? (
+        <Section label="Review">
+          <ReviewNote choice={decision.review.choice} by={decision.review.by} />
+        </Section>
+      ) : showReview ? (
+        <Section label="Review">
+          <ReviewControl decision={decision} artifactId={artifactId} />
+        </Section>
+      ) : null}
     </div>
   );
 
-  if (!decision.subjectThumb) {
-    return <div style={{ marginBottom: '10px' }}>{bars}</div>;
-  }
-  // The decided image next to its answer
+  if (!decision.subjectThumb) return body;
+  // The decided image next to its answer: solid blue when decided, dashed when not
   return (
-    <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', marginBottom: '10px' }}>
+    <div className={styles.withSubject}>
       <img
         src={decision.subjectThumb}
         alt="decided image"
-        style={{
-          width: '88px',
-          height: '88px',
-          objectFit: 'cover',
-          borderRadius: '8px',
-          border: `3px solid ${amber ? AMBER : DECISION_COLOR}`,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-          flexShrink: 0,
-        }}
+        className={cx(styles.subject, (unsure || decision.refused) && styles.subjectUnsure)}
       />
-      {bars}
+      {body}
     </div>
   );
 });
 DecisionBars.displayName = 'DecisionBars';
 
-/** Thumbnails of the image fields of an artifact. */
-export const ImageStrip = memo(({ images }: { images: ImageSummary[] }) => (
-  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '10px' }}>
-    {images.map((image) => (
-      <figure key={image.path} style={{ margin: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
-        <img
-          src={image.thumb}
-          alt={image.path}
-          style={{
-            maxWidth: '160px',
-            maxHeight: '160px',
-            borderRadius: '8px',
-            border: '1px solid #e7e5e4',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-          }}
-        />
-        <figcaption style={{ fontSize: '10px', color: '#a8a29e', fontFamily: 'monospace' }}>
-          {image.path} · {image.mime} · {Math.max(1, Math.round(image.bytes / 1024))} KB
-        </figcaption>
-      </figure>
-    ))}
+export interface CoverageInfo extends Pick<DecisionInfo, 'question' | 'choice' | 'results' | 'items' | 'probabilities' | 'refusedItems'> {
+  kind: 'checklist';
+  group: string;
+  combine: string;
+  documents: number;
+}
+
+export interface AggregatorInfo {
+  question: string;
+  by: string;
+  combine: string;
+  groups: Record<string, number>; // passed, failed, UNSURE: groups by their latest outcome
+}
+
+/** An aggregating agent: what it combines, by what, and its groups' outcomes. */
+export const CoverageSummary = memo(({ aggregator }: { aggregator: AggregatorInfo }) => (
+  <div data-testid="coverage-summary" className={styles.coverageSummary}>
+    <div>{`◇ ${aggregator.question} by ${aggregator.by} (${aggregator.combine})`}</div>
+    <div className="num">
+      <span className={styles.sureInk}>{`${aggregator.groups.passed ?? 0} passed`}</span>
+      {' · '}
+      <span className={styles.errorInk}>{`${aggregator.groups.failed ?? 0} failed`}</span>
+      {' · '}
+      <span className={styles.quiet}>{`${aggregator.groups[UNSURE] ?? 0} unsure`}</span>
+    </div>
   </div>
 ));
-ImageStrip.displayName = 'ImageStrip';
+CoverageSummary.displayName = 'CoverageSummary';
+
+/** A coverage: one group's combined checklist, drawn like a checklist decision. */
+export const CoverageCard = memo(({ coverage }: { coverage: CoverageInfo }) => {
+  const decision = { ...coverage, bestGuess: null } as unknown as DecisionInfo;
+  return (
+    <div data-testid="coverage-card" className={styles.decision}>
+      <div className={styles.head}>
+        <span>
+          <span className="mono">{`◇ ${coverage.question}`}</span> coverage of <span className="mono">{coverage.group}</span>
+        </span>
+        <span className={styles.kind}>Coverage</span>
+      </div>
+      <Answer decision={decision} />
+      <ChecklistGrid decision={decision} />
+      <span className={styles.foot}>
+        {`${coverage.combine} of ${coverage.documents} document${coverage.documents === 1 ? '' : 's'}`}
+      </span>
+    </div>
+  );
+});
+CoverageCard.displayName = 'CoverageCard';

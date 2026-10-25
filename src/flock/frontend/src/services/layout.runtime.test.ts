@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Edge, Node } from '@xyflow/react';
 
-import { applyHierarchicalLayout } from './layout';
+import { applyCircularLayout, applyGridLayout, applyHierarchicalLayout, applyRandomLayout } from './layout';
 
 function makeSimpleChain(): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = [
@@ -97,5 +97,32 @@ describe('layout runtime behavior', () => {
 
     // Must be separated on at least one axis by required clearance envelope.
     expect(dx >= requiredX || dy >= requiredY).toBe(true);
+  });
+
+  // Measured as chips (the dock open, zoomed out), remembered as two-column decider cards (#665)
+  const chips = (): Node[] =>
+    ['a', 'b', 'c', 'd'].map((id) => ({
+      id,
+      type: 'agent',
+      position: { x: 0, y: 0 },
+      data: { name: id },
+      measured: { width: 100, height: 28 },
+    }));
+  const cards = Object.fromEntries(['a', 'b', 'c', 'd'].map((id) => [id, { width: 600, height: 775 }]));
+  const overlaps = (nodes: Node[]) =>
+    nodes.some((n, i) =>
+      nodes.slice(i + 1).some(
+        (m) => Math.abs(n.position.x - m.position.x) < 600 && Math.abs(n.position.y - m.position.y) < 775
+      )
+    );
+
+  it('lays out the grid with the remembered card sizes, not the chips', () => {
+    expect(overlaps(applyGridLayout(chips(), [], {}).nodes)).toBe(true);
+    expect(overlaps(applyGridLayout(chips(), [], { dimensionsByNodeId: cards }).nodes)).toBe(false);
+  });
+
+  it('lays out the circle and the random layout with the remembered card sizes', () => {
+    expect(overlaps(applyCircularLayout(chips(), [], { dimensionsByNodeId: cards }).nodes)).toBe(false);
+    expect(overlaps(applyRandomLayout(chips(), [], { dimensionsByNodeId: cards }).nodes)).toBe(false);
   });
 });

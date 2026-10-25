@@ -3,7 +3,12 @@ import { useFilterStore } from '../../store/filterStore';
 import { TimeRangePreset } from '../../types/filters';
 import styles from './TimeRangeFilter.module.css';
 
-const TimeRangeFilter: React.FC = () => {
+interface TimeRangeFilterProps {
+  /** Called after a preset button is clicked */
+  onPreset?: (preset: TimeRangePreset) => void;
+}
+
+const TimeRangeFilter: React.FC<TimeRangeFilterProps> = ({ onPreset }) => {
   const timeRange = useFilterStore((state) => state.timeRange);
   const setTimeRange = useFilterStore((state) => state.setTimeRange);
 
@@ -16,10 +21,13 @@ const TimeRangeFilter: React.FC = () => {
     } else {
       setTimeRange({ preset });
     }
+    onPreset?.(preset);
   };
 
+  // A cleared or half-typed field is no time: the range keeps its bound
   const handleStartChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const start = new Date(e.target.value).getTime();
+    if (!Number.isFinite(start)) return;
     setTimeRange({
       preset: 'custom',
       start,
@@ -29,6 +37,7 @@ const TimeRangeFilter: React.FC = () => {
 
   const handleEndChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const end = new Date(e.target.value).getTime();
+    if (!Number.isFinite(end)) return;
     setTimeRange({
       preset: 'custom',
       start: timeRange.start || Date.now() - 3600000,

@@ -312,9 +312,20 @@ const buildArtifactQuery = (options: ArtifactQueryOptions): string => {
   return params.toString();
 };
 
-/** One artifact with its full payload (including image data), visibility applied. */
-export async function fetchArtifact(artifactId: string): Promise<ArtifactListItem> {
-  const response = await fetch(`${BASE_URL}/v1/artifacts/${encodeURIComponent(artifactId)}`, {
+/**
+ * One artifact, visibility applied: with its full payload (including image
+ * data) by default; with `images: 'thumbnails'` image data is a description,
+ * and `embedMeta` adds its consumption history.
+ */
+export async function fetchArtifact(
+  artifactId: string,
+  options: { images?: 'full' | 'thumbnails'; embedMeta?: boolean } = {},
+): Promise<ArtifactListItem> {
+  const params = new URLSearchParams();
+  if (options.images) params.append('images', options.images);
+  if (options.embedMeta) params.append('embed_meta', 'true');
+  const query = params.toString();
+  const response = await fetch(`${BASE_URL}/v1/artifacts/${encodeURIComponent(artifactId)}${query ? `?${query}` : ''}`, {
     method: 'GET',
     headers: { 'Content-Type': 'application/json' },
   });

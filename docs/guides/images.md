@@ -57,8 +57,8 @@ Smaller pictures are faster and cheaper: every image is sent to the model in ful
 
 ## Dashboard and API responses
 
-- **Publishing:** the publish panel has a picture picker for `Image` and `list[Image]` fields.
-- **Viewing:** graph nodes, the message detail window, the message history and the historical blackboard show 160 px thumbnails. A click loads the full image through `GET /api/v1/artifacts/{id}`.
+- **Publishing:** the publish composer has a picture picker for `Image` and `list[Image]` fields.
+- **Viewing:** the Blackboard's artifact cards and the timeline dock's History show 160 px thumbnails. A click loads the full image through `GET /api/v1/artifacts/{id}`.
 - **Transfer:** graph snapshots and WebSocket events carry descriptions and thumbnails, never full image data. API clients can request the same form with `images=thumbnails` ([REST API guide](rest-api.md#images-in-responses)).
 - **Traces:** spans record a description (`🖼 image/png · 12 KB`), not the pixels.
 
