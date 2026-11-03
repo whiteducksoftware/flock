@@ -356,12 +356,14 @@ The blackboard is in memory by default. Two persistent stores come with Flock:
   - filters by correlation id and time;
   - publish artifacts and run agents from the browser.
 - **Trace viewer:** timeline, statistics, RED metrics, dependencies and configuration.
-- **Tracing:** `FLOCK_AUTO_TRACE=true` and `FLOCK_TRACE_FILE=true` record every operation with its inputs and outputs as OpenTelemetry spans in `.flock/traces.duckdb`. Query them with SQL, or export them via OTLP.
+- **Tracing:** `FLOCK_AUTO_TRACE=true` and `FLOCK_TRACE_FILE=true` record every operation with its inputs and outputs as OpenTelemetry spans in `.flock/traces.duckdb`. Query them with SQL.
+- **Export:** `OTEL_EXPORTER_OTLP_ENDPOINT` sends the same spans over OTLP (gRPC or HTTP) to Langfuse, Opik, Arize Phoenix, Jaeger, MLflow or any other OpenTelemetry backend. Each model call is a span in the OpenTelemetry GenAI conventions, with model, provider, tokens and agent. A run's traces become one Langfuse session or one Opik thread.
+- **Tokens and cost:** per agent run, in the dashboard and on the trace.
 - **REST API:**
   - `POST`/`GET /api/v1/artifacts`, `POST /api/v1/agents/{name}/run`, `GET /api/v1/correlations/{id}/status`, `/health` and `/metrics`;
   - OpenAPI docs at `/docs`.
 
-📖 [Dashboard](https://whiteducksoftware.github.io/flock/guides/dashboard/) · [Tracing](https://whiteducksoftware.github.io/flock/guides/tracing/) · [REST API](https://whiteducksoftware.github.io/flock/guides/rest-api/)
+📖 [Dashboard](https://whiteducksoftware.github.io/flock/guides/dashboard/) · [Tracing](https://whiteducksoftware.github.io/flock/guides/tracing/) · [Tracing backends](https://whiteducksoftware.github.io/flock/guides/tracing/backends/) · [REST API](https://whiteducksoftware.github.io/flock/guides/rest-api/)
 
 ---
 
