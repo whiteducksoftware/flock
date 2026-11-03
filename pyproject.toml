@@ -1,6 +1,6 @@
 [project]
 name = "flock-core"
-version = "0.5.800"
+version = "0.5.822"
 description = "Flock: A declarative framework for building and orchestrating AI agents."
 readme = "README.md"
 requires-python = ">=3.12"

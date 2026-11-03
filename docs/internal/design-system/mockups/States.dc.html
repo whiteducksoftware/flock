@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Flock · Node levels and states</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.fl{--bg:#0B0C0E;--board:#0D0F12;--dot:rgba(255,255,255,.06);--surface:#15171B;--surface-2:#1B1E23;--surface-3:#24282E;--line:rgba(255,255,255,.075);--line-2:rgba(255,255,255,.14);--text:#ECEEF1;--text-2:#B0B6BF;--text-3:#858C96;--invert:#ECEEF1;--on-invert:#0B0C0E;--signal:#F2A33A;--signal-ink:#F6B860;--signal-soft:rgba(242,163,58,.13);--sure:#7BA8F5;--sure-ink:#9DBEF8;--sure-soft:rgba(123,168,245,.16);--error:#F07563;--error-ink:#F59384;--error-soft:rgba(240,117,99,.12);--hatch:rgba(255,255,255,.22);--shadow:0 1px 0 rgba(255,255,255,.035) inset,0 18px 40px -18px rgba(0,0,0,.75);font-family:'Geist',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;font-size:13px;line-height:1.45;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+.fl *{box-sizing:border-box}
+.mono{font-family:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace}
+.num{font-variant-numeric:tabular-nums}
+.board{background-color:var(--board);background-image:radial-gradient(var(--dot) 1px,transparent 1.3px);background-size:22px 22px}
+.hatch{background-image:repeating-linear-gradient(135deg,var(--hatch) 0 1.5px,transparent 1.5px 5px)}
+.h2{margin:0;font-size:13px;font-weight:600;letter-spacing:.01em}
+.cap{font-size:12px;color:var(--text-3);text-wrap:pretty}
+.node{background:var(--surface);border:1px solid var(--line-2);border-radius:12px;box-shadow:var(--shadow);padding:12px 14px 10px}
+.nhd{display:flex;align-items:center;gap:8px}
+.nname{font-weight:600;font-size:13.5px}
+.sdot{width:8px;height:8px;border-radius:50%;background:var(--text-3);flex:none}
+.sdot.run{background:var(--signal);animation:pulse 1.8s ease-out infinite}
+.sdot.err{background:var(--error)}
+.tag{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 7px;border-radius:6px;border:1px solid var(--line-2);color:var(--text-2);font-size:11px;white-space:nowrap}
+.port{display:flex;align-items:center;gap:8px;height:26px;font-size:12px}
+.pdir{width:28px;flex:none;color:var(--text-3);font-size:10px;letter-spacing:.06em;text-transform:uppercase}
+.ptype{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pcount{color:var(--text-2)}
+.track{height:6px;border-radius:3px;background:var(--surface-3);overflow:hidden;display:flex}
+.label{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);font-weight:500}
+.slot{display:flex;flex-direction:column;gap:10px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--line-2);background:var(--surface-2);color:var(--text);font:inherit;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap}
+.btn.primary{background:var(--invert);color:var(--on-invert);border-color:transparent}
+.btn.sm{height:26px;padding:0 9px;font-size:12px;border-radius:7px}
+.elabel{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;border-radius:6px;background:var(--surface);border:1px solid var(--line-2);font-size:11px;color:var(--text-2);white-space:nowrap}
+@keyframes flow{to{stroke-dashoffset:-20}}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(242,163,58,.5)}70%{box-shadow:0 0 0 6px rgba(242,163,58,0)}100%{box-shadow:0 0 0 0 rgba(242,163,58,0)}}
+@keyframes blink{50%{opacity:0}}
+@keyframes shimmer{0%{opacity:.4}50%{opacity:.9}100%{opacity:.4}}
+.caret{animation:blink 1s step-end infinite}
+.edge-live{stroke-dasharray:3 7;stroke-linecap:round;animation:flow .9s linear infinite}
+.skel{background:var(--surface-3);border-radius:4px;animation:shimmer 1.6s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){.sdot.run,.caret,.edge-live,.skel{animation:none}}
+</style>
+</helmet>
+<div class="fl" style="width: 1440px; height: 1260px; padding: 52px 64px; display: flex; flex-direction: column; gap: 40px; overflow: hidden">
+
+  <section aria-labelledby="lv" style="display: flex; flex-direction: column; gap: 16px">
+    <h2 id="lv" class="h2">One node, four levels: no context menu, no separate detail windows</h2>
+    <div class="board" style="display: flex; align-items: center; gap: 20px; padding: 28px; border-radius: 16px; border: 1px solid var(--line)">
+
+      <div class="slot" style="flex: none; width: 150px; align-items: flex-start">
+        <span style="display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 11px; border-radius: 15px; background: var(--surface); border: 1px solid var(--line-2); font-size: 12px; box-shadow: var(--shadow)"><span class="sdot"></span>tech_support<span class="mono num" style="color: var(--text-3)">1</span></span>
+        <span class="label">1 · Chip</span>
+        <span class="cap">Zoomed out, or while the timeline dock is open.</span>
+      </div>
+
+      <svg width="28" height="10" viewBox="0 0 28 10" aria-hidden="true" style="flex: none"><path d="M0 5h24M20 1l4 4-4 4" fill="none" stroke="var(--text-3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+
+      <div class="slot" style="flex: none; width: 240px">
+        <div class="node">
+          <div class="nhd"><span class="sdot"></span><span class="nname">tech_support</span><span class="tag" style="margin-left: auto">LLM</span></div>
+          <div style="margin-top: 8px">
+            <div class="port"><span class="pdir">in</span><span class="mono ptype"><span style="color: var(--sure-ink)">◆</span> Route.tech</span><span class="mono num pcount">1</span></div>
+            <div class="port"><span class="pdir">out</span><span class="mono ptype">TeamReply</span><span class="mono num pcount">1</span></div>
+          </div>
+        </div>
+        <span class="label">2 · Card</span>
+        <span class="cap">The default. Inputs left, outputs right, counts in mono.</span>
+      </div>
+
+      <svg width="28" height="10" viewBox="0 0 28 10" aria-hidden="true" style="flex: none"><path d="M0 5h24M20 1l4 4-4 4" fill="none" stroke="var(--text-3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+
+      <div class="slot" style="flex: none; width: 400px">
+        <div class="node" style="padding: 0; display: flex; flex-direction: column; box-shadow: 0 0 0 4px color-mix(in srgb, var(--text) 6%, transparent), var(--shadow)">
+          <div class="nhd" style="padding: 12px 10px 0 14px">
+            <span class="sdot"></span><span class="nname">tech_support</span><span class="tag">LLM</span>
+            <span style="margin-left: auto; display: inline-flex; gap: 2px">
+              <span style="width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-2)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"></path></svg></span>
+              <span style="width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-2)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path></svg></span>
+            </span>
+          </div>
+          <div style="display: flex; gap: 16px; padding: 8px 14px 0; border-bottom: 1px solid var(--line); font-size: 12px">
+            <span style="color: var(--text-3); padding-bottom: 8px">Live</span>
+            <span style="color: var(--text); padding-bottom: 6px; border-bottom: 2px solid var(--text)">History</span>
+            <span style="color: var(--text-3)">Runs</span>
+            <span style="color: var(--text-3)">Traces</span>
+          </div>
+          <div style="padding: 8px 14px 12px; display: flex; flex-direction: column; font-size: 11.5px">
+            <div style="display: grid; grid-template-columns: 58px 16px minmax(0, 1fr); gap: 8px; height: 26px; align-items: center; border-bottom: 1px solid var(--line)"><span class="mono num" style="color: var(--text-3)">13:23:15</span><span style="color: var(--text-3)">↑</span><span class="mono">TeamReply <span style="color: var(--text-3)">Sorry about that! Please…</span></span></div>
+            <div style="display: grid; grid-template-columns: 58px 16px minmax(0, 1fr); gap: 8px; height: 26px; align-items: center; border-bottom: 1px solid var(--line)"><span class="mono num" style="color: var(--text-3)">13:23:12</span><span style="color: var(--text-3)">↓</span><span class="mono"><span style="color: var(--sure-ink)">◆</span> Route.tech <span style="color: var(--text-3)">App crashes on login</span></span></div>
+          </div>
+        </div>
+        <span class="label">3 · Unfolded</span>
+        <span class="cap">Click or Space. Grows in place, its neighbours make room. Everything the detail windows and modules showed lives in its tabs.</span>
+      </div>
+
+      <svg width="28" height="10" viewBox="0 0 28 10" aria-hidden="true" style="flex: none"><path d="M0 5h24M20 1l4 4-4 4" fill="none" stroke="var(--text-3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+
+      <div class="slot" style="flex: 1 1 0; min-width: 0">
+        <div style="position: relative; height: 168px; border-radius: 12px; background: rgba(5,6,8,.6); border: 1px solid var(--line); overflow: hidden">
+          <div style="position: absolute; inset: 12px 14px; border-radius: 9px; background: var(--surface); border: 1px solid var(--line-2); box-shadow: var(--shadow); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px">
+            <div style="display: flex; align-items: center; gap: 6px"><span class="sdot"></span><span style="font-weight: 600; font-size: 12px">tech_support</span><span style="margin-left: auto; width: 10px; height: 10px; border-radius: 2px; border: 1.5px solid var(--text-3)"></span></div>
+            <div style="display: flex; gap: 4px; align-items: center"><span style="height: 14px; width: 54px; border-radius: 7px; border: 1px solid var(--line-2)"></span><span style="width: 10px; height: 1px; background: var(--text-3)"></span><span style="height: 14px; width: 54px; border-radius: 7px; border: 1px solid var(--line-2)"></span><span style="width: 10px; height: 1px; background: var(--text-3)"></span><span style="height: 14px; width: 54px; border-radius: 7px; border: 1px solid var(--text-3)"></span></div>
+            <div style="display: flex; gap: 8px; flex: 1 1 0"><span style="flex: 3 1 0; border-radius: 6px; background: var(--board); border: 1px solid var(--line)"></span><span style="flex: 2 1 0; display: flex; flex-direction: column; gap: 6px"><span style="flex: 1 1 0; border-radius: 6px; background: var(--surface-2)"></span><span style="flex: 1 1 0; border-radius: 6px; background: var(--surface-2)"></span></span></div>
+          </div>
+        </div>
+        <span class="label">4 · Focus</span>
+        <span class="cap">Focus button or double-click. Flies into a full stage with its lineage on top; Esc flies it back.</span>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="st" style="display: flex; flex-direction: column; gap: 16px">
+    <h2 id="st" class="h2">Agent states</h2>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px 20px">
+
+      <div class="slot">
+        <div class="node">
+          <div class="nhd"><span class="sdot"></span><span class="nname">shipping_team</span><span class="tag" style="margin-left: auto">LLM</span></div>
+          <div style="margin-top: 8px">
+            <div class="port"><span class="pdir">in</span><span class="mono ptype"><span style="color: var(--sure-ink)">◆</span> Route.shipping</span><span class="mono num pcount">1</span></div>
+            <div class="port"><span class="pdir">out</span><span class="mono ptype">TeamReply</span><span class="mono num pcount">1</span></div>
+          </div>
+        </div>
+        <span class="label">Idle</span>
+      </div>
+
+      <div class="slot">
+        <div class="node" style="border-color: color-mix(in srgb, var(--signal) 55%, transparent)">
+          <div class="nhd"><span class="sdot run"></span><span class="nname">billing_team</span><span class="tag" style="margin-left: auto">LLM</span></div>
+          <div style="margin-top: 8px">
+            <div class="port"><span class="pdir">in</span><span class="mono ptype"><span style="color: var(--sure-ink)">◆</span> Route.billing</span><span class="mono num pcount">3</span></div>
+            <div class="port"><span class="pdir">out</span><span class="mono ptype">TeamReply</span><span class="mono num pcount">2</span></div>
+          </div>
+          <div class="mono" style="margin-top: 6px; padding: 6px 8px; border-radius: 6px; background: var(--signal-soft); font-size: 11px; color: var(--signal-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">…we have issued the refund for<span class="caret">▍</span></div>
+        </div>
+        <span class="label">Running · streaming tokens</span>
+      </div>
+
+      <div class="slot">
+        <div class="node" style="border-color: color-mix(in srgb, var(--error) 65%, transparent)">
+          <div class="nhd"><span class="sdot err"></span><span class="nname">tech_support</span><span class="tag" style="margin-left: auto">LLM</span></div>
+          <div style="margin-top: 8px">
+            <div class="port"><span class="pdir">in</span><span class="mono ptype"><span style="color: var(--sure-ink)">◆</span> Route.tech</span><span class="mono num pcount">1</span></div>
+          </div>
+          <div style="margin-top: 6px; display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; background: var(--error-soft); font-size: 11.5px; color: var(--error-ink)">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 8v5M12 16.5h.01"></path><circle cx="12" cy="12" r="9"></circle></svg>
+            <span class="mono" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap">RateLimitError · 13:20:44</span>
+          </div>
+        </div>
+        <span class="label">Failed · opens its trace on click</span>
+      </div>
+
+      <div class="slot">
+        <div class="node">
+          <div class="nhd"><span class="sdot"></span><span class="nname">daily_digest</span>
+            <span class="tag" style="margin-left: auto"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3 2"></path></svg>0 9 * * 1-5</span>
+          </div>
+          <div style="margin-top: 8px">
+            <div class="port"><span class="pdir">out</span><span class="mono ptype">Digest</span><span class="mono num pcount">14</span></div>
+          </div>
+          <div style="margin-top: 6px; display: flex; align-items: center; gap: 10px; font-size: 11.5px; color: var(--text-2)">
+            <span>next in <span class="mono num" style="color: var(--text)">16 h 34 m</span></span>
+            <span style="color: var(--text-3)">run 14 · last 23 h ago</span>
+          </div>
+        </div>
+        <span class="label">Scheduled</span>
+      </div>
+
+      <div class="slot">
+        <div class="node">
+          <div class="nhd"><span class="sdot"></span><span class="nname">escalation</span><span class="tag" style="margin-left: auto">LLM</span></div>
+          <div style="margin-top: 8px">
+            <div class="port"><span class="pdir">in</span><span class="mono ptype">TeamReply</span><span class="mono num pcount">1</span></div>
+            <div class="port"><span class="pdir" style="font-size: 9.5px">join</span><span class="mono ptype" style="color: var(--text-2)">CustomerScore</span><span class="mono num pcount">0</span></div>
+          </div>
+          <div style="margin-top: 6px; display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 8px; border: 1px dashed var(--line-2)">
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 11.5px">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-2)" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M7 4v16M17 4v16M7 12h10"></path></svg>
+              <span class="mono" style="color: var(--text-2)">by ticket_id · 9c34</span>
+              <span class="mono num" style="margin-left: auto; color: var(--signal-ink)">0:24</span>
+            </div>
+            <div class="track"><div style="width: 50%; background: var(--text-2)"></div><div class="hatch" style="width: 50%"></div></div>
+          </div>
+        </div>
+        <span class="label">Join waiting · 1 of 2 types</span>
+      </div>
+
+      <div class="slot">
+        <div class="node">
+          <div class="nhd"><span class="sdot"></span><span class="nname">weekly_report</span><span class="tag" style="margin-left: auto">LLM</span></div>
+          <div style="margin-top: 8px">
+            <div class="port"><span class="pdir">in</span><span class="mono ptype">TeamReply</span><span class="mono num pcount">3</span></div>
+          </div>
+          <div style="margin-top: 6px; display: flex; flex-direction: column; gap: 6px; padding: 8px; border-radius: 8px; border: 1px dashed var(--line-2)">
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 11.5px">
+              <span class="mono" style="color: var(--text-2)">batch 3 / 5</span>
+              <span style="margin-left: auto; color: var(--text-3)">or in <span class="mono num" style="color: var(--text-2)">0:41</span></span>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 3px">
+              <span style="height: 8px; border-radius: 2px; background: var(--text-2)"></span>
+              <span style="height: 8px; border-radius: 2px; background: var(--text-2)"></span>
+              <span style="height: 8px; border-radius: 2px; background: var(--text-2)"></span>
+              <span class="hatch" style="height: 8px; border-radius: 2px"></span>
+              <span class="hatch" style="height: 8px; border-radius: 2px"></span>
+            </div>
+          </div>
+        </div>
+        <span class="label">Batch collecting</span>
+      </div>
+
+      <div class="slot">
+        <div class="node">
+          <div class="nhd"><span class="sdot"></span><span class="nname">researcher</span><span class="tag" style="margin-left: auto">OpenClaw</span></div>
+          <div style="margin-top: 8px">
+            <div class="port"><span class="pdir">in</span><span class="mono ptype">Question</span><span class="mono num pcount">2</span></div>
+            <div class="port"><span class="pdir">out</span><span class="mono ptype">Findings</span><span class="mono num pcount">2</span></div>
+          </div>
+        </div>
+        <span class="label">Engine tag · OpenClaw</span>
+      </div>
+
+      <div class="slot">
+        <div class="node">
+          <div class="nhd"><span class="sdot"></span><span class="nname">controls</span><span class="tag mono" style="margin-left: auto"><span style="color: var(--sure-ink)">◆</span> Controls</span></div>
+          <div style="margin-top: 8px">
+            <div class="port"><span class="pdir">in</span><span class="mono ptype">PolicyText</span><span class="mono num pcount">12</span></div>
+          </div>
+          <div style="margin-top: 6px; display: flex; flex-direction: column; gap: 6px">
+            <div class="track" style="height: 8px; border-radius: 4px"><div style="width: 58%; background: var(--sure)"></div><div class="hatch" style="width: 17%"></div><div style="width: 25%; background: var(--text-3); opacity: .55"></div></div>
+            <div class="mono num" style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-2)"><span>passed 7</span><span>UNSURE 2</span><span>failed 3</span></div>
+          </div>
+        </div>
+        <span class="label">Checklist decider</span>
+      </div>
+    </div>
+  </section>
+
+  <div style="display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 32px">
+    <section aria-labelledby="bd" style="display: flex; flex-direction: column; gap: 16px">
+      <h2 id="bd" class="h2">Board states that are missing today</h2>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+        <div class="board" style="height: 200px; border-radius: 14px; border: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 20px; text-align: center">
+          <span style="font-weight: 600">Nothing on the blackboard yet</span>
+          <span class="cap" style="max-width: 260px">7 agents are listening. Publish a SupportTicket to start the first run.</span>
+          <button type="button" class="btn primary sm" style="margin-top: 4px">Publish</button>
+        </div>
+        <div class="board" style="position: relative; height: 200px; border-radius: 14px; border: 1px solid var(--line); overflow: hidden">
+          <div style="position: absolute; left: 12px; right: 12px; top: 12px; display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line-2); font-size: 12px">
+            <span class="sdot" style="background: var(--text-2)"></span>
+            <span>Connection lost · reconnecting in <span class="mono num">4 s</span></span>
+            <span style="color: var(--text-3)">attempt 3</span>
+            <button type="button" class="btn sm" style="margin-left: auto">Retry now</button>
+          </div>
+          <div style="position: absolute; left: 28px; top: 82px; width: 150px; padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); opacity: .55; display: flex; flex-direction: column; gap: 8px"><span class="skel" style="height: 10px; width: 70%"></span><span class="skel" style="height: 8px; width: 90%"></span><span class="skel" style="height: 8px; width: 60%"></span></div>
+          <div style="position: absolute; left: 210px; top: 110px; width: 150px; padding: 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); opacity: .55; display: flex; flex-direction: column; gap: 8px"><span class="skel" style="height: 10px; width: 60%"></span><span class="skel" style="height: 8px; width: 85%"></span><span class="skel" style="height: 8px; width: 50%"></span></div>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="ed" style="display: flex; flex-direction: column; gap: 16px">
+      <h2 id="ed" class="h2">Edges</h2>
+      <div style="display: grid; grid-template-columns: 150px minmax(0, 1fr); align-items: center; gap: 14px 16px; padding: 18px 20px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface)">
+        <span class="cap">Artifact flow</span>
+        <span style="display: flex; align-items: center; gap: 10px"><svg width="120" height="12" viewBox="0 0 120 12" aria-hidden="true"><path d="M0 6h120" stroke="rgba(255,255,255,.22)" stroke-width="1.5"></path></svg><span class="elabel mono">SupportTicket · 8</span></span>
+        <span class="cap">In flight now</span>
+        <span style="display: flex; align-items: center; gap: 10px"><svg width="120" height="12" viewBox="0 0 120 12" aria-hidden="true"><path class="edge-live" d="M0 6h120" stroke="var(--signal)" stroke-width="1.5"></path></svg></span>
+        <span class="cap">Decision option</span>
+        <span style="display: flex; align-items: center; gap: 10px"><svg width="120" height="12" viewBox="0 0 120 12" aria-hidden="true"><path d="M0 6h120" stroke="rgba(255,255,255,.22)" stroke-width="1.5"></path></svg><span class="elabel mono"><span style="color: var(--sure-ink)">◆</span> billing · 3</span></span>
+        <span class="cap">UNSURE route</span>
+        <span style="display: flex; align-items: center; gap: 10px"><svg width="120" height="12" viewBox="0 0 120 12" aria-hidden="true"><path d="M0 6h120" stroke="rgba(255,255,255,.22)" stroke-width="1.5" stroke-dasharray="2 5"></path></svg><span class="elabel mono" style="border-style: dashed"><span class="hatch" style="width: 10px; height: 10px; border-radius: 2px"></span> UNSURE · 2</span></span>
+        <span class="cap">Join or batch pending</span>
+        <span style="display: flex; align-items: center; gap: 10px"><svg width="120" height="12" viewBox="0 0 120 12" aria-hidden="true"><path d="M0 6h120" stroke="var(--text-3)" stroke-width="1.5" stroke-dasharray="8 6"></path></svg><span class="elabel mono" style="border-style: dashed">by ticket_id · 1/2</span></span>
+      </div>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1260}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

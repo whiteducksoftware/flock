@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Flock · Decision kit</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.fl{--bg:#0B0C0E;--board:#0D0F12;--surface:#15171B;--surface-2:#1B1E23;--surface-3:#24282E;--line:rgba(255,255,255,.075);--line-2:rgba(255,255,255,.14);--text:#ECEEF1;--text-2:#B0B6BF;--text-3:#858C96;--signal:#F2A33A;--signal-ink:#F6B860;--sure:#7BA8F5;--sure-ink:#9DBEF8;--sure-soft:rgba(123,168,245,.16);--error:#F07563;--error-ink:#F59384;--hatch:rgba(255,255,255,.22);--shadow:0 1px 0 rgba(255,255,255,.035) inset,0 18px 40px -18px rgba(0,0,0,.75);font-family:'Geist',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;font-size:13px;line-height:1.45;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+.fl *{box-sizing:border-box}
+.mono{font-family:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace}
+.num{font-variant-numeric:tabular-nums}
+.hatch{background-image:repeating-linear-gradient(135deg,var(--hatch) 0 1.5px,transparent 1.5px 5px)}
+.h2{margin:0;font-size:13px;font-weight:600;letter-spacing:.01em}
+.label{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);font-weight:500}
+.card{background:var(--surface);border:1px solid var(--line-2);border-radius:12px;box-shadow:var(--shadow);padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+.chd{display:flex;align-items:baseline;gap:8px;font-size:12.5px}
+.q{font-size:12px;color:var(--text-2);text-wrap:pretty}
+.track{position:relative;height:6px;border-radius:3px;background:var(--surface-3);display:flex}
+.tick{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--text)}
+.foot{font-size:11px;color:var(--text-3);font-family:'Geist Mono',ui-monospace,monospace}
+.chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:7px;border:1px solid var(--line-2);font-size:11.5px;color:var(--text-2);white-space:nowrap}
+.cell{width:14px;height:14px;border-radius:3px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:26px;padding:0 9px;border-radius:7px;border:1px solid var(--line-2);background:var(--surface-2);color:var(--text);font:inherit;font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap}
+.btn.pick{border-color:var(--sure);color:var(--sure-ink);background:var(--sure-soft)}
+.shape{width:18px;height:18px;flex:none}
+</style>
+</helmet>
+<div class="fl" style="width: 1440px; height: 1060px; padding: 52px 64px; display: flex; flex-direction: column; gap: 36px; overflow: hidden">
+
+  <section aria-labelledby="qt" style="display: flex; flex-direction: column; gap: 16px">
+    <h2 id="qt" class="h2">Question types · the artifact card body</h2>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px">
+
+      <div class="card">
+        <div class="chd"><span class="mono"><span style="color: var(--sure-ink)">◆</span> Route</span><span class="label" style="margin-left: auto">Choice</span></div>
+        <span class="q">Which team should handle this support ticket?</span>
+        <div style="display: flex; align-items: center; gap: 8px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--sure-ink)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg><span style="font-weight: 600; color: var(--sure-ink)">tech</span></div>
+        <div style="display: grid; grid-template-columns: 58px minmax(0, 1fr) 34px; align-items: center; gap: 9px 10px; font-size: 12px">
+          <span class="mono" style="color: var(--sure-ink)">tech</span><div class="track"><div style="width: 95%; border-radius: 3px; background: var(--sure)"></div><span class="tick" style="left: 80%"></span></div><span class="mono num" style="text-align: right">0.95</span>
+          <span class="mono" style="color: var(--text-2)">billing</span><div class="track"><div style="width: 3%; border-radius: 3px; background: var(--text-3)"></div><span class="tick" style="left: 80%"></span></div><span class="mono num" style="text-align: right; color: var(--text-2)">0.03</span>
+          <span class="mono" style="color: var(--text-2)">shipping</span><div class="track"><div style="width: 2%; border-radius: 3px; background: var(--text-3)"></div><span class="tick" style="left: 80%"></span></div><span class="mono num" style="text-align: right; color: var(--text-2)">0.02</span>
+        </div>
+        <span class="foot">azure/decision-1 · 44 ms · threshold 0.80</span>
+      </div>
+
+      <div class="card">
+        <div class="chd"><span class="mono"><span style="color: var(--sure-ink)">◆</span> Urgent</span><span class="label" style="margin-left: auto">Yes / No</span></div>
+        <span class="q">Does the customer need an answer today?</span>
+        <div style="display: flex; align-items: center; gap: 8px"><span class="hatch" style="width: 14px; height: 14px; border-radius: 3px; outline: 1px dashed var(--text-3)"></span><span style="font-weight: 600">UNSURE</span><span style="font-size: 12px; color: var(--text-2)">leaning no</span></div>
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <div style="position: relative; height: 10px; border-radius: 5px; background: var(--surface-3); overflow: hidden">
+            <div style="position: absolute; left: 0; width: 35%; top: 0; bottom: 0; background: color-mix(in srgb, var(--sure) 45%, transparent)"></div>
+            <div class="hatch" style="position: absolute; left: 35%; width: 30%; top: 0; bottom: 0"></div>
+            <div style="position: absolute; left: 65%; right: 0; top: 0; bottom: 0; background: color-mix(in srgb, var(--text-3) 35%, transparent)"></div>
+          </div>
+          <div style="position: relative; height: 12px"><span style="position: absolute; left: 40%; transform: translateX(-50%); top: -2px; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 7px solid var(--text)"></span></div>
+          <div class="mono num" style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-2)"><span>yes 0.40</span><span style="color: var(--text-3)">unsure zone 0.35 – 0.65</span><span>no 0.60</span></div>
+        </div>
+        <span class="foot">azure/decision-1 · threshold 0.65</span>
+      </div>
+
+      <div class="card">
+        <div class="chd"><span class="mono"><span style="color: var(--sure-ink)">◆</span> Anger</span><span class="label" style="margin-left: auto">Scale</span></div>
+        <span class="q">How angry is the customer?</span>
+        <div style="display: flex; align-items: center; gap: 8px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--sure-ink)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg><span style="font-weight: 600; color: var(--sure-ink)">annoyed</span><span class="mono num" style="font-size: 12px; color: var(--text-2)">score 1.4</span></div>
+        <div style="position: relative; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; align-items: end; height: 64px; padding-bottom: 2px; border-bottom: 1px solid var(--line-2)">
+          <span style="height: 22%; border-radius: 3px 3px 0 0; background: var(--text-3); opacity: .6"></span>
+          <span style="height: 88%; border-radius: 3px 3px 0 0; background: var(--sure)"></span>
+          <span style="height: 34%; border-radius: 3px 3px 0 0; background: var(--text-3); opacity: .6"></span>
+          <span style="height: 8%; border-radius: 3px 3px 0 0; background: var(--text-3); opacity: .6"></span>
+          <span aria-hidden="true" style="position: absolute; left: 0; right: 0; top: 20%; border-top: 1px dashed var(--text-2)"></span>
+        </div>
+        <div class="mono" style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; font-size: 11px; color: var(--text-2); text-align: center"><span>calm</span><span style="color: var(--sure-ink)">annoyed</span><span>angry</span><span>furious</span></div>
+        <span class="foot">jev/jev-latest · threshold 0.80</span>
+      </div>
+
+      <div class="card">
+        <div class="chd"><span class="mono"><span style="color: var(--sure-ink)">◆</span> Controls</span><span class="label" style="margin-left: auto">Checklist</span></div>
+        <span class="q">Which of the 24 controls does this policy implement?</span>
+        <div style="display: flex; align-items: center; gap: 8px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--error-ink)" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg><span style="font-weight: 600; color: var(--error-ink)">failed</span><span style="font-size: 12px; color: var(--text-2)">3 required items are no</span></div>
+        <div style="display: grid; grid-template-columns: repeat(12, 14px); gap: 4px">
+          <span class="cell" style="background: var(--sure)"></span><span class="cell" style="background: var(--sure)"></span><span class="cell" style="background: var(--surface-3)"></span><span class="cell" style="background: var(--sure)"></span><span class="cell hatch"></span><span class="cell" style="background: var(--sure)"></span><span class="cell" style="background: var(--sure)"></span><span class="cell" style="background: var(--surface-3)"></span><span class="cell" style="background: var(--sure)"></span><span class="cell" style="background: var(--sure)"></span><span class="cell" style="border: 1.5px dashed var(--text-3)"></span><span class="cell" style="background: var(--sure)"></span>
+          <span class="cell" style="background: var(--sure)"></span><span class="cell" style="background: var(--sure)"></span><span class="cell" style="background: var(--sure)"></span><span class="cell" style="background: var(--surface-3)"></span><span class="cell" style="background: var(--sure)"></span><span class="cell hatch"></span><span class="cell" style="background: var(--sure)"></span><span class="cell" style="background: var(--sure)"></span><span class="cell" style="background: var(--sure)"></span><span class="cell" style="background: var(--sure)"></span><span class="cell" style="background: var(--sure)"></span><span class="cell" style="background: var(--sure)"></span>
+        </div>
+        <div style="display: flex; gap: 12px; font-size: 11px; color: var(--text-2)">
+          <span style="display: inline-flex; align-items: center; gap: 5px"><span class="cell" style="width: 10px; height: 10px; background: var(--sure)"></span>yes 18</span>
+          <span style="display: inline-flex; align-items: center; gap: 5px"><span class="cell" style="width: 10px; height: 10px; background: var(--surface-3); outline: 1px solid var(--line-2)"></span>no 3</span>
+          <span style="display: inline-flex; align-items: center; gap: 5px"><span class="cell hatch" style="width: 10px; height: 10px"></span>unsure 2</span>
+          <span style="display: inline-flex; align-items: center; gap: 5px"><span class="cell" style="width: 10px; height: 10px; border: 1.5px dashed var(--text-3)"></span>refused 1</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="adv" style="display: flex; flex-direction: column; gap: 16px">
+    <h2 id="adv" class="h2">When one model is not enough · and people in the loop</h2>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px">
+
+      <div class="card">
+        <div class="chd"><span class="label">Escalation</span><span class="mono" style="margin-left: auto; font-size: 11px; color: var(--text-3)">escalate=[…]</span></div>
+        <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 6px">
+          <span class="chip hatch" style="border-style: dashed; color: var(--text)">local/clef-flash · unsure</span>
+          <svg width="18" height="10" viewBox="0 0 18 10" aria-hidden="true"><path d="M0 5h14M10 1l4 4-4 4" fill="none" stroke="var(--text-3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <span class="chip" style="border-color: var(--sure); color: var(--sure-ink)">azure/decision-1 · billing 0.86</span>
+        </div>
+        <span class="q">Answered at tier 2 after 2 attempts. Only questions that were not firm went up.</span>
+      </div>
+
+      <div class="card">
+        <div class="chd"><span class="label">Vote</span><span class="mono" style="margin-left: auto; font-size: 11px; color: var(--text-3)">majority of 3</span></div>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px">
+          <span class="chip" style="border-color: var(--sure); color: var(--sure-ink)">decision-1 · billing</span>
+          <span class="chip" style="border-color: var(--sure); color: var(--sure-ink)">gpt-6-luna · billing</span>
+          <span class="chip hatch" style="border-style: dashed; color: var(--text)">jev-latest · unsure</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 12px"><span style="color: var(--text-2)">result</span><span class="mono" style="color: var(--sure-ink)">◆ billing</span><span style="color: var(--text-3)">2 of 3 agree</span></div>
+      </div>
+
+      <div class="card">
+        <div class="chd"><span class="label">Shadow</span><span class="mono" style="margin-left: auto; font-size: 11px; color: var(--text-3)">not routed</span></div>
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap">
+          <span class="chip" style="border-style: dashed">shadow gpt-6-luna · billing</span>
+          <span style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--sure-ink)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>agrees</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; font-size: 12px"><span style="color: var(--text-2)">agreement so far</span><div class="track" style="flex: 1 1 0"><div style="width: 88%; border-radius: 3px; background: var(--text-2)"></div></div><span class="mono num">44 / 50</span></div>
+      </div>
+
+      <div class="card">
+        <div class="chd"><span class="label">Review</span><span class="mono" style="margin-left: auto; font-size: 11px; color: var(--text-3)">flock.review()</span></div>
+        <span class="q">Something odd with my account · best guess shipping 0.46</span>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap"><button type="button" class="btn pick">shipping</button><button type="button" class="btn">billing</button><button type="button" class="btn">tech</button></div>
+        <div style="display: flex; align-items: center; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12px; color: var(--text-2)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--sure-ink)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5"></circle><path d="M5 20c1.2-3.5 3.8-5 7-5s5.8 1.5 7 5"></path></svg>after review: <span class="mono" style="color: var(--sure-ink)">◆ shipping</span> by <span class="mono">[reviewer]</span></div>
+      </div>
+
+      <div class="card">
+        <div class="chd"><span class="label">Explanation</span><span class="mono" style="margin-left: auto; font-size: 11px; color: var(--text-3)">.explains()</span></div>
+        <p style="margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--text); text-wrap: pretty">The message mentions both a changed address and a changed plan, so delivery and billing are equally plausible.</p>
+        <div style="display: flex; gap: 8px; font-size: 12px"><span style="color: var(--text-3); flex: none">Would settle it</span><span style="color: var(--text-2)">whether the customer asked for either change.</span></div>
+      </div>
+
+      <div class="card">
+        <div class="chd"><span class="label">Tournament</span><span class="mono" style="margin-left: auto; font-size: 11px; color: var(--text-3)">groups of 20, keep 3</span></div>
+        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 11.5px">
+          <span class="chip">240 options</span>
+          <svg width="14" height="10" viewBox="0 0 14 10" aria-hidden="true"><path d="M0 5h10M7 1l4 4-4 4" fill="none" stroke="var(--text-3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <span class="chip">12 groups → 36</span>
+          <svg width="14" height="10" viewBox="0 0 14 10" aria-hidden="true"><path d="M0 5h10M7 1l4 4-4 4" fill="none" stroke="var(--text-3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <span class="chip">2 groups → 6</span>
+          <svg width="14" height="10" viewBox="0 0 14 10" aria-hidden="true"><path d="M0 5h10M7 1l4 4-4 4" fill="none" stroke="var(--text-3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          <span class="chip" style="border-color: var(--sure); color: var(--sure-ink)">AC-7 · 0.91</span>
+        </div>
+        <button type="button" class="btn" style="align-self: flex-start">Open bracket</button>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="img" style="display: flex; flex-direction: column; gap: 16px">
+    <h2 id="img" class="h2">Option lanes on the decider · images sorted live</h2>
+    <div class="card" style="flex-direction: row; align-items: stretch; gap: 0; padding: 0">
+      <div style="flex: none; width: 220px; padding: 14px 16px; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px">
+        <span style="font-weight: 600">color_sorter</span>
+        <span class="mono" style="font-size: 12px; color: var(--sure-ink)">◆ ShapeColor</span>
+        <span class="q">Hover a thumbnail to see it at 3× with its probability.</span>
+      </div>
+      <div style="flex: 1 1 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr))">
+        <div style="padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; border-right: 1px solid var(--line)">
+          <div style="display: flex; align-items: baseline; gap: 8px"><span class="mono">red</span><span class="mono num" style="margin-left: auto; font-size: 11.5px; color: var(--text-3)">6</span></div>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px">
+            <svg class="shape" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="8" fill="#D9473B"></circle></svg>
+            <svg class="shape" viewBox="0 0 18 18" aria-hidden="true"><rect x="1" y="1" width="16" height="16" rx="2" fill="#C93C33"></rect></svg>
+            <svg class="shape" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 1l8 16H1z" fill="#E0503F"></path></svg>
+            <svg class="shape" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="8" fill="#B8342C"></circle></svg>
+            <svg class="shape" viewBox="0 0 18 18" aria-hidden="true"><rect x="1" y="1" width="16" height="16" rx="2" fill="#D64A3E"></rect></svg>
+            <svg class="shape" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 1l8 16H1z" fill="#C2392F"></path></svg>
+          </div>
+        </div>
+        <div style="padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; border-right: 1px solid var(--line)">
+          <div style="display: flex; align-items: baseline; gap: 8px"><span class="mono">blue</span><span class="mono num" style="margin-left: auto; font-size: 11.5px; color: var(--text-3)">7</span></div>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px">
+            <svg class="shape" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="8" fill="#3B6FD9"></circle></svg>
+            <svg class="shape" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 1l8 16H1z" fill="#2F5FC4"></path></svg>
+            <svg class="shape" viewBox="0 0 18 18" aria-hidden="true"><rect x="1" y="1" width="16" height="16" rx="2" fill="#4479E0"></rect></svg>
+            <svg class="shape" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="8" fill="#2A56B5"></circle></svg>
+            <svg class="shape" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 1l8 16H1z" fill="#3A6CD6"></path></svg>
+            <svg class="shape" viewBox="0 0 18 18" aria-hidden="true"><rect x="1" y="1" width="16" height="16" rx="2" fill="#3263CC"></rect></svg>
+            <svg class="shape" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="8" fill="#4C80E6"></circle></svg>
+          </div>
+        </div>
+        <div style="padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; border-right: 1px solid var(--line)">
+          <div style="display: flex; align-items: baseline; gap: 8px"><span class="mono">green</span><span class="mono num" style="margin-left: auto; font-size: 11.5px; color: var(--text-3)">7</span></div>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px">
+            <svg class="shape" viewBox="0 0 18 18" aria-hidden="true"><rect x="1" y="1" width="16" height="16" rx="2" fill="#3E9E5A"></rect></svg>
+            <svg class="shape" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="8" fill="#349150"></circle></svg>
+            <svg class="shape" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 1l8 16H1z" fill="#45A862"></path></svg>
+            <svg class="shape" viewBox="0 0 18 18" aria-hidden="true"><rect x="1" y="1" width="16" height="16" rx="2" fill="#2E8548"></rect></svg>
+            <svg class="shape" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="8" fill="#3C9A57"></circle></svg>
+            <svg class="shape" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 1l8 16H1z" fill="#38954F"></path></svg>
+            <svg class="shape" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="8" fill="#4AAE66"></circle></svg>
+          </div>
+        </div>
+        <div class="hatch" style="padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; background-color: color-mix(in srgb, var(--surface) 82%, transparent); background-blend-mode: normal">
+          <div style="display: flex; align-items: baseline; gap: 8px"><span class="mono" style="padding: 0 6px; border-radius: 4px; background: var(--surface)">UNSURE</span><span class="mono num" style="margin-left: auto; padding: 0 6px; border-radius: 4px; background: var(--surface); font-size: 11.5px; color: var(--text-3)">4</span></div>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px">
+            <svg class="shape" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="8" fill="#8A5FB8"></circle></svg>
+            <svg class="shape" viewBox="0 0 18 18" aria-hidden="true"><rect x="1" y="1" width="16" height="16" rx="2" fill="#3FA0A0"></rect></svg>
+            <svg class="shape" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 1l8 16H1z" fill="#B5715A"></path></svg>
+            <svg class="shape" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="8" fill="#7C8F3E"></circle></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1060}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {};
+  }
+}
+</script>
+</body>
+</html>

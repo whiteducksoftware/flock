@@ -5,6 +5,7 @@ import { GraphSnapshot, GraphStatistics, GraphRequest, AgentLogicOperations } fr
 import { fetchGraphSnapshot, mergeNodePositions, overlayWebSocketState } from '../services/graphService';
 import { useFilterStore } from './filterStore';
 import { Message } from '../types/graph';
+import { boundOf } from '../types/filters';
 import { indexedDBService } from '../services/indexeddb';
 
 /**
@@ -26,9 +27,65 @@ import { indexedDBService } from '../services/indexeddb';
  * - Real-time updates via CorrelationGroupUpdatedEvent and BatchItemAddedEvent
  */
 
+/** How much of a running run's output the focus stage shows */
+const RUN_TAIL_CHARS = 160;
+/** How long a run that ended waits for its output on the board, at most */
+const SETTLE_MS = 4000;
+
+/** A running run: what it consumed, what its agent publishes, and what of that the board held when it started */
+export interface InFlightRun {
+  agent: string;
+  types: string[];
+  artifacts: string[];
+  correlationId?: string | null;
+  produces?: string[];
+  known?: string[];
+  /** What it published, once it ended (`endRun`) */
+  published?: string[];
+}
+
+/**
+ * An artifact a run published is drawn where it belongs: it is on the board
+ * with the edge from what the run consumed (the server draws those once the
+ * run is done). It has none when none of that is on the board: the run
+ * consumed nothing, or the board's filters hide its inputs. An output the
+ * filters hide never comes: the run lets go after SETTLE_MS
+ */
+function drawn(id: string, run: InFlightRun, on: Set<string>, edges: Edge[]): boolean {
+  return on.has(id) && (edges.some((edge) => edge.target === id) || !run.artifacts.some((input) => on.has(input)));
+}
+
+/** The agent's artifacts in a workflow on the board, but for a run's own streamed previews (they carry its artifacts' IDs) */
+function outputsBefore(nodes: Node[], agent: string, correlationId: string | null | undefined, runId: string): string[] {
+  return nodes
+    .filter(
+      (node) =>
+        node.type === 'message' &&
+        node.data.producedBy === agent &&
+        (node.data.correlationId ?? null) === (correlationId ?? null) &&
+        node.data.runId !== runId,
+    )
+    .map((node) => node.id);
+}
+
 interface GraphState {
   // Real-time WebSocket state (overlaid on backend snapshot)
   agentStatus: Map<string, string>;
+  /**
+   * Per running run, its agent and what it consumed: the types (edges in flight)
+   * and artifact IDs; its run (correlation); the types its agent publishes; and
+   * `known`, the agent's artifacts in the workflow when the run started (#642)
+   */
+  inFlight: Map<string, InFlightRun>;
+  /**
+   * Runs that ended and whose output is not on the board yet: it comes with the
+   * next snapshot. The lanes keep their placeholders meanwhile (#642).
+   */
+  settling: Map<string, InFlightRun & { known: string[] }>;
+  /** The filters the Blackboard's snapshot answers (`blackboardFilterKey` when they are the board's) */
+  blackboardFilters: string | null;
+  /** Per running run, the end of its streamed output (an agent's ticker mixes its runs) */
+  runTails: Map<string, string>;
   streamingTokens: Map<string, string[]>;
   agentLogicOperations: Map<string, AgentLogicOperations[]>; // Phase 1.3: Logic operations state
 
@@ -36,6 +93,8 @@ interface GraphState {
   nodes: Node[];
   edges: Edge[];
   statistics: GraphStatistics | null;
+  /** The blackboard view holds the newest artifacts only (the server's limit) */
+  truncated: boolean;
 
   // UI state
   events: Message[];
@@ -43,6 +102,10 @@ interface GraphState {
 
   // Position persistence (saved to IndexedDB)
   savedPositions: Map<string, { x: number; y: number }>;
+  /** Positions that win over the saved ones while a node is unfolded; never saved */
+  transientPositions: Map<string, { x: number; y: number }> | null;
+  /** Nodes on their way to new positions (a layout, an unfold): a snapshot keeps them where the glide has them (#650) */
+  moving: Set<string>;
 
   // Loading state
   isLoading: boolean;
@@ -56,6 +119,22 @@ interface GraphState {
 
   // Actions - Real-time WebSocket updates
   updateAgentStatus: (agentId: string, status: string) => void;
+  setInFlight: (runId: string, agentId: string, types: string[] | null, artifacts?: string[], correlationId?: string | null, produces?: string[]) => void;
+  /**
+   * A run ended: it settles until a snapshot brings what it published, and one
+   * that published nothing goes at once (also from settling, a run that failed
+   * after its completion event). Without `published` (null types to
+   * setInFlight) it settles until the board shows an artifact of its agent in
+   * its workflow that was not there when it started.
+   */
+  endRun: (runId: string, published?: string[]) => void;
+  /** A run that ended stops settling: its output is on the board, or it waited long enough */
+  settle: (runId: string) => void;
+  appendRunTail: (runId: string, text: string) => void;
+  /** Runs going on when the page connected, which it heard no start event of (their types are not known) */
+  seedInFlight: (runs: { runId: string; agent: string; artifacts: string[]; correlationId: string | null }[]) => void;
+  /** Drops the streaming previews of a run (all of them without arguments) */
+  dropStreamingPreviews: (agent?: string, correlationId?: string | null, runId?: string | null) => void;
   updateStreamingTokens: (agentId: string, tokens: string[]) => void;
   updateAgentLogicOperations: (agentId: string, logicOps: AgentLogicOperations[]) => void; // Phase 1.3
   addEvent: (message: Message) => void;
@@ -66,6 +145,9 @@ interface GraphState {
 
   // Actions - Position persistence
   updateNodePosition: (nodeId: string, position: { x: number; y: number }) => void;
+  setNodePositions: (positions: Map<string, { x: number; y: number }>) => void;
+  setTransientPositions: (positions: Map<string, { x: number; y: number }> | null) => void;
+  setMoving: (ids: Set<string>) => void;
   saveNodePosition: (nodeId: string, position: { x: number; y: number }) => void;
   loadSavedPositions: () => Promise<void>;
 
@@ -81,19 +163,80 @@ function convertTimeRange(range: { preset: string; start?: number; end?: number 
     preset: range.preset as any,
   };
 
-  if (range.start !== undefined) {
-    result.start = new Date(range.start).toISOString();
+  const start = boundOf(range.start);
+  const end = boundOf(range.end);
+  if (start !== undefined) {
+    result.start = new Date(start).toISOString();
   }
-  if (range.end !== undefined) {
-    result.end = new Date(range.end).toISOString();
+  if (end !== undefined) {
+    result.end = new Date(end).toISOString();
   }
 
   return result;
 }
 
 /**
- * Build GraphRequest from current filter state
+ * The types of a streamed artifact: an agent that publishes several streams
+ * under all of them ("app.A, app.B"); a comma inside brackets belongs to a
+ * generic type's name ("app.Pair[str, int]").
  */
+export function streamedTypes(label: string): string[] {
+  const types: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < label.length; i += 1) {
+    const char = label[i];
+    if (char === '[') depth += 1;
+    else if (char === ']') depth -= 1;
+    else if (char === ',' && depth === 0) {
+      types.push(label.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  types.push(label.slice(start).trim());
+  return types.filter(Boolean);
+}
+
+/**
+ * Whether an artifact the board did not load passes the board's filters: a
+ * streaming preview, which has no tags yet (a tag filter keeps it out).
+ */
+function previewFilter(): (data: Record<string, any>) => boolean {
+  const filters = buildGraphRequest('blackboard').filters;
+  const timeRange = useFilterStore.getState().timeRange;
+  const lastMinutes = { last5min: 5, last10min: 10, last1hour: 60 }[timeRange.preset as string];
+  const from =
+    timeRange.preset === 'custom'
+      ? boundOf(timeRange.start)
+      : lastMinutes !== undefined
+        ? Date.now() - lastMinutes * 60_000
+        : undefined;
+  const to = timeRange.preset === 'custom' ? boundOf(timeRange.end) : undefined;
+  return (data) =>
+    (from === undefined || (data.timestamp ?? 0) >= from) &&
+    (to === undefined || (data.timestamp ?? 0) <= to) &&
+    (!filters.correlation_id || data.correlationId === filters.correlation_id) &&
+    (filters.artifactTypes.length === 0 ||
+      streamedTypes(String(data.artifactType ?? '')).some((type) => filters.artifactTypes.includes(type))) &&
+    (filters.producers.length === 0 || filters.producers.includes(data.producedBy)) &&
+    filters.tags.length === 0 &&
+    (filters.visibility.length === 0 || filters.visibility.includes(data.visibilityKind ?? 'Public'));
+}
+
+// Counts the snapshot requests. An answer applies if it is newer than the one
+// applied and was asked for the board's current view and filters: newer requests
+// still loading (live refreshes in a row) do not hold it back, and an answer to
+// filters changed meanwhile, or an older one arriving late, does not replace the board
+let snapshotRequest = 0;
+let appliedRequest = 0;
+const requestKey = (viewMode: 'agent' | 'blackboard'): string => JSON.stringify(buildGraphRequest(viewMode));
+const stillAsked = (mine: number, key: string, viewMode: 'agent' | 'blackboard', current: 'agent' | 'blackboard'): boolean =>
+  mine > appliedRequest && current === viewMode && key === requestKey(viewMode);
+
+/** The board's filters as the Blackboard's snapshot request carries them, to compare with `blackboardFilters`. */
+export const blackboardFilterKey = (): string => JSON.stringify(buildGraphRequest('blackboard').filters);
+
+/** The graph request for a view, from the current filter state. */
 function buildGraphRequest(viewMode: 'agent' | 'blackboard'): GraphRequest {
   const filterState = useFilterStore.getState();
 
@@ -118,43 +261,81 @@ function buildGraphRequest(viewMode: 'agent' | 'blackboard'): GraphRequest {
  */
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
+/** Nodes placed where an unfolded board has them, if one is unfolded. */
+const withTransientPositions = (nodes: Node[], positions: Map<string, { x: number; y: number }> | null): Node[] =>
+  positions
+    ? nodes.map((node) => {
+        const position = positions.get(node.id);
+        return position ? { ...node, position } : node;
+      })
+    : nodes;
+
 export const useGraphStore = create<GraphState>()(
   devtools(
     (set, get) => ({
       // Initial state
       agentStatus: new Map(),
+      inFlight: new Map(),
+      settling: new Map(),
+      blackboardFilters: null,
+      runTails: new Map(),
       streamingTokens: new Map(),
       agentLogicOperations: new Map(), // Phase 1.3
       nodes: [],
       edges: [],
       statistics: null,
+      truncated: false,
       events: [],
       viewMode: 'agent',
       savedPositions: new Map(),
-      isLoading: false,
+      transientPositions: null,
+      moving: new Set(),
+      // The dashboard loads its board as it starts
+      isLoading: true,
       error: null,
 
       // Backend integration actions
       generateAgentViewGraph: async () => {
         set({ isLoading: true, error: null, viewMode: 'agent' });
+        const mine = ++snapshotRequest;
 
         try {
           // Load saved positions from IndexedDB first
           await get().loadSavedPositions();
 
+          // The filters as the request goes out (they may change while positions load)
           const request = buildGraphRequest('agent');
+          const key = JSON.stringify(request);
           const snapshot: GraphSnapshot = await fetchGraphSnapshot(request);
+          if (!stillAsked(mine, key, 'agent', get().viewMode)) return;
+          appliedRequest = mine;
+          // The snapshot's countdowns (joins, batches) go on from here, on the monotonic clock
+          const snapshotAt = performance.now();
 
           const { savedPositions, nodes: currentNodes, agentStatus, streamingTokens, agentLogicOperations } = get();
 
           // Merge positions: saved > current > backend > random
           const mergedNodes = mergeNodePositions(snapshot.nodes, savedPositions, currentNodes);
 
-          // Overlay real-time WebSocket state
-          const finalNodes = overlayWebSocketState(mergedNodes, agentStatus, streamingTokens, agentLogicOperations);
+          // Overlay real-time WebSocket state; the selected node stays selected
+          const selected = new Set(currentNodes.filter((node) => node.selected).map((node) => node.id));
+          const finalNodes = withTransientPositions(
+            overlayWebSocketState(mergedNodes, agentStatus, streamingTokens, agentLogicOperations).map((node) => {
+              const kept = selected.has(node.id) ? { ...node, selected: true } : node;
+              return kept.type === 'agent' ? { ...kept, data: { ...kept.data, snapshotAt } } : kept;
+            }),
+            get().transientPositions,
+          );
+          // Nodes on their way somewhere stay where the glide has them; it goes on from there
+          const { moving, nodes: now } = get();
+          const at = new Map(now.map((node) => [node.id, node.position]));
+          const placedNodes =
+            moving.size === 0
+              ? finalNodes
+              : finalNodes.map((node) => (moving.has(node.id) && at.has(node.id) ? { ...node, position: at.get(node.id)! } : node));
 
           set({
-            nodes: finalNodes,
+            nodes: placedNodes,
             edges: snapshot.edges as Edge[],
             statistics: snapshot.statistics,
             isLoading: false,
@@ -181,6 +362,8 @@ export const useGraphStore = create<GraphState>()(
             }
           }
         } catch (error) {
+          // A newer request reports for the board
+          if (mine !== snapshotRequest) return;
           const errorMessage = error instanceof Error ? error.message : 'Failed to fetch graph';
           set({
             error: errorMessage,
@@ -192,27 +375,50 @@ export const useGraphStore = create<GraphState>()(
 
       generateBlackboardViewGraph: async () => {
         set({ isLoading: true, error: null, viewMode: 'blackboard' });
+        const mine = ++snapshotRequest;
 
         try {
-          // Load saved positions from IndexedDB first
-          await get().loadSavedPositions();
-
           const request = buildGraphRequest('blackboard');
+          const key = JSON.stringify(request);
           const snapshot: GraphSnapshot = await fetchGraphSnapshot(request);
+          if (!stillAsked(mine, key, 'blackboard', get().viewMode)) return;
+          appliedRequest = mine;
 
-          const { savedPositions, nodes: currentNodes, agentStatus, streamingTokens, agentLogicOperations } = get();
+          // The lanes place artifacts themselves (no positions); an artifact
+          // that still streams is not on the record yet and stays, if the
+          // board's filters let it through
+          const known = new Set(snapshot.nodes.map((node) => node.id));
+          const passes = previewFilter();
+          const streaming = get().nodes.filter(
+            (node) => node.type === 'message' && node.data.isStreaming && !known.has(node.id) && passes(node.data),
+          );
 
-          // Merge positions: saved > current > backend > random
-          const mergedNodes = mergeNodePositions(snapshot.nodes, savedPositions, currentNodes);
-
-          // Overlay real-time WebSocket state (primarily for message streaming)
-          const finalNodes = overlayWebSocketState(mergedNodes, agentStatus, streamingTokens, agentLogicOperations);
+          // Runs that ended settle once all they published is on the board,
+          // placed (the completion event can come before the outputs are
+          // stored). Not told what it published, a run waits for a new
+          // artifact of its agent in its workflow
+          const settling = new Map(get().settling);
+          const inSnapshot = new Set(snapshot.nodes.map((node) => node.id));
+          for (const [runId, run] of settling) {
+            const published = run.published
+              ? run.published.every((id) => drawn(id, run, inSnapshot, snapshot.edges as Edge[]))
+              : snapshot.nodes.some(
+                  (node) =>
+                    node.data?.producedBy === run.agent &&
+                    (node.data?.correlationId ?? null) === (run.correlationId ?? null) &&
+                    !run.known.includes(node.id),
+                );
+            if (published) settling.delete(runId);
+          }
 
           set({
-            nodes: finalNodes,
+            nodes: [...(snapshot.nodes as Node[]), ...streaming],
             edges: snapshot.edges as Edge[],
             statistics: snapshot.statistics,
+            truncated: snapshot.truncated,
+            blackboardFilters: JSON.stringify(request.filters),
             isLoading: false,
+            settling,
           });
 
           // Update filter facets from backend statistics
@@ -236,6 +442,8 @@ export const useGraphStore = create<GraphState>()(
             }
           }
         } catch (error) {
+          // A newer request reports for the board
+          if (mine !== snapshotRequest) return;
           const errorMessage = error instanceof Error ? error.message : 'Failed to fetch graph';
           set({
             error: errorMessage,
@@ -270,6 +478,103 @@ export const useGraphStore = create<GraphState>()(
       },
 
       // Real-time WebSocket update actions
+      setInFlight: (runId, agentId, types, artifacts = [], correlationId = null, produces = []) => {
+        // A run that consumed nothing (a direct invocation, a timer) runs too; null ends it
+        if (types === null) return get().endRun(runId);
+        set((state) => {
+          const inFlight = new Map(state.inFlight);
+          const known = state.inFlight.get(runId)?.known ?? outputsBefore(state.nodes, agentId, correlationId, runId);
+          inFlight.set(runId, { agent: agentId, types, artifacts, correlationId, produces, known });
+          return { inFlight };
+        });
+      },
+
+      endRun: (runId, published) => {
+        const { inFlight: running, nodes, edges } = get();
+        const ended = running.get(runId);
+        // A run that ended settles until the board shows what it published,
+        // unless a snapshot already drew all of it (with the edges that place it)
+        const recorded = new Set(nodes.filter((node) => !node.data.isStreaming && node.data.streamingText === undefined).map((node) => node.id));
+        const settles =
+          ended !== undefined && (published === undefined || (published.length > 0 && !published.every((id) => drawn(id, ended, recorded, edges))));
+        set((state) => {
+          const inFlight = new Map(state.inFlight);
+          inFlight.delete(runId);
+          const changes: Partial<GraphState> = { inFlight };
+          if (ended && settles) {
+            const settling = new Map(state.settling);
+            settling.set(runId, { ...ended, known: ended.known ?? [], published });
+            changes.settling = settling;
+          } else if (!settles && state.settling.has(runId)) {
+            const settling = new Map(state.settling);
+            settling.delete(runId);
+            changes.settling = settling;
+          }
+          // A run that ends takes its output's tail along
+          if (state.runTails.has(runId)) {
+            const runTails = new Map(state.runTails);
+            runTails.delete(runId);
+            changes.runTails = runTails;
+          }
+          return changes;
+        });
+        // One whose snapshot never comes (its output filtered out, a lost request) goes after a while
+        if (settles) setTimeout(() => get().settle(runId), SETTLE_MS);
+      },
+
+      settle: (runId) => {
+        set((state) => {
+          if (!state.settling.has(runId)) return {};
+          const settling = new Map(state.settling);
+          settling.delete(runId);
+          return { settling };
+        });
+      },
+
+      dropStreamingPreviews: (agent, correlationId, runId) => {
+        // A preview that knows its run goes with that run only; the agent may run again in the same workflow
+        const ofRun = (data: Record<string, any>) => !runId || !data.runId || data.runId === runId;
+        set((state) => {
+          const nodes = state.nodes.filter(
+            (node) =>
+              !(
+                node.type === 'message' &&
+                node.data.isStreaming &&
+                (agent === undefined || node.data.producedBy === agent) &&
+                (correlationId === undefined || (node.data.correlationId ?? null) === correlationId) &&
+                ofRun(node.data)
+              ),
+          );
+          return nodes.length === state.nodes.length ? {} : { nodes };
+        });
+      },
+
+      seedInFlight: (runs) => {
+        set((state) => {
+          const fresh = runs.filter((run) => !state.inFlight.has(run.runId));
+          if (fresh.length === 0) return {};
+          const inFlight = new Map(state.inFlight);
+          for (const run of fresh) {
+            inFlight.set(run.runId, {
+              agent: run.agent,
+              types: [],
+              artifacts: run.artifacts,
+              correlationId: run.correlationId,
+              known: outputsBefore(state.nodes, run.agent, run.correlationId, run.runId),
+            });
+          }
+          return { inFlight };
+        });
+      },
+
+      appendRunTail: (runId, text) => {
+        set((state) => {
+          const runTails = new Map(state.runTails);
+          runTails.set(runId, ((state.runTails.get(runId) ?? '') + text).slice(-RUN_TAIL_CHARS));
+          return { runTails };
+        });
+      },
+
       updateAgentStatus: (agentId, status) => {
         set((state) => {
           const agentStatus = new Map(state.agentStatus);
@@ -398,8 +703,12 @@ export const useGraphStore = create<GraphState>()(
                 tags: [],
                 visibilityKind: 'Public',
                 correlationId: eventData?.correlation_id || '',
+                // The run streaming it: when the run ends, its preview goes
+                runId: eventData?.run_id ?? null,
               },
             };
+            // Only what the board's filters let through: another run's preview would make a lane of its own
+            if (!previewFilter()(newNode.data)) return state;
             return { nodes: [...state.nodes, newNode] };
           }
         });
@@ -424,6 +733,19 @@ export const useGraphStore = create<GraphState>()(
           return { nodes };
         });
       },
+
+      setNodePositions: (positions) => {
+        set((state) => ({
+          nodes: state.nodes.map((node) => {
+            const position = positions.get(node.id);
+            return position ? { ...node, position } : node;
+          }),
+        }));
+      },
+
+      setTransientPositions: (positions) => set({ transientPositions: positions }),
+
+      setMoving: (ids) => set({ moving: ids }),
 
       // Position persistence actions
       updateNodePosition: (nodeId, position) => {

@@ -48,7 +48,7 @@ await orchestrator.serve(dashboard=True)
 ### 3. Access Trace Viewer
 
 1. Open dashboard at `http://localhost:8344`
-2. Right-click on canvas → **Add Module** → **🔍 Trace Viewer**
+2. Open the timeline dock's **Traces** tab at the bottom (a trace link anywhere in the dashboard opens it too)
 3. Traces will appear automatically!
 
 ## Architecture

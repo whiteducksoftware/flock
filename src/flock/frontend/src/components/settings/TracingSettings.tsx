@@ -12,6 +12,7 @@
 
 import React, { useState, useEffect } from 'react';
 import MultiSelect from './MultiSelect';
+import './settingsFields.css';
 
 interface TraceStats {
   total_spans: number;
@@ -150,10 +151,10 @@ const TracingSettings: React.FC = () => {
         <div className="settings-message settings-message-error" style={{
           padding: 'var(--space-component-sm)',
           marginBottom: 'var(--space-component-md)',
-          backgroundColor: 'rgba(239, 68, 68, 0.1)',
-          border: '1px solid rgba(239, 68, 68, 0.3)',
+          backgroundColor: 'var(--error-soft)',
+          border: '1px solid color-mix(in srgb, var(--error) 30%, transparent)',
           borderRadius: 'var(--radius-md)',
-          color: '#ef4444'
+          color: 'var(--error)'
         }}>
           {error}
         </div>
@@ -163,10 +164,10 @@ const TracingSettings: React.FC = () => {
         <div className="settings-message settings-message-success" style={{
           padding: 'var(--space-component-sm)',
           marginBottom: 'var(--space-component-md)',
-          backgroundColor: 'rgba(16, 185, 129, 0.1)',
-          border: '1px solid rgba(16, 185, 129, 0.3)',
+          backgroundColor: 'var(--surface-2)',
+          border: '1px solid var(--line-2)',
           borderRadius: 'var(--radius-md)',
-          color: '#10b981'
+          color: 'var(--text-3)'
         }}>
           {successMessage}
         </div>
@@ -291,8 +292,8 @@ const TracingSettings: React.FC = () => {
 
         {stats && (
           <div style={{
-            backgroundColor: 'rgba(96, 165, 250, 0.05)',
-            border: '1px solid rgba(96, 165, 250, 0.2)',
+            backgroundColor: 'var(--surface-2)',
+            border: '1px solid var(--line)',
             borderRadius: 'var(--radius-md)',
             padding: 'var(--space-component-md)'
           }}>
@@ -360,9 +361,9 @@ const TracingSettings: React.FC = () => {
             disabled={loading || !stats || stats.total_spans === 0}
             className="settings-reset-button"
             style={{
-              backgroundColor: 'rgba(239, 68, 68, 0.1)',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
-              color: '#ef4444'
+              backgroundColor: 'var(--error-soft)',
+              border: '1px solid color-mix(in srgb, var(--error) 30%, transparent)',
+              color: 'var(--error)'
             }}
           >
             {loading ? 'Clearing...' : 'Clear All Traces'}
@@ -380,9 +381,9 @@ const TracingSettings: React.FC = () => {
           disabled={loading}
           className="settings-save-button"
           style={{
-            backgroundColor: 'rgba(96, 165, 250, 0.1)',
-            border: '1px solid rgba(96, 165, 250, 0.3)',
-            color: '#60a5fa',
+            backgroundColor: 'var(--surface-2)',
+            border: '1px solid var(--line-2)',
+            color: 'var(--text)',
             padding: 'var(--space-component-sm) var(--space-component-md)',
             borderRadius: 'var(--radius-md)',
             fontSize: 'var(--font-size-base)',

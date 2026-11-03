@@ -246,14 +246,16 @@ A tournament costs one round trip per round, and an option that drops out early 
 
 Use a single choice whenever the options fit into one question, and a tournament or a [screening network](#decision-networks) when they do not.
 
+The dashboard screenshots in this guide come from the examples run with simulated decision models and scripted LLM answers, so their counts and probabilities differ from the measured results in the text.
+
 <p align="center">
-  <img alt="A tournament decision: 100 options in 5 groups, 15 finalists, final probabilities" src="../../assets/images/decisions/decision-tournament-card.png" width="300">
+  <img alt="A tournament decision: 100 options in 5 groups, 15 finalists, gov_01 at 0.99" src="../../assets/images/decisions/decision-tournament-card.png" width="300">
 </p>
 
-**⤢ bracket** on a tournament decision opens the whole tournament: one column per round and the final, group boxes with their top candidates, lines from every survivor to its place in the next round, and the winner's path highlighted. Hovering an option traces its path through all rounds:
+**Open bracket** on a tournament decision opens the whole tournament: one column per round and the final, group boxes with their top candidates, lines from every survivor to its place in the next round, and the winner's path highlighted. Hovering an option traces its path through all rounds:
 
 <p align="center">
-  <img alt="Tournament bracket: 100 options, 10 groups, 3 groups, final, the winner's path highlighted and a runner-up traced" src="../../assets/images/decisions/decision-tournament-bracket-trace.png" width="900">
+  <img alt="Tournament bracket: 100 options in 5 groups and a final of 15, the winner's path highlighted and a runner-up, net_03, traced" src="../../assets/images/decisions/decision-tournament-bracket-trace.png" width="520">
 </p>
 
 ## Routing: choice subscriptions
@@ -343,11 +345,11 @@ flock.agent("ranker").consumes(*(s.ANY for s in SCREENS)).decides(Control, optio
 Screens are yes/no checklists rather than choices. A choice spreads its probability over its own slice, so an unrelated screen would still pass some option; yes/no answers are comparable across screens, which a threshold needs. Every screen is its own node, with its own model, threshold and scaling, and the dashboard shows each step:
 
 <p align="center">
-  <img alt="Agent view: an evidence sentence goes to four screens, a ranker gathers them" src="../../assets/images/decisions/decision-network-agent-view.png" width="900">
+  <img alt="The Flow: an evidence sentence goes to four screens, a ranker gathers their passes" src="../../assets/images/decisions/decision-network-agent-view.png" width="900">
 </p>
 
 <p align="center">
-  <img alt="Blackboard view: one sentence, four screen decisions with their passes, the ranker's decision among nine candidates" src="../../assets/images/decisions/decision-network-blackboard.png" width="900">
+  <img alt="The Blackboard: one sentence, the flat and the tournament decision for gov_01, four screens with their passes (1, 0, 0 and 0 of 25) and the ranker's gov_01" src="../../assets/images/decisions/decision-network-blackboard.png" width="900">
 </p>
 
 ### Choosing one of many options: three ways
@@ -399,7 +401,7 @@ In the dashboard, the aggregating agent counts the groups in view by the outcome
 </p>
 
 <p align="center">
-  <img alt="Coverage of Verdant Rail over two documents: 39 controls yes, 52 no, 9 unsure" src="../../assets/images/decisions/decision-coverage-card.png" width="560">
+  <img alt="Coverage of Verdant Rail over two documents: 28 controls yes, 59 no, 13 unsure" src="../../assets/images/decisions/decision-coverage-card.png" width="560">
 </p>
 
 ### Long documents in sections
@@ -430,7 +432,7 @@ Recall counts an unsure answer about a shown control as missed: the whole manual
 In the dashboard, a decision names the number of sections and, for a single question, the section that answered; a checklist cell names the section of its item in its tooltip:
 
 <p align="center">
-  <img alt="A checklist decision about a manual in 7 sections: 28 controls yes, 63 no, 9 unsure" src="../../assets/images/decisions/decision-sections-card.png" width="560">
+  <img alt="A checklist decision about a manual in 7 sections: 35 controls yes, 50 no, 15 unsure" src="../../assets/images/decisions/decision-sections-card.png" width="560">
 </p>
 
 ## Thresholds and the UNSURE branch
@@ -505,16 +507,16 @@ Each tier is a provider string or instance like `model=`, with its own share of 
 
 On 100 arXiv abstracts (nine fields, threshold 0.9), Microsoft-Decision-1 answered 82 papers firmly; `gpt-6-luna` answered 12 of the other 18, and 6 went to `UNSURE`. That took 118 requests, against 100 for each model alone; the stronger model saw 18 papers instead of 100 ([`07_escalation.py`](https://github.com/whiteducksoftware/flock/blob/main/examples/15-decisions/07_escalation.py)).
 
-In the dashboard, a decider lists its cascade after its model (`azure/decision-1 › openai/gpt-6-luna`). An escalated decision shows its trail above the model line: every earlier tier's best guess and probability (amber), then the tier that answered:
+In the dashboard, a decider lists its cascade after its model (`azure/decision-1 › openai/gpt-6-luna`). An escalated decision shows its trail below the model line: every earlier tier's best guess and probability on a hatched chip, then the tier that answered, blue when it was sure:
 
 <p align="center">
   <img alt="A decider with an escalation cascade and the inbox for papers no tier was sure about" src="../../assets/images/decisions/decision-escalation-agent-view.png" width="900">
 </p>
 
 <p align="center">
-  <img alt="An escalated decision: Microsoft-Decision-1 guessed machine_learning at 0.56, gpt-6-luna answered computer_vision at tier 1" src="../../assets/images/decisions/decision-escalation-card.png" width="360">
+  <img alt="An escalated decision: azure/decision-1 guessed machine_learning at 0.70, gpt-6-luna answered robotics at 0.91 at tier 1" src="../../assets/images/decisions/decision-escalation-card.png" width="360">
   &nbsp;&nbsp;
-  <img alt="Still unsure after the last tier: UNSURE with best guess biology" src="../../assets/images/decisions/decision-escalation-card-unsure.png" width="340">
+  <img alt="Still unsure after the last tier: azure/decision-1 guessed computer_vision at 0.85, gpt-6-luna was not sure either; UNSURE with best guess computer_vision" src="../../assets/images/decisions/decision-escalation-card-unsure.png" width="340">
 </p>
 
 ### Ensembles and voting
@@ -558,16 +560,16 @@ On the 100 arXiv abstracts (threshold 0.8, one run per vote on 2026-10-11, [`08_
 
 A vote trades coverage for precision: the unanimous vote sorted fewer papers, and almost all of them correctly. In this task one model is clearly stronger, and `gpt-6-luna` alone sorts more papers at about the same precision as the majority. An ensemble pays off when no model is clearly best, when a wrong firm answer costs more than a review, or when disagreement between models should be visible as its own branch. It costs one request per model.
 
-In the dashboard, a decider names its vote and models (`majority of azure/decision-1 + jev/jev-latest + openai/gpt-6-luna`), and a decision shows every model's vote: violet for a firm vote for the decision, amber for a firm vote that did not carry, grey for no vote (below the threshold or refused).
+In the dashboard, a decider names its vote and models (`majority of azure/decision-1 + jev/jev-latest + openai/gpt-6-luna`), and a decision shows every model's vote: blue for a firm vote for the decision, outlined for a firm vote that did not carry, hatched for no vote (below the threshold or refused), then the result and how many models agree.
 
 <p align="center">
   <img alt="An ensemble decider: majority of three decision models, and the inbox for papers the vote did not settle" src="../../assets/images/decisions/decision-voting-agent-view.png" width="900">
 </p>
 
 <p align="center">
-  <img alt="A voted decision: two firm votes for machine_learning carry it, one firm vote for economics does not" src="../../assets/images/decisions/decision-voting-card.png" width="440">
+  <img alt="A voted decision: the firm votes of azure/decision-1 and gpt-6-luna for machine_learning carry it, jev's firm vote for language does not" src="../../assets/images/decisions/decision-voting-card.png" width="440">
   &nbsp;&nbsp;
-  <img alt="No majority: only gpt-6-luna voted firmly, so the decision is UNSURE with best guess computer_vision" src="../../assets/images/decisions/decision-voting-card-unsure.png" width="440">
+  <img alt="No majority: only gpt-6-luna voted firmly, for astrophysics at 0.99, so the decision is UNSURE with best guess astrophysics" src="../../assets/images/decisions/decision-voting-card-unsure.png" width="440">
 </p>
 
 The mean bar of the chosen option can sit below the threshold marker on a majority decision: the threshold applies to each model's vote, not to the mean.
@@ -595,16 +597,16 @@ On the 100 arXiv abstracts (threshold 0.8, [`09_shadow.py`](https://github.com/w
 
 The shadow would have routed 86 of the 100 papers the same way. Most of the other 14 are papers the live model was unsure about and the shadow sorted firmly; they are the papers to look at before the switch.
 
-In the dashboard, the decider shows how often the shadow agreed (`shadow openai/gpt-6-luna · agrees 85/100` in a second run), and a decision shows the shadow's answer in a dashed pill: violet if it would have routed the same way, amber if not, grey if the shadow failed.
+In the dashboard, the decider shows how often the shadow agreed (`shadow openai/gpt-6-luna · agrees 76/100` in the screenshot), and a decision shows the shadow's answer on a dashed chip, marked *agrees* if it would have routed the same way, *would route differently* if not, and *failed* in coral if the shadow failed.
 
 <p align="center">
-  <img alt="A decider with gpt-6-luna in the shadow, agreeing on 85 of 100 papers" src="../../assets/images/decisions/decision-shadow-agent-view.png" width="900">
+  <img alt="A decider with gpt-6-luna in the shadow, agreeing on 76 of 100 papers" src="../../assets/images/decisions/decision-shadow-agent-view.png" width="900">
 </p>
 
 <p align="center">
-  <img alt="Live economics at 0.91; the shadow would have chosen machine_learning at 0.98" src="../../assets/images/decisions/decision-shadow-card.png" width="300">
+  <img alt="Live computer_vision at 0.99; the shadow would have chosen mathematics at 0.99" src="../../assets/images/decisions/decision-shadow-card.png" width="300">
   &nbsp;&nbsp;
-  <img alt="Live UNSURE with best guess computer_vision; the shadow chose computer_vision at 0.99" src="../../assets/images/decisions/decision-shadow-card-unsure.png" width="320">
+  <img alt="Live UNSURE with best guess computer_vision; the shadow chose computer_vision at 0.98" src="../../assets/images/decisions/decision-shadow-card-unsure.png" width="320">
 </p>
 
 ### Explain on demand
@@ -639,7 +641,7 @@ On eight support tickets with Microsoft-Decision-1 at threshold 0.95 ([`10_expla
 > The subject and the reference to a "return label" support shipping, whose scope includes returns. However, "from the website gives an error when I print it" also suggests a technical bug, supporting tech as an alternative. [...]
 > *Would settle it:* the exact error message and whether the failure occurs while generating the label on the website or while printing a downloaded one.
 
-In the dashboard, an explanation shows as text instead of JSON, and the explained decision shows the start of the explanation on its card, also when the explanation is outside the view; its **more** button (click or keyboard) opens the whole text and what would settle it. The screenshots come from a second run, in which two tickets were unsure:
+In the dashboard, an explanation shows as text instead of JSON, and the explained decision shows the start of the explanation on its card, also when the explanation is outside the view; its **more** button (click or keyboard) opens the whole text and what would settle it. In the screenshots, two of the eight tickets were unsure:
 
 <p align="center">
   <img alt="Triage routes eight tickets; the explainer consumes Route.UNSURE and published two explanations" src="../../assets/images/decisions/decision-explain-agent-view.png" width="800">
@@ -648,7 +650,7 @@ In the dashboard, an explanation shows as text instead of JSON, and the explaine
 <p align="center">
   <img alt="An UNSURE decision with the start of its explanation" src="../../assets/images/decisions/decision-explained-card.png" width="440">
   &nbsp;&nbsp;
-  <img alt="An explanation: why the ticket sits between shipping and tech, and what would settle it" src="../../assets/images/decisions/decision-explanation-card.png" width="440">
+  <img alt="An explanation: why the ticket leans to tech while billing is not ruled out, and what would settle it" src="../../assets/images/decisions/decision-explanation-card.png" width="440">
 </p>
 
 ### Human review
@@ -667,17 +669,17 @@ await flock.review(other_id)  # without choice: confirm the best guess
 
 The reviewed decision has the chosen option with probability 1.0, the reviewer as `model` and producer, `review_of` set to the reviewed decision's id, and the original's subjects, correlation and visibility; a scale review sets the score of the chosen level, so range handles match. Choice, yes/no and scale decisions can be reviewed; checklists cannot yet. An unknown id raises `LookupError`; an option the question does not have, or a reviewer named like one of the flock's agents (agents do not consume their own outputs, so the review would not reach that agent), raises `ValueError`.
 
-The control API offers the same: `POST /api/control/decisions/{id}/review` with `{"choice": "tech", "reviewer": "lead"}` (both optional). In the Blackboard View, an unsure decision shows review buttons, the most probable options first; a click publishes the review. A reviewed decision then shows its review, and the review names the decision it replaces. A decision in view shows its review also when the review itself is outside the view, for example filtered out by producer. Reviewed decisions are labels: they record what a person decided where the model was not sure, which is the data needed to calibrate thresholds.
+The control API offers the same: `POST /api/control/decisions/{id}/review` with `{"choice": "tech", "reviewer": "lead"}` (both optional). On the Blackboard, an unfolded unsure decision shows review buttons, the most probable options first and the best guess preselected; a click publishes the review. A reviewed decision then shows its review, and the review names the decision it replaces. A decision in view shows its review also when the review itself is outside the view, for example filtered out by producer. Reviewed decisions are labels: they record what a person decided where the model was not sure, which is the data needed to calibrate thresholds.
 
 <p align="center">
-  <img alt="An unsure decision with review buttons, the most probable option first" src="../../assets/images/decisions/decision-review-buttons.png" width="300">
+  <img alt="An unsure decision with review buttons, the best guess billing preselected" src="../../assets/images/decisions/decision-review-buttons.png" width="300">
   &nbsp;
   <img alt="The same decision after a click: reviewed as tech by human" src="../../assets/images/decisions/decision-reviewed.png" width="300">
   &nbsp;
-  <img alt="The review: a decision by human, tech at 100 percent, review of the unsure decision" src="../../assets/images/decisions/decision-review-by-human.png" width="300">
+  <img alt="The review: a decision by human, tech at 1.00, review of the unsure decision" src="../../assets/images/decisions/decision-review-by-human.png" width="300">
 </p>
 
-The reviewer appears as a producer in the Agent View, and the review routes the ticket like any decision:
+The reviewer appears as a producer on the Flow, and the review routes the ticket like any decision:
 
 <p align="center">
   <img alt="human publishes a Route decision that reaches the tech agent" src="../../assets/images/decisions/decision-review-agent-view.png" width="800">
@@ -697,17 +699,17 @@ A decider node shows every question it asks, drawn by kind: option bars for a `C
   <img alt="A decider asking a choice, a yes/no and a scale question, and the agents subscribed to the answers" src="../../assets/images/decisions/decision-types-agent-view.png" width="900">
 </p>
 
-In the Blackboard View each decision shows its answer the same way. A yes/no decision is one bar from yes (left) to no (right); the hatched zone between the two threshold markers is where neither answer is firm. A scale decision shows its levels in order, the threshold as a dashed line and the weighted score as a dot on the axis:
+On the Blackboard each decision shows its answer the same way. A yes/no decision is one bar from yes (left) to no (right); the hatched zone between the two threshold markers is where neither answer is firm. A scale decision shows its levels as columns in order, the threshold as a dashed line and the weighted score as a marker on the axis:
 
 <p align="center">
   <img alt="One ticket, its three decisions and the agents they triggered" src="../../assets/images/decisions/decision-types-blackboard.png" width="900">
 </p>
 
 <p align="center">
-  <img alt="A scale decision below the threshold: UNSURE with best guess angry and score 1.57" src="../../assets/images/decisions/decision-types-scale-unsure.png" width="360">
+  <img alt="A scale decision below the threshold: UNSURE with best guess calm and score 1.43" src="../../assets/images/decisions/decision-types-scale-unsure.png" width="360">
 </p>
 
-A checklist decider shows its outcomes, a strip with one column per item (the share of `yes` in violet and of unsure answers in amber across all decisions) and the items answered "no" most often. A checklist decision shows one cell per item:
+A checklist decider shows its outcomes, a strip with one column per item (the share of `yes` in blue and of unsure answers hatched across all decisions) and the items answered "no" most often. A checklist decision shows one cell per item:
 
 <p align="center">
   <img alt="A checklist decider over 100 controls with its outcome bar, item strip and most frequent gaps" src="../../assets/images/decisions/decision-checklist-decider.png" width="360">
@@ -761,10 +763,10 @@ In the dashboard, a decider's options show lanes with thumbnails of the latest i
   <img alt="A decider's option lanes filling with sorted images" src="../../assets/images/decisions/decision-lanes.gif" width="360">
 </p>
 
-In the Blackboard View every image artifact shows its thumbnail, and each decision shows the image it decided on, its probabilities and the threshold:
+On the Blackboard every image artifact shows its picture, followed by the decision about it and the bin it went to; an unfolded decision shows the image next to its probabilities and the threshold:
 
 <p align="center">
-  <img alt="Image artifacts, decisions with the decided image, and the bins they routed to" src="../../assets/images/decisions/decision-blackboard.png" width="900">
+  <img alt="Two shapes on the Blackboard: a yellow square sorted into yellow at 1.00, a purple circle UNSURE with best guess blue at 0.75 and taken by the inspector" src="../../assets/images/decisions/decision-blackboard.png" width="900">
 </p>
 
 ## Providers

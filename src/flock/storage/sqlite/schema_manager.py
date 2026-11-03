@@ -32,7 +32,7 @@ class SQLiteSchemaManager:
     - schema_meta table: Version tracking
     """
 
-    SCHEMA_VERSION = 4
+    SCHEMA_VERSION = 5
 
     async def apply_schema(self, conn: aiosqlite.Connection) -> None:
         """
@@ -86,10 +86,21 @@ class SQLiteSchemaManager:
                 tags TEXT NOT NULL,
                 correlation_id TEXT,
                 partition_key TEXT,
-                created_at TEXT NOT NULL
+                created_at TEXT NOT NULL,
+                follows TEXT NOT NULL DEFAULT '[]'
             )
             """
         )
+
+        # Version 5: the artifacts an artifact follows (#618). A table from
+        # before it gets the column; one stamped current without it, too.
+        cursor = await conn.execute("PRAGMA table_info(artifacts)")
+        columns = {row[1] for row in await cursor.fetchall()}
+        await cursor.close()
+        if "follows" not in columns:
+            await conn.execute(
+                "ALTER TABLE artifacts ADD COLUMN follows TEXT NOT NULL DEFAULT '[]'"
+            )
 
         if previous_version < 4:
             cursor = await conn.execute("SELECT artifact_id, created_at FROM artifacts")

@@ -1,0 +1,21 @@
+.status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+}
+
+.waiting {
+  background: var(--text-2);
+}
+
+.meta {
+  color: var(--text-3);
+}

@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
     from flock.components import ServerComponent
     from flock.core.conditions import RunCondition
+    from flock.sinks import Endpoint, SinkBuilder
 
 from flock.components.orchestrator import (
     CollectionResult,
@@ -109,6 +110,8 @@ class Flock(metaclass=AutoTracedMeta):
         decision_model: str | Any | None = None,
         decision_rate_limit: str | None = None,
         model_prices: Mapping[str, PriceLike] | None = None,
+        endpoints: Mapping[str, Endpoint] | None = None,
+        max_follows: int = 20,
     ) -> None:
         """Initialize the Flock orchestrator for blackboard-based agent coordination.
 
@@ -134,6 +137,11 @@ class Flock(metaclass=AutoTracedMeta):
                 does not price, as ``{"azure/decision-1": (input, output)}``;
                 they win over LiteLLM's price table. Every run reports its
                 tokens and, when all its models have a price, its cost.
+            endpoints: The systems sinks deliver to, by name, as
+                ``{"myapp": Endpoint("https://myapp.example", auth=Bearer(env=...))}``;
+                ``flock.sink(...).post("myapp:/billing")`` names one.
+            max_follows: How many artifacts a publish may name in ``follows=``
+                (default 20).
 
         Examples:
             >>> flock = Flock("openai/gpt-4.1")
@@ -155,6 +163,10 @@ class Flock(metaclass=AutoTracedMeta):
             RequestBudget.parse(decision_rate_limit)  # fail early on a bad value
         self.decision_rate_limit = decision_rate_limit
         self._decision_budgets: dict[str, RequestBudget] = {}
+        self.endpoints: dict[str, Endpoint] = dict(endpoints or {})
+        if max_follows < 1:
+            raise ValueError(f"max_follows must be at least 1, got {max_follows}")
+        self.max_follows = max_follows
 
         # Phase 3: Initialize all components using OrchestratorInitializer
         components = OrchestratorInitializer.initialize_components(
@@ -291,6 +303,24 @@ class Flock(metaclass=AutoTracedMeta):
         if name in self._agents:
             raise ValueError(f"Agent '{name}' already registered.")
         return AgentBuilder(self, name)
+
+    @trace_level("all")  # building, registering and housekeeping (#601)
+    def sink(self, name: str) -> SinkBuilder:
+        """Create a sink: an external system as a consumer on the blackboard.
+
+        A sink consumes like an agent and delivers what it consumes over HTTP
+        to a target on one of ``Flock(endpoints=...)``, then publishes
+        ``Delivered`` or ``DeliveryFailed``.
+
+        Examples:
+            >>> flock = Flock(endpoints={"myapp": Endpoint("https://myapp.example")})
+            >>> flock.sink("billing-api").consumes(Reply).post("myapp:/billing")
+        """
+        from flock.sinks.builder import SinkBuilder
+
+        if name in self._agents:
+            raise ValueError(f"Agent '{name}' already registered.")
+        return SinkBuilder(self, name)
 
     @trace_level("all")  # building, registering and housekeeping (#601)
     def openclaw_agent(
@@ -1006,10 +1036,14 @@ class Flock(metaclass=AutoTracedMeta):
             # Reconnects on the next use; Dapr's close() is final, so only SQLite.
             # A task that outlived the grace period may still publish and would
             # reopen the store, so it stays open then.
-            if isinstance(self.store, SQLiteBlackboardStore) and all(
-                task.done() for task in self._scheduler.pending_tasks
-            ):
+            stopped = all(task.done() for task in self._scheduler.pending_tasks)
+            if isinstance(self.store, SQLiteBlackboardStore) and stopped:
                 await self.store.close()
+            # Sinks' connections, once no delivery can still use them
+            if stopped:
+                from flock.sinks.engine import close_endpoints
+
+                await close_endpoints(self)
             # Spans wait in batches before they are exported (#601): write them now
             await asyncio.to_thread(flush_traces)
         finally:
@@ -1128,8 +1162,13 @@ class Flock(metaclass=AutoTracedMeta):
         tags: set[str] | None = None,
         is_dashboard: bool = False,
         schedule_immediately: bool = True,
+        follows: Sequence[UUID | str] | None = None,
     ) -> Artifact:
         """Publish an artifact to the blackboard (event-driven).
+
+        ``follows`` names the artifacts this one follows (at most
+        ``max_follows``, each on the blackboard), so the dashboard draws it
+        after them: an app's next step after the decision it got.
 
         Delegates to ArtifactManager for normalization and persistence.
         """
@@ -1141,6 +1180,7 @@ class Flock(metaclass=AutoTracedMeta):
             tags=tags,
             is_dashboard=is_dashboard,
             schedule_immediately=schedule_immediately,
+            follows=follows,
         )
 
     async def review(

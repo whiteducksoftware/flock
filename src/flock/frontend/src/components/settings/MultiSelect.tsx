@@ -103,8 +103,8 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
         style={{
           minHeight: '38px',
           padding: 'var(--space-xs)',
-          backgroundColor: disabled ? 'rgba(0, 0, 0, 0.2)' : 'rgba(0, 0, 0, 0.3)',
-          border: `1px solid ${isOpen ? 'rgba(96, 165, 250, 0.5)' : 'rgba(255, 255, 255, 0.1)'}`,
+          backgroundColor: disabled ? 'var(--surface)' : 'var(--surface-2)',
+          border: `1px solid ${isOpen ? 'var(--sure)' : 'var(--line-2)'}`,
           borderRadius: 'var(--radius-sm)',
           display: 'flex',
           flexWrap: 'wrap',
@@ -123,11 +123,11 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
               alignItems: 'center',
               gap: 'var(--gap-xs)',
               padding: '2px 8px',
-              backgroundColor: 'rgba(96, 165, 250, 0.2)',
-              border: '1px solid rgba(96, 165, 250, 0.4)',
+              backgroundColor: 'var(--surface-3)',
+              border: '1px solid var(--line-2)',
               borderRadius: 'var(--radius-sm)',
               fontSize: 'var(--font-size-sm)',
-              color: '#60a5fa',
+              color: 'var(--text)',
               maxWidth: '100%',
               overflow: 'hidden'
             }}
@@ -149,7 +149,7 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
                 style={{
                   background: 'none',
                   border: 'none',
-                  color: '#60a5fa',
+                  color: 'var(--text-3)',
                   cursor: 'pointer',
                   padding: 0,
                   display: 'flex',
@@ -202,10 +202,10 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
             right: 0,
             maxHeight: '240px',
             overflowY: 'auto',
-            backgroundColor: 'rgba(0, 0, 0, 0.9)',
-            border: '1px solid rgba(96, 165, 250, 0.3)',
+            backgroundColor: 'var(--surface)',
+            border: '1px solid var(--line-2)',
             borderRadius: 'var(--radius-sm)',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.5)',
+            boxShadow: 'var(--shadow)',
             zIndex: 1000
           }}
         >
@@ -217,8 +217,8 @@ const MultiSelect: React.FC<MultiSelectProps> = ({
               style={{
                 padding: 'var(--space-xs) var(--space-sm)',
                 cursor: 'pointer',
-                backgroundColor: index === focusedIndex ? 'rgba(96, 165, 250, 0.2)' : 'transparent',
-                color: index === focusedIndex ? '#60a5fa' : 'var(--color-text-primary)',
+                backgroundColor: index === focusedIndex ? 'var(--surface-3)' : 'transparent',
+                color: 'var(--text)',
                 fontSize: 'var(--font-size-sm)',
                 transition: 'background-color 0.15s'
               }}

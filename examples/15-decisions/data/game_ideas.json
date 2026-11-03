@@ -1,0 +1,302 @@
+[
+  {
+    "id": "idea-01",
+    "title": "Quilty as Charged",
+    "pitch": "You run a frantic village quilting bee where a dozen grannies sew at once. Each one grabs any patch from the basket and stitches it into any notch where its edge colors match both neighbors already sewn; one match is never enough. You never sew a stitch yourself. You only design the basket's patch types and lay the starting border, and the client's quilt (a sunflower, a monogram, a triangle of nested triangles) must come out identical no matter which granny sews what, in what order. The puzzle runs on the real abstract Tile Assembly Model behind DNA self-assembly. Because a patch needs two matching neighbors, each patch type behaves like a logic gate on the patches beside it. That means XOR patches grow a Sierpinski triangle on their own, and a few 'carry' patches build a binary counter that stretches a border to exactly 37 rows with five patch types instead of 37."
+  },
+  {
+    "id": "idea-02",
+    "title": "Head Count",
+    "pitch": "You're the crooked barman of a Dublin pub where the regulars bet on the bubbles in the head of a stout poured into a slim glass frame, so the foam lies flat like a map. Before each pour you sketch the foam: which bubbles share walls and how big each starts. Then the clock runs, and by the real von Neumann law of foams every bubble swells or shrinks each tick by its number of sides minus six, while the punters' bets must come true: Flanagan's bubble last standing at closing time, the Murphy twins' bubbles popping on the same chime, and nothing popping during Father Doyle's grace. Size never decides fate, only side count does: a huge pentagon is doomed, a tiny heptagon lives forever, and a hexagon stays frozen until a three-sided neighbour vanishes, which takes one wall from each of the three bubbles around it and sets off cascades you plan like dominoes."
+  },
+  {
+    "id": "idea-03",
+    "title": "Lead Astray",
+    "pitch": "You're a scheming dog-walker in Victorian Hyde Park who plays matchmaker 101 Dalmatians-style. While two eligible strollers stand chatting, you whistle their dogs to dart around each other or wind round their own owner's ankles, snarling the two leads into exactly the mess each courtship needs. The bashful curate and the governess need a snarl that takes nine flustered steps to unpick, with her ducking under his arm on the fourth, while the jilted widow must be able to shake hers off in two. The secret is Conway's real rational-tangle theorem: however hideous the snarl, it is just a fraction, where dogs swapping places and a dog winding its owner are two simple add-and-flip moves, and two snarls are the same mess exactly when their numbers match, so dogs who only spin one way reach every positive fraction by exactly one route (the Calkin–Wilf tree) and the owners' polite unpicking is literally Euclid's algorithm. Later lawns add a squirrel that yanks in a forced twist and a puppy that spins the wrong way, and in the finale hands are joined and collars clipped together, so whether the lovers end up in one loop or two depends only on whether the top of the fraction is odd."
+  },
+  {
+    "id": "idea-04",
+    "title": "Hearsay",
+    "pitch": "You start a rumor in a village of gossips, and each gossip mangles what they hear by one fixed rule: the half-deaf grandpa swaps words for rhymes, the pedant swaps subject and object, and the drama queen escalates every noun one notch ('cat' becomes 'tiger'). You choose who hears it first and draw the paths it travels so that an exact target sentence reaches a target ear, while making sure no incriminating version ever reaches the sheriff. When two versions of the rumor arrive at the same gossip, they splice into one new sentence, and the hardest puzzles are built around those collisions."
+  },
+  {
+    "id": "idea-05",
+    "title": "Staff and Ticket",
+    "pitch": "You are the timetable clerk of a Victorian single-track branch line. You never drive or signal a train: you draw every service as a sloped line on a real Marey time-distance chart, and trains can only pass each other where your lines cross at a passing loop long enough to hold them. The heart of the puzzle is the line's real safety system: each section has one physical wooden staff, and no train may enter without it. A driver may run on a 'ticket' only if they are shown the staff and it follows on the very next train in the same direction, so the order of services decides where every staff ends up. Press 'Run Day' and the engines steam through your chart, and any train stranded at a station because its section's staff is at the far end, a goods too long for its loop, or a missed connection stops the line cold."
+  },
+  {
+    "id": "idea-06",
+    "title": "Silk Shift",
+    "pitch": "Repair stained-glass spiderwebs stretched between fixed pegs, with every compartment forming a triangle. Choose a colored strand separating two triangles: it snaps across their combined quadrilateral to become the opposite diagonal, keeping its color; the move is allowed only when that quadrilateral is convex. Reproduce the exact target web and strand colors, knowing that every snap changes which neighboring strands can snap next."
+  },
+  {
+    "id": "idea-07",
+    "title": "Pocket Distance",
+    "pitch": "You escape tiny clockwork rooms by stealing the space between things: cut out an empty row or column, and everything on either side snaps together. Carry that strip elsewhere and insert it horizontally or vertically to push the room apart. Every shortcut leaves you holding distance you must put back before the exit opens, so solving a level means finding somewhere useful for all that missing space."
+  },
+  {
+    "id": "idea-08",
+    "title": "Chandler",
+    "pitch": "You are a candlemaker preparing tapers for a lord's banquet, where each candle's wax is mixed with salts that tint its flame as it burns down. Wicks of different lengths hang from a single tilting beam, and each dip lowers the whole rack into one colored vat. Every wick is coated only along the part that went under, so one dip lays a band of one color on every candle at once, each at a different height. The banquet's cue sheet dictates what color each flame must show at each course (crimson at the toast, green during the eel pie, plain white for the eulogy), so you work backward from the burn order to plan the vats, depths, tilts, and the few moments you may hook a wick up out of the next dip."
+  },
+  {
+    "id": "idea-09",
+    "title": "Bittern",
+    "pitch": "You run a coastal salt works and never rake a crystal yourself. You only cut the layout of shallow clay pans, set their depths and sizes, and decide when each sluice opens to pass brine from one pan to the next. When you press 'Summer', sun and wind evaporate the water under real brine chemistry: as the brine thickens, chalk drops out first, then gypsum, then table salt, and finally the bitter magnesium salts, each at its own fixed concentration. The puzzle is fractional crystallization as plumbing: every commission (snow-white halite with no gypsum grit, a crate of Epsom salt, delicate fleur de sel that forms only as a skin on still, shallow brine) depends on moving each batch onward at exactly the moment one mineral has finished settling and before the next begins, while rain dilutes your pans, wind dries the exposed ones faster, and a deep pan that holds steady lags hours behind a shallow one that races ahead."
+  },
+  {
+    "id": "idea-10",
+    "title": "Echo Cartographer",
+    "pitch": "You map a pitch-black cave by clapping: each clap sends sound waves that ripple outward on a grid and briefly reveal walls where they bounce, but every echo also wakes sleeping creatures that move one tile toward the noise. Each level asks you to reach the exit using as few claps as possible, routing echoes off angled rocks, water pools that muffle sound, and crystal pillars that amplify it. That way you can learn the layout without luring the creatures onto your path. Remembering what you briefly saw is part of the puzzle, because revealed tiles fade back to darkness after a few turns."
+  },
+  {
+    "id": "idea-11",
+    "title": "Float Service",
+    "pitch": "Deliver brass animals to their matching docks using tiny barges in a flooded dollhouse. Loading an animal makes its barge sit lower, but the displaced water raises every other barge in the basin. Transfer animals between boats and fixed shelves, and operate sluices to connect rooms, arranging the water levels so each delivery can pass through openings at different heights. Every transfer previews the resulting waterlines and clearances."
+  },
+  {
+    "id": "idea-12",
+    "title": "Please Remain Seated",
+    "pitch": "You escape a collapsing theater by rearranging its audience, but every spectator insists on an unobstructed view of the stage. Whenever you move someone, everyone whose view changes immediately stands, sits, or shifts seats according to their personality. Turn those chain reactions into staircases, counterweights, and clear aisles—and reach the exit before your final move brings the house down."
+  },
+  {
+    "id": "idea-13",
+    "title": "Room to Spare",
+    "pitch": "You must carry a rigid ladder through rooms using a tape measure that can reel up empty floor tiles, pulling everything beyond them closer, then unspool those tiles elsewhere. Compress corridors to bring ledges together, or widen corners so the ladder can turn. Each level contains a fixed amount of space, so every shortcut consumes clearance you may need later."
+  },
+  {
+    "id": "idea-14",
+    "title": "Echo Chamber",
+    "pitch": "You place sound emitters and angled walls in a grid-based room, and every sound you make bounces around and comes back to you as an echo several turns later, arriving at the place where you stood when you made it. Echoes can press switches, shatter glass, and wake sleeping guards, but they always land on a delay set by the path length, so you have to plan routes where your past noises reach the right spots at the right moments. The core trick is that you lay out timelines with geometry: moving a single wall changes when every echo arrives, and solutions feel like composing a canon with yourself."
+  },
+  {
+    "id": "idea-15",
+    "title": "Remainder Express",
+    "pitch": "Route numbered trains through a railway where every junction divides rather than switches: a train numbered 17 entering a divider marked 5 sends three carriages down one track and two down the other, representing quotient and remainder. You place the available dividers and connect their outputs, with arriving trains joining end to end and adding their numbers. Deliver the exact requested number of carriages to every terminus; nothing can be discarded, and every divider must serve both branches."
+  },
+  {
+    "id": "idea-16",
+    "title": "Borrowed Years",
+    "pitch": "Escape puzzle gardens by transferring age between objects: restore a rotten bridge by pouring its years into a sapling, growing a climbable tree. Every object has a visible sequence of life stages, and your hourglass can hold only three years at once. The room's total age is conserved, so every repair creates a problem—or an opportunity—somewhere else."
+  },
+  {
+    "id": "idea-17",
+    "title": "One Stencil",
+    "pitch": "You're a street artist recreating a target mural on a grid wall, but you own a single sheet of stencil card, and every cut you make in it is permanent. Each turn you cut a few new holes, place the card in any rotation or flipped face-down, and spray one color through every hole cut so far, so each later color paints over earlier ones wherever the open areas overlap. Holes only ever accumulate, so you have to plan backward: the last color needs the biggest stencil, early colors survive only where later sprays miss them, and flipping the card turns one cut into a mirrored hole elsewhere. A small roll of masking tape lets you temporarily cover a few holes for one pass, which is just enough slack to make each level's solution feel clever rather than forced."
+  },
+  {
+    "id": "idea-18",
+    "title": "Afterstep",
+    "pitch": "In this turn-based puzzle game, every footstep launches a visible sound wave that advances one square with each subsequent move, bounces off walls, and pushes the first crate it reaches. Guide yourself to the exit while choreographing the delayed consequences of your own footsteps. Sometimes you must walk away from a crate to push it toward you—or arrange for an old echo to close a passage before a newer one arrives."
+  },
+  {
+    "id": "idea-19",
+    "title": "Floor Is Cargo",
+    "pitch": "Every time you step onto an existing floor tile, the tile you leave behind pops onto the stack you carry. To cross a gap, place the top tile of your stack into it—so exploring a room dismantles it, and your route determines the order in which you can rebuild it. Deliver the stack to the exit while arranging special tiles into bridges, electrical circuits, and barriers that keep the exit powered."
+  },
+  {
+    "id": "idea-20",
+    "title": "Room to Spare",
+    "pitch": "Escape tiny, overcrowded rooms by rolling up empty strips of floor and unrolling them somewhere else. Removing a strip stitches its edges together, bringing walls and furniture closer; inserting it elsewhere pushes them apart. Every puzzle conserves floor space, so creating a passage means finding somewhere you can afford to make smaller."
+  },
+  {
+    "id": "idea-21",
+    "title": "Past Due",
+    "pitch": "Borrow tools from your own future: pull a key, ladder, or crate from a time mailbox, then choose a later turn when you must send that exact object back through another mailbox. Every move advances the clock, so using tomorrow’s ladder to cross today’s gap creates a new problem: getting it to its departure point on time. Reach the exit with every loan repaid and every causal loop closed."
+  },
+  {
+    "id": "idea-22",
+    "title": "Mutual Erasure",
+    "pitch": "Slide ivory and obsidian chunks one square at a time to fill a gridded workshop’s marked silhouettes. Chunks of the same material fuse whenever their edges touch; overlapping squares of opposite materials erase each other. An erasure can split a chunk into independently movable pieces, but it also carves the chunk you used as your cutting tool. Finish with every surviving square on a matching mark and no leftover material."
+  },
+  {
+    "id": "idea-23",
+    "title": "Echo Cartographer",
+    "pitch": "You map a pitch-black cave by clapping: each clap sends out a sound wave that bounces off walls and returns as a short animated ripple, briefly revealing the geometry it touched before it fades. Every room has a strict clap budget, and you have to reach the exit by deducing the hidden layout from how echoes arrive, including their delay, direction, and distortion. Later rooms add materials that absorb, amplify, or redirect sound, plus sleeping creatures that wake if a wave reaches them. That turns each clap into a deliberate experiment where you weigh information against risk."
+  },
+  {
+    "id": "idea-24",
+    "title": "Mutation Stops",
+    "pitch": "You are the organist at a cathedral whose pipe organ cannot be rebuilt. Each commission asks you to imitate a sound the organ was never built to make: a crumhorn for a visiting duke, a human voice for a funeral, a bell that tolls from a single key. You never voice a pipe. You only pull stops, and each stop adds a fixed rank of pipes sounding at a real harmonic footage (8' fundamental, 4' octave, 2 2/3' Nazard on the third harmonic, 1 3/5' Tierce on the fifth), so building a timbre is a subset-sum puzzle over the harmonic series. Press 'Play' and the piece runs while a live spectrum is checked against the target. The traps come from real organ mechanics: mixture stops 'break back' an octave partway up the keyboard, so a timbre that works in the bass turns shrill in the treble; big chords drain the wind chest and every pipe sags flat; and the stone nave swallows some frequencies and booms others, so the same registration sounds different from the pulpit and the back pews."
+  },
+  {
+    "id": "idea-25",
+    "title": "Current Lock",
+    "pitch": "Repair miniature circuit boards by relocating resistors between sockets—but each resistor is clamped in place whenever current flows through it. Adding a resistor redistributes current throughout the network, letting you balance branches until another resistor carries zero current and becomes movable. Bring every lamp to its marked brightness by building temporary circuits that release the components you need next."
+  },
+  {
+    "id": "idea-26",
+    "title": "Interlocking",
+    "pitch": "You are a Victorian railway engineer building the mechanical locking frame beneath a signal box. You never drive a train or pull a signal. You only slide steel tappets into a cramped locking tray and file notches and dogs into them, so that pulling one lever physically jams every lever that would set up a conflicting route. Press 'Shift' and a careless signalman tries every possible sequence of lever pulls against the day's timetable, while ghost trains run every route your frame permits. Any collision, derailment on a moving point, or timetabled train that can't get a clear signal sends you back to the tray, where space is tight, each tappet carries only a few locks, and 'conditional' locking (lever 7 blocks lever 12 only while lever 3 is reversed) needs clever extra mechanism."
+  },
+  {
+    "id": "idea-27",
+    "title": "Room to Spare",
+    "pitch": "You escape stone labyrinths by pocketing patches of empty floor: the space you take becomes solid wall, and stamping it elsewhere carves out an identical passage. Your pocket holds only three connected squares, and you can only take or place space beside you. Every shortcut therefore consumes another route, turning navigation into a puzzle about which parts of the maze you can afford to lose."
+  },
+  {
+    "id": "idea-28",
+    "title": "Room to Spare",
+    "pitch": "You escape solid stone chambers by swapping a connected pocket of empty space with an identically shaped chunk of stone elsewhere. Every tunnel you open fills another tunnel, so building a staircase might erase your retreat or seal the exit you just uncovered. You can rotate the empty shape before swapping it, but you must always leave enough room for yourself."
+  },
+  {
+    "id": "idea-29",
+    "title": "Chalk Walk",
+    "pitch": "Tumble cuboid chalk blocks through a gridded workshop into molds demanding exact final dimensions. Landing entirely on sandpaper shaves one unit of thickness off the block’s new bottom face; smooth flooring allows ordinary tumbles. Because a block’s dimensions determine each tumble’s footprint, you must choose which axis to wear down while preserving the geometry needed for later turns and passages. Wear any dimension to zero and the block crumbles."
+  },
+  {
+    "id": "idea-30",
+    "title": "Dye Division",
+    "pitch": "Restore a laboratory of equal-sized glass cells filled with colored dyes. Open gates between neighboring cells to blend their contents evenly, then close gates to divide the mixture into portions you can use elsewhere. Match the exact pigment recipe etched on every cell, building temporary reservoirs whose sizes determine which fractions you can preserve before further dilution."
+  },
+  {
+    "id": "idea-31",
+    "title": "Sediment",
+    "pitch": "Every puzzle takes place on the same small island: you guide a wanderer from an entrance to an exit, and the path you walk hardens into permanent stone walls for every later puzzle. New puzzles are layered over old ones, so a careless early route can block a future level, and a clever one can become the corridor it needs. You can go back and re-solve any earlier level, but the change ripples forward and reshapes every level stacked above it. The real puzzle is finding one set of paths that work together across the whole island."
+  },
+  {
+    "id": "idea-32",
+    "title": "Quorum",
+    "pitch": "You are the clerk of a tiny parliament of animals, each holding a fixed, public preference ranking over a handful of proposals, and you control only the agenda: the order in which pairs of motions are put to a vote, with each winner advancing to face the next challenger. Every level names a motion that must be the one finally enacted, often one that most members dislike, and gives you a limited set of procedural tools (table a motion, merge two into an amendment, call a recess that lets one fickle member re-rank). The puzzle works because majority preferences are cyclical (Condorcet paradoxes baked into each roster), so the right sequence of head-to-head votes can steer the chamber anywhere, and you solve by tracing which motion beats which and threading a path of pairwise wins that ends at your target."
+  },
+  {
+    "id": "idea-33",
+    "title": "Echo Chamber",
+    "pitch": "Each level is a small grid room where every move you make is recorded, and when you exit, you replay the room as a new character while all your previous selves loop their exact recorded paths alongside you. Past selves can hold pressure plates, block lasers, or get in your way, but if any of them is disturbed so it can't follow its script (a door closes on it, you stand where it needs to step), the timeline collapses and the whole run resets. The puzzle is choreographing three or four overlapping loops into a perfect machine where every echo's path stays valid while together they open the way out."
+  },
+  {
+    "id": "idea-34",
+    "title": "Latchkey",
+    "pitch": "Build a key while it is already inside the lock. You can slide its spine and extend or retract individual teeth, but every tooth must fit the surrounding machinery throughout the movement. Teeth also catch and drag internal tumblers, so the shape that opens one passage may trap the mechanism you need to move next; align every tumbler, then extract the entire key."
+  },
+  {
+    "id": "idea-35",
+    "title": "Light Dusting",
+    "pitch": "You're the constable of an alpine village where every crime happens on a snowy night, and your only evidence is the courtyard at dawn. Every footprint is a clock: the weather log gives the snowfall hour by hour, so a crisp print was made late and a soft, half-buried one early. Overlapping prints show who walked first, stride length shows who ran, and depth shows who was carrying something heavy. You reconstruct the night by dragging suspects along the tracks and pinning each step to a time, and only when every print is accounted for does the game replay the night as ghostly figures retracing their steps; later cases add roofs that drop a slab of snow at once, wind that scours half the yard, a culprit who walked backward in their own prints, and a strongman whose tracks suddenly deepen because he picked someone up."
+  },
+  {
+    "id": "idea-36",
+    "title": "Keyed Alike",
+    "pitch": "You are a locksmith designing master-key systems for a growing list of clients: a hotel, a convent, a bank with a paranoid manager. You never pick a lock; you choose the pin heights for every lock and cut every key, so that each person's key opens exactly the doors they're allowed and no others. Master pins let one cylinder accept several keys, but every extra shear line also creates 'ghost keys' that no one ordered, and the puzzle is to satisfy an access chart while making sure no combination of real or ghost cuts lets the wrong person in. Later commissions add twists: retire a fired janitor's key without rekeying the front door, give the night nurse every ward but the pharmacy, or add a new wing to a system that is already crowded with ghosts."
+  },
+  {
+    "id": "idea-37",
+    "title": "Echo Cartographer",
+    "pitch": "You map a pitch-black cave by clapping: each clap sends a sound wave that ripples outward in real time, briefly lighting the walls it hits before fading, and the echoes that return reveal hidden chambers as overlapping interference patterns. Each level asks you to find a single safe path for a sleepwalker who follows the loudest sound, so you have to place a limited set of drums, mufflers, and resonant crystals that bend, amplify, or cancel waves until the sleepwalker hears exactly the route you want. The puzzle works because sound travels and reflects by consistent wave rules, so solutions come from real spatial reasoning about timing and interference, not from guessing."
+  },
+  {
+    "id": "idea-38",
+    "title": "Echo Cartographer",
+    "pitch": "You map a pitch-black cave by placing sound emitters whose echoes paint walls as fading outlines, but every sound also wakes the cave: stalactites fall where sound crosses, bridges collapse at certain frequencies, and creatures drift toward the loudest point. Each level is solved by choosing where, when, and at what pitch to make noise, so the act of revealing the map is also what changes it. The core tension is that you can't plan without information, and you can't get information without disturbing the puzzle."
+  },
+  {
+    "id": "idea-39",
+    "title": "Palimpsest",
+    "pitch": "Each chapter is a single sheet of paper holding five overlapping puzzles. You solve each one by tracing an unbroken line from its start dot to its exit. Every line you draw stays in permanent ink and becomes walls, bridges, and crossing-switches for every puzzle drawn later on that same sheet. Many paths solve level one, but only a few leave the right scars for level five, so the real puzzle is going back, erasing, and re-solving early stages with foresight."
+  },
+  {
+    "id": "idea-40",
+    "title": "Still There",
+    "pitch": "Solve rooms by moving ladders, lamps, mirrors, and weights: each object leaves one empty outline that keeps performing its function. You can climb an absent ladder or reflect light off an absent mirror, while freely passing objects through both. Moving the original again replaces its outline, so every useful absence must be carefully positioned before you commit to your next move."
+  },
+  {
+    "id": "idea-41",
+    "title": "Fault Lines",
+    "pitch": "Reassemble a shattered mural by sliding entire fault lines through its square tiles. Choose a continuous crack connecting two board edges, then shift every tile on one side one square along the crack’s endpoint-to-endpoint direction; the move is legal only if the pieces fit inside the frame without overlapping. Cracks travel with the tiles, so every repair changes which cuts remain continuous—and therefore which parts of the mural you can move next."
+  },
+  {
+    "id": "idea-42",
+    "title": "Return Address",
+    "pitch": "You’re a postal worker delivering parcels through a building where every door remembers the last doorway you carried it through. Remove a door from its hinges, haul it through another doorway, then reinstall it anywhere to create a passage back to that remembered location. Solve each floor by nesting delivery routes, transporting your own shortcuts, and making sure the door you need isn’t inside the room it would help you reach."
+  },
+  {
+    "id": "idea-43",
+    "title": "Punchline",
+    "pitch": "Arrange paper cards beneath an L-shaped, three-pin punch: each pin passes through existing holes and pierces only the first intact card it encounters. Move and rotate the punch and reorder the stack until every card matches its target constellation, with no extra holes allowed. One press can puncture three different layers, so earlier holes determine which cards receive later cuts."
+  },
+  {
+    "id": "idea-44",
+    "title": "Justified",
+    "pitch": "You're the typesetter at a newspaper in an occupied city, and the censor approves every article word for word but never checks the layout, so you smuggle messages to the resistance by setting columns so that the first letter of each line spells something like BRIDGE AT DAWN. You can't add or cut words. You can only swap in censor-approved synonyms ('said' or 'remarked', 'big' or 'colossal'), choose where words hyphenate, and nudge the column width a notch. The press breaks lines by one strict greedy rule, so lengthening a single word in line two shoves every later line break and reshuffles the whole acrostic below it. Later editions add two-column spreads where the message must zigzag across the gutter, a suspicious censor who starts reading line endings too, house rules against widows and stacked hyphens, and a deadline editor who chops the final paragraph after you've set it."
+  },
+  {
+    "id": "idea-45",
+    "title": "Unstep",
+    "pitch": "Walk through a clockwork maze, then rewind your footsteps to turn the route you just walked into a solid wall. Only you rewind: machines keep running, crates stay moved, and your hardened trail can block lasers, hold switches, or redirect patrolling robots. You can keep only one trail, so every solution means finding a route that becomes useful precisely when you stop occupying it."
+  },
+  {
+    "id": "idea-46",
+    "title": "Continuity Error",
+    "pitch": "Edit a silent stunt film by arranging a handful of fixed-length shots into one continuous escape. Each cut replaces the entire set, but the stunt performer and loose props keep their screen positions and momentum: a fall through an attic can continue onto a passing tram in the next shot. Use every shot exactly once, collecting the required props and reaching the final exit; a frame-by-frame preview lets you inspect every transition."
+  },
+  {
+    "id": "idea-47",
+    "title": "Khipukamayuq",
+    "pitch": "You are an Inca record-keeper restoring tribute khipus, knotted cord bundles chewed by rats and frayed by centuries, where every surviving knot is a clue. Numbers are tied positionally: clusters of single knots near the top cord mark hundreds and tens, a coiled long knot near the bottom marks units, and a figure-eight means exactly one. Each colored pendant (maize, llama, cloth) dangles subsidiary cords that must sum to it, and top cords tie off the totals across whole provinces. You re-tie the missing knots so every sum holds at once. The catch is that an empty stretch of cord is ambiguous: it could be a real zero digit or a rotted knot, and cord colors, ply direction, and the sums elsewhere are your only way to tell them apart."
+  },
+  {
+    "id": "idea-48",
+    "title": "Echo Chamber",
+    "pitch": "You solve each room twice: first you plan a sequence of moves, then a delayed 'echo' of yourself replays those exact moves a few turns behind you while you act live alongside it. Pressure plates, doors, and crates have to be timed so that past-you and present-you cooperate, for example by having your echo hold a door you crossed ten seconds ago. The twist is that every move you make now also becomes the echo's script on the next loop, so you are always writing instructions for a future collaborator who can't adapt."
+  },
+  {
+    "id": "idea-49",
+    "title": "Echo Ledger",
+    "pitch": "Each level is a small room where you place objects, then press play and watch a 'ghost' replay every move you've made so far, in order, while you keep acting alongside it. Each new run adds another ghost that copies your previous attempt, so by the fifth run you're working with four past selves who repeat your old mistakes faithfully. The puzzle is to plan your earlier runs as investments: you deliberately make 'wrong' moves early so a later ghost will be holding a door, standing on a plate, or blocking a laser at exactly the right tick. You can't edit a ghost, only add new ones, so every action is permanent bookkeeping in a ledger you're writing against yourself."
+  },
+  {
+    "id": "idea-50",
+    "title": "Hearsay",
+    "pitch": "You start a rumor and route it through a village of eccentric gossips, each of whom garbles whatever they hear by one strict rule. The Deaf Grandpa swaps a word for a rhyme, the Pedant pluralizes every noun, the Mumbler drops final letters, and the Drama Queen inserts 'secretly.' Your goal is to land an exact target sentence, like 'The baker stole the mayor's goat,' in a specific villager's ear by choosing a starting phrase and a path through the gossip network. The rules don't commute, so order is everything, and later villages add gossips who only talk to people they like or who split the rumor to two neighbors at once."
+  },
+  {
+    "id": "idea-51",
+    "title": "A Ton of Shade",
+    "pitch": "Guide a courier through mechanical rooms where each crate weighs exactly as many floor tiles as its shadow covers. Move lamps between sockets to turn tiny boxes into massive counterweights, lighten obstacles enough to push them, and balance elevators. The trick is finding a lighting arrangement that keeps your route open after you start moving the crates."
+  },
+  {
+    "id": "idea-52",
+    "title": "Motion Sickness",
+    "pitch": "Arrange one shared agenda for three miniature parliaments, each required to finish with a different marked law. Each chamber adopts the first proposal, then pits its current law against each subsequent proposal, keeping the winner. The chambers have different, openly displayed voting charts containing rock-paper-scissors cycles, and every proposal must appear exactly once. Engineer temporary winners that eliminate dangerous rivals while preserving your route to all three desired outcomes."
+  },
+  {
+    "id": "idea-53",
+    "title": "Echo Cartographer",
+    "pitch": "You map a pitch-black cave by placing sound emitters. Each one sends out a ping that bounces off walls and arrives back as a timed echo, and you see only the echoes, drawn as rings that pulse along a timeline. You have to work out the hidden layout of walls, pits, and treasure from overlapping echo timings, then sketch your map and walk it blind. A wrong guess means stepping into darkness you misread. The puzzle works because each extra emitter narrows the possibilities, while your echo budget is limited, so choosing where to listen is the real skill."
+  },
+  {
+    "id": "idea-54",
+    "title": "Walls Have Ears",
+    "pitch": "You are a gossipy old manor house, and each level opens with one guest saying one word aloud. You rearrange your own rooms and fixtures so the word reaches every eavesdropper in a different form: thin walls swallow vowels, echoing stairwells double letters, the bathroom mirror reverses the word, and a draughty chimney drops the last letter. The difficulty comes from the fact that a single word spreads down every path at once, so the curtain that makes the cook hear STAR might also make the butler hear RATS. You have to route one sound so that it becomes several different misunderstandings at the same time."
+  },
+  {
+    "id": "idea-55",
+    "title": "Crate Expectations",
+    "pitch": "Escape tiny warehouses by borrowing crates from your own future: choose a square and a deadline, and a crate appears there immediately. When that deadline arrives, a crate must occupy the marked square so it can be sent back to fulfill the loan. Push borrowed crates onto switches, bridge gaps, and borrow again to repay earlier loans—but the exit opens only when every debt is settled."
+  },
+  {
+    "id": "idea-56",
+    "title": "Echo Cartographer",
+    "pitch": "You map a pitch-black cave using only sound: each move, you place an emitter that sends out a pulse, and the cave reveals itself only as rings of echoes that bounce, split, and fade off walls you can't see. Every level asks you to route a pulse so it reaches a sleeping creature at an exact volume, loud enough to wake it but not loud enough to collapse the ceiling. The catch is that every echo you've already sent keeps reverberating, so your earlier mapping shots interfere with your final solution. Your scouting becomes part of the puzzle, and every bit of information has a cost."
+  },
+  {
+    "id": "idea-57",
+    "title": "Sole Exchange",
+    "pitch": "Restore ruined mosaics by walking across them with two paint-soaked boots. Every step swaps the landing tile’s color with the color in the boot that touches it, and your feet must alternate. Finish with the exact mosaic restored and both boots clean on the doormat; narrow passages and dead ends turn every trip into a problem of which foot carries which color home."
+  },
+  {
+    "id": "idea-58",
+    "title": "In So Many Words",
+    "pitch": "Run a miniature telegram office where every message must fit on a painfully short strip of paper. Replace repeated passages with single-symbol abbreviations, but write their definitions in a shared codebook that also has a strict space limit; definitions can contain abbreviations you have already created. Every telegram must expand to its exact original wording, so solving the puzzle means finding a tiny shared language that makes the whole correspondence fit."
+  },
+  {
+    "id": "idea-59",
+    "title": "Held Together",
+    "pitch": "Repair a shattered space station whose magnetic floor tiles stay attached only while an astronaut stands on them. When an astronaut steps away, every unoccupied tile disconnected from an occupied tile drifts one square in its printed direction, carrying walls and doorways with it; drifting stops when the tiles reconnect. Guide the crew to their escape pods by handing off anchor positions and deliberately releasing pieces of the station to rebuild its corridors."
+  },
+  {
+    "id": "idea-60",
+    "title": "Knotwork Post",
+    "pitch": "You run a mountain courier office where every parcel is tied with string, and the routes between villages are literal ropes strung across a pegboard map. You don't move parcels; you reroute the ropes, looping them around pegs, and when you pull the delivery cord the whole tangle tightens: any rope that can slide free of a peg does, and parcels ride wherever the taut strings end up. The puzzle is topological: a loop that looks secure collapses when the cord tightens unless it's genuinely hooked around something, so you're designing knots and snags that survive the pull and land every parcel at the right village."
+  }
+]

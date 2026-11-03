@@ -1,0 +1,445 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { liveState } from '../components/layout/connection';
+import { useGraphStore } from '../store/graphStore';
+import { useWSStore } from '../store/wsStore';
+import { useFilterStore } from '../store/filterStore';
+import { WebSocketClient } from './websocket';
+
+const fetchArtifactSummary = vi.hoisted(() => vi.fn());
+vi.mock('./api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./api')>()),
+  fetchArtifactSummary,
+}));
+
+/** A socket the test opens, fails and closes by hand. */
+class FakeSocket {
+  static CONNECTING = 0;
+  static OPEN = 1;
+  static CLOSING = 2;
+  static CLOSED = 3;
+  static made: FakeSocket[] = [];
+
+  readyState = FakeSocket.CONNECTING;
+  onopen: (() => void) | null = null;
+  onclose: ((event: { code: number; reason: string }) => void) | null = null;
+  onerror: ((event: unknown) => void) | null = null;
+  onmessage: ((event: unknown) => void) | null = null;
+
+  constructor(public url: string) {
+    FakeSocket.made.push(this);
+  }
+
+  open() {
+    this.readyState = FakeSocket.OPEN;
+    this.onopen?.();
+  }
+
+  /** The server is gone: the browser reports an error, then the close. */
+  fail() {
+    this.readyState = FakeSocket.CLOSED;
+    this.onerror?.(new Event('error'));
+    this.onclose?.({ code: 1006, reason: '' });
+  }
+
+  close() {
+    this.readyState = FakeSocket.CLOSED;
+  }
+
+  send() {}
+}
+
+const socket = (index: number): FakeSocket => {
+  const made = FakeSocket.made[index];
+  if (!made) throw new Error(`No socket ${index} was opened`);
+  return made;
+};
+
+describe('WebSocketClient reconnects', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-11T12:00:00Z'));
+    vi.stubGlobal('WebSocket', FakeSocket);
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    FakeSocket.made = [];
+    fetchArtifactSummary.mockReset().mockResolvedValue(null);
+    useWSStore.setState({ status: 'connecting', reconnectAttempts: 0, nextRetryAt: null, lastError: null });
+  });
+
+  afterEach(() => {
+    // A test's setState would carry its spies into the next test
+    useGraphStore.setState(useGraphStore.getInitialState(), true);
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('ignores the answer about running runs that a reconnect superseded', async () => {
+    const answers: ((response: Response) => void)[] = [];
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((resolve) => answers.push(resolve))));
+    const client = new WebSocketClient('ws://test/ws');
+    client.connect();
+    socket(0).open();
+    // The connection drops and comes back before the first answer is in
+    socket(0).fail();
+    await vi.advanceTimersByTimeAsync(5_000);
+    socket(1).open();
+    answers[1]!(new Response(JSON.stringify({ runs: [] })));
+    answers[0]!(new Response(JSON.stringify({ runs: [{ run_id: 'r-old', agent_name: 'triage', correlation_id: 'c-1', consumed_artifacts: [] }] })));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(useGraphStore.getState().inFlight.size).toBe(0);
+  });
+
+  it('learns of the runs going on when it connects, but not of runs that ended meanwhile', async () => {
+    let answer!: (response: Response) => void;
+    const fetch = vi.fn(() => new Promise<Response>((resolve) => (answer = resolve)));
+    vi.stubGlobal('fetch', fetch);
+    const client = new WebSocketClient('ws://test/ws');
+    client.connect();
+    socket(0).open();
+    expect(fetch).toHaveBeenCalledWith('/api/runs/active');
+
+    // r-6 ends before the answer is in
+    (client as unknown as { handleMessage: (event: MessageEvent) => void }).handleMessage(
+      new MessageEvent('message', {
+        data: JSON.stringify({ event_type: 'agent_completed', data: { agent_name: 'urgency', run_id: 'r-6', agent_status: 'idle' } }),
+      }),
+    );
+    const run = (run_id: string, agent_name: string) => ({ run_id, agent_name, correlation_id: 'c-1', consumed_artifacts: ['t-1'], start_time: '2026-10-11T11:59:58+00:00' });
+    answer(new Response(JSON.stringify({ runs: [run('r-5', 'triage'), run('r-6', 'urgency')] })));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect([...useGraphStore.getState().inFlight.entries()]).toEqual([
+      ['r-5', { agent: 'triage', types: [], artifacts: ['t-1'], correlationId: 'c-1', known: [] }],
+    ]);
+  });
+
+  it('schedules a retry after a failed connection and says when', () => {
+    const client = new WebSocketClient('ws://test/ws');
+    client.connect();
+    socket(0).open();
+
+    socket(0).fail();
+
+    const state = useWSStore.getState();
+    expect(state.status).toBe('reconnecting');
+    expect(state.reconnectAttempts).toBe(1);
+    expect(state.nextRetryAt).toBe(Date.now() + 1000);
+
+    vi.advanceTimersByTime(1000);
+    expect(FakeSocket.made).toHaveLength(2);
+    client.disconnect();
+  });
+
+  it('keeps retrying while the server stays away', () => {
+    const client = new WebSocketClient('ws://test/ws');
+    client.connect();
+    socket(0).fail();
+    vi.advanceTimersByTime(1000);
+
+    socket(1).fail();
+
+    expect(useWSStore.getState().status).toBe('reconnecting');
+    expect(useWSStore.getState().reconnectAttempts).toBe(2);
+    expect(useWSStore.getState().nextRetryAt).toBe(Date.now() + 2000);
+    client.disconnect();
+  });
+
+  it('retries at once when asked, and plans afresh when that fails too', () => {
+    const client = new WebSocketClient('ws://test/ws');
+    client.connect();
+    socket(0).fail();
+    vi.advanceTimersByTime(500);
+
+    client.reconnectManually();
+
+    expect(FakeSocket.made).toHaveLength(2);
+    expect(useWSStore.getState().nextRetryAt).toBeNull();
+    socket(1).fail();
+    // The retry the failure planned before does not stand in the way; the
+    // wait starts over, and the manual try counts as an attempt
+    expect(useWSStore.getState()).toMatchObject({
+      status: 'reconnecting',
+      reconnectAttempts: 3,
+      nextRetryAt: Date.now() + 1000,
+    });
+    client.disconnect();
+  });
+
+  it('stays reconnecting while a retry asked for by hand is under way', () => {
+    const client = new WebSocketClient('ws://test/ws');
+    client.connect();
+    socket(0).open();
+    socket(0).fail();
+
+    client.reconnectManually();
+
+    const { status, reconnectAttempts } = useWSStore.getState();
+    expect(liveState(status, reconnectAttempts)).toBe('reconnecting');
+    client.disconnect();
+  });
+
+  it('lets an attempt under way finish when asked to retry now', () => {
+    const client = new WebSocketClient('ws://test/ws');
+    client.connect();
+    socket(0).fail();
+    vi.advanceTimersByTime(1000); // the planned attempt is connecting
+    const before = useWSStore.getState().reconnectAttempts;
+
+    client.reconnectManually();
+
+    expect(FakeSocket.made).toHaveLength(2);
+    expect(useWSStore.getState().reconnectAttempts).toBe(before);
+    client.disconnect();
+  });
+
+  it('refreshes the board when a retry by hand ends an offline spell', () => {
+    const refresh = vi.spyOn(useGraphStore.getState(), 'refreshCurrentView').mockResolvedValue();
+    const client = new WebSocketClient('ws://test/ws');
+    client.connect();
+    socket(0).open();
+    // A clean close: offline, with no retry planned
+    socket(0).readyState = FakeSocket.CLOSED;
+    socket(0).onclose?.({ code: 1000, reason: '' });
+    expect(useWSStore.getState().status).toBe('disconnected');
+
+    client.reconnectManually();
+    socket(1).open();
+    vi.advanceTimersByTime(1000);
+
+    expect(refresh).toHaveBeenCalledOnce();
+    client.disconnect();
+  });
+
+  it('refreshes the board after a reconnect, not after the first connect', () => {
+    const refresh = vi.spyOn(useGraphStore.getState(), 'refreshCurrentView').mockResolvedValue();
+    const client = new WebSocketClient('ws://test/ws');
+    client.connect();
+    socket(0).open();
+    vi.advanceTimersByTime(1000);
+    expect(refresh).not.toHaveBeenCalled();
+
+    socket(0).fail();
+    vi.advanceTimersByTime(1000);
+    socket(1).open();
+    vi.advanceTimersByTime(1000);
+
+    // Events published while offline never arrived
+    expect(refresh).toHaveBeenCalledOnce();
+    client.disconnect();
+  });
+
+  it('reloads the blackboard summary after a reconnect', async () => {
+    vi.spyOn(useGraphStore.getState(), 'refreshCurrentView').mockResolvedValue();
+    const summary = { total: 7, by_type: {}, by_producer: {}, by_visibility: {}, tag_counts: {} };
+    fetchArtifactSummary.mockResolvedValue(summary);
+    const client = new WebSocketClient('ws://test/ws');
+    client.connect();
+    socket(0).open();
+    socket(0).fail();
+    vi.advanceTimersByTime(1000);
+
+    socket(1).open();
+    await vi.waitFor(() => expect(useFilterStore.getState().summary).toEqual(summary));
+
+    // Artifacts published while offline never counted
+    expect(fetchArtifactSummary).toHaveBeenCalledOnce();
+    client.disconnect();
+  });
+
+  it('forgets the live states from before an outage', () => {
+    vi.spyOn(useGraphStore.getState(), 'refreshCurrentView').mockResolvedValue();
+    const client = new WebSocketClient('ws://test/ws');
+    client.connect();
+    socket(0).open();
+    // triage was running when the connection dropped, and finished meanwhile
+    useGraphStore.setState({
+      agentStatus: new Map([['triage', 'running']]),
+      streamingTokens: new Map([['triage', ['Hel', 'lo']]]),
+    });
+    socket(0).fail();
+    vi.advanceTimersByTime(1000);
+
+    socket(1).open();
+
+    // The refreshed snapshot says how things stand now
+    expect(useGraphStore.getState().agentStatus.size).toBe(0);
+    expect(useGraphStore.getState().streamingTokens.size).toBe(0);
+    vi.advanceTimersByTime(1000); // the refresh
+    client.disconnect();
+  });
+
+  it('refreshes the board after a retry asked for by hand too', () => {
+    const refresh = vi.spyOn(useGraphStore.getState(), 'refreshCurrentView').mockResolvedValue();
+    const client = new WebSocketClient('ws://test/ws');
+    client.connect();
+    socket(0).open();
+    socket(0).fail();
+
+    client.reconnectManually();
+    socket(1).open();
+    vi.advanceTimersByTime(1000);
+
+    expect(refresh).toHaveBeenCalledOnce();
+    client.disconnect();
+  });
+
+  it('is live again once a retry connects', () => {
+    const client = new WebSocketClient('ws://test/ws');
+    client.connect();
+    socket(0).fail();
+    vi.advanceTimersByTime(1000);
+
+    socket(1).open();
+
+    expect(useWSStore.getState()).toMatchObject({
+      status: 'connected',
+      reconnectAttempts: 0,
+      nextRetryAt: null,
+    });
+    client.disconnect();
+  });
+});
+
+describe('WebSocketClient run events', () => {
+  /** Hand the client one event, as the server sends it. */
+  const receive = (client: WebSocketClient, event_type: string, data: Record<string, unknown>) =>
+    (client as unknown as { handleMessage: (event: MessageEvent) => void }).handleMessage(
+      new MessageEvent('message', { data: JSON.stringify({ event_type, data, correlation_id: '', timestamp: '' }) }),
+    );
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    useGraphStore.setState({ agentStatus: new Map(), inFlight: new Map() });
+  });
+
+  afterEach(() => {
+    useGraphStore.setState(useGraphStore.getInitialState(), true);
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  const inFlightTypes = (agent: string) =>
+    [...useGraphStore.getState().inFlight.values()]
+      .filter((run) => run.agent === agent)
+      .flatMap((run) => run.types)
+      .sort();
+
+  it('knows which types are in flight to a running agent, run by run', () => {
+    vi.spyOn(useGraphStore.getState(), 'refreshCurrentView').mockResolvedValue();
+    const client = new WebSocketClient('ws://test/ws');
+
+    receive(client, 'agent_activated', { agent_name: 'billing', run_id: 'a', consumed_types: ['app.Ticket'] });
+    receive(client, 'agent_activated', { agent_name: 'billing', run_id: 'b', consumed_types: ['app.Reply'] });
+    expect(inFlightTypes('billing')).toEqual(['app.Reply', 'app.Ticket']);
+
+    // The newer run ends first: the older one's type stays in flight
+    receive(client, 'agent_completed', { agent_name: 'billing', run_id: 'b', agent_status: 'running' });
+    expect(inFlightTypes('billing')).toEqual(['app.Ticket']);
+
+    receive(client, 'agent_error', { agent_name: 'billing', run_id: 'a', agent_status: 'error' });
+    expect(inFlightTypes('billing')).toEqual([]);
+  });
+
+  it('reloads the board after a failure, which says what failed', () => {
+    const refresh = vi.spyOn(useGraphStore.getState(), 'refreshCurrentView').mockResolvedValue();
+    const client = new WebSocketClient('ws://test/ws');
+    receive(client, 'agent_activated', { agent_name: 'crm_sync', run_id: 'r1', consumed_types: ['app.Reply'] });
+    vi.advanceTimersByTime(1000);
+    refresh.mockClear();
+
+    receive(client, 'agent_error', { agent_name: 'crm_sync', run_id: 'r1', agent_status: 'error' });
+    vi.advanceTimersByTime(1000);
+
+    expect(useGraphStore.getState().agentStatus.get('crm_sync')).toBe('error');
+    expect(useGraphStore.getState().inFlight.size).toBe(0);
+    expect(refresh).toHaveBeenCalledOnce();
+  });
+});
+
+describe('WebSocketClient refreshes the board', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal('WebSocket', FakeSocket);
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    FakeSocket.made = [];
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  const published = (id: string) => ({
+    data: JSON.stringify({
+      event_type: 'message_published',
+      data: { artifact_id: id, artifact_type: 'SnakeState', produced_by: 'external', payload: {} },
+    }),
+  });
+
+  it('while events keep coming (#638)', async () => {
+    const refresh = vi.spyOn(useGraphStore.getState(), 'refreshCurrentView').mockResolvedValue(undefined);
+    const client = new WebSocketClient('ws://test/ws');
+    client.connect();
+    socket(0).open();
+
+    vi.clearAllTimers();
+    refresh.mockClear();
+
+    // A steady stream, one event every 150 ms for 2 s: the board still refreshes
+    for (let n = 0; n < 14; n++) {
+      socket(0).onmessage?.(published(`a-${n}`));
+      await vi.advanceTimersByTimeAsync(150);
+    }
+    // At 500, 1100 and 1700 ms: the first event of each wait schedules one
+    expect(refresh.mock.calls.length).toBe(3);
+
+    // And once more after the last event of the stream
+    const during = refresh.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(500);
+    expect(refresh.mock.calls.length).toBe(during + 1);
+    client.disconnect();
+  });
+
+  it('once for a burst', async () => {
+    const refresh = vi.spyOn(useGraphStore.getState(), 'refreshCurrentView').mockResolvedValue(undefined);
+    const client = new WebSocketClient('ws://test/ws');
+    client.connect();
+    socket(0).open();
+
+    // Timers other tests' clients left behind would call the same store
+    vi.clearAllTimers();
+    refresh.mockClear();
+
+    for (let n = 0; n < 5; n++) socket(0).onmessage?.(published(`b-${n}`));
+    await vi.advanceTimersByTimeAsync(600);
+
+    expect(refresh).toHaveBeenCalledTimes(1);
+    client.disconnect();
+  });
+
+  it('after a run ends, whose deliveries the board shows only then', async () => {
+    const refresh = vi.spyOn(useGraphStore.getState(), 'refreshCurrentView').mockResolvedValue(undefined);
+    const client = new WebSocketClient('ws://test/ws');
+    client.connect();
+    socket(0).open();
+
+    vi.clearAllTimers();
+    refresh.mockClear();
+
+    const event = (event_type: string, data: object) => ({ data: JSON.stringify({ event_type, data }) });
+    socket(0).onmessage?.(event('agent_activated', { agent_name: 'player', run_id: 'r1', consumed_types: ['SnakeState'] }));
+    await vi.advanceTimersByTimeAsync(450);
+    socket(0).onmessage?.(published('c-0'));
+    await vi.advanceTimersByTimeAsync(100); // refreshed at 500 ms, the run still active
+    socket(0).onmessage?.(event('agent_completed', { agent_name: 'player', run_id: 'r1', agent_status: 'idle' }));
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(500);
+    expect(refresh).toHaveBeenCalledTimes(2);
+    client.disconnect();
+  });
+});

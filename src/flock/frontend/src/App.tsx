@@ -3,15 +3,12 @@ import DashboardLayout from './components/layout/DashboardLayout';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { measureRenderTime } from './utils/performance';
 import { initializeWebSocket } from './services/websocket';
-import { registerModules } from './components/modules/registerModules';
 import { fetchArtifactSummary, fetchArtifacts } from './services/api';
 import { useGraphStore } from './store/graphStore';
 import { useUIStore } from './store/uiStore';
 import { useFilterStore } from './store/filterStore';
 import { indexedDBService } from './services/indexeddb';
 
-// Register modules once at module load time
-registerModules();
 
 const App: React.FC = () => {
   // Keyboard shortcuts are registered once, by DashboardLayout

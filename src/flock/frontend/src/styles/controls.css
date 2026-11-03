@@ -1,0 +1,204 @@
+/*
+ * The dashboard's shared controls, named as in the design mockups
+ * (docs/internal/design-system/mockups): buttons, chips, the segmented
+ * control, status dots, skeletons and key caps.
+ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--line-2);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease), opacity var(--duration-fast) var(--ease);
+}
+
+.btn:hover {
+  background: var(--surface-3);
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.btn.primary {
+  background: var(--invert);
+  color: var(--on-invert);
+  border-color: transparent;
+}
+
+.btn.primary:hover {
+  opacity: 0.88;
+}
+
+.btn.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-2);
+}
+
+.btn.ghost:hover,
+.btn.ghost[aria-pressed='true'] {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.btn.icon {
+  width: 32px;
+  padding: 0;
+}
+
+.btn.sm {
+  height: 26px;
+  padding: 0 9px;
+  font-size: 12px;
+  border-radius: 7px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chip:hover,
+.chip[aria-expanded='true'] {
+  color: var(--text);
+  border-color: var(--line-2);
+}
+
+.chip.add {
+  border-style: dashed;
+  background: transparent;
+}
+
+.chip:disabled {
+  cursor: default;
+}
+
+.chip:disabled:hover {
+  color: var(--text-2);
+  border-color: var(--line);
+}
+
+.seg {
+  height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.seg:hover {
+  color: var(--text);
+}
+
+.seg[aria-pressed='true'] {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.sdot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-3);
+  flex: none;
+}
+
+.sdot.run {
+  background: var(--signal);
+  animation: sdot-pulse 1.8s ease-out infinite;
+}
+
+.sdot.err {
+  background: var(--error);
+}
+
+.skel {
+  display: block;
+  background: var(--surface-3);
+  border-radius: 4px;
+  animation: skel-shimmer 1.6s ease-in-out infinite;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+kbd {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid var(--line-2);
+  color: var(--text-3);
+}
+
+.btn:focus-visible,
+.chip:focus-visible,
+.seg:focus-visible {
+  outline: 2px solid var(--sure);
+  outline-offset: 2px;
+}
+
+@keyframes sdot-pulse {
+  0% {
+    box-shadow: 0 0 0 0 var(--signal-soft);
+  }
+  70% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@keyframes skel-shimmer {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sdot.run,
+  .skel {
+    animation: none;
+  }
+}

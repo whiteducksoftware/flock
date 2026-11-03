@@ -1,32 +1,27 @@
 /**
- * Advanced Settings Tab
- *
- * Power-user settings:
- * - Layout direction (top-bottom vs left-right) for manual layout
- * - Node and rank spacing for manual layout algorithm
- * - Debug mode (show node IDs, verbose logging)
- * - Performance mode (disable animations/effects)
+ * Settings › Advanced: the Flow's layout spacing, clearing the dashboard's
+ * data, and the versions. The direction of a layout is the canvas dock's
+ * layout menu; debug and performance mode were read nowhere and are gone.
  */
 
 import React, { useEffect, useState } from 'react';
 import { useSettingsStore } from '../../store/settingsStore';
+import { clearDashboardData } from '../../utils/clearDashboardData';
 
 const AdvancedSettings: React.FC = () => {
-  const layoutDirection = useSettingsStore((state) => state.advanced.layoutDirection);
   const nodeSpacing = useSettingsStore((state) => state.advanced.nodeSpacing);
   const rankSpacing = useSettingsStore((state) => state.advanced.rankSpacing);
-  const debugMode = useSettingsStore((state) => state.advanced.debugMode);
-  const performanceMode = useSettingsStore((state) => state.advanced.performanceMode);
 
-  const setLayoutDirection = useSettingsStore((state) => state.setLayoutDirection);
   const setNodeSpacing = useSettingsStore((state) => state.setNodeSpacing);
   const setRankSpacing = useSettingsStore((state) => state.setRankSpacing);
-  const setDebugMode = useSettingsStore((state) => state.setDebugMode);
-  const setPerformanceMode = useSettingsStore((state) => state.setPerformanceMode);
+
+  // Another dashboard tab keeps the data open while it is cleared
+  const [clearBlocked, setClearBlocked] = useState(false);
+  const [clearError, setClearError] = useState<string | null>(null);
 
   // Version information state
   const [backendVersion, setBackendVersion] = useState<string>('Loading...');
-  const dashboardVersion = '0.1.1'; // From package.json
+  const dashboardVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev';
 
   // Fetch version information from backend
   useEffect(() => {
@@ -51,32 +46,14 @@ const AdvancedSettings: React.FC = () => {
   return (
     <div>
       <div className="settings-section">
-        <h3 className="settings-section-title">Graph Layout</h3>
-
-        <div className="settings-field">
-          <label htmlFor="layout-direction" className="settings-label">
-            Layout Direction
-          </label>
-          <p className="settings-description">
-            Direction for manual layout algorithm (right-click → Auto Layout)
-          </p>
-          <select
-            id="layout-direction"
-            value={layoutDirection}
-            onChange={(e) => setLayoutDirection(e.target.value as typeof layoutDirection)}
-            className="settings-select"
-          >
-            <option value="LR">Left to Right (Default)</option>
-            <option value="TB">Top to Bottom</option>
-          </select>
-        </div>
+        <h3 className="settings-section-title">Layout of the Flow</h3>
 
         <div className="settings-field">
           <label htmlFor="node-spacing" className="settings-label">
-            Node Spacing: {nodeSpacing}px
+            Node spacing: {nodeSpacing}px
           </label>
           <p className="settings-description">
-            Horizontal space between nodes when using manual layout (affects edge label visibility)
+            Space between agents of one rank; the board lays itself out again
           </p>
           <input
             id="node-spacing"
@@ -92,10 +69,10 @@ const AdvancedSettings: React.FC = () => {
 
         <div className="settings-field">
           <label htmlFor="rank-spacing" className="settings-label">
-            Rank Spacing: {rankSpacing}px
+            Rank spacing: {rankSpacing}px
           </label>
           <p className="settings-description">
-            Vertical space between graph layers when using manual layout
+            Space between ranks of the hierarchical layouts
           </p>
           <input
             id="rank-spacing"
@@ -111,62 +88,50 @@ const AdvancedSettings: React.FC = () => {
       </div>
 
       <div className="settings-section">
-        <h3 className="settings-section-title">Developer Options</h3>
+        <h3 className="settings-section-title">Data</h3>
 
         <div className="settings-field">
-          <div className="settings-checkbox-wrapper">
-            <input
-              id="debug-mode"
-              type="checkbox"
-              checked={debugMode}
-              onChange={(e) => setDebugMode(e.target.checked)}
-              className="settings-checkbox"
-            />
-            <label htmlFor="debug-mode" className="settings-checkbox-label">
-              Debug mode
-            </label>
-          </div>
           <p className="settings-description">
-            Show node IDs, detailed message counts, and verbose console logging
+            Forget the graph, filters, windows, layouts and presets this browser keeps. The blackboard is not touched.
           </p>
-        </div>
-
-        <div className="settings-field">
-          <div className="settings-checkbox-wrapper">
-            <input
-              id="performance-mode"
-              type="checkbox"
-              checked={performanceMode}
-              onChange={(e) => setPerformanceMode(e.target.checked)}
-              className="settings-checkbox"
-            />
-            <label htmlFor="performance-mode" className="settings-checkbox-label">
-              Performance mode
-            </label>
-          </div>
-          <p className="settings-description">
-            Disable animations, shadows, and blur effects for better performance
-          </p>
+          <button
+            type="button"
+            className="btn sm"
+            onClick={() => {
+              if (confirm('Clear all dashboard data? This will remove all graph data and session data.')) {
+                setClearError(null);
+                clearDashboardData(undefined, () => setClearBlocked(true)).catch((error: unknown) => {
+                  setClearBlocked(false);
+                  setClearError(error instanceof Error ? error.message : String(error));
+                });
+              }
+            }}
+          >
+            Clear all dashboard data
+          </button>
+          {clearBlocked && (
+            <p role="status" className="settings-description">
+              Close the other dashboard tabs to finish clearing.
+            </p>
+          )}
+          {clearError && (
+            <p role="alert" className="settings-description settings-error">
+              The dashboard data could not be cleared: {clearError}
+            </p>
+          )}
         </div>
       </div>
 
       <div className="settings-section">
-        <h3 className="settings-section-title">Information</h3>
-
-        <div className="settings-field">
-          <p className="settings-description" style={{ marginBottom: 'var(--spacing-2)' }}>
-            <strong>Dashboard Version:</strong> {dashboardVersion}
-          </p>
-          <p className="settings-description" style={{ marginBottom: 'var(--spacing-2)' }}>
-            <strong>Backend Version:</strong> {backendVersion}
-          </p>
-          <p className="settings-description" style={{ marginBottom: 'var(--spacing-2)' }}>
-            <strong>React Flow Version:</strong> 12.8.6
-          </p>
-          <p className="settings-description">
-            <strong>Local Storage Used:</strong> {localStorage.length} keys
-          </p>
-        </div>
+        <h3 className="settings-section-title">Versions</h3>
+        <dl className="settings-versions">
+          <dt>Dashboard</dt>
+          <dd className="mono">{dashboardVersion}</dd>
+          <dt>Flock</dt>
+          <dd className="mono">{backendVersion}</dd>
+          <dt>React Flow</dt>
+          <dd className="mono">12.8.6</dd>
+        </dl>
       </div>
     </div>
   );

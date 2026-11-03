@@ -286,6 +286,30 @@ async def test_on_error_emits_agent_error(collector, test_agent, test_context):
 
 
 @pytest.mark.asyncio
+async def test_a_run_that_ends_names_the_artifacts_it_published(
+    collector, test_agent, test_context
+):
+    """agent_completed names what the run published (#642): the dashboard
+    keeps a run's placeholder until exactly those are on the board."""
+    published = []
+    for _ in range(2):
+        output = Artifact(
+            id=uuid4(),
+            type="TestOutput",
+            payload={"n": len(published)},
+            produced_by="test_agent",
+            visibility=PublicVisibility(),
+            correlation_id=test_context.correlation_id,
+        )
+        await collector.on_post_publish(test_agent, test_context, output)
+        published.append(str(output.id))
+    collector.events.clear()
+
+    await collector.on_terminate(test_agent, test_context)
+    assert collector.events[0].artifacts_produced == published
+
+
+@pytest.mark.asyncio
 async def test_correlation_id_propagation(
     collector, test_agent, test_artifacts, orchestrator
 ):

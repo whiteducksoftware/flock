@@ -25,11 +25,11 @@ const GraphSettings: React.FC = () => {
   return (
     <div>
       <div className="settings-section">
-        <h3 className="settings-section-title">Edge Appearance</h3>
+        <h3 className="settings-section-title">Edges</h3>
 
         <div className="settings-field">
           <label htmlFor="edge-type" className="settings-label">
-            Edge Type
+            Edge type
           </label>
           <p className="settings-description">
             Choose how connections between nodes are drawn
@@ -49,7 +49,7 @@ const GraphSettings: React.FC = () => {
 
         <div className="settings-field">
           <label htmlFor="edge-width" className="settings-label">
-            Edge Stroke Width: {edgeStrokeWidth}px
+            Edge width: {edgeStrokeWidth}px
           </label>
           <input
             id="edge-width"
@@ -65,7 +65,7 @@ const GraphSettings: React.FC = () => {
       </div>
 
       <div className="settings-section">
-        <h3 className="settings-section-title">Edge Behavior</h3>
+        <h3 className="settings-section-title">Edge labels and motion</h3>
 
         <div className="settings-field">
           <div className="settings-checkbox-wrapper">
@@ -81,7 +81,7 @@ const GraphSettings: React.FC = () => {
             </label>
           </div>
           <p className="settings-description">
-            Animate message flow along edges (may impact performance)
+            Edges move while an artifact is on its way
           </p>
         </div>
 
@@ -99,7 +99,7 @@ const GraphSettings: React.FC = () => {
             </label>
           </div>
           <p className="settings-description">
-            Display correlation IDs and other metadata on edges
+            Each edge's type and how many artifacts went along it
           </p>
         </div>
       </div>

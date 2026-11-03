@@ -93,7 +93,7 @@ describe('TournamentBracket', () => {
   describe('connectors', () => {
     afterEach(() => vi.restoreAllMocks());
 
-    it('should draw survivor lines between columns and turn a hovered option amber', () => {
+    it('should draw survivor lines between columns and trace a hovered option', () => {
       // Columns 300 px apart: option chips report their column's position
       vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
         this: HTMLElement
@@ -110,14 +110,15 @@ describe('TournamentBracket', () => {
       const b = paths.find((path) => path.dataset.option === 'b')!;
       // relative to the container (also at top 10): y = 10 + 10 / 2 - 10
       expect(b.getAttribute('d')).toBe('M 200 5 C 250 5, 250 5, 300 5');
+      // The champion's path is blue (decided); a hovered option takes the text color, not amber
       expect(paths.filter((path) => path.dataset.option === 'a').map((path) => path.getAttribute('stroke'))).toEqual([
-        'rgb(139, 92, 246)',
-        'rgb(139, 92, 246)',
+        'var(--sure)',
+        'var(--sure)',
       ]);
 
       const chip = screen.getAllByTestId('bracket-option').find((o) => o.dataset.option === 'b' && o.dataset.column === '0')!;
       fireEvent.mouseEnter(chip);
-      expect(b.getAttribute('stroke')).toBe('#f59e0b');
+      expect(b.getAttribute('stroke')).toBe('var(--text)');
     });
   });
 

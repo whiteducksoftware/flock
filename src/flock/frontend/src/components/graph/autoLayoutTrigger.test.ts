@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  cardsResized,
+  RESIZE_LAYOUT_DELAY_MS,
   AUTO_LAYOUT_DEBOUNCE_MS,
   clearDebouncedAutoLayout,
   getEdgeIdSet,
@@ -83,3 +85,26 @@ describe('autoLayoutTrigger', () => {
     vi.useRealTimers();
   });
 });
+
+describe('cardsResized (#655)', () => {
+  const laidOut = { guesser: { width: 260, height: 200 }, game: { width: 240, height: 120 } };
+
+  it('is true when a card is 8 px or more off the size the last layout used', () => {
+    expect(cardsResized(laidOut, new Map([['guesser', { width: 260, height: 248 }]]))).toBe(true);
+    expect(cardsResized(laidOut, new Map([['game', { width: 200, height: 120 }]]))).toBe(true);
+  });
+
+  it('is false for small changes, unchanged cards and cards the last layout did not place', () => {
+    expect(cardsResized(laidOut, new Map([['guesser', { width: 262, height: 205 }]]))).toBe(false);
+    expect(cardsResized(laidOut, new Map([['game', { width: 240, height: 120 }]]))).toBe(false);
+    expect(cardsResized(laidOut, new Map([['new_agent', { width: 300, height: 300 }]]))).toBe(false);
+    expect(cardsResized(null, new Map([['guesser', { width: 260, height: 400 }]]))).toBe(false);
+  });
+});
+
+describe('RESIZE_LAYOUT_DELAY_MS', () => {
+  it('lays a board out again soon after a card grew, so the board moves with it (#655)', () => {
+    expect(RESIZE_LAYOUT_DELAY_MS).toBeLessThanOrEqual(50);
+  });
+});
+

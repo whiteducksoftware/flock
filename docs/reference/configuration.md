@@ -35,6 +35,9 @@ AZURE_API_KEY=your_azure_api_key_here
 AZURE_API_BASE=https://your-resource.openai.azure.com/
 AZURE_API_VERSION=2024-12-01-preview
 
+# Logging: Flock's own logs, independent of tracing
+FLOCK_LOG_LEVEL=WARNING  # DEBUG, INFO, WARNING (default), ERROR, CRITICAL, SUCCESS or NO_LOGS
+
 # Tracing
 FLOCK_AUTO_TRACE=true
 FLOCK_TRACE_FILE=true

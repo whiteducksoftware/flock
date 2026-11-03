@@ -41,6 +41,9 @@ class Artifact(BaseModel):
     )
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     version: int = 1
+    # The artifacts this one follows, as its publisher named them: an app's
+    # next step after a decision it got (#618)
+    follows: list[UUID] = Field(default_factory=list)
 
     @field_validator("visibility", mode="before")
     @classmethod

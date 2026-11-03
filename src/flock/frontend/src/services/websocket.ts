@@ -1,6 +1,7 @@
 import { useWSStore } from '../store/wsStore';
 import { useGraphStore } from '../store/graphStore';
 import { useFilterStore } from '../store/filterStore';
+import { fetchArtifactSummary } from './api';
 
 interface WebSocketMessage {
   event_type: 'agent_activated' | 'message_published' | 'streaming_output' | 'agent_completed' | 'agent_error' | 'correlation_group_updated' | 'batch_item_added';
@@ -14,6 +15,12 @@ export class WebSocketClient {
   ws: WebSocket | null = null;
   private reconnectTimeout: number | null = null;
   private reconnectAttempt = 0;
+  // A connection was lost; the next one refreshes the board
+  private connectionLost = false;
+  /** Runs that ended since the page last asked which runs go on: a late answer must not bring them back */
+  private endedRuns = new Set<string>();
+  /** Which ask is the latest: an answer to one a reconnect superseded is dropped */
+  private seedGeneration = 0;
   private maxReconnectDelay = 30000; // 30 seconds
   private connectionTimeout: number | null = null;
   private connectionTimeoutMs = 10000; // 10 seconds
@@ -41,14 +48,14 @@ export class WebSocketClient {
   }
 
   /**
-   * UI Optimization Migration (Phase 2 - Spec 002): Debounced graph refresh
-   *
-   * Batch multiple graph-changing events within 500ms window, then fetch fresh
-   * snapshot from backend. This replaces immediate regenerateGraph() calls.
+   * Graph refresh at most every 500ms: the first event schedules a snapshot
+   * fetch, and events until it runs ride along. The timer is not restarted
+   * per event, so a steady stream (one every 150ms) still refreshes the board
+   * (#638), and the last event is always followed by a refresh.
    */
   private scheduleGraphRefresh(): void {
     if (this.refreshTimer !== null) {
-      clearTimeout(this.refreshTimer);
+      return; // a refresh is coming, after this event
     }
 
     this.refreshTimer = window.setTimeout(() => {
@@ -163,6 +170,30 @@ export class WebSocketClient {
     }
   }
 
+  private seedActiveRuns(): void {
+    this.endedRuns.clear();
+    const generation = ++this.seedGeneration;
+    fetch('/api/runs/active')
+      .then((response) => (response.ok ? response.json() : null))
+      .then(
+        (data: { runs?: { run_id: string; agent_name: string; correlation_id: string | null; consumed_artifacts?: string[] }[] } | null) => {
+          // An older server answers without the endpoint; a newer ask answers for now
+          if (!Array.isArray(data?.runs) || generation !== this.seedGeneration) return;
+          useGraphStore.getState().seedInFlight(
+            data.runs
+              .filter((run) => !this.endedRuns.has(run.run_id))
+              .map((run) => ({
+                runId: run.run_id,
+                agent: run.agent_name,
+                artifacts: run.consumed_artifacts ?? [],
+                correlationId: run.correlation_id ?? null,
+              })),
+          );
+        },
+      )
+      .catch(() => {});
+  }
+
   private setupEventHandlers(): void {
     // Handler for agent_activated: create/update agent in graph AND create Run
     this.on('agent_activated', (data) => {
@@ -173,6 +204,17 @@ export class WebSocketClient {
 
       // Update real-time status (fast, local)
       useGraphStore.getState().updateAgentStatus(data.agent_name, 'running');
+      // What this run works on: the edges carrying these types are in flight
+      useGraphStore
+        .getState()
+        .setInFlight(
+          data.run_id,
+          data.agent_name,
+          data.consumed_types ?? [],
+          data.consumed_artifacts ?? [],
+          data.correlation_id ?? null,
+          data.produced_types ?? [],
+        );
 
       // Schedule debounced refresh (batches within 500ms, then fetches backend snapshot)
       this.scheduleGraphRefresh();
@@ -225,6 +267,7 @@ export class WebSocketClient {
       // Phase 6: Agent streaming tokens (for yellow ticker in agent nodes)
       // Note: artifact_id is now always present (Phase 6), so we removed the !artifact_id check
       if (data.agent_name && data.output_type === 'llm_token') {
+        if (data.run_id) useGraphStore.getState().appendRunTail(data.run_id, data.content ?? '');
         const { streamingTokens } = useGraphStore.getState();
         const currentTokens = streamingTokens.get(data.agent_name) || [];
 
@@ -244,6 +287,7 @@ export class WebSocketClient {
             agent_name: data.agent_name,
             correlation_id: data.correlation_id,
             artifact_type: data.artifact_type,  // Phase 6: Artifact type name for node header
+            run_id: data.run_id,
           }
         );
 
@@ -253,7 +297,7 @@ export class WebSocketClient {
         }
       }
 
-      // Note: The actual output storage is handled by LiveOutputTab's event listener
+      // Note: The unfolded node's Live tab listens to these events itself
       // This handler is for real-time token updates only
     });
 
@@ -266,8 +310,15 @@ export class WebSocketClient {
       useGraphStore.getState().updateAgentStatus(data.agent_name, status);
       // Another run of it goes on: its ticker stays
       if (status !== 'running') useGraphStore.getState().updateStreamingTokens(data.agent_name, []);
-      // A newer run failed: the snapshot says what (lastError)
-      if (status === 'error') this.scheduleGraphRefresh();
+      // A stream it never published is no artifact
+      useGraphStore.getState().dropStreamingPreviews(data.agent_name, data.correlation_id ?? null, data.run_id ?? null);
+      // This run is done; another one keeps its own types in flight. Its lane
+      // waits for what it published (#642)
+      useGraphStore.getState().endRun(data.run_id, data.artifacts_produced);
+      this.endedRuns.add(data.run_id);
+      // The snapshot draws a run's deliveries once it ended, and says what a
+      // newer run that failed did wrong (lastError)
+      this.scheduleGraphRefresh();
 
       // OLD CODE REMOVED: Run status tracking (runs Map, batchUpdate)
       // Backend handles run data now
@@ -277,7 +328,16 @@ export class WebSocketClient {
     this.on('agent_error', (data) => {
       // UI Optimization Migration (Phase 2 - Spec 002): Use NEW updateAgentStatus()
       // for FAST real-time updates without backend calls
-      useGraphStore.getState().updateAgentStatus(data.agent_name, data.agent_status ?? 'error');
+      const status = data.agent_status ?? 'error';
+      useGraphStore.getState().updateAgentStatus(data.agent_name, status);
+      // A failed run's tokens are not the next run's; another run of it keeps the ticker
+      if (status !== 'running') useGraphStore.getState().updateStreamingTokens(data.agent_name, []);
+      // The failed run's stream is no artifact
+      useGraphStore.getState().dropStreamingPreviews(data.agent_name, data.correlation_id ?? null, data.run_id ?? null);
+      // A failed run's outputs are not published: its lane lets go at once,
+      // also of a settling its completion event began (#642)
+      useGraphStore.getState().endRun(data.run_id, []);
+      this.endedRuns.add(data.run_id);
       // The snapshot says what failed (lastError)
       this.scheduleGraphRefresh();
 
@@ -432,7 +492,29 @@ export class WebSocketClient {
           useWSStore.getState().setStatus('connected');
           useWSStore.getState().setError(null);
           useWSStore.getState().resetAttempts();
+          useWSStore.getState().setNextRetryAt(null);
         }
+        // Back after a lost connection: what was published meanwhile never arrived
+        if (this.connectionLost) {
+          this.connectionLost = false;
+          // Live states from before the outage are stale; the snapshot says how things stand
+          useGraphStore.setState({
+            agentStatus: new Map(),
+            streamingTokens: new Map(),
+            agentLogicOperations: new Map(),
+            inFlight: new Map(),
+            settling: new Map(),
+            runTails: new Map(),
+          });
+          useGraphStore.getState().dropStreamingPreviews();
+          this.scheduleGraphRefresh();
+          // The counts missed those artifacts too
+          fetchArtifactSummary()
+            .then((summary) => useFilterStore.getState().setSummary(summary))
+            .catch((error) => console.error('[WebSocket] Summary refresh failed:', error));
+        }
+        // A page hears of a run from its start event only: ask which runs go on now
+        this.seedActiveRuns();
         this.reconnectAttempt = 0;
         this.flushBuffer();
         if (this.enableHeartbeat) {
@@ -457,20 +539,19 @@ export class WebSocketClient {
       this.ws.onclose = (event) => {
         console.log('[WebSocket] Closed:', event.code, event.reason);
         this.stopHeartbeat();
+        if (this.connectionTimeout !== null) {
+          clearTimeout(this.connectionTimeout);
+          this.connectionTimeout = null;
+        }
 
-        // Don't override error status
-        if (this.connectionStatus !== 'error') {
-          if (this.shouldReconnect && event.code !== 1000) {
-            this.connectionStatus = 'connecting'; // Will be reconnecting
-            if (typeof useWSStore !== 'undefined') {
-              useWSStore.getState().setStatus('reconnecting');
-            }
-            this.reconnect();
-          } else {
-            this.connectionStatus = 'disconnected';
-            if (typeof useWSStore !== 'undefined') {
-              useWSStore.getState().setStatus('disconnected');
-            }
+        // A failed connection (an error comes first) is retried like a dropped one
+        if (this.shouldReconnect && event.code !== 1000) {
+          this.connectionLost = true;
+          this.reconnect();
+        } else {
+          this.connectionStatus = 'disconnected';
+          if (typeof useWSStore !== 'undefined') {
+            useWSStore.getState().setStatus('disconnected');
           }
         }
       };
@@ -497,6 +578,8 @@ export class WebSocketClient {
 
     if (typeof useWSStore !== 'undefined') {
       useWSStore.getState().incrementAttempts();
+      useWSStore.getState().setStatus('reconnecting');
+      useWSStore.getState().setNextRetryAt(Date.now() + delay);
     }
     this.reconnectAttempt++;
 
@@ -504,6 +587,9 @@ export class WebSocketClient {
 
     this.reconnectTimeout = window.setTimeout(() => {
       this.reconnectTimeout = null;
+      if (typeof useWSStore !== 'undefined') {
+        useWSStore.getState().setNextRetryAt(null);
+      }
       this.connect();
     }, delay);
   }
@@ -693,11 +779,23 @@ export class WebSocketClient {
     // Don't override it here to maintain proper status flow
   }
 
+  /** Retry now instead of waiting for the scheduled attempt. */
   reconnectManually(): void {
+    // Connected, or an attempt is under way already
+    if (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING) return;
     this.shouldReconnect = true;
+    // Whatever ended the connection, the board reloads once it is back
+    this.connectionLost = true;
+    // The wait starts over if this try fails too
     this.reconnectAttempt = 0;
+    if (this.reconnectTimeout !== null) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
     if (typeof useWSStore !== 'undefined') {
-      useWSStore.getState().resetAttempts();
+      // It counts as an attempt, so the dashboard stays reconnecting meanwhile
+      useWSStore.getState().incrementAttempts();
+      useWSStore.getState().setNextRetryAt(null);
     }
     this.connect();
   }
@@ -744,6 +842,11 @@ export const getWebSocketClient = (url?: string): WebSocketClient => {
     throw new Error('WebSocket client not initialized');
   }
   return wsClient;
+};
+
+/** Reconnect now instead of waiting for the next scheduled attempt. */
+export const retryConnectionNow = (): void => {
+  wsClient?.reconnectManually();
 };
 
 export const initializeWebSocket = (url: string): WebSocketClient => {

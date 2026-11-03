@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { useFilterStore } from './filterStore';
+import { formatTimeRange, useFilterStore } from './filterStore';
 import type { FilterFacets, FilterSnapshot } from '../types/filters';
 import { useGraphStore } from './graphStore';
 
@@ -29,6 +29,13 @@ describe('filterStore', () => {
       availableVisibility: [],
       summary: null,
       savedFilters: [],
+    });
+  });
+
+  describe('formatTimeRange', () => {
+    it('names a range brushed up to now by its start', () => {
+      const start = Date.parse('2026-10-11T12:00:00Z');
+      expect(formatTimeRange({ preset: 'custom', start })).toBe(`Since ${new Date(start).toLocaleString()}`);
     });
   });
 

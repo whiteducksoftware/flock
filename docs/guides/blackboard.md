@@ -137,6 +137,14 @@ await flock.publish(CodeSubmission(
 ))
 ```
 
+An artifact that comes from outside after something on the blackboard can say so with `follows`: the IDs of the artifacts it follows. An app that answers a decision a sink delivered to it publishes its next step with that decision's ID, and the dashboard draws the step after the decision, as it draws an agent's output after what the agent consumed:
+
+```python
+step = await flock.publish(GameState(...), correlation_id="game-7", follows=[decision_id])
+```
+
+Each ID must be on the blackboard, and a publish names at most 20 (`Flock(max_follows=...)`); otherwise `publish` raises `ValueError`.
+
 ### 2. Agents Subscribe to Types
 
 Agents declare what types they consume:
@@ -595,8 +603,8 @@ await flock.serve(dashboard=True)
 ```
 
 **Dashboard views:**
-- **Agent View** - See agents as nodes, artifacts as edges
-- **Blackboard View** - See artifacts as nodes, transformations as edges
+- **Flow** - See agents as cards, artifacts along the edges
+- **Blackboard** - See each run's artifacts as a lane, or as a graph
 - **Live updates** - WebSocket streaming of new artifacts
 - **Filter by correlation ID** - Track specific workflows
 

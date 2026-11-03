@@ -72,6 +72,9 @@ class ArtifactBase(BaseModel):
     partition_key: str | None = Field(None, description="Optional partition key")
     tags: list[str] = Field(default_factory=list, description="List of tags")
     version: int = Field(description="Artifact version number")
+    follows: list[str] = Field(
+        default_factory=list, description="IDs of the artifacts this one follows"
+    )
 
 
 class ConsumptionRecord(BaseModel):
@@ -130,6 +133,11 @@ class ArtifactPublishRequest(BaseModel):
         pattern=r"^[A-Za-z0-9._:-]+$",
         description="The run to join (a game, a drawing): letters, digits and "
         "._:- ; a new one without it",
+    )
+    follows: list[str] | None = Field(
+        default=None,
+        description="IDs of the artifacts this one follows (at most Flock.max_follows, "
+        "each on the blackboard), e.g. the decision an app answers",
     )
     webhook: "WebhookConfig | None" = Field(
         default=None, description="Optional webhook for delivery notifications"

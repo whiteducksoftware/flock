@@ -1,0 +1,98 @@
+/* A layer over the board; only its banners and buttons take clicks */
+.layer {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.interactive {
+  pointer-events: auto;
+}
+
+.banners {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.banner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  box-shadow: var(--shadow);
+  font-size: 12px;
+}
+
+.waiting:not(:global(.err)) {
+  background: var(--text-2);
+}
+
+.quiet {
+  color: var(--text-3);
+}
+
+.end {
+  margin-left: auto;
+}
+
+.empty {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(320px, calc(100% - 32px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.title {
+  font-weight: 600;
+}
+
+.hint {
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.skeleton {
+  position: absolute;
+  inset: 0;
+}
+
+.card {
+  position: absolute;
+  width: 150px;
+  padding: 12px;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  opacity: 0.55;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.card:first-child {
+  left: 28%;
+  top: 34%;
+}
+
+.card:last-child {
+  left: 48%;
+  top: 44%;
+}

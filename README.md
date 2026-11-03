@@ -113,7 +113,7 @@ Many agent steps are decisions, not writing tasks: which team handles a ticket, 
 
 <p align="center">
   <img alt="Option lanes in the dashboard filling up with shapes sorted by color" src="docs/assets/images/decisions/decision-lanes.gif" width="380">
-  <img alt="Close-up of the color sorter with all 24 shapes sorted" src="docs/assets/images/decisions/decision-sorter.png" width="380">
+  <img alt="Close-up of the color sorter with all 16 shapes sorted" src="docs/assets/images/decisions/decision-sorter.png" width="380">
 </p>
 <p align="center"><i>A decision model looks at each shape's image and sorts it into a color lane, live in the dashboard. In-between colors stay below the threshold and land in the <code>UNSURE</code> lane for an inspector (<a href="examples/15-decisions/03_color_sorter.py">03_color_sorter.py</a>).</i></p>
 
@@ -347,11 +347,11 @@ The blackboard is in memory by default. Two persistent stores come with Flock:
 `await flock.serve(dashboard=True)` starts the REST API and the dashboard on port 8344.
 
 <p align="center">
-  <img alt="Dashboard: agent view" src="docs/assets/images/flock_ui_agent_view.png" width="900">
+  <img alt="Dashboard: the Flow, agents as cards with what went along the edges" src="docs/assets/images/flock_ui_agent_view.png" width="900">
 </p>
 
 - **Dashboard:**
-  - an agent view and a blackboard view with live updates over WebSocket;
+  - the Flow (the agents and what went between them) and the Blackboard (each run as a lane, or as a graph), live over WebSocket;
   - five auto-layouts;
   - filters by correlation id and time;
   - publish artifacts and run agents from the browser.

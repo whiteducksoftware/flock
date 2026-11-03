@@ -111,7 +111,7 @@ const SavedFiltersControl: React.FC = () => {
       <div className={styles.controlsRow}>
         <button
           type="button"
-          className={styles.saveButton}
+          className="btn sm"
           onClick={handleSavePreset}
           disabled={loading}
         >
@@ -135,7 +135,7 @@ const SavedFiltersControl: React.FC = () => {
 
         <button
           type="button"
-          className={styles.applyButton}
+          className="btn sm"
           onClick={handleApplyPreset}
           disabled={!selectedId}
         >
@@ -144,7 +144,7 @@ const SavedFiltersControl: React.FC = () => {
 
         <button
           type="button"
-          className={styles.deleteButton}
+          className="btn sm ghost"
           onClick={handleDeletePreset}
           disabled={!selectedId}
         >

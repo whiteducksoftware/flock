@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Flock · Flow</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+.fl{--bg:#0B0C0E;--board:#0D0F12;--dot:rgba(255,255,255,.06);--surface:#15171B;--surface-2:#1B1E23;--surface-3:#24282E;--line:rgba(255,255,255,.075);--line-2:rgba(255,255,255,.14);--text:#ECEEF1;--text-2:#B0B6BF;--text-3:#858C96;--invert:#ECEEF1;--on-invert:#0B0C0E;--signal:#F2A33A;--signal-ink:#F6B860;--signal-soft:rgba(242,163,58,.13);--sure:#7BA8F5;--sure-ink:#9DBEF8;--sure-soft:rgba(123,168,245,.16);--error:#F07563;--error-soft:rgba(240,117,99,.13);--hatch:rgba(255,255,255,.22);--shadow:0 1px 0 rgba(255,255,255,.035) inset,0 18px 40px -18px rgba(0,0,0,.75);font-family:'Geist',ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;font-size:13px;line-height:1.45;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+.fl[data-theme="paper"]{--bg:#F3F2EE;--board:#F6F5F1;--dot:rgba(20,20,20,.08);--surface:#FFFFFF;--surface-2:#F5F4F0;--surface-3:#EAE8E2;--line:rgba(20,20,20,.08);--line-2:rgba(20,20,20,.15);--text:#16171A;--text-2:#4A4F57;--text-3:#676C74;--invert:#16171A;--on-invert:#FFFFFF;--signal:#D9861A;--signal-ink:#9A5A06;--signal-soft:rgba(217,134,26,.13);--sure:#2E6BD1;--sure-ink:#2559B0;--sure-soft:rgba(46,107,209,.12);--error:#C8432F;--error-soft:rgba(200,67,47,.1);--hatch:rgba(20,20,20,.24);--shadow:0 1px 2px rgba(0,0,0,.05),0 14px 30px -16px rgba(0,0,0,.2)}
+.fl *{box-sizing:border-box}
+.mono{font-family:'Geist Mono',ui-monospace,SFMono-Regular,Menlo,monospace}
+.num{font-variant-numeric:tabular-nums}
+.board{background-color:var(--board);background-image:radial-gradient(var(--dot) 1px,transparent 1.3px);background-size:22px 22px}
+.hatch{background-image:repeating-linear-gradient(135deg,var(--hatch) 0 1.5px,transparent 1.5px 5px)}
+.node{position:absolute;background:var(--surface);border:1px solid var(--line-2);border-radius:12px;box-shadow:var(--shadow)}
+.handle{position:absolute;width:9px;height:9px;border-radius:50%;background:var(--board);border:1.5px solid var(--line-2)}
+.sdot{width:8px;height:8px;border-radius:50%;background:var(--text-3);flex:none}
+.sdot.run{background:var(--signal);animation:pulse 1.8s ease-out infinite}
+.sdot.err{background:var(--error)}
+.tag{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 7px;border-radius:6px;border:1px solid var(--line-2);color:var(--text-2);font-size:11px;white-space:nowrap}
+.port{display:flex;align-items:center;gap:8px;height:26px;font-size:12px}
+.pdir{width:28px;flex:none;color:var(--text-3);font-size:10px;letter-spacing:.06em;text-transform:uppercase}
+.ptype{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)}
+.pcount{color:var(--text-2)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--line-2);background:var(--surface-2);color:var(--text);font:inherit;font-size:13px;font-weight:500;text-decoration:none;cursor:pointer;white-space:nowrap}
+.btn:hover{background:var(--surface-3);color:var(--text)}
+.btn.primary{background:var(--invert);color:var(--on-invert);border-color:transparent}
+.btn.primary:hover{color:var(--on-invert);opacity:.88}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--text-2)}
+.btn.ghost:hover{background:var(--surface-2);color:var(--text)}
+.btn.icon{width:32px;padding:0}
+.btn.sm{height:26px;padding:0 9px;font-size:12px;border-radius:7px}
+.btn.pick{border-color:var(--sure);color:var(--sure-ink);background:var(--sure-soft)}
+.chip{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border-radius:8px;background:var(--surface);border:1px solid var(--line);color:var(--text-2);font:inherit;font-size:12px;cursor:pointer;white-space:nowrap}
+.chip:hover{color:var(--text);border-color:var(--line-2)}
+.seg{height:28px;padding:0 12px;border-radius:7px;display:inline-flex;align-items:center;font-size:13px;font-weight:500;color:var(--text-2);text-decoration:none}
+.seg:hover{color:var(--text)}
+.seg.is-on{background:var(--surface-3);color:var(--text)}
+.tab{height:36px;padding:0 2px;margin-bottom:-1px;display:inline-flex;align-items:center;gap:6px;background:none;border:0;border-bottom:2px solid transparent;color:var(--text-3);font:inherit;font-size:12.5px;font-weight:500;cursor:pointer}
+.tab:hover{color:var(--text)}
+.tab.is-on{color:var(--text);border-bottom-color:var(--text)}
+.count{font-size:11px;color:var(--text-3)}
+.label{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);font-weight:500}
+.elabel{position:absolute;transform:translate(-50%,-50%);height:20px;padding:0 7px;display:inline-flex;align-items:center;gap:5px;border-radius:6px;background:var(--surface);border:1px solid var(--line-2);font-size:11px;color:var(--text-2);white-space:nowrap}
+.edge{fill:none;stroke:var(--line-2);stroke-width:1.5}
+.edge.live{stroke:var(--signal);stroke-dasharray:3 7;stroke-linecap:round;animation:flow .9s linear infinite}
+.edge.unsure{stroke-dasharray:2 5}
+.bar{flex:1;min-width:2px;border-radius:2px 2px 0 0;background:var(--text-3);opacity:.3}
+.bar.on{background:var(--text-2);opacity:.85}
+.h0{height:2px}.h1{height:5px}.h2{height:8px}.h3{height:11px}.h4{height:14px}.h5{height:18px}.h6{height:22px}.h7{height:26px}.h8{height:30px}.h9{height:34px}
+.track{height:6px;border-radius:3px;background:var(--surface-3);overflow:hidden;display:flex}
+.row{display:grid;align-items:center;gap:10px;height:30px;border-bottom:1px solid var(--line);font-size:12px}
+.runbar{position:absolute;top:-1px;left:14px;right:14px;height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,var(--signal),transparent);background-size:50% 100%;background-repeat:no-repeat;animation:sweep 1.6s ease-in-out infinite}
+kbd{font-family:'Geist Mono',ui-monospace,monospace;font-size:10.5px;padding:1px 5px;border-radius:4px;border:1px solid var(--line-2);color:var(--text-3)}
+@keyframes flow{to{stroke-dashoffset:-20}}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(242,163,58,.5)}70%{box-shadow:0 0 0 6px rgba(242,163,58,0)}100%{box-shadow:0 0 0 0 rgba(242,163,58,0)}}
+@keyframes sweep{0%{background-position:-60% 0}100%{background-position:160% 0}}
+@keyframes blink{50%{opacity:0}}
+.caret{animation:blink 1s step-end infinite}
+@media (prefers-reduced-motion:reduce){.edge.live,.sdot.run,.caret,.runbar{animation:none}}
+a{color:var(--sure-ink)}a:hover{color:var(--text)}
+button:focus-visible,a:focus-visible{outline:2px solid var(--sure);outline-offset:2px}
+</style>
+</helmet>
+<div class="fl" data-theme="{{theme}}" style="height: 100vh; display: flex; flex-direction: column; overflow: hidden">
+
+  <header style="flex: none; min-height: 56px; display: flex; align-items: center; flex-wrap: wrap; gap: 12px 16px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--bg)">
+    <a href="Main.dc.html" aria-label="Flock" style="display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--text)">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3.5l4 3-4 3" stroke="currentColor"></path><path d="M8 14.5l4 3-4 3" stroke="currentColor"></path><path d="M15 9l4 3-4 3" stroke="var(--signal)"></path></svg>
+      <span style="font-size: 16px; font-weight: 600; letter-spacing: -0.02em">flock</span>
+    </a>
+    <nav aria-label="Views" style="display: flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line)">
+      <a href="Main.dc.html" class="seg is-on" aria-current="page">Flow</a>
+      <a href="Blackboard.dc.html" class="seg">Blackboard</a>
+    </nav>
+    <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap">
+      <button type="button" class="chip">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3 2"></path></svg>
+        <span>Last 15 min</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+      </button>
+      <button type="button" class="chip" style="border-style: dashed; background: transparent">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+        <span>Filter</span>
+      </button>
+    </div>
+    <div style="flex: 1 1 0"></div>
+    <button type="button" class="chip" style="min-width: 232px; justify-content: space-between; height: 32px">
+      <span style="display: inline-flex; align-items: center; gap: 8px">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="M16 16l4 4"></path></svg>
+        <span>Search agents, types, runs</span>
+      </span>
+      <kbd>⌘K</kbd>
+    </button>
+    <div role="status" style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-2)">
+      <span class="sdot run" style="width: 7px; height: 7px"></span>
+      <span>Live</span>
+      <span style="color: var(--text-3)">7 agents · 2 running</span>
+    </div>
+    <a href="Publish.dc.html" class="btn primary">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+      <span>Publish</span>
+    </a>
+    <div style="display: flex; gap: 2px">
+      <button type="button" class="btn icon ghost" aria-label="Settings">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h9M18 7h2M4 17h3M12 17h8"></path><circle cx="15.5" cy="7" r="2.3"></circle><circle cx="9.5" cy="17" r="2.3"></circle></svg>
+      </button>
+      <button type="button" class="btn icon ghost" aria-label="Keyboard shortcuts">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2.5"></rect><path d="M7 10h.01M11 10h.01M15 10h.01M8 14h8"></path></svg>
+      </button>
+    </div>
+  </header>
+
+  <div style="position: relative; flex: 1 1 0; min-height: 0">
+    <div class="board" style="position: absolute; inset: 0; overflow: auto">
+      <div style="position: relative; width: 1440px; height: 768px">
+
+        <svg width="1440" height="768" viewBox="0 0 1440 768" aria-hidden="true" style="position: absolute; inset: 0">
+          <path class="edge live" d="M232 376 C262 376 262 124 292 124"></path>
+          <path class="edge" d="M232 376 C262 376 262 632 292 632"></path>
+          <path class="edge live" d="M860 124 C930 124 930 96 1000 96"></path>
+          <path class="edge" d="M860 124 C930 124 930 232 1000 232"></path>
+          <path class="edge" d="M860 124 C930 124 930 368 1000 368"></path>
+          <path class="edge unsure" d="M860 124 C930 124 930 504 1000 504"></path>
+          <path class="edge" d="M760 524 L760 572"></path>
+          <path class="edge" d="M552 632 L640 632"></path>
+        </svg>
+
+        <div class="elabel mono" style="left: 930px; top: 106px"><span style="color: var(--sure-ink)">◆</span> billing · 3</div>
+        <div class="elabel mono" style="left: 930px; top: 178px"><span style="color: var(--sure-ink)">◆</span> shipping · 1</div>
+        <div class="elabel mono" style="left: 930px; top: 246px"><span style="color: var(--sure-ink)">◆</span> tech · 1</div>
+        <div class="elabel mono" style="left: 930px; top: 314px; border-style: dashed"><span class="hatch" style="width: 10px; height: 10px; border-radius: 2px"></span> UNSURE · 2</div>
+        <div class="elabel mono" style="left: 760px; top: 548px"><span style="color: var(--sure-ink)">◆</span> tech · 1</div>
+        <div class="elabel mono" style="left: 596px; top: 632px"><span style="color: var(--sure-ink)">◆</span> yes · 1</div>
+
+        <div class="node" style="left: 32px; top: 316px; width: 200px; padding: 12px 14px 10px">
+          <div style="display: flex; align-items: center; gap: 8px">
+            <span class="sdot"></span>
+            <span style="font-weight: 600; font-size: 13.5px">external</span>
+            <span class="tag" style="margin-left: auto">source</span>
+          </div>
+          <div style="margin-top: 8px">
+            <div class="port"><span class="pdir">out</span><span class="mono ptype">SupportTicket</span><span class="mono num pcount">8</span></div>
+          </div>
+          <span class="handle" style="right: -5px; top: 55px"></span>
+        </div>
+
+        <div class="node" style="left: 292px; top: 48px; width: 568px; height: 476px; display: flex; flex-direction: column; border-color: var(--line-2); box-shadow: 0 0 0 4px var(--signal-soft), var(--shadow)">
+          <span class="runbar"></span>
+          <div style="display: flex; align-items: center; gap: 10px; padding: 14px 12px 0 16px">
+            <span class="sdot run"></span>
+            <span style="font-weight: 600; font-size: 15px; letter-spacing: -0.01em">triage</span>
+            <span class="tag mono"><span style="color: var(--sure-ink)">◆</span> decides Route</span>
+            <span style="margin-left: auto; font-size: 12px; color: var(--signal-ink)">deciding ticket 8</span>
+            <div style="display: flex; gap: 2px">
+              <button type="button" class="btn icon ghost" aria-label="Fold node back to a card">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"></path></svg>
+              </button>
+              <a href="Focus.dc.html" class="btn icon ghost" aria-label="Open in focus mode">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path></svg>
+              </a>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 12px; padding: 4px 16px 0; font-size: 12px">
+            <span style="color: var(--text-2)">Routes support tickets to a team</span>
+            <span class="mono" style="margin-left: auto; color: var(--text-3); font-size: 11.5px">azure/decision-1 · threshold 0.80</span>
+          </div>
+          <div style="display: flex; gap: 8px; padding: 12px 16px 0; flex-wrap: wrap">
+            <div style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 10px; border-radius: 8px; background: var(--surface-2); font-size: 12px">
+              <span class="pdir" style="width: auto">in</span><span class="mono">SupportTicket</span><span class="mono num" style="color: var(--text-2)">8</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 10px; border-radius: 8px; background: var(--surface-2); font-size: 12px">
+              <span class="pdir" style="width: auto">out</span><span class="mono"><span style="color: var(--sure-ink)">◆</span> Route</span><span class="mono num" style="color: var(--text-2)">7</span>
+            </div>
+          </div>
+          <div role="tablist" aria-label="Node details" style="display: flex; gap: 18px; padding: 8px 16px 0; border-bottom: 1px solid var(--line)">
+            <sc-for list="{{tabs}}" as="t" hint-placeholder-count="5">
+              <button type="button" role="tab" class="{{t.cls}}" aria-selected="{{t.selected}}" onClick="{{t.pick}}">
+                <span>{{t.label}}</span>
+                <sc-if value="{{t.hasCount}}" hint-placeholder-val="{{false}}"><span class="count mono num">{{t.count}}</span></sc-if>
+              </button>
+            </sc-for>
+          </div>
+
+          <div style="flex: 1 1 0; min-height: 0; overflow: auto; padding: 14px 16px 14px">
+            <sc-if value="{{isOverview}}" hint-placeholder-val="{{true}}">
+              <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px">
+                <div style="display: flex; flex-direction: column; gap: 10px">
+                  <div class="label">Answers · 7 decided</div>
+                  <div style="display: grid; grid-template-columns: 64px minmax(0, 1fr) 18px; align-items: center; gap: 8px 10px; font-size: 12px">
+                    <span class="mono">billing</span><div class="track"><div style="width: 43%; background: var(--sure)"></div></div><span class="mono num" style="text-align: right; color: var(--text-2)">3</span>
+                    <span class="mono">shipping</span><div class="track"><div style="width: 14%; background: var(--sure)"></div></div><span class="mono num" style="text-align: right; color: var(--text-2)">1</span>
+                    <span class="mono">tech</span><div class="track"><div style="width: 14%; background: var(--sure)"></div></div><span class="mono num" style="text-align: right; color: var(--text-2)">1</span>
+                    <span class="mono" style="color: var(--text-2)">UNSURE</span><div class="track"><div class="hatch" style="width: 29%; outline: 1px dashed var(--text-3); outline-offset: -1px"></div></div><span class="mono num" style="text-align: right; color: var(--text-2)">2</span>
+                  </div>
+                  <p style="margin: 4px 0 0; font-size: 12px; color: var(--text-3); text-wrap: pretty">Answers below the 0.80 threshold route to <span class="mono" style="color: var(--text-2)">Route.UNSURE</span> and wait here for a person.</p>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 10px">
+                  <div class="label">Needs review · 2</div>
+                  <div style="display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 10px; border: 1px dashed var(--line-2)">
+                    <div style="display: flex; align-items: baseline; gap: 8px">
+                      <span style="font-weight: 500">Change plan and address</span>
+                      <span class="mono" style="margin-left: auto; font-size: 11px; color: var(--text-3)">4e7b</span>
+                    </div>
+                    <span class="mono" style="font-size: 11.5px; color: var(--text-2)">best guess shipping 0.52 · billing 0.38</span>
+                    <div style="display: flex; gap: 6px; flex-wrap: wrap">
+                      <button type="button" class="btn sm pick">shipping</button>
+                      <button type="button" class="btn sm">billing</button>
+                      <button type="button" class="btn sm">tech</button>
+                    </div>
+                  </div>
+                  <div style="display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 10px; border: 1px dashed var(--line-2)">
+                    <div style="display: flex; align-items: baseline; gap: 8px">
+                      <span style="font-weight: 500">Something odd with my account</span>
+                      <span class="mono" style="margin-left: auto; font-size: 11px; color: var(--text-3)">b20c</span>
+                    </div>
+                    <span class="mono" style="font-size: 11.5px; color: var(--text-2)">best guess shipping 0.46 · billing 0.44</span>
+                    <div style="display: flex; gap: 6px; flex-wrap: wrap">
+                      <button type="button" class="btn sm">billing</button>
+                      <button type="button" class="btn sm pick">shipping</button>
+                      <button type="button" class="btn sm">tech</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{isLive}}" hint-placeholder-val="{{false}}">
+              <div class="mono" style="display: flex; flex-direction: column; gap: 6px; font-size: 12px">
+                <div style="display: flex; gap: 14px"><span style="color: var(--text-3)">13:24:41.102</span><span>↓ SupportTicket <span style="color: var(--text-2)">"Refund not received"</span></span></div>
+                <div style="display: flex; gap: 14px"><span style="color: var(--text-3)">13:24:41.104</span><span style="color: var(--text-2)">asking azure/decision-1 · 1 question</span></div>
+                <div style="display: flex; gap: 14px"><span style="color: var(--text-3)">13:24:41.151</span><span><span style="color: var(--sure-ink)">◆ Route = billing</span> <span style="color: var(--text-2)">p 0.93 · 47 ms</span></span></div>
+                <div style="display: flex; gap: 14px"><span style="color: var(--text-3)">13:24:41.153</span><span>↑ Decision[Route] <span style="color: var(--text-2)">→ billing_team</span></span></div>
+                <div style="display: flex; gap: 14px"><span style="color: var(--text-3)">13:24:42.020</span><span>↓ SupportTicket <span style="color: var(--text-2)">"Where is my parcel?"</span></span></div>
+                <div style="display: flex; gap: 14px"><span style="color: var(--text-3)">13:24:42.022</span><span style="color: var(--signal-ink)">asking azure/decision-1 · 1 question <span class="caret">▍</span></span></div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{isHistory}}" hint-placeholder-val="{{false}}">
+              <div style="display: flex; flex-direction: column">
+                <div class="row label" style="grid-template-columns: 64px 26px 132px minmax(0, 1fr) 44px; height: 26px">
+                  <span>Time</span><span></span><span>Type</span><span>Content</span><span>Run</span>
+                </div>
+                <div class="row" style="grid-template-columns: 64px 26px 132px minmax(0, 1fr) 44px">
+                  <span class="mono num" style="color: var(--text-3)">13:24:42</span><span style="color: var(--text-3)">↓</span><span class="mono">SupportTicket</span><span style="color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Where is my parcel?</span><span class="mono" style="color: var(--text-3)">5a1f</span>
+                </div>
+                <div class="row" style="grid-template-columns: 64px 26px 132px minmax(0, 1fr) 44px">
+                  <span class="mono num" style="color: var(--text-3)">13:24:41</span><span style="color: var(--text-3)">↑</span><span class="mono"><span style="color: var(--sure-ink)">◆</span> Route</span><span class="mono" style="color: var(--text-2)">billing · 0.93</span><span class="mono" style="color: var(--text-3)">9c34</span>
+                </div>
+                <div class="row" style="grid-template-columns: 64px 26px 132px minmax(0, 1fr) 44px">
+                  <span class="mono num" style="color: var(--text-3)">13:24:41</span><span style="color: var(--text-3)">↓</span><span class="mono">SupportTicket</span><span style="color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Refund not received</span><span class="mono" style="color: var(--text-3)">9c34</span>
+                </div>
+                <div class="row" style="grid-template-columns: 64px 26px 132px minmax(0, 1fr) 44px">
+                  <span class="mono num" style="color: var(--text-3)">13:23:58</span><span style="color: var(--text-3)">↑</span><span class="mono"><span style="color: var(--sure-ink)">◆</span> Route</span><span class="mono" style="color: var(--text-2)">UNSURE · shipping 0.46</span><span class="mono" style="color: var(--text-3)">b20c</span>
+                </div>
+                <div class="row" style="grid-template-columns: 64px 26px 132px minmax(0, 1fr) 44px">
+                  <span class="mono num" style="color: var(--text-3)">13:23:58</span><span style="color: var(--text-3)">↓</span><span class="mono">SupportTicket</span><span style="color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Something odd with my account</span><span class="mono" style="color: var(--text-3)">b20c</span>
+                </div>
+                <div class="row" style="grid-template-columns: 64px 26px 132px minmax(0, 1fr) 44px">
+                  <span class="mono num" style="color: var(--text-3)">13:23:57</span><span style="color: var(--text-3)">↑</span><span class="mono"><span style="color: var(--sure-ink)">◆</span> Route</span><span class="mono" style="color: var(--text-2)">billing · 0.91</span><span class="mono" style="color: var(--text-3)">71d2</span>
+                </div>
+                <a href="Focus.dc.html" style="margin-top: 10px; font-size: 12px; text-decoration: none">Open full history in focus →</a>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{isRuns}}" hint-placeholder-val="{{false}}">
+              <div style="display: flex; flex-direction: column">
+                <div class="row label" style="grid-template-columns: 70px 74px 64px minmax(0, 1fr); height: 26px">
+                  <span>Run</span><span>Started</span><span>Took</span><span>Result</span>
+                </div>
+                <div class="row" style="grid-template-columns: 70px 74px 64px minmax(0, 1fr)">
+                  <span class="mono" style="color: var(--text-2)">5a1f02</span><span class="mono num" style="color: var(--text-3)">13:24:42</span><span class="mono num" style="color: var(--signal-ink)">0.4 s…</span><span style="display: flex; align-items: center; gap: 6px; color: var(--signal-ink)"><span class="sdot run" style="width: 6px; height: 6px"></span>running</span>
+                </div>
+                <div class="row" style="grid-template-columns: 70px 74px 64px minmax(0, 1fr)">
+                  <span class="mono" style="color: var(--text-2)">9c3450</span><span class="mono num" style="color: var(--text-3)">13:24:41</span><span class="mono num">61 ms</span><span class="mono"><span style="color: var(--sure-ink)">◆</span> billing <span style="color: var(--text-3)">0.93</span></span>
+                </div>
+                <div class="row" style="grid-template-columns: 70px 74px 64px minmax(0, 1fr)">
+                  <span class="mono" style="color: var(--text-2)">b20c19</span><span class="mono num" style="color: var(--text-3)">13:23:58</span><span class="mono num">58 ms</span><span class="mono" style="color: var(--text-2)">UNSURE <span style="color: var(--text-3)">best shipping 0.46</span></span>
+                </div>
+                <div class="row" style="grid-template-columns: 70px 74px 64px minmax(0, 1fr)">
+                  <span class="mono" style="color: var(--text-2)">71d2e8</span><span class="mono num" style="color: var(--text-3)">13:23:57</span><span class="mono num">52 ms</span><span class="mono"><span style="color: var(--sure-ink)">◆</span> billing <span style="color: var(--text-3)">0.91</span></span>
+                </div>
+                <div class="row" style="grid-template-columns: 70px 74px 64px minmax(0, 1fr)">
+                  <span class="mono" style="color: var(--text-2)">4e7b33</span><span class="mono num" style="color: var(--text-3)">13:23:57</span><span class="mono num">55 ms</span><span class="mono" style="color: var(--text-2)">UNSURE <span style="color: var(--text-3)">best shipping 0.52</span></span>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{isTraces}}" hint-placeholder-val="{{false}}">
+              <div style="display: flex; flex-direction: column; gap: 10px">
+                <div style="display: flex; align-items: baseline; gap: 10px">
+                  <span class="label">Run 9c3450 · 61 ms</span>
+                  <span class="mono" style="margin-left: auto; font-size: 11px; color: var(--text-3)">0 ms</span>
+                  <span class="mono" style="font-size: 11px; color: var(--text-3)">61 ms</span>
+                </div>
+                <div style="display: grid; grid-template-columns: 210px minmax(0, 1fr) 48px; align-items: center; gap: 8px 10px; font-size: 12px">
+                  <span class="mono">Agent.execute</span>
+                  <div style="position: relative; height: 14px"><div style="position: absolute; left: 0; width: 100%; top: 3px; height: 8px; border-radius: 3px; background: var(--text-2)"></div></div>
+                  <span class="mono num" style="text-align: right; color: var(--text-2)">61 ms</span>
+                  <span class="mono" style="padding-left: 14px; color: var(--text-2)">decide · azure/decision-1</span>
+                  <div style="position: relative; height: 14px"><div style="position: absolute; left: 8%; width: 77%; top: 3px; height: 8px; border-radius: 3px; background: var(--sure)"></div></div>
+                  <span class="mono num" style="text-align: right; color: var(--text-2)">47 ms</span>
+                  <span class="mono" style="padding-left: 14px; color: var(--text-2)">Flock.publish</span>
+                  <div style="position: relative; height: 14px"><div style="position: absolute; left: 89%; width: 6%; top: 3px; height: 8px; border-radius: 3px; background: var(--text-3)"></div></div>
+                  <span class="mono num" style="text-align: right; color: var(--text-2)">3 ms</span>
+                </div>
+                <a href="Dock.dc.html" style="margin-top: 4px; font-size: 12px; text-decoration: none">All traces in the timeline dock →</a>
+              </div>
+            </sc-if>
+          </div>
+          <span class="handle" style="left: -5px; top: 71px"></span>
+          <span class="handle" style="right: -5px; top: 71px"></span>
+          <span class="handle" style="left: 463px; bottom: -5px"></span>
+        </div>
+
+        <div class="node" style="left: 292px; top: 572px; width: 260px; padding: 12px 14px 12px">
+          <div style="display: flex; align-items: center; gap: 8px">
+            <span class="sdot"></span>
+            <span style="font-weight: 600; font-size: 13.5px">urgency</span>
+            <span class="tag mono" style="margin-left: auto"><span style="color: var(--sure-ink)">◆</span> Urgent</span>
+          </div>
+          <div style="margin-top: 8px">
+            <div class="port"><span class="pdir">in</span><span class="mono ptype">SupportTicket</span><span class="mono num pcount">8</span></div>
+          </div>
+          <div style="margin-top: 6px; display: flex; flex-direction: column; gap: 6px">
+            <div class="track" style="height: 8px; border-radius: 4px">
+              <div style="width: 37.5%; background: var(--sure)"></div>
+              <div class="hatch" style="width: 25%"></div>
+              <div style="width: 37.5%; background: var(--text-3); opacity: .55"></div>
+            </div>
+            <div class="mono num" style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-2)">
+              <span>yes 3</span><span>UNSURE 2</span><span>no 3</span>
+            </div>
+          </div>
+          <span class="handle" style="left: -5px; top: 55px"></span>
+          <span class="handle" style="right: -5px; top: 55px"></span>
+        </div>
+
+        <div class="node" style="left: 640px; top: 572px; width: 240px; padding: 12px 14px 10px">
+          <div style="display: flex; align-items: center; gap: 8px">
+            <span class="sdot"></span>
+            <span style="font-weight: 600; font-size: 13.5px">pager</span>
+            <span class="tag" style="margin-left: auto">LLM</span>
+          </div>
+          <div style="margin-top: 8px; display: flex; align-items: stretch; gap: 0">
+            <div style="flex: 1 1 0; min-width: 0">
+              <div class="port"><span class="pdir">in</span><span class="mono ptype"><span style="color: var(--sure-ink)">◆</span> Route.tech</span><span class="mono num pcount">1</span></div>
+              <div class="port"><span class="pdir" style="font-size: 9.5px">and</span><span class="mono ptype"><span style="color: var(--sure-ink)">◆</span> Urgent.yes</span><span class="mono num pcount">1</span></div>
+              <div class="port"><span class="pdir">out</span><span class="mono ptype">Page</span><span class="mono num pcount">1</span></div>
+            </div>
+          </div>
+          <span class="handle" style="left: 115px; top: -5px"></span>
+          <span class="handle" style="left: -5px; top: 55px"></span>
+        </div>
+
+        <div class="node" style="left: 1000px; top: 36px; width: 240px; padding: 12px 14px 10px; border-color: color-mix(in srgb, var(--signal) 55%, transparent)">
+          <div style="display: flex; align-items: center; gap: 8px">
+            <span class="sdot run"></span>
+            <span style="font-weight: 600; font-size: 13.5px">billing_team</span>
+            <span class="tag" style="margin-left: auto">LLM</span>
+          </div>
+          <div style="margin-top: 8px">
+            <div class="port"><span class="pdir">in</span><span class="mono ptype"><span style="color: var(--sure-ink)">◆</span> Route.billing</span><span class="mono num pcount">3</span></div>
+            <div class="port"><span class="pdir">out</span><span class="mono ptype">TeamReply</span><span class="mono num pcount">2</span></div>
+          </div>
+          <div class="mono" style="margin-top: 6px; padding: 6px 8px; border-radius: 6px; background: var(--signal-soft); font-size: 11px; color: var(--signal-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis">…we have issued the refund for<span class="caret">▍</span></div>
+          <span class="handle" style="left: -5px; top: 55px"></span>
+        </div>
+
+        <div class="node" style="left: 1000px; top: 172px; width: 240px; padding: 12px 14px 10px">
+          <div style="display: flex; align-items: center; gap: 8px">
+            <span class="sdot"></span>
+            <span style="font-weight: 600; font-size: 13.5px">shipping_team</span>
+            <span class="tag" style="margin-left: auto">LLM</span>
+          </div>
+          <div style="margin-top: 8px">
+            <div class="port"><span class="pdir">in</span><span class="mono ptype"><span style="color: var(--sure-ink)">◆</span> Route.shipping</span><span class="mono num pcount">1</span></div>
+            <div class="port"><span class="pdir">out</span><span class="mono ptype">TeamReply</span><span class="mono num pcount">1</span></div>
+          </div>
+          <span class="handle" style="left: -5px; top: 55px"></span>
+        </div>
+
+        <div class="node" style="left: 1000px; top: 308px; width: 240px; padding: 12px 14px 10px">
+          <div style="display: flex; align-items: center; gap: 8px">
+            <span class="sdot"></span>
+            <span style="font-weight: 600; font-size: 13.5px">tech_support</span>
+            <span class="tag" style="margin-left: auto">LLM</span>
+          </div>
+          <div style="margin-top: 8px">
+            <div class="port"><span class="pdir">in</span><span class="mono ptype"><span style="color: var(--sure-ink)">◆</span> Route.tech</span><span class="mono num pcount">1</span></div>
+            <div class="port"><span class="pdir">out</span><span class="mono ptype">TeamReply</span><span class="mono num pcount">1</span></div>
+          </div>
+          <span class="handle" style="left: -5px; top: 55px"></span>
+        </div>
+
+        <div class="node" style="left: 1000px; top: 444px; width: 240px; padding: 12px 14px 10px">
+          <div style="display: flex; align-items: center; gap: 8px">
+            <span class="sdot"></span>
+            <span style="font-weight: 600; font-size: 13.5px">supervisor</span>
+            <span class="tag" style="margin-left: auto">LLM</span>
+          </div>
+          <div style="margin-top: 8px">
+            <div class="port"><span class="pdir">in</span><span class="mono ptype" style="color: var(--text-2)">Route.UNSURE</span><span class="mono num pcount">2</span></div>
+            <div class="port"><span class="pdir">out</span><span class="mono ptype">TeamReply</span><span class="mono num pcount">2</span></div>
+          </div>
+          <span class="handle" style="left: -5px; top: 55px"></span>
+        </div>
+      </div>
+    </div>
+
+    <div aria-label="Minimap" style="position: absolute; top: 16px; right: 16px; width: 168px; height: 100px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); overflow: hidden">
+      <div style="position: absolute; left: 10px; top: 46px; width: 22px; height: 10px; border-radius: 2px; background: var(--text-3); opacity: .6"></div>
+      <div style="position: absolute; left: 41px; top: 12px; width: 62px; height: 52px; border-radius: 3px; background: var(--signal); opacity: .55"></div>
+      <div style="position: absolute; left: 41px; top: 72px; width: 28px; height: 15px; border-radius: 2px; background: var(--text-3); opacity: .6"></div>
+      <div style="position: absolute; left: 79px; top: 72px; width: 27px; height: 15px; border-radius: 2px; background: var(--text-3); opacity: .6"></div>
+      <div style="position: absolute; left: 116px; top: 9px; width: 27px; height: 12px; border-radius: 2px; background: var(--signal); opacity: .55"></div>
+      <div style="position: absolute; left: 116px; top: 26px; width: 27px; height: 12px; border-radius: 2px; background: var(--text-3); opacity: .6"></div>
+      <div style="position: absolute; left: 116px; top: 43px; width: 27px; height: 12px; border-radius: 2px; background: var(--text-3); opacity: .6"></div>
+      <div style="position: absolute; left: 116px; top: 60px; width: 27px; height: 12px; border-radius: 2px; background: var(--text-3); opacity: .6"></div>
+      <div style="position: absolute; left: 4px; top: 4px; right: 4px; bottom: 4px; border-radius: 6px; border: 1px solid var(--line-2)"></div>
+    </div>
+
+    <div role="toolbar" aria-label="Canvas" style="position: absolute; left: 16px; bottom: 16px; display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line-2); box-shadow: var(--shadow)">
+      <button type="button" class="btn icon ghost" aria-label="Zoom out"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"></path></svg></button>
+      <span class="mono num" style="width: 44px; text-align: center; font-size: 12px; color: var(--text-2)">100%</span>
+      <button type="button" class="btn icon ghost" aria-label="Zoom in"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+      <span style="width: 1px; height: 20px; background: var(--line-2); margin: 0 4px"></span>
+      <button type="button" class="btn icon ghost" aria-label="Fit to screen"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path><rect x="9" y="9" width="6" height="6" rx="1"></rect></svg></button>
+      <button type="button" class="btn ghost" style="height: 32px; padding: 0 10px; font-size: 12px">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="6" height="5" rx="1"></rect><rect x="3" y="15" width="6" height="5" rx="1"></rect><rect x="15" y="9.5" width="6" height="5" rx="1"></rect><path d="M9 6.5h2.5a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5H9M13 12h2"></path></svg>
+        <span>Hierarchical</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+      </button>
+      <button type="button" class="btn ghost" aria-pressed="true" style="height: 32px; padding: 0 10px; font-size: 12px; gap: 8px">
+        <span style="position: relative; width: 26px; height: 16px; border-radius: 8px; background: var(--text-2)"><span style="position: absolute; right: 2px; top: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--surface)"></span></span>
+        <span>Auto-arrange</span>
+      </button>
+    </div>
+  </div>
+
+  <footer aria-label="Timeline" style="flex: none; height: 76px; display: flex; align-items: stretch; border-top: 1px solid var(--line); background: var(--bg)">
+    <div style="flex: none; width: 196px; display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 0 16px; border-right: 1px solid var(--line)">
+      <span style="font-size: 12px; font-weight: 600">Activity</span>
+      <span class="mono num" style="font-size: 11px; color: var(--text-3)">30 artifacts · 15 min</span>
+    </div>
+    <div style="flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 0 16px">
+      <div style="position: relative; height: 36px; display: flex; align-items: flex-end; gap: 2px">
+        <sc-for list="{{bars}}" as="b" hint-placeholder-count="60">
+          <div class="{{b.cls}}"></div>
+        </sc-for>
+        <div aria-hidden="true" style="position: absolute; left: 33.3%; right: 0; top: -4px; bottom: -2px; border-left: 2px solid var(--text-2); border-radius: 2px; background: color-mix(in srgb, var(--text) 5%, transparent)"></div>
+        <div aria-hidden="true" style="position: absolute; right: -2px; top: -6px; bottom: -2px; width: 2px; border-radius: 1px; background: var(--signal)"></div>
+      </div>
+      <div class="mono num" style="display: flex; justify-content: space-between; font-size: 10.5px; color: var(--text-3)">
+        <span>13:10</span><span>13:13</span><span>13:16</span><span>13:19</span><span>13:22</span><span style="color: var(--signal-ink)">now</span>
+      </div>
+    </div>
+    <div style="flex: none; display: flex; align-items: center; gap: 6px; padding: 0 16px; border-left: 1px solid var(--line)">
+      <a href="Dock.dc.html" class="btn ghost" style="height: 32px">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1M3.5 4.5v4h4"></path><path d="M12 8v4l2.5 1.5"></path></svg>
+        <span>History</span>
+      </a>
+      <a href="Dock.dc.html" class="btn ghost" style="height: 32px">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 6h9M8 12h11M6 18h6"></path></svg>
+        <span>Traces</span>
+      </a>
+      <a href="Dock.dc.html" class="btn icon ghost" aria-label="Expand timeline dock">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 15l6-6 6 6"></path></svg>
+      </a>
+    </div>
+  </footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["graphite","paper"],"default":"graphite"},"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const tab = (this.state && this.state.tab) || 'overview';
+    const defs = [['overview', 'Overview', ''], ['live', 'Live', ''], ['history', 'History', '15'], ['runs', 'Runs', '8'], ['traces', 'Traces', '']];
+    const heights = [0,0,1,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,0,2,4,3,1,0,0,0,0,1,0,0,0,0,0,0,0,2,5,7,6,3,2,1,0,0,1,0,3,6,9,8,5,3,2,4,6,5,3,2,1];
+    return {
+      theme: this.props.theme ?? 'graphite',
+      tabs: defs.map(([id, label, count]) => ({
+        id, label, count,
+        hasCount: count !== '',
+        cls: id === tab ? 'tab is-on' : 'tab',
+        selected: id === tab ? 'true' : 'false',
+        pick: () => this.setState({ tab: id })
+      })),
+      isOverview: tab === 'overview',
+      isLive: tab === 'live',
+      isHistory: tab === 'history',
+      isRuns: tab === 'runs',
+      isTraces: tab === 'traces',
+      bars: heights.map((h, i) => ({ cls: 'bar h' + h + (i >= 20 ? ' on' : '') }))
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -163,12 +163,11 @@ This works for:
 Silent mode suppresses decorative output but not logging. Configure logging for production visibility:
 
 ```python
-import logging
 from flock import Flock
 from flock.logging.logging import configure_logging
 
-# Enable structured logging
-configure_logging(level=logging.INFO)
+# Flock logs warnings by default; INFO shows more
+configure_logging(flock_level="INFO", external_level="WARNING")
 
 # Suppress decorative output
 flock = Flock("openai/gpt-4.1", no_output=True)
@@ -180,14 +179,14 @@ flock = Flock("openai/gpt-4.1", no_output=True)
 ### Recommended Production Configuration
 
 ```python
-import logging
 import os
 from flock import Flock
 from flock.logging.logging import configure_logging
 
-# Production settings
+# Production settings (or set FLOCK_LOG_LEVEL instead)
 configure_logging(
-    level=logging.INFO if os.getenv("DEBUG") else logging.WARNING
+    flock_level="INFO" if os.getenv("DEBUG") else "WARNING",
+    external_level="WARNING",
 )
 
 flock = Flock(
