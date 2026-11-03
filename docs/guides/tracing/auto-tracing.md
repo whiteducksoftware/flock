@@ -41,14 +41,32 @@ Traces are stored in a DuckDB database, which provides:
 - ✅ SQL analytics for debugging and monitoring
 - ✅ Efficient columnar storage
 
-### Export to Grafana/Jaeger (OTLP)
+### Export over OTLP (gRPC or HTTP)
 
 ```bash
-# Send traces to OTLP endpoint (Grafana, Jaeger, etc.)
+# Send traces to an OTLP endpoint over gRPC (Grafana, Jaeger, etc.)
 export FLOCK_AUTO_TRACE=true
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
 python your_agent.py
 ```
+
+Some tools take OTLP over HTTP only, among them Langfuse, Opik and MLflow. Choose HTTP with the
+protocol variable; Flock appends `/v1/traces` to the base endpoint, as the OpenTelemetry spec says:
+
+```bash
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+export OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Basic%20<base64 credentials>"   # if the tool needs it
+python your_agent.py
+```
+
+| Variable | Meaning |
+|---|---|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Base endpoint; setting it switches OTLP export on |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | Full traces endpoint, used as given (wins over the base endpoint, also switches export on) |
+| `OTEL_EXPORTER_OTLP_PROTOCOL` | `grpc` (default) or `http/protobuf`; `http/json` falls back to `http/protobuf` with a warning |
+| `OTEL_EXPORTER_OTLP_TRACES_PROTOCOL` | The same for traces only (wins over the general one) |
+| `OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_EXPORTER_OTLP_TRACES_HEADERS` | Headers as `key=value` pairs, comma-separated and URL-encoded, for example authentication |
 
 ### Disable Auto-Tracing
 
@@ -272,6 +290,7 @@ Every traced method automatically captures:
 | `agent.name` | Agent identifier (if applicable) | `movie`, `tagline` |
 | `agent.description` | Agent description | `Generate movie ideas` |
 | `correlation_id` | Request correlation ID | `12d0fcda-e7f7-4c96-ae8e-14ae4eca1518` |
+| `session.id`, `gen_ai.conversation.id` | The run's correlation ID again, under the names observability tools group by: Langfuse sessions read `session.id`, Opik threads `gen_ai.conversation.id` | `12d0fcda-e7f7-4c96-ae8e-14ae4eca1518` |
 | `task_id` | Task identifier | `task_abc123` |
 | `input.<parameter>` | Each argument as JSON, within `FLOCK_TRACE_MAX_ATTRIBUTE_BYTES` | `{"artifact": "app.Reply", "id": "...", "produced_by": "support", "payload": {...}}` |
 | `output.value` | The return value as JSON, within `FLOCK_TRACE_MAX_ATTRIBUTE_BYTES` | `[{"artifact": "app.Reply", ...}]` |
@@ -290,12 +309,40 @@ Flock.publish (trace_id: ae40f0061e3f1bcfebe169191d138078)
     ├── Agent.on_pre_evaluate
     ├── Agent.evaluate
     │   └── DSPyEngine.evaluate
+    │       └── LM.chat                     (one per model call)
     ├── Agent.on_post_evaluate
     ├── Agent.on_post_publish
     └── Agent.on_terminate
 ```
 
 All spans within the same execution share the same `trace_id`, making it easy to trace a complete request flow.
+
+### Model calls: GenAI spans
+
+Every model call of the DSPy engine gets a span of its own, `LM.chat`, in the
+[OpenTelemetry GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/).
+Observability tools such as Langfuse, Opik and Phoenix show these spans as model calls with their
+model and tokens; Flock's own totals per run stay on `Agent.execute` as `flock.usage.tokens` and
+`flock.usage.cost_usd`.
+
+| Attribute | Description | Example |
+|-----------|-------------|---------|
+| `gen_ai.operation.name` | Always `chat` | `chat` |
+| `gen_ai.provider.name` | Provider, from the LiteLLM model name | `azure.ai.openai`, `openai`, `anthropic` |
+| `gen_ai.request.model` | Model as configured | `azure/gpt-4.1` |
+| `gen_ai.response.model` | Model that answered | `gpt-4.1-2025-04-14` |
+| `gen_ai.agent.name` | The Flock agent that made the call | `writer` |
+| `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens` | Tokens of this call, streamed calls included | `566`, `162` |
+| `gen_ai.request.temperature`, `gen_ai.request.max_tokens`, `gen_ai.request.top_p` | Request parameters, when set | `0.2`, `32000` |
+| `gen_ai.response.id`, `gen_ai.response.finish_reasons` | Response ID and finish reasons | `chatcmpl-...`, `["stop"]` |
+
+Message content stays off the spans unless you ask for it, as the conventions recommend:
+`OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true` adds `gen_ai.input.messages` and
+`gen_ai.output.messages` in the conventions' message schema (a role and typed parts, with each
+output's finish reason), each within `FLOCK_TRACE_MAX_ATTRIBUTE_BYTES`. To leave the spans out,
+add `LM.chat` to `FLOCK_TRACE_IGNORE`; with `FLOCK_TRACE_SERVICES`, add `lm` to keep them.
+
+Model-call spans carry their agent run's `correlation_id`, `session.id` and `gen_ai.conversation.id` too, so a session or thread in those tools adds up the run's tokens. `Flock.publish` takes the run from the artifact it publishes, since it creates the correlation itself. `Flock.run_until_idle` covers every run at once and carries none.
 
 ## Console Output
 

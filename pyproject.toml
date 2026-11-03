@@ -1,12 +1,12 @@
 [project]
 name = "flock-core"
-version = "0.5.821"
-description = "Flock: A declrative framework for building and orchestrating AI agents."
+version = "0.5.822"
+description = "Flock: A declarative framework for building and orchestrating AI agents."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
  "dspy==3.2.1",
- "litellm==1.96.2",
+ "litellm==1.100.4",
  "fastapi==0.143.0",
  "httpx==0.28.1",
  "aiosqlite==0.21.0",
